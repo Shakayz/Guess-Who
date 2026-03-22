@@ -13,6 +13,7 @@
   "dependencies": {
     "@imposter/shared": "workspace:*",
     "@imposter/ui": "workspace:*",
+    "@react-oauth/google": "^0.13.4",
     "@tanstack/react-query": "^5.0.0",
     "i18next": "^23.0.0",
     "i18next-browser-languagedetector": "^7.0.0",

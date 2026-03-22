@@ -12,8 +12,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
+import * as AppleAuthentication from 'expo-apple-authentication'
+import * as WebBrowser from 'expo-web-browser'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
+
+WebBrowser.maybeCompleteAuthSession()
 
 type Mode = 'signin' | 'signup'
 
@@ -52,6 +56,34 @@ export default function AuthScreen() {
     }
   }
 
+  const handleApple = async () => {
+    setError(null)
+    setLoading(true)
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      })
+      const name = credential.fullName
+        ? `${credential.fullName.givenName ?? ''} ${credential.fullName.familyName ?? ''}`.trim()
+        : undefined
+      const data = await api.post<{ token: string; user: { id: string; username: string; email: string } }>(
+        '/auth/apple/verify',
+        { identityToken: credential.identityToken, name },
+      )
+      setAuth(data.token, data.user)
+      router.replace('/')
+    } catch (err: any) {
+      if (err.code !== 'ERR_REQUEST_CANCELED') {
+        setError(err.message ?? 'Apple sign-in failed')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-neutral-950">
       <KeyboardAvoidingView
@@ -72,6 +104,32 @@ export default function AuthScreen() {
                 </View>
                 <Text className="text-3xl font-extrabold text-white tracking-tight">Imposter Game</Text>
                 <Text className="text-neutral-500 text-sm mt-1.5">Deceive. Detect. Dominate.</Text>
+              </View>
+
+              {/* OAuth buttons */}
+              <View className="gap-3 mb-5">
+                <AppleAuthentication.AppleAuthenticationButton
+                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                  cornerRadius={12}
+                  style={{ width: '100%', height: 48 }}
+                  onPress={handleApple}
+                />
+                <TouchableOpacity
+                  onPress={() => setError('Google sign-in: configure VITE_GOOGLE_CLIENT_ID')}
+                  className="flex-row items-center justify-center gap-3 py-3 rounded-xl bg-white border border-neutral-200"
+                  activeOpacity={0.8}
+                >
+                  <Text className="text-2xl">G</Text>
+                  <Text className="text-neutral-900 font-semibold text-sm">Continue with Google</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Divider */}
+              <View className="flex-row items-center gap-3 mb-5">
+                <View className="flex-1 h-px bg-neutral-800" />
+                <Text className="text-neutral-600 text-xs font-medium">or</Text>
+                <View className="flex-1 h-px bg-neutral-800" />
               </View>
 
               {/* Card */}

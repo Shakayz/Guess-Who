@@ -6,6 +6,7 @@ import rateLimit from '@fastify/rate-limit'
 import { Server as SocketServer } from 'socket.io'
 import { env } from './config/env'
 import { authRoutes } from './routes/auth'
+import { oauthRoutes } from './routes/oauth'
 import { roomRoutes } from './routes/rooms'
 import { userRoutes } from './routes/users'
 import { shopRoutes } from './routes/shop'
@@ -41,6 +42,7 @@ export async function buildApp() {
 
   // Routes
   await app.register(authRoutes, { prefix: '/api/auth' })
+  await app.register(oauthRoutes, { prefix: '/api/auth' })
   await app.register(roomRoutes, { prefix: '/api/rooms' })
   await app.register(userRoutes, { prefix: '/api/users' })
   await app.register(shopRoutes, { prefix: '/api/shop' })
