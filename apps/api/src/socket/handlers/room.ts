@@ -68,6 +68,8 @@ export function registerRoomHandlers(
           wordPackId: room.wordPackId,
           isPrivate: room.isPrivate,
           language: room.language as any,
+          gameMode: state.gameMode ?? 'normal',
+          categories: state.categories ?? [],
         },
       }
       io.to(`room:${room.id}`).emit('room:updated', roomPayload as any)
@@ -75,6 +77,35 @@ export function registerRoomHandlers(
       console.error('room:join error', err)
       socket.emit('error', { code: 'INTERNAL', message: 'Server error' })
     }
+  })
+
+  socket.on('room:settings' as any, async (newSettings: any) => {
+    const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+    if (!roomKey) return
+    const roomId = roomKey.split(':')[1]
+    const room = await prisma.room.findUnique({ where: { id: roomId } })
+    if (!room || room.hostId !== userId) return
+
+    const stateRaw = await redis.get(`room:${roomId}:state`)
+    if (!stateRaw) return
+    const state = JSON.parse(stateRaw)
+    // Merge allowed settings fields
+    if (newSettings.gameMode)   state.gameMode = newSettings.gameMode
+    if (newSettings.categories) state.categories = newSettings.categories
+    await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+
+    const roomPayload = {
+      id: room.id, code: room.code, hostId: room.hostId,
+      status: state.status, players: state.players,
+      currentRound: 0, maxRounds: 5, createdAt: room.createdAt.toISOString(),
+      settings: {
+        maxPlayers: room.maxPlayers, minPlayers: 4, imposterCount: room.imposterCount,
+        speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
+        wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
+        gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
+      },
+    }
+    io.to(`room:${roomId}`).emit('room:updated', roomPayload as any)
   })
 
   socket.on('player:ready', async (isReady) => {
@@ -129,11 +160,19 @@ export function registerRoomHandlers(
       const imposterCount = Math.min(room.imposterCount, Math.floor(players.length / 3))
       players.forEach((p, i) => { p.role = i < imposterCount ? 'imposter' : 'villager' })
 
-      // Pick words — try DB first, fall back to built-in list
+      // Pick words — filter by categories for normal mode, all for ranked
+      const gameMode: string = state.gameMode ?? 'normal'
+      const selectedCategories: string[] = state.categories ?? []
       let wordPair = FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)]
       try {
         const pack = await prisma.wordPack.findFirst({
-          include: { pairs: true },
+          include: {
+            pairs: {
+              where: gameMode === 'ranked' || selectedCategories.length === 0
+                ? {}
+                : { category: { in: selectedCategories } },
+            },
+          },
           where: { isPremium: false },
         })
         if (pack && pack.pairs.length > 0) {

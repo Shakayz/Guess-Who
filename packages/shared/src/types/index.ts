@@ -62,6 +62,25 @@ export interface Room {
   createdAt: string
 }
 
+export type GameMode = 'normal' | 'ranked'
+
+export const WORD_CATEGORIES = [
+  { key: 'food',      label: 'Food',       icon: '🍕' },
+  { key: 'animals',   label: 'Animals',    icon: '🐾' },
+  { key: 'music',     label: 'Music',      icon: '🎵' },
+  { key: 'nature',    label: 'Nature',     icon: '🌿' },
+  { key: 'drinks',    label: 'Drinks',     icon: '☕' },
+  { key: 'places',    label: 'Places',     icon: '📍' },
+  { key: 'transport', label: 'Transport',  icon: '🚀' },
+  { key: 'jobs',      label: 'Jobs',       icon: '💼' },
+  { key: 'sports',    label: 'Sports',     icon: '⚽' },
+  { key: 'movies',    label: 'Movies',     icon: '🎬' },
+  { key: 'tech',      label: 'Tech',       icon: '💻' },
+  { key: 'history',   label: 'History',    icon: '📜' },
+] as const
+
+export type WordCategory = typeof WORD_CATEGORIES[number]['key']
+
 export interface RoomSettings {
   maxPlayers: number
   minPlayers: number
@@ -71,6 +90,8 @@ export interface RoomSettings {
   wordPackId: string
   isPrivate: boolean
   language: Locale
+  gameMode: GameMode
+  categories: WordCategory[]   // empty = all (used in ranked)
 }
 
 // ─── Player ──────────────────────────────────────────────────────────────────

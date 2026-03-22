@@ -1,13 +1,31 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
 import { getSocket } from '../lib/socket'
-import { Avatar, PlayerCard } from '@imposter/ui'
+import { Avatar } from '@imposter/ui'
 import type { Clue } from '@imposter/shared'
 
 type Phase = 'speaking' | 'voting' | 'reveal'
+
+function CountdownBar({ seconds, total, color }: { seconds: number; total: number; color: string }) {
+  const pct = Math.max(0, (seconds / total) * 100)
+  const urgent = seconds <= 10
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+        <div
+          className={['h-full rounded-full transition-all duration-1000', color, urgent ? 'animate-pulse' : ''].join(' ')}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className={['text-xs font-mono font-semibold tabular-nums w-8 text-right', urgent ? 'text-red-400' : 'text-neutral-400'].join(' ')}>
+        {seconds}s
+      </span>
+    </div>
+  )
+}
 
 export default function GamePage() {
   const { code } = useParams<{ code: string }>()
@@ -22,7 +40,22 @@ export default function GamePage() {
   const [votedFor, setVotedFor] = useState<string | null>(null)
   const [eliminated, setEliminated] = useState<{ username: string; role: string } | null>(null)
   const [hasSubmittedClue, setHasSubmittedClue] = useState(false)
+  const [timeLeft, setTimeLeft] = useState(0)
+  const [totalTime, setTotalTime] = useState(30)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
+
+  const startTimer = useCallback((seconds: number) => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    setTotalTime(seconds)
+    setTimeLeft(seconds)
+    timerRef.current = setInterval(() => {
+      setTimeLeft((t) => {
+        if (t <= 1) { clearInterval(timerRef.current!); return 0 }
+        return t - 1
+      })
+    }, 1000)
+  }, [])
 
   const isImposter = myRole === 'imposter' || myRole === 'double_agent'
   const players = room?.players ?? []
@@ -31,7 +64,11 @@ export default function GamePage() {
     const socket = getSocket()
 
     socket.on('round:clue-submitted', (clue) => setClues((c) => [...c, clue as Clue]))
-    socket.on('round:voting-started', () => setPhase('voting'))
+    socket.on('round:speaking-turn', ({ timeSeconds }) => startTimer(timeSeconds))
+    socket.on('round:voting-started', ({ timeSeconds }) => {
+      setPhase('voting')
+      startTimer(timeSeconds ?? 30)
+    })
     socket.on('round:ended', ({ round }) => {
       setPhase('reveal')
       if (round?.eliminatedPlayer) {
@@ -49,12 +86,14 @@ export default function GamePage() {
 
     return () => {
       socket.off('round:clue-submitted')
+      socket.off('round:speaking-turn')
       socket.off('round:voting-started')
       socket.off('round:ended')
       socket.off('game:finished')
       socket.off('chat:message')
+      if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [])
+  }, [startTimer])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -89,28 +128,37 @@ export default function GamePage() {
       <div className="flex-1 flex flex-col p-4 lg:p-6 gap-4 overflow-y-auto">
 
         {/* Top bar */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-extrabold tracking-tight text-white">Imposter</span>
-            {code && (
-              <span className="text-xs font-mono text-neutral-500 border border-neutral-800 rounded px-2 py-0.5">
-                {code}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-extrabold tracking-tight text-white">Imposter</span>
+              {code && (
+                <span className="text-xs font-mono text-neutral-500 border border-neutral-800 rounded px-2 py-0.5">
+                  {code}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={[
+                'text-xs font-semibold px-2.5 py-1 rounded-full',
+                phase === 'speaking' ? 'bg-brand-950/60 text-brand-400 border border-brand-800/40' :
+                phase === 'voting'   ? 'bg-amber-950/60 text-amber-400 border border-amber-800/40' :
+                                       'bg-neutral-800 text-neutral-400 border border-neutral-700',
+              ].join(' ')}>
+                {phase === 'speaking' ? '💬 Speaking' : phase === 'voting' ? '🗳 Voting' : '📋 Reveal'}
               </span>
-            )}
+              <span className="text-xs text-neutral-500">
+                {alivePlayers.length} alive
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className={[
-              'text-xs font-semibold px-2.5 py-1 rounded-full',
-              phase === 'speaking' ? 'bg-brand-950/60 text-brand-400 border border-brand-800/40' :
-              phase === 'voting'   ? 'bg-amber-950/60 text-amber-400 border border-amber-800/40' :
-                                     'bg-neutral-800 text-neutral-400 border border-neutral-700',
-            ].join(' ')}>
-              {phase === 'speaking' ? '💬 Speaking' : phase === 'voting' ? '🗳 Voting' : '📋 Reveal'}
-            </span>
-            <span className="text-xs text-neutral-500">
-              {alivePlayers.length} alive
-            </span>
-          </div>
+          {timeLeft > 0 && (
+            <CountdownBar
+              seconds={timeLeft}
+              total={totalTime}
+              color={phase === 'voting' ? 'bg-amber-500' : 'bg-brand-500'}
+            />
+          )}
         </div>
 
         {/* Role + Word card */}

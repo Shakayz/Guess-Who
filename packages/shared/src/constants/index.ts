@@ -23,6 +23,8 @@ export const DEFAULT_ROOM_SETTINGS = {
   wordPackId: 'default',
   isPrivate: false,
   language: 'en',
+  gameMode: 'normal',
+  categories: [],
 } as const
 
 export const COIN_REWARDS = {
