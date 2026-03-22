@@ -71,10 +71,11 @@ export default function GamePage() {
     })
     socket.on('round:ended', ({ round }) => {
       setPhase('reveal')
-      if (round?.eliminatedPlayer) {
+      if (round?.eliminatedPlayerId) {
+        const elim = players.find((p) => p.userId === round.eliminatedPlayerId)
         setEliminated({
-          username: round.eliminatedPlayer.username,
-          role: round.eliminatedPlayer.role,
+          username: elim?.username ?? round.eliminatedPlayerId,
+          role: round.eliminatedRole ?? 'villager',
         })
       }
     })
@@ -304,7 +305,7 @@ export default function GamePage() {
         {/* Clues log */}
         <div className="card flex-1">
           <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
-            Clues — Round {currentRound?.number ?? 1}
+            Clues — Round {currentRound?.roundNumber ?? 1}
           </p>
           {clues.length === 0 ? (
             <p className="text-neutral-600 text-sm italic">No clues yet...</p>
