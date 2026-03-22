@@ -12,6 +12,10 @@ import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
+import { WORD_CATEGORIES } from '@imposter/shared'
+import type { WordCategory } from '@imposter/shared'
+
+type GameMode = 'normal' | 'ranked' | 'lobby'
 
 const HOW_TO_PLAY = [
   { icon: '🎭', title: 'Get your role', desc: 'Villager or Imposter — each gets a different word.' },
@@ -20,25 +24,48 @@ const HOW_TO_PLAY = [
   { icon: '🏆', title: 'Win', desc: 'Villagers win if all imposters are eliminated.' },
 ]
 
+const MODES: { id: GameMode; icon: string; label: string; desc: string }[] = [
+  { id: 'normal', icon: '🎮', label: 'Normal', desc: 'Play for fun — no LP at stake' },
+  { id: 'ranked', icon: '🏆', label: 'Ranked', desc: 'All categories · affects LP' },
+  { id: 'lobby',  icon: '🚪', label: 'Create Lobby', desc: 'Invite friends with a code' },
+]
+
 export default function HomeScreen() {
   const { t } = useTranslation()
   const router = useRouter()
   const { user, clearAuth } = useAuthStore()
 
+  const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
+  const [categories, setCategories] = useState<WordCategory[]>([])
   const [roomCode, setRoomCode] = useState('')
-  const [loading, setLoading] = useState<'create' | null>(null)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const hasCategories = selectedMode === 'normal' || selectedMode === 'lobby'
+
+  const toggleCategory = (key: WordCategory) => {
+    setCategories((prev) =>
+      prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key],
+    )
+  }
+
   const handleCreate = async () => {
-    setLoading('create')
+    if (!selectedMode) return
+    setLoading(true)
     setError(null)
     try {
-      const room = await api.post<{ code: string }>('/rooms', {})
+      const room = await api.post<{ code: string }>('/rooms', {
+        settings: {
+          gameMode: selectedMode === 'ranked' ? 'ranked' : 'normal',
+          categories: selectedMode === 'ranked' ? [] : categories,
+          isPrivate: selectedMode === 'lobby',
+        },
+      })
       router.push(`/lobby/${room.code}`)
     } catch (err: any) {
       setError(err.message)
     } finally {
-      setLoading(null)
+      setLoading(false)
     }
   }
 
@@ -72,40 +99,175 @@ export default function HomeScreen() {
         </View>
 
         {/* Hero */}
-        <View className="items-center px-6 pt-12 pb-8">
-          {/* Badge */}
-          <View className="flex-row items-center gap-2 px-3 py-1.5 rounded-full border border-violet-700/40 bg-violet-900/20 mb-6">
+        <View className="items-center px-6 pt-10 pb-6">
+          <View className="flex-row items-center gap-2 px-3 py-1.5 rounded-full border border-violet-700/40 bg-violet-900/20 mb-5">
             <View className="w-1.5 h-1.5 rounded-full bg-violet-400" />
             <Text className="text-violet-400 text-xs font-semibold">Social Deduction · Real-time · Multiplayer</Text>
           </View>
-
-          {/* Title */}
-          <Text className="text-5xl font-extrabold text-white text-center leading-tight tracking-tight mb-2">
+          <Text className="text-4xl font-extrabold text-white text-center leading-tight tracking-tight mb-2">
             Play the{'\n'}
             <Text className="text-violet-500">Imposter</Text> Game
           </Text>
-          <Text className="text-neutral-400 text-lg mt-2 text-center">Deceive. Detect. Dominate.</Text>
+          <Text className="text-neutral-400 text-base mt-2 text-center">Deceive. Detect. Dominate.</Text>
         </View>
 
-        {/* Actions */}
-        <View className="px-6 gap-4">
+        <View className="px-4 gap-4">
 
-          {/* Create Room */}
-          <TouchableOpacity
-            onPress={handleCreate}
-            disabled={loading === 'create'}
-            className={[
-              'py-4 rounded-2xl items-center',
-              loading === 'create' ? 'bg-violet-800 opacity-70' : 'bg-violet-600',
-            ].join(' ')}
-            activeOpacity={0.8}
-          >
-            {loading === 'create' ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-white font-bold text-lg">+ {t('room.createRoom')}</Text>
-            )}
-          </TouchableOpacity>
+          {/* Mode selector */}
+          <View>
+            <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3 px-1">
+              Choose a mode
+            </Text>
+            <View className="flex-row gap-2">
+              {MODES.map((mode) => {
+                const active = selectedMode === mode.id
+                const activeStyle =
+                  mode.id === 'normal'
+                    ? 'border-violet-700/50 bg-violet-950/50'
+                    : mode.id === 'ranked'
+                      ? 'border-amber-700/50 bg-amber-950/50'
+                      : 'border-violet-700/50 bg-violet-950/50'
+                const activeText =
+                  mode.id === 'normal'
+                    ? 'text-violet-400'
+                    : mode.id === 'ranked'
+                      ? 'text-amber-400'
+                      : 'text-violet-400'
+                return (
+                  <TouchableOpacity
+                    key={mode.id}
+                    onPress={() => {
+                      setSelectedMode(active ? null : mode.id)
+                      setCategories([])
+                      setError(null)
+                    }}
+                    style={{ flex: 1 }}
+                    className={[
+                      'items-center gap-1 p-3 rounded-2xl border',
+                      active
+                        ? activeStyle
+                        : 'border-neutral-800 bg-neutral-900',
+                    ].join(' ')}
+                    activeOpacity={0.8}
+                  >
+                    <Text className="text-2xl">{mode.icon}</Text>
+                    <Text className={['text-xs font-bold', active ? activeText : 'text-neutral-400'].join(' ')}>
+                      {mode.label}
+                    </Text>
+                    <Text className={['text-[10px] text-center leading-tight', active ? 'text-neutral-400' : 'text-neutral-600'].join(' ')}>
+                      {mode.desc}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          </View>
+
+          {/* Category picker */}
+          {hasCategories && (
+            <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-3">
+              <View className="flex-row items-center justify-between">
+                <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  Categories
+                </Text>
+                <View className="flex-row gap-3">
+                  <TouchableOpacity onPress={() => setCategories(WORD_CATEGORIES.map((c) => c.key as WordCategory))}>
+                    <Text className="text-[11px] text-violet-400">All</Text>
+                  </TouchableOpacity>
+                  <Text className="text-neutral-700">·</Text>
+                  <TouchableOpacity onPress={() => setCategories([])}>
+                    <Text className="text-[11px] text-neutral-500">Random</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View className="flex-row flex-wrap gap-1.5">
+                {WORD_CATEGORIES.map((cat) => {
+                  const selected = categories.includes(cat.key as WordCategory)
+                  const isAll = categories.length === 0
+                  return (
+                    <TouchableOpacity
+                      key={cat.key}
+                      onPress={() => toggleCategory(cat.key as WordCategory)}
+                      className={[
+                        'flex-row items-center gap-1 px-2.5 py-1.5 rounded-lg border',
+                        selected
+                          ? 'bg-violet-950/60 border-violet-700/50'
+                          : isAll
+                            ? 'bg-neutral-800/60 border-neutral-700/40'
+                            : 'bg-neutral-900/60 border-neutral-800/60',
+                      ].join(' ')}
+                      activeOpacity={0.75}
+                    >
+                      <Text className="text-xs">{cat.icon}</Text>
+                      <Text className={[
+                        'text-xs font-medium',
+                        selected ? 'text-violet-300' : isAll ? 'text-neutral-400' : 'text-neutral-600',
+                      ].join(' ')}>
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+
+              {categories.length === 0 ? (
+                <Text className="text-[10px] text-neutral-600">
+                  No filter — a random category is picked each round
+                </Text>
+              ) : (
+                <Text className="text-[10px] text-neutral-600">
+                  {categories.length} of {WORD_CATEGORIES.length} categories selected
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Ranked info */}
+          {selectedMode === 'ranked' && (
+            <View className="flex-row items-start gap-3 px-4 py-3 rounded-xl bg-amber-950/30 border border-amber-800/30">
+              <Text className="text-amber-400 mt-0.5">🏆</Text>
+              <View className="flex-1">
+                <Text className="text-amber-400 text-sm font-semibold">Ranked mode</Text>
+                <Text className="text-amber-600 text-xs mt-0.5">
+                  All 12 categories are used. Wins and losses affect your LP and rank.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Create button */}
+          {selectedMode && (
+            <TouchableOpacity
+              onPress={handleCreate}
+              disabled={loading}
+              className={[
+                'py-4 rounded-2xl items-center',
+                loading ? 'opacity-50' : '',
+                selectedMode === 'ranked'
+                  ? 'bg-amber-600'
+                  : 'bg-violet-600',
+              ].join(' ')}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-white font-bold text-lg">
+                  {selectedMode === 'normal' && '🎮 Start Normal Game'}
+                  {selectedMode === 'ranked' && '🏆 Start Ranked Game'}
+                  {selectedMode === 'lobby' && '🚪 Create Lobby'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* Error */}
+          {error && (
+            <View className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800">
+              <Text className="text-red-400 text-sm">⚠ {error}</Text>
+            </View>
+          )}
 
           {/* Divider */}
           <View className="flex-row items-center gap-3">
@@ -140,16 +302,10 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Error */}
-          {error && (
-            <View className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800">
-              <Text className="text-red-400 text-sm">⚠ {error}</Text>
-            </View>
-          )}
         </View>
 
         {/* How to Play */}
-        <View className="mt-16 px-6">
+        <View className="mt-14 px-4">
           <Text className="text-center text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-6">
             How to play
           </Text>
