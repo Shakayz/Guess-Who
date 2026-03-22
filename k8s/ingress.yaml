@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: imposter-game-ingress
+  namespace: imposter-game
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.middlewares: imposter-game-compress@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - imposter.yourdomain.com
+        - api.imposter.yourdomain.com
+      secretName: imposter-tls
+  rules:
+    - host: imposter.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
+    - host: api.imposter.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 3001

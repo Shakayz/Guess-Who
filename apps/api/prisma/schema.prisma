@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique @db.VarChar(20)
+  email         String   @unique
+  passwordHash  String?
+  avatarUrl     String?
+  locale        String   @default("en") @db.VarChar(5)
+  starCoins     Int      @default(100)
+  goldCoins     Int      @default(0)
+  rankTier      String   @default("wooden") @db.VarChar(20)
+  rankPoints    Int      @default(0)
+  honorPoints   Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  rooms               Room[]
+  gameParticipations  GameParticipation[]
+  sentHonors          Honor[]             @relation("sender")
+  receivedHonors      Honor[]             @relation("receiver")
+  cosmetics           UserCosmetic[]
+  achievements        UserAchievement[]
+
+  @@map("users")
+}
+
+model Room {
+  id                  String   @id @default(cuid())
+  code                String   @unique @db.VarChar(10)
+  hostId              String
+  status              String   @default("waiting") @db.VarChar(20)
+  maxPlayers          Int      @default(10)
+  imposterCount       Int      @default(2)
+  speakingTimeSeconds Int      @default(30)
+  votingTimeSeconds   Int      @default(30)
+  wordPackId          String   @default("default")
+  isPrivate           Boolean  @default(false)
+  language            String   @default("en") @db.VarChar(5)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  host  User   @relation(fields: [hostId], references: [id])
+  games Game[]
+
+  @@map("rooms")
+}
+
+model Game {
+  id         String   @id @default(cuid())
+  roomId     String
+  winnerId   String?
+  winnerTeam String?  @db.VarChar(20)
+  startedAt  DateTime @default(now())
+  endedAt    DateTime?
+
+  room          Room                @relation(fields: [roomId], references: [id])
+  rounds        Round[]
+  participations GameParticipation[]
+
+  @@map("games")
+}
+
+model Round {
+  id              String   @id @default(cuid())
+  gameId          String
+  roundNumber     Int
+  villagerWord    String
+  imposterWord    String
+  eliminatedId    String?
+  eliminatedRole  String?
+  createdAt       DateTime @default(now())
+
+  game    Game     @relation(fields: [gameId], references: [id])
+  votes   RoundVote[]
+  clues   RoundClue[]
+
+  @@map("rounds")
+}
+
+model RoundVote {
+  id        String   @id @default(cuid())
+  roundId   String
+  voterId   String
+  targetId  String
+  createdAt DateTime @default(now())
+
+  round Round @relation(fields: [roundId], references: [id])
+
+  @@unique([roundId, voterId])
+  @@map("round_votes")
+}
+
+model RoundClue {
+  id             String   @id @default(cuid())
+  roundId        String
+  playerId       String
+  text           String   @db.VarChar(300)
+  flaggedForWord Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  round Round @relation(fields: [roundId], references: [id])
+
+  @@map("round_clues")
+}
+
+model GameParticipation {
+  id              String   @id @default(cuid())
+  gameId          String
+  userId          String
+  role            String   @db.VarChar(20)
+  survived        Boolean  @default(false)
+  starCoinsEarned Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  game Game @relation(fields: [gameId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([gameId, userId])
+  @@map("game_participations")
+}
+
+model WordPack {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  isPremium   Boolean    @default(false)
+  locale      String     @default("en") @db.VarChar(5)
+  authorId    String?
+  downloads   Int        @default(0)
+  createdAt   DateTime   @default(now())
+
+  pairs WordPair[]
+
+  @@map("word_packs")
+}
+
+model WordPair {
+  id         String   @id @default(cuid())
+  packId     String
+  wordA      String
+  wordB      String
+  difficulty String   @default("medium") @db.VarChar(10)
+  category   String   @default("general")
+
+  pack WordPack @relation(fields: [packId], references: [id])
+
+  @@map("word_pairs")
+}
+
+model Honor {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  type       String   @db.VarChar(20)
+  gameId     String?
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("sender",   fields: [senderId],   references: [id])
+  receiver User @relation("receiver", fields: [receiverId], references: [id])
+
+  @@map("honors")
+}
+
+model Cosmetic {
+  id          String   @id @default(cuid())
+  type        String   @db.VarChar(30)
+  name        String
+  description String?
+  imageUrl    String
+  price       Int
+  currency    String   @default("star") @db.VarChar(10)
+  isLimited   Boolean  @default(false)
+  seasonId    String?
+  createdAt   DateTime @default(now())
+
+  owners UserCosmetic[]
+
+  @@map("cosmetics")
+}
+
+model UserCosmetic {
+  id          String   @id @default(cuid())
+  userId      String
+  cosmeticId  String
+  equippedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId],      references: [id])
+  cosmetic  Cosmetic  @relation(fields: [cosmeticId],  references: [id])
+
+  @@unique([userId, cosmeticId])
+  @@map("user_cosmetics")
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String
+  icon        String
+  createdAt   DateTime @default(now())
+
+  users UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime @default(now())
+
+  user        User        @relation(fields: [userId],        references: [id])
+  achievement Achievement @relation(fields: [achievementId], references: [id])
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
