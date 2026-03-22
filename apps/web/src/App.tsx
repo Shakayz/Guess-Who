@@ -8,6 +8,7 @@ const GamePage     = React.lazy(() => import('./pages/GamePage'))
 const ProfilePage  = React.lazy(() => import('./pages/ProfilePage'))
 const ShopPage     = React.lazy(() => import('./pages/ShopPage'))
 const LeaderboardPage = React.lazy(() => import('./pages/LeaderboardPage'))
+const ResultsPage  = React.lazy(() => import('./pages/ResultsPage'))
 const AuthPage     = React.lazy(() => import('./pages/AuthPage'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
         <Route path="/lobby/:code" element={<ProtectedRoute><LobbyPage /></ProtectedRoute>} />
         <Route path="/game/:code" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
+        <Route path="/results/:code" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
         <Route path="/profile/:id?" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/shop" element={<ProtectedRoute><ShopPage /></ProtectedRoute>} />
         <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />

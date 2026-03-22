@@ -13,7 +13,7 @@ export default function GamePage() {
   const { code } = useParams<{ code: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { room, currentRound, myRole, myWord, messages, addMessage } = useGameStore()
+  const { room, currentRound, myRole, myWord, messages, addMessage, setResult } = useGameStore()
   const user = useAuthStore((s) => s.user)
   const [clueText, setClueText] = useState('')
   const [clues, setClues] = useState<Clue[]>([])
@@ -41,8 +41,9 @@ export default function GamePage() {
         })
       }
     })
-    socket.on('game:finished', ({ winner }) => {
-      navigate(`/?winner=${winner}`)
+    socket.on('game:finished', (data) => {
+      setResult(data)
+      navigate(`/results/${code}`)
     })
     socket.on('chat:message', addMessage)
 
