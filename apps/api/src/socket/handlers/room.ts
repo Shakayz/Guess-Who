@@ -3,6 +3,7 @@ import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/share
 import { shuffleArray } from '@imposter/shared'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
+import { startRound } from '../gameLoop'
 
 // Default word pairs when no word pack is configured
 const FALLBACK_WORDS = [
@@ -214,6 +215,11 @@ export function registerRoomHandlers(
           yourRole: playerData.role,
         })
       }
+
+      // Start speaking phase after a short delay (give clients time to navigate)
+      setTimeout(() => {
+        startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
+      }, 3000)
     } catch (err) {
       console.error('game:start error', err)
       socket.emit('error', { code: 'INTERNAL', message: 'Server error' })
