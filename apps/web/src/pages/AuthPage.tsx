@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useGoogleLogin } from '@react-oauth/google'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
 
@@ -48,26 +47,42 @@ export default function AuthPage() {
     navigate('/')
   }
 
-  // ── Google ──
-  const googleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      try {
-        const data = await api.post<{ token: string; user: any }>('/auth/google/verify', {
-          accessToken: tokenResponse.access_token,
-        })
-        handleOAuthSuccess(data)
-      } catch (err: any) {
-        setError(err.message ?? 'Google sign-in failed')
-      } finally {
-        setOauthLoading(null)
-      }
-    },
-    onError: () => {
-      setError('Google sign-in was cancelled or failed')
-      setOauthLoading(null)
-    },
-    flow: 'implicit',
-  })
+  // ── Google (via GIS SDK loaded in index.html) ──
+  const handleGoogle = () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+    if (!clientId) {
+      setError('Google sign-in is not configured (missing VITE_GOOGLE_CLIENT_ID)')
+      return
+    }
+    if (!window.google) {
+      setError('Google sign-in script is still loading, try again in a moment')
+      return
+    }
+    setError(null)
+    setOauthLoading('google')
+    const client = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'openid email profile',
+      callback: async (response) => {
+        if (response.error || !response.access_token) {
+          setError('Google sign-in was cancelled or failed')
+          setOauthLoading(null)
+          return
+        }
+        try {
+          const data = await api.post<{ token: string; user: any }>('/auth/google/verify', {
+            accessToken: response.access_token,
+          })
+          handleOAuthSuccess(data)
+        } catch (err: any) {
+          setError(err.message ?? 'Google sign-in failed')
+        } finally {
+          setOauthLoading(null)
+        }
+      },
+    })
+    client.requestAccessToken()
+  }
 
   // ── Apple ──
   const handleApple = () => {
@@ -130,7 +145,7 @@ export default function AuthPage() {
           <div className="space-y-2.5">
             <button
               type="button"
-              onClick={() => { setError(null); setOauthLoading('google'); googleLogin() }}
+              onClick={() => { setError(null); handleGoogle() }}
               disabled={!!oauthLoading}
               className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl bg-white hover:bg-neutral-100 active:scale-[0.98] text-neutral-900 font-semibold text-sm transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
             >

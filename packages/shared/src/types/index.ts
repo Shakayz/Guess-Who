@@ -65,18 +65,22 @@ export interface Room {
 export type GameMode = 'normal' | 'ranked'
 
 export const WORD_CATEGORIES = [
-  { key: 'food',      label: 'Food',       icon: '🍕' },
-  { key: 'animals',   label: 'Animals',    icon: '🐾' },
-  { key: 'music',     label: 'Music',      icon: '🎵' },
-  { key: 'nature',    label: 'Nature',     icon: '🌿' },
-  { key: 'drinks',    label: 'Drinks',     icon: '☕' },
-  { key: 'places',    label: 'Places',     icon: '📍' },
-  { key: 'transport', label: 'Transport',  icon: '🚀' },
-  { key: 'jobs',      label: 'Jobs',       icon: '💼' },
-  { key: 'sports',    label: 'Sports',     icon: '⚽' },
-  { key: 'movies',    label: 'Movies',     icon: '🎬' },
-  { key: 'tech',      label: 'Tech',       icon: '💻' },
-  { key: 'history',   label: 'History',    icon: '📜' },
+  { key: 'food',         label: 'Food',          icon: '🍕' },
+  { key: 'animals',      label: 'Animals',        icon: '🐾' },
+  { key: 'music',        label: 'Music',          icon: '🎵' },
+  { key: 'nature',       label: 'Nature',         icon: '🌿' },
+  { key: 'drinks',       label: 'Drinks',         icon: '☕' },
+  { key: 'places',       label: 'Places',         icon: '📍' },
+  { key: 'transport',    label: 'Transport',      icon: '🚀' },
+  { key: 'jobs',         label: 'Jobs',           icon: '💼' },
+  { key: 'sports',       label: 'Sports',         icon: '⚽' },
+  { key: 'movies',       label: 'Movies',         icon: '🎬' },
+  { key: 'tech',         label: 'Tech',           icon: '💻' },
+  { key: 'history',      label: 'History',        icon: '📜' },
+  { key: 'mangas',       label: 'Mangas',         icon: '🈶' },
+  { key: 'action',       label: 'Action',         icon: '💥' },
+  { key: 'celebrities',  label: 'Célébrités',     icon: '⭐' },
+  { key: 'mix',          label: 'Mix',            icon: '🎲' },
 ] as const
 
 export type WordCategory = typeof WORD_CATEGORIES[number]['key']
