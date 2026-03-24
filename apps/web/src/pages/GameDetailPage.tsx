@@ -123,7 +123,7 @@ function RoundAccordion({ round, players }: { round: RoundDetail; players: GameD
                   {eliminatedPlayer?.username ?? 'Unknown'} was eliminated
                 </p>
                 <p className="text-neutral-500 text-xs">
-                  Role: {round.eliminatedRole ?? 'unknown'}
+                  Role: {round.eliminatedRole ?? eliminatedPlayer?.role ?? 'unknown'}
                 </p>
               </div>
             </div>

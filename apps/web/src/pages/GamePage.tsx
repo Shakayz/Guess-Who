@@ -422,9 +422,7 @@ export default function GamePage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center p-4">
-            <p className="text-neutral-700 text-xs text-center italic">Chat is disabled during the game<br />to prevent cheating</p>
-          </div>
+          <div className="flex-1" />
         )}
       </div>
     </div>
