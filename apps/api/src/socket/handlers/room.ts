@@ -30,6 +30,7 @@ export function registerRoomHandlers(
       }
 
       await socket.join(`room:${room.id}`)
+      socket.data.roomCode = room.code
 
       const stateRaw = await redis.get(`room:${room.id}:state`)
       const state = stateRaw ? JSON.parse(stateRaw) : { players: [], status: 'waiting' }
@@ -186,6 +187,17 @@ export function registerRoomHandlers(
       const game = await prisma.game.create({ data: { roomId } })
       const round = await prisma.round.create({
         data: { gameId: game.id, roundNumber: 1, villagerWord: wordPair.wordA, imposterWord: wordPair.wordB },
+      })
+
+      // Create participation records for all players
+      await prisma.gameParticipation.createMany({
+        data: players.map((p: any) => ({
+          gameId: game.id,
+          userId: p.userId,
+          role: p.role,
+          survived: true,
+        })),
+        skipDuplicates: true,
       })
 
       state.status = 'in_progress'

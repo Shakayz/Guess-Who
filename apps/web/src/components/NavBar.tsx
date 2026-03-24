@@ -1,12 +1,16 @@
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
+import { useSocialStore } from '../store/social'
+import { DmChatPanel } from './DmChatPanel'
+import { api } from '../lib/api'
 
 const LINKS = [
   { label: 'Play', path: '/' },
   { label: 'Leaderboard', path: '/leaderboard' },
-  { label: 'Shop', path: '/shop' },
+  { label: 'History', path: '/history' },
+  { label: 'Friends', path: '/friends' },
 ]
 
 const LANGUAGES = [
@@ -23,6 +27,18 @@ export function NavBar() {
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const [langOpen, setLangOpen] = useState(false)
   const langRef = useRef<HTMLDivElement>(null)
+
+  const activeDm = useSocialStore((s) => s.activeDm)
+  const setActiveDm = useSocialStore((s) => s.setActiveDm)
+  const [pendingRequestCount, setPendingRequestCount] = useState(0)
+
+  useEffect(() => {
+    if (!user) return
+    api
+      .get<{ requests: unknown[] }>('/friends/requests')
+      .then((res) => setPendingRequestCount(res.requests.length))
+      .catch(() => {})
+  }, [user])
 
   React.useEffect(() => {
     if (!langOpen) return
@@ -44,6 +60,7 @@ export function NavBar() {
   }
 
   return (
+    <>
     <header className="flex items-center justify-between px-6 py-4 border-b border-neutral-800/60 backdrop-blur-sm sticky top-0 z-10 bg-neutral-950/80">
       <div className="flex items-center gap-5">
         <button onClick={() => navigate('/')} className="flex items-center gap-2.5">
@@ -69,6 +86,20 @@ export function NavBar() {
       </div>
 
       <div className="flex items-center gap-1">
+        {/* Premium button */}
+        <button
+          onClick={() => navigate('/premium')}
+          className={[
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all mr-1',
+            location.pathname === '/premium'
+              ? 'bg-amber-500 text-neutral-900'
+              : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30',
+          ].join(' ')}
+        >
+          <span className="text-sm">👑</span>
+          <span className="hidden sm:inline">Premium</span>
+        </button>
+
         {/* Language switcher */}
         <div ref={langRef} className="relative">
           <button
@@ -101,6 +132,20 @@ export function NavBar() {
           )}
         </div>
 
+        {/* Friends icon with badge */}
+        <button
+          onClick={() => navigate('/friends')}
+          className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all"
+          title="Friends"
+        >
+          <span className="text-base">👥</span>
+          {pendingRequestCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center text-[9px] text-white font-bold px-0.5">
+              {pendingRequestCount > 9 ? '9+' : pendingRequestCount}
+            </span>
+          )}
+        </button>
+
         <div className="w-px h-4 bg-neutral-800 mx-0.5" />
 
         <button
@@ -118,5 +163,14 @@ export function NavBar() {
         </button>
       </div>
     </header>
+
+    {/* DM Chat Panel */}
+    {activeDm && (
+      <DmChatPanel
+        friend={{ id: activeDm.friendId, username: activeDm.friendUsername }}
+        onClose={() => setActiveDm(null)}
+      />
+    )}
+  </>
   )
 }

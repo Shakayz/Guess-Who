@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+# ── Development image — hot-reload via Vite dev server ────────────────────────
+FROM node:20-slim
+
+RUN npm install -g pnpm@9.0.0
+
+WORKDIR /app
+
+# ── Layer 1: install dependencies (cached until package.json / lockfile change)
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/web/package.json        ./apps/web/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/ui/package.json     ./packages/ui/
+
+RUN pnpm install --frozen-lockfile
+
+# ── Layer 2: build shared packages (cached until packages/* changes)
+COPY packages/shared ./packages/shared
+COPY packages/ui     ./packages/ui
+RUN pnpm --filter @imposter/shared build
+RUN pnpm --filter @imposter/ui     build
+
+# ── Layer 3: copy web source (overridden by volume mount at runtime)
+COPY apps/web ./apps/web
+
+WORKDIR /app/apps/web
+
+EXPOSE 5173
+
+# --host makes Vite listen on 0.0.0.0 so the port is reachable outside the container
+CMD ["pnpm", "dev", "--host"]

@@ -30,6 +30,10 @@ model User {
   receivedHonors      Honor[]             @relation("receiver")
   cosmetics           UserCosmetic[]
   achievements        UserAchievement[]
+  sentFriendRequests     Friendship[]    @relation("SentRequests")
+  receivedFriendRequests Friendship[]    @relation("ReceivedRequests")
+  sentDMs                DirectMessage[] @relation("SentDMs")
+  receivedDMs            DirectMessage[] @relation("ReceivedDMs")
 
   @@map("users")
 }
@@ -66,6 +70,7 @@ model Game {
   room          Room                @relation(fields: [roomId], references: [id])
   rounds        Round[]
   participations GameParticipation[]
+  chatMessages  GameChatMessage[]
 
   @@map("games")
 }
@@ -226,4 +231,46 @@ model UserAchievement {
 
   @@unique([userId, achievementId])
   @@map("user_achievements")
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      String   @default("pending") @db.VarChar(20)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  requester User @relation("SentRequests",     fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("ReceivedRequests", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@map("friendships")
+}
+
+model DirectMessage {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  text       String   @db.VarChar(1000)
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("SentDMs",     fields: [senderId],   references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedDMs", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("direct_messages")
+}
+
+model GameChatMessage {
+  id        String   @id @default(cuid())
+  gameId    String
+  userId    String
+  username  String   @db.VarChar(20)
+  text      String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@map("game_chat_messages")
 }

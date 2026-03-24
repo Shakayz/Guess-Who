@@ -136,12 +136,19 @@ async function resolveRound(io: IO, roomId: string) {
     ? { villagerWord: dbRound.villagerWord, imposterWord: dbRound.imposterWord }
     : null
 
-  // Update DB round with elimination
+  // Update DB round with elimination and mark participation as not survived
   if (mostVotedId && dbRound) {
     await prisma.round.update({
       where: { id: dbRound.id },
       data: { eliminatedId: mostVotedId },
     }).catch(() => {})
+    const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
+    if (game) {
+      await prisma.gameParticipation.updateMany({
+        where: { gameId: game.id, userId: mostVotedId },
+        data: { survived: false },
+      }).catch(() => {})
+    }
   }
 
   const roundPayload = {
@@ -162,6 +169,10 @@ async function resolveRound(io: IO, roomId: string) {
     state.status = 'finished'
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
     await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
+    const finishedGame = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
+    if (finishedGame) {
+      await prisma.game.update({ where: { id: finishedGame.id }, data: { winnerTeam: winner, endedAt: new Date() } }).catch(() => {})
+    }
 
     io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
 
@@ -190,6 +201,20 @@ async function resolveRound(io: IO, roomId: string) {
     if (!game) return
 
     const nextRoundNumber = state.currentRound + 1
+    const maxRounds = state.maxRounds ?? 5
+
+    // Imposters win if they survive all rounds without being eliminated
+    if (nextRoundNumber > maxRounds) {
+      state.status = 'finished'
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+      await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
+      io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
+      const rewards = { starCoinsEarned: 80, xpEarned: 120, lpChange: -15, achievements: [] }
+      setTimeout(() => {
+        io.to(`room:${roomId}`).emit('game:finished', { winner: 'imposters', finalRound: roundPayload as any, rewards })
+      }, 3000)
+      return
+    }
     const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
     const nextSpeakingOrder: string[] = alivePlayers.map((p: any) => p.userId)
 

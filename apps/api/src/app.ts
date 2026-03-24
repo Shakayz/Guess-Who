@@ -10,6 +10,9 @@ import { oauthRoutes } from './routes/oauth'
 import { roomRoutes } from './routes/rooms'
 import { userRoutes } from './routes/users'
 import { shopRoutes } from './routes/shop'
+import { friendsRoutes } from './routes/friends'
+import { historyRoutes } from './routes/history'
+import { messagesRoutes } from './routes/messages'
 import { registerSocketHandlers } from './socket'
 
 export async function buildApp() {
@@ -46,6 +49,9 @@ export async function buildApp() {
   await app.register(roomRoutes, { prefix: '/api/rooms' })
   await app.register(userRoutes, { prefix: '/api/users' })
   await app.register(shopRoutes, { prefix: '/api/shop' })
+  await app.register(friendsRoutes, { prefix: '/api/friends' })
+  await app.register(historyRoutes, { prefix: '/api/history' })
+  await app.register(messagesRoutes, { prefix: '/api/messages' })
 
   // Health check
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }))
@@ -55,7 +61,7 @@ export async function buildApp() {
     cors: { origin: env.ALLOWED_ORIGINS.split(','), credentials: true },
     transports: ['websocket', 'polling'],
   })
-  registerSocketHandlers(io)
+  registerSocketHandlers(io, app)
 
   return app
 }

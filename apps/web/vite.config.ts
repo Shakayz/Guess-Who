@@ -12,9 +12,10 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: true, // listen on 0.0.0.0 so the port is reachable inside Docker
     proxy: {
-      '/api': { target: 'http://localhost:3001', changeOrigin: true },
-      '/socket.io': { target: 'http://localhost:3001', ws: true },
+      '/api':      { target: process.env.API_TARGET ?? 'http://localhost:3001', changeOrigin: true },
+      '/socket.io': { target: process.env.API_TARGET ?? 'http://localhost:3001', ws: true },
     },
   },
 })

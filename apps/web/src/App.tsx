@@ -1,15 +1,20 @@
-import React, { Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import React, { Suspense, useEffect } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { useAuthStore } from './store/auth'
+import { useSocialStore } from './store/social'
+import { getSocket } from './lib/socket'
 
-const HomePage     = React.lazy(() => import('./pages/HomePage'))
-const LobbyPage    = React.lazy(() => import('./pages/LobbyPage'))
-const GamePage     = React.lazy(() => import('./pages/GamePage'))
-const ProfilePage  = React.lazy(() => import('./pages/ProfilePage'))
-const ShopPage     = React.lazy(() => import('./pages/ShopPage'))
+const HomePage        = React.lazy(() => import('./pages/HomePage'))
+const LobbyPage       = React.lazy(() => import('./pages/LobbyPage'))
+const GamePage        = React.lazy(() => import('./pages/GamePage'))
+const ProfilePage     = React.lazy(() => import('./pages/ProfilePage'))
+const PremiumPage     = React.lazy(() => import('./pages/PremiumPage'))
 const LeaderboardPage = React.lazy(() => import('./pages/LeaderboardPage'))
-const ResultsPage  = React.lazy(() => import('./pages/ResultsPage'))
-const AuthPage     = React.lazy(() => import('./pages/AuthPage'))
+const ResultsPage     = React.lazy(() => import('./pages/ResultsPage'))
+const AuthPage        = React.lazy(() => import('./pages/AuthPage'))
+const HistoryPage     = React.lazy(() => import('./pages/HistoryPage'))
+const GameDetailPage  = React.lazy(() => import('./pages/GameDetailPage'))
+const FriendsPage     = React.lazy(() => import('./pages/FriendsPage'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -22,9 +27,103 @@ const Spinner = () => (
   </div>
 )
 
+interface DmReceiveEvent {
+  id: string
+  senderId: string
+  senderUsername: string
+  text: string
+  createdAt: string
+}
+
+interface RoomInvitedEvent {
+  fromUserId: string
+  fromUsername: string
+  roomCode: string
+}
+
+interface FriendRequestEvent {
+  friendshipId: string
+  from: { id: string; username: string }
+}
+
+function GlobalSocketListeners() {
+  const token = useAuthStore((s) => s.token)
+  const activeDm = useSocialStore((s) => s.activeDm)
+  const incrementUnread = useSocialStore((s) => s.incrementUnread)
+  const setPendingInvite = useSocialStore((s) => s.setPendingInvite)
+
+  useEffect(() => {
+    if (!token) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sock = getSocket() as any
+
+    const handleDmReceive = (data: DmReceiveEvent) => {
+      if (!activeDm || activeDm.friendId !== data.senderId) {
+        incrementUnread(data.senderId)
+      }
+    }
+
+    const handleRoomInvited = (data: RoomInvitedEvent) => {
+      setPendingInvite({ fromUsername: data.fromUsername, roomCode: data.roomCode })
+    }
+
+    const handleFriendRequest = (data: FriendRequestEvent) => {
+      console.log('Friend request received from', data.from.username)
+    }
+
+    sock.on('dm:receive', handleDmReceive)
+    sock.on('room:invited', handleRoomInvited)
+    sock.on('friend:request', handleFriendRequest)
+
+    return () => {
+      sock.off('dm:receive', handleDmReceive)
+      sock.off('room:invited', handleRoomInvited)
+      sock.off('friend:request', handleFriendRequest)
+    }
+  }, [token, activeDm, incrementUnread, setPendingInvite])
+
+  return null
+}
+
+function InviteBanner() {
+  const navigate = useNavigate()
+  const pendingInvite = useSocialStore((s) => s.pendingInvite)
+  const setPendingInvite = useSocialStore((s) => s.setPendingInvite)
+
+  if (!pendingInvite) return null
+
+  return (
+    <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
+      <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-brand-700/60 bg-brand-950/90 backdrop-blur shadow-2xl text-sm">
+        <span className="text-lg">📨</span>
+        <span className="text-white font-medium">
+          <span className="text-brand-400 font-bold">{pendingInvite.fromUsername}</span> invited you to a game!
+        </span>
+        <button
+          onClick={() => {
+            navigate(`/lobby/${pendingInvite.roomCode}`)
+            setPendingInvite(null)
+          }}
+          className="px-3 py-1 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-semibold transition-colors"
+        >
+          Join
+        </button>
+        <button
+          onClick={() => setPendingInvite(null)}
+          className="px-3 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white font-semibold transition-colors"
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <Suspense fallback={<Spinner />}>
+      <GlobalSocketListeners />
+      <InviteBanner />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
@@ -32,8 +131,11 @@ export default function App() {
         <Route path="/game/:code" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
         <Route path="/results/:code" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
         <Route path="/profile/:id?" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        <Route path="/shop" element={<ProtectedRoute><ShopPage /></ProtectedRoute>} />
+        <Route path="/premium" element={<ProtectedRoute><PremiumPage /></ProtectedRoute>} />
         <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
+        <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+        <Route path="/history/:gameId" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />
+        <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

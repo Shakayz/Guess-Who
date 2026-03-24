@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1
+# ── Development image — hot-reload via tsx watch ──────────────────────────────
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g pnpm@9.0.0
+
+WORKDIR /app
+
+# ── Layer 1: install dependencies (cached until package.json / lockfile change)
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/api/package.json        ./apps/api/
+COPY packages/shared/package.json ./packages/shared/
+
+RUN pnpm install --frozen-lockfile
+
+# ── Layer 2: build shared package (cached until packages/shared changes)
+COPY packages/shared ./packages/shared
+RUN pnpm --filter @imposter/shared build
+
+# ── Layer 3: copy API source (overridden by volume mount at runtime)
+COPY apps/api ./apps/api
+
+# Generate Prisma client from schema bundled in the image.
+# Re-generated at startup too (see CMD) in case the mounted schema differs.
+RUN pnpm --filter @imposter/api exec prisma generate
+
+WORKDIR /app/apps/api
+
+EXPOSE 3001
+
+# Run migrations then start the dev server with hot-reload
+CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && pnpm dev"]

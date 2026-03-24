@@ -13,6 +13,22 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(users)
   })
 
+  // GET /api/users/search?q=username
+  fastify.get('/search', { preHandler: [fastify.authenticate] }, async (req, reply) => {
+    const userId = req.user.sub
+    const { q } = req.query as { q?: string }
+    if (!q || q.length < 2) return reply.send({ users: [] })
+    const users = await prisma.user.findMany({
+      where: {
+        username: { contains: q, mode: 'insensitive' },
+        NOT: { id: userId },
+      },
+      select: { id: true, username: true, avatarUrl: true },
+      take: 10,
+    })
+    return reply.send({ users })
+  })
+
   fastify.get('/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
     const user = await prisma.user.findUnique({

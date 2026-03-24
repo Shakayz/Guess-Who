@@ -31,7 +31,7 @@ export default function GamePage() {
   const { code } = useParams<{ code: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { room, currentRound, myRole, myWord, messages, addMessage, setResult } = useGameStore()
+  const { room, currentRound, myRole, myWord, messages, addMessage, setResult, setRound } = useGameStore()
   const user = useAuthStore((s) => s.user)
   const [clueText, setClueText] = useState('')
   const [clues, setClues] = useState<Clue[]>([])
@@ -44,6 +44,7 @@ export default function GamePage() {
   const [totalTime, setTotalTime] = useState(30)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const phaseRef = useRef<Phase>('speaking')
 
   const startTimer = useCallback((seconds: number) => {
     if (timerRef.current) clearInterval(timerRef.current)
@@ -63,16 +64,36 @@ export default function GamePage() {
   useEffect(() => {
     const socket = getSocket()
 
+    // Re-join the room socket on reconnect (socket loses room membership after disconnect)
+    const handleConnect = () => {
+      if (code) socket.emit('room:join', { roomCode: code })
+    }
+    socket.on('connect', handleConnect)
+
     socket.on('round:clue-submitted', (clue) => setClues((c) => [...c, clue as Clue]))
-    socket.on('round:speaking-turn', ({ timeSeconds }) => startTimer(timeSeconds))
+    socket.on('round:speaking-turn', ({ timeSeconds }) => {
+      // Only reset state when starting a new round (transitioning from reveal)
+      if (phaseRef.current === 'reveal') {
+        setClues([])
+        setHasSubmittedClue(false)
+        setVotedFor(null)
+        setEliminated(null)
+      }
+      phaseRef.current = 'speaking'
+      setPhase('speaking')
+      startTimer(timeSeconds)
+    })
     socket.on('round:voting-started', ({ timeSeconds }) => {
+      phaseRef.current = 'voting'
       setPhase('voting')
       startTimer(timeSeconds ?? 30)
     })
-    socket.on('round:ended', ({ round }) => {
+    socket.on('round:ended', ({ round, nextRound }: any) => {
+      phaseRef.current = 'reveal'
       setPhase('reveal')
+      if (nextRound) setRound(nextRound)
       if (round?.eliminatedPlayerId) {
-        const elim = players.find((p) => p.userId === round.eliminatedPlayerId)
+        const elim = players.find((p: any) => p.userId === round.eliminatedPlayerId)
         setEliminated({
           username: elim?.username ?? round.eliminatedPlayerId,
           role: round.eliminatedRole ?? 'villager',
@@ -86,6 +107,7 @@ export default function GamePage() {
     socket.on('chat:message', addMessage)
 
     return () => {
+      socket.off('connect', handleConnect)
       socket.off('round:clue-submitted')
       socket.off('round:speaking-turn')
       socket.off('round:voting-started')
@@ -162,40 +184,22 @@ export default function GamePage() {
           )}
         </div>
 
-        {/* Role + Word card */}
-        <div className={[
-          'card relative overflow-hidden',
-          isImposter
-            ? 'border-red-800/50 bg-red-950/20'
-            : 'border-brand-800/40 bg-brand-950/20',
-        ].join(' ')}>
-          <div className={[
-            'absolute top-0 inset-x-0 h-0.5',
-            isImposter
-              ? 'bg-gradient-to-r from-transparent via-red-500 to-transparent'
-              : 'bg-gradient-to-r from-transparent via-brand-500 to-transparent',
-          ].join(' ')} />
+        {/* Word card */}
+        <div className="card relative overflow-hidden border-neutral-700/50 bg-neutral-900/40">
+          <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-neutral-500 to-transparent" />
           <div className="relative flex items-center gap-4">
-            <div className={[
-              'w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0',
-              isImposter ? 'bg-red-950/60' : 'bg-brand-950/60',
-            ].join(' ')}>
-              {isImposter ? '🎭' : '🏘️'}
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0 bg-neutral-800/60">
+              🔤
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-0.5">
-                {isImposter ? 'You are the Imposter' : 'You are a Villager'}
+                Your Word
               </p>
-              <p className={[
-                'text-2xl font-extrabold tracking-tight',
-                isImposter ? 'text-red-400' : 'text-brand-400',
-              ].join(' ')}>
+              <p className="text-2xl font-extrabold tracking-tight text-white">
                 {myWord ?? '???'}
               </p>
               <p className="text-xs text-neutral-600 mt-0.5">
-                {isImposter
-                  ? 'Blend in — don\'t reveal you have a different word'
-                  : 'Give a clue without saying the word directly'}
+                Give a clue without saying the word directly
               </p>
             </div>
           </div>
@@ -312,7 +316,7 @@ export default function GamePage() {
           ) : (
             <div className="space-y-2.5">
               {clues.map((clue, i) => {
-                const player = players.find((p) => p.id === clue.playerId)
+                const player = players.find((p) => p.userId === clue.playerId)
                 return (
                   <div key={i} className="flex items-start gap-2.5">
                     <Avatar username={player?.username ?? '?'} size="xs" />

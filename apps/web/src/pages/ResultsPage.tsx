@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
@@ -6,8 +6,17 @@ import { NavBar } from '../components/NavBar'
 import { Avatar, Badge } from '@imposter/ui'
 import { RANK_CONFIG } from '@imposter/shared'
 import type { RankTier } from '@imposter/shared'
+import { getSocket } from '../lib/socket'
 
 type HonorType = 'teamplayer' | 'sharp_mind' | 'good_sport'
+
+interface GameChatMessage {
+  id: string
+  userId: string
+  username: string
+  text: string
+  createdAt: string
+}
 
 const HONOR_OPTIONS: { type: HonorType; label: string; icon: string }[] = [
   { type: 'teamplayer', label: 'Team Player', icon: '🤝' },
@@ -28,6 +37,54 @@ export default function ResultsPage() {
   const { result, room, myRole, reset } = useGameStore()
   const [honorGiven, setHonorGiven] = useState<Record<string, HonorType>>({})
   const [honorTarget, setHonorTarget] = useState<string | null>(null)
+
+  // Game chat state
+  const [chatMessages, setChatMessages] = useState<GameChatMessage[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const chatBottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sock = getSocket() as any
+
+    const handleChatHistory = (data: { messages: GameChatMessage[] }) => {
+      setChatMessages(data.messages)
+    }
+    const handleChatMessage = (msg: GameChatMessage) => {
+      setChatMessages((prev) => [...prev, msg])
+    }
+
+    sock.on('gamechat:history', handleChatHistory)
+    sock.on('gamechat:message', handleChatMessage)
+
+    // Request history
+    sock.emit('gamechat:history')
+
+    return () => {
+      sock.off('gamechat:history', handleChatHistory)
+      sock.off('gamechat:message', handleChatMessage)
+    }
+  }, [])
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
+
+  const handleChatSend = () => {
+    const text = chatInput.trim()
+    if (!text) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sock = getSocket() as any
+    sock.emit('gamechat:send', { text })
+    setChatInput('')
+  }
+
+  const handleChatKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handleChatSend()
+  }
+
+  const formatTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 
   // Use real result if available, else show a mock for preview
   const winner = result?.winner ?? 'villagers'
@@ -220,6 +277,71 @@ export default function ResultsPage() {
                     )}
                   </div>
                 ))}
+            </div>
+          </div>
+
+          {/* Game Chat */}
+          <div className="card">
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">💬 Game Chat</p>
+            <div className="space-y-2 max-h-64 overflow-y-auto mb-3 pr-1">
+              {chatMessages.length === 0 ? (
+                <p className="text-neutral-600 text-sm text-center py-4">No messages yet. Start the conversation!</p>
+              ) : (
+                (() => {
+                  let lastUser = ''
+                  return chatMessages.map((msg) => {
+                    const isMe = msg.userId === user?.id
+                    const showName = msg.userId !== lastUser
+                    lastUser = msg.userId
+                    return (
+                      <div
+                        key={msg.id}
+                        className={['flex gap-2', isMe ? 'flex-row-reverse' : 'flex-row'].join(' ')}
+                      >
+                        {showName && !isMe && (
+                          <div className="w-7 h-7 rounded-full bg-brand-600/60 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 mt-0.5">
+                            {msg.username.slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        {(!showName || isMe) && <div className="w-7 flex-shrink-0" />}
+                        <div className="flex flex-col max-w-[75%]">
+                          {showName && (
+                            <span className={['text-[10px] text-neutral-500 mb-0.5', isMe ? 'text-right' : ''].join(' ')}>
+                              {isMe ? 'You' : msg.username} · {formatTime(msg.createdAt)}
+                            </span>
+                          )}
+                          <div className={[
+                            'px-3 py-1.5 rounded-2xl text-sm',
+                            isMe
+                              ? 'bg-brand-600/80 text-white rounded-tr-sm self-end'
+                              : 'bg-neutral-800 text-neutral-200 rounded-tl-sm',
+                          ].join(' ')}>
+                            {msg.text}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
+                })()
+              )}
+              <div ref={chatBottomRef} />
+            </div>
+            <div className="flex items-center gap-2 pt-2 border-t border-neutral-800">
+              <input
+                type="text"
+                placeholder="Say something…"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={handleChatKeyDown}
+                className="flex-1 px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-sm placeholder-neutral-500 focus:outline-none focus:border-brand-600 transition-colors"
+              />
+              <button
+                onClick={handleChatSend}
+                disabled={!chatInput.trim()}
+                className="px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Send
+              </button>
             </div>
           </div>
 
