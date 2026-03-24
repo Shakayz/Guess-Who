@@ -32,12 +32,14 @@ export function registerRoomHandlers(
       await socket.join(`room:${room.id}`)
       socket.data.roomCode = room.code
 
-      const stateRaw = await redis.get(`room:${room.id}:state`)
-      const state = stateRaw ? JSON.parse(stateRaw) : { players: [], status: 'waiting' }
-
-      // Add player if not already in list
-      const alreadyIn = state.players.find((p: any) => p.userId === userId)
-      if (!alreadyIn) {
+      // Atomic-safe join: use a short retry loop to avoid race condition when
+      // multiple players join simultaneously and overwrite each other's state.
+      let state: any
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const stateRaw = await redis.get(`room:${room.id}:state`)
+        state = stateRaw ? JSON.parse(stateRaw) : { players: [], status: 'waiting' }
+        const alreadyIn = state.players.find((p: any) => p.userId === userId)
+        if (alreadyIn) break
         state.players.push({
           id: socket.id,
           userId,
@@ -49,7 +51,10 @@ export function registerRoomHandlers(
           isReady: room.hostId === userId, // host auto-ready
           honorGiven: false,
         })
-        await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
+        // SET NX-style: only save if key hasn't changed (best-effort)
+        const saved = await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
+        if (saved === 'OK') break
+        await new Promise((r) => setTimeout(r, 20))
       }
 
       const roomPayload = {

@@ -173,6 +173,11 @@ export default function LobbyPage() {
 
     socket.on('room:updated', (r) => {
       setRoom(r as Room)
+      // Sync local ready state from server so allReady reflects reality
+      if (r.players && user) {
+        const me = r.players.find((p: any) => p.userId === user.id)
+        if (me) setIsReady(!!me.isReady)
+      }
       if (r.settings) {
         setSettings((prev) => ({
           ...prev,
@@ -322,7 +327,7 @@ export default function LobbyPage() {
             ) : (
               <button
                 onClick={startGame}
-                disabled={!allReady}
+                disabled={players.length < minPlayers}
                 className="flex-1 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition-all disabled:opacity-40 shadow-lg shadow-brand-600/20"
               >
                 Start Game

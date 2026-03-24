@@ -73,7 +73,8 @@ async function startVoting(io: IO, roomId: string, votingTimeSeconds: number) {
   state.status = 'voting'
   await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
 
-  io.to(`room:${roomId}`).emit('round:voting-started', { timeSeconds: votingTimeSeconds })
+  const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
+  io.to(`room:${roomId}`).emit('round:voting-started', { timeSeconds: votingTimeSeconds, players: alivePlayers })
 
   const timer = setTimeout(async () => {
     roomTimers.delete(roomId)
