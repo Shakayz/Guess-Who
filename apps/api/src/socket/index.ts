@@ -121,6 +121,67 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       } catch {}
     })
 
+    // Dead chat: join the eliminated-players-only room
+    socket.on('deadchat:join' as any, async () => {
+      if (!socket.data.userId || !socket.data.roomCode) return
+      const room = await prisma.room.findUnique({ where: { code: socket.data.roomCode } }).catch(() => null)
+      if (!room) return
+      // Only allow if actually eliminated
+      const stateRaw = await redis.get(`room:${room.id}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+      const player = state.players.find((p: any) => p.userId === userId)
+      if (player && player.status === 'eliminated') {
+        await socket.join(`dead:${room.id}`)
+      }
+    })
+
+    // Dead chat: send a message visible only to eliminated players
+    socket.on('deadchat:send' as any, async (data: { text: string }) => {
+      if (!socket.data.userId || !data.text?.trim() || !socket.data.roomCode) return
+      const room = await prisma.room.findUnique({ where: { code: socket.data.roomCode } }).catch(() => null)
+      if (!room) return
+      // Must be in the dead room
+      if (!socket.rooms.has(`dead:${room.id}`)) return
+      const msg = {
+        id: `dc_${Date.now()}_${userId}`,
+        userId,
+        username: socket.data.username ?? 'ghost',
+        text: data.text.trim().slice(0, 500),
+        createdAt: new Date().toISOString(),
+      }
+      io.to(`dead:${room.id}`).emit('deadchat:message' as any, msg)
+    })
+
+    // Honor: give an honor to a player after a game
+    socket.on('honor:give' as any, async (data: { targetUserId: string; honorType: string }) => {
+      if (!socket.data.userId || !data.targetUserId || !data.honorType) return
+      if (data.targetUserId === userId) return
+      try {
+        await prisma.honor.create({
+          data: {
+            senderId: userId,
+            receiverId: data.targetUserId,
+            type: data.honorType.slice(0, 20),
+          },
+        })
+        // Update receiver's honorPoints
+        await prisma.user.update({
+          where: { id: data.targetUserId },
+          data: { honorPoints: { increment: 1 } },
+        }).catch(() => {})
+        // Notify receiver if online
+        const recipientSocketId = onlineUsers.get(data.targetUserId)
+        if (recipientSocketId) {
+          io.to(recipientSocketId).emit('honor:received' as any, {
+            fromUserId: userId,
+            fromUsername: socket.data.username,
+            honorType: data.honorType,
+          })
+        }
+      } catch {}
+    })
+
     // Game chat: fetch history for the current game room
     socket.on('gamechat:history' as any, async () => {
       if (!socket.data.userId || !socket.data.roomCode) return

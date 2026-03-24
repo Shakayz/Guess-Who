@@ -14,7 +14,8 @@ const ResultsPage     = React.lazy(() => import('./pages/ResultsPage'))
 const AuthPage        = React.lazy(() => import('./pages/AuthPage'))
 const HistoryPage     = React.lazy(() => import('./pages/HistoryPage'))
 const GameDetailPage  = React.lazy(() => import('./pages/GameDetailPage'))
-const FriendsPage     = React.lazy(() => import('./pages/FriendsPage'))
+const FriendsPage         = React.lazy(() => import('./pages/FriendsPage'))
+const PlayerProfilePage   = React.lazy(() => import('./pages/PlayerProfilePage'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -136,6 +137,7 @@ export default function App() {
         <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
         <Route path="/history/:gameId" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />
         <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
+        <Route path="/player/:userId" element={<ProtectedRoute><PlayerProfilePage /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

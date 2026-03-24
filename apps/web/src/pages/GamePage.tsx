@@ -36,6 +36,9 @@ export default function GamePage() {
   const [clueText, setClueText] = useState('')
   const [clues, setClues] = useState<Clue[]>([])
   const [chatInput, setChatInput] = useState('')
+  const [deadChatInput, setDeadChatInput] = useState('')
+  const [deadChatMessages, setDeadChatMessages] = useState<{ id: string; userId: string; username: string; text: string }[]>([])
+  const [isEliminated, setIsEliminated] = useState(false)
   const [phase, setPhase] = useState<Phase>('speaking')
   const [votedFor, setVotedFor] = useState<string | null>(null)
   const [eliminated, setEliminated] = useState<{ username: string; role: string } | null>(null)
@@ -98,7 +101,15 @@ export default function GamePage() {
           username: elim?.username ?? round.eliminatedPlayerId,
           role: round.eliminatedRole ?? 'villager',
         })
+        // If it's me, join dead chat
+        if (round.eliminatedPlayerId === user?.id) {
+          setIsEliminated(true)
+          socket.emit('deadchat:join' as any)
+        }
       }
+    })
+    socket.on('deadchat:message' as any, (msg: { id: string; userId: string; username: string; text: string }) => {
+      setDeadChatMessages((prev) => [...prev, msg])
     })
     socket.on('game:finished', (data) => {
       setResult(data)
@@ -114,6 +125,7 @@ export default function GamePage() {
       socket.off('round:ended')
       socket.off('game:finished')
       socket.off('chat:message')
+      socket.off('deadchat:message' as any)
       if (timerRef.current) clearInterval(timerRef.current)
     }
   }, [startTimer])
@@ -141,6 +153,13 @@ export default function GamePage() {
     if (!chatInput.trim()) return
     getSocket().emit('chat:send', chatInput.trim())
     setChatInput('')
+  }
+
+  const sendDeadChat = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!deadChatInput.trim()) return
+    getSocket().emit('deadchat:send' as any, { text: deadChatInput.trim() })
+    setDeadChatInput('')
   }
 
   const alivePlayers = players.filter((p) => p.status === 'alive')
@@ -400,6 +419,47 @@ export default function GamePage() {
             </button>
           </form>
         </div>
+
+        {/* Dead chat — only visible to eliminated players */}
+        {isEliminated && (
+          <div className="border-t-2 border-red-900/50 flex flex-col max-h-56">
+            <div className="px-3 py-2 bg-red-950/30 flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-widest text-red-500">💀 Ghost Chat</span>
+              <span className="text-xs text-neutral-600">Only eliminated players</span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+              {deadChatMessages.length === 0 ? (
+                <p className="text-neutral-700 text-xs italic">You are a ghost now...</p>
+              ) : (
+                deadChatMessages.map((msg) => (
+                  <div key={msg.id} className="text-sm">
+                    <span className={['font-semibold', msg.userId === user?.id ? 'text-red-400' : 'text-neutral-400'].join(' ')}>
+                      {msg.username}:{' '}
+                    </span>
+                    <span className="text-neutral-500">{msg.text}</span>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="p-3 border-t border-red-900/30">
+              <form onSubmit={sendDeadChat} className="flex gap-2">
+                <input
+                  className="flex-1 bg-neutral-900 border border-red-900/40 rounded-lg px-3 py-1.5 text-sm text-neutral-300 placeholder-neutral-700 focus:outline-none focus:border-red-700/60"
+                  placeholder="Ghost whisper..."
+                  value={deadChatInput}
+                  onChange={(e) => setDeadChatInput(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  disabled={!deadChatInput.trim()}
+                  className="px-3 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900/60 text-red-400 text-sm font-semibold transition-colors disabled:opacity-40"
+                >
+                  →
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { useSocialStore } from '../store/social'
@@ -40,6 +41,7 @@ function InitialsAvatar({ username }: { username: string }) {
 }
 
 export default function FriendsPage() {
+  const navigate = useNavigate()
   const setActiveDm = useSocialStore((s) => s.setActiveDm)
   const unreadCounts = useSocialStore((s) => s.unreadCounts)
 
@@ -230,7 +232,12 @@ export default function FriendsPage() {
                           </span>
                         )}
                       </div>
-                      <span className="flex-1 text-white font-medium text-sm">{f.user.username}</span>
+                      <button
+                        onClick={() => navigate(`/player/${f.user.id}`)}
+                        className="flex-1 text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
+                      >
+                        {f.user.username}
+                      </button>
                       <div className="flex gap-1.5">
                         <button
                           onClick={() => setActiveDm({ friendId: f.user.id, friendUsername: f.user.username })}

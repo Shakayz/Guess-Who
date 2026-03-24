@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
 import { NavBar } from '../components/NavBar'
@@ -96,7 +96,7 @@ export default function ResultsPage() {
   const handleHonor = (targetUserId: string, honorType: HonorType) => {
     setHonorGiven((prev) => ({ ...prev, [targetUserId]: honorType }))
     setHonorTarget(null)
-    // getSocket().emit('honor:give', { targetPlayerId: targetUserId, honorType })
+    getSocket().emit('honor:give' as any, { targetUserId, honorType })
   }
 
   const handlePlayAgain = () => {
@@ -205,7 +205,16 @@ export default function ResultsPage() {
                     <Avatar username={p.username} size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-white text-sm truncate">{p.username}</span>
+                        {isMe ? (
+                          <span className="font-semibold text-white text-sm truncate">{p.username}</span>
+                        ) : (
+                          <Link
+                            to={`/player/${p.userId}`}
+                            className="font-semibold text-white text-sm truncate hover:text-brand-400 transition-colors"
+                          >
+                            {p.username}
+                          </Link>
+                        )}
                         {isMe && <span className="text-[10px] text-brand-400 font-bold">YOU</span>}
                       </div>
                     </div>

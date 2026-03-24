@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { useAuthStore } from '../store/auth'
@@ -316,7 +316,16 @@ export default function GameDetailPage() {
                     <InitialsAvatar username={p.username} size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
-                        <span className="text-white text-xs font-semibold truncate">{p.username}</span>
+                        {isMe ? (
+                          <span className="text-white text-xs font-semibold truncate">{p.username}</span>
+                        ) : (
+                          <Link
+                            to={`/player/${p.userId}`}
+                            className="text-white text-xs font-semibold truncate hover:text-brand-400 transition-colors"
+                          >
+                            {p.username}
+                          </Link>
+                        )}
                         {isMe && <span className="text-[9px] text-brand-400 font-bold">YOU</span>}
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
