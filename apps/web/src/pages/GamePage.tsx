@@ -45,10 +45,20 @@ export default function GamePage() {
   const [eliminated, setEliminated] = useState<{ username: string; role: string } | null>(null)
   const [hasSubmittedClue, setHasSubmittedClue] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
+  const [currentSpeakerId, setCurrentSpeakerId] = useState<string | null>(null)
+  const [speakingOrder, setSpeakingOrder] = useState<string[]>([])
+  const [voteCount, setVoteCount] = useState(0)
+  const [totalVoters, setTotalVoters] = useState(0)
+  const [allVotedMsg, setAllVotedMsg] = useState(false)
+  const [wordReveal, setWordReveal] = useState<{ villagerWord: string; imposterWord: string } | null>(null)
+  const [isTie, setIsTie] = useState(false)
+  const [showCountdown, setShowCountdown] = useState(false)
+  const [countdownVal, setCountdownVal] = useState(3)
   const [totalTime, setTotalTime] = useState(30)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const phaseRef = useRef<Phase>('speaking')
+  const isFirstRoundRef = useRef(true)
 
   const startTimer = useCallback((seconds: number) => {
     if (timerRef.current) clearInterval(timerRef.current)
@@ -75,39 +85,72 @@ export default function GamePage() {
     socket.on('connect', handleConnect)
 
     socket.on('round:clue-submitted', (clue) => setClues((c) => [...c, clue as Clue]))
-    socket.on('round:speaking-turn', ({ timeSeconds }) => {
-      // Only reset state when starting a new round (transitioning from reveal)
+    socket.on('round:speaking-turn', ({ playerId, timeSeconds, speakingOrder: order }: any) => {
       if (phaseRef.current === 'reveal') {
         setClues([])
         setHasSubmittedClue(false)
         setVotedFor(null)
         setEliminated(null)
+        setWordReveal(null)
+        setIsTie(false)
+        setVoteCount(0)
+        setAllVotedMsg(false)
       }
+      setCurrentSpeakerId(playerId)
+      if (order) setSpeakingOrder(order)
       phaseRef.current = 'speaking'
       setPhase('speaking')
-      startTimer(timeSeconds)
+      // Show 3-2-1 countdown on very first speaking turn
+      if (isFirstRoundRef.current) {
+        isFirstRoundRef.current = false
+        setShowCountdown(true)
+        setCountdownVal(3)
+        setTimeout(() => setCountdownVal(2), 1000)
+        setTimeout(() => setCountdownVal(1), 2000)
+        setTimeout(() => setShowCountdown(false), 3000)
+        startTimer(timeSeconds)
+      } else {
+        startTimer(timeSeconds)
+      }
     })
-    socket.on('round:voting-started', ({ timeSeconds }) => {
+    socket.on('round:voting-started', ({ timeSeconds, players: vPlayers }: any) => {
       phaseRef.current = 'voting'
       setPhase('voting')
+      setCurrentSpeakerId(null)
+      setVoteCount(0)
+      setTotalVoters(vPlayers?.length ?? 0)
+      setAllVotedMsg(false)
       startTimer(timeSeconds ?? 30)
     })
     socket.on('round:ended', ({ round, nextRound }: any) => {
       phaseRef.current = 'reveal'
       setPhase('reveal')
+      setCurrentSpeakerId(null)
+      setAllVotedMsg(false)
       if (nextRound) setRound(nextRound)
+      if (round?.wordReveal) setWordReveal(round.wordReveal)
       if (round?.eliminatedPlayerId) {
         const elim = players.find((p: any) => p.userId === round.eliminatedPlayerId)
         setEliminated({
           username: elim?.username ?? round.eliminatedPlayerId,
-          role: round.eliminatedRole ?? 'villager',
+          role: round.eliminatedRole ?? (elim as any)?.role ?? 'villager',
         })
         // If it's me, join dead chat
         if (round.eliminatedPlayerId === user?.id) {
           setIsEliminated(true)
           socket.emit('deadchat:join' as any)
         }
+      } else {
+        // Check if it was a tie (votes were cast but no majority)
+        if (round?.votes?.length > 0) setIsTie(true)
       }
+    })
+    socket.on('vote:update' as any, ({ voteCount: vc, totalVoters: tv }: any) => {
+      setVoteCount(vc)
+      setTotalVoters(tv)
+    })
+    socket.on('vote:all-cast' as any, () => {
+      setAllVotedMsg(true)
     })
     socket.on('deadchat:message' as any, (msg: { id: string; userId: string; username: string; text: string }) => {
       setDeadChatMessages((prev) => [...prev, msg])
@@ -134,6 +177,8 @@ export default function GamePage() {
       socket.off('chat:message')
       socket.off('deadchat:message' as any)
       socket.off('emote:receive' as any)
+      socket.off('vote:update' as any)
+      socket.off('vote:all-cast' as any)
       if (timerRef.current) clearInterval(timerRef.current)
     }
   }, [startTimer])
@@ -195,6 +240,15 @@ export default function GamePage() {
           </div>
         ))}
 
+        {showCountdown && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="text-center animate-slide-up">
+              <p className="text-neutral-400 text-sm font-semibold uppercase tracking-widest mb-2">Game starts in</p>
+              <p className="text-8xl font-extrabold text-brand-400 tabular-nums">{countdownVal}</p>
+            </div>
+          </div>
+        )}
+
         {/* Top bar */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -253,6 +307,15 @@ export default function GamePage() {
         {/* Speaking phase: clue input */}
         {phase === 'speaking' && (
           <div className="card">
+            {currentSpeakerId && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-950/60 border border-brand-800/40 mb-3">
+                <span className="w-2 h-2 rounded-full bg-brand-400 animate-pulse" />
+                <span className="text-sm font-semibold text-brand-300">
+                  {players.find(p => p.userId === currentSpeakerId)?.username ?? '...'} is speaking
+                </span>
+                {currentSpeakerId === user?.id && <span className="text-xs text-brand-500 ml-auto">← You!</span>}
+              </div>
+            )}
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Your Clue</p>
             {hasSubmittedClue ? (
               <div className="flex items-center gap-2 py-2 text-emerald-400 text-sm">
@@ -286,10 +349,21 @@ export default function GamePage() {
           <div className="card">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Vote out the Imposter</p>
-              {votedFor && (
-                <span className="text-xs text-emerald-400 font-semibold">✓ Vote cast</span>
-              )}
+              <div className="flex items-center gap-2">
+                {totalVoters > 0 && (
+                  <span className={['text-xs font-bold tabular-nums', voteCount === totalVoters ? 'text-emerald-400' : 'text-neutral-400'].join(' ')}>
+                    {voteCount}/{totalVoters} voted
+                  </span>
+                )}
+                {votedFor && <span className="text-xs text-emerald-400 font-semibold">✓ Vote cast</span>}
+              </div>
             </div>
+            {allVotedMsg && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-950/60 border border-emerald-800/40 mb-3 animate-slide-up">
+                <span>✅</span>
+                <span className="text-sm font-semibold text-emerald-400">Everyone has voted! Resolving...</span>
+              </div>
+            )}
             <div className="space-y-2">
               {alivePlayers
                 .filter((p) => p.userId !== user?.id)
@@ -344,8 +418,25 @@ export default function GamePage() {
                     : 'Villager'}
                 </p>
               </>
+            ) : isTie ? (
+              <>
+                <p className="text-white font-bold text-lg mb-1">🤝 It's a tie!</p>
+                <p className="text-neutral-400 text-sm">Votes were split equally — no one is eliminated</p>
+              </>
             ) : (
               <p className="text-neutral-400 text-sm">No one was eliminated this round</p>
+            )}
+            {wordReveal && (
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="rounded-xl bg-brand-950/40 border border-brand-800/40 p-3 text-center">
+                  <p className="text-xs text-neutral-500 mb-1">Villager Word</p>
+                  <p className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</p>
+                </div>
+                <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
+                  <p className="text-xs text-neutral-500 mb-1">Imposter Word</p>
+                  <p className="text-amber-300 font-extrabold text-xl">{wordReveal.imposterWord}</p>
+                </div>
+              </div>
             )}
             <p className="text-xs text-neutral-600 mt-4">Next round starting soon...</p>
           </div>
@@ -356,6 +447,30 @@ export default function GamePage() {
           <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
             Clues — Round {currentRound?.roundNumber ?? 1}
           </p>
+          {phase === 'speaking' && speakingOrder.length > 0 && (
+            <div className="mb-3 pb-3 border-b border-neutral-800">
+              <p className="text-xs text-neutral-600 mb-2">Speaking order</p>
+              <div className="flex flex-wrap gap-1.5">
+                {speakingOrder.map((uid, i) => {
+                  const p = players.find(pl => pl.userId === uid)
+                  const isCurrent = uid === currentSpeakerId
+                  const isDone = speakingOrder.indexOf(currentSpeakerId ?? '') > i || !currentSpeakerId
+                  return (
+                    <div key={uid} className={[
+                      'flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold border transition-all',
+                      isCurrent ? 'bg-brand-950/60 border-brand-700/50 text-brand-300' :
+                      isDone ? 'bg-neutral-900 border-neutral-800 text-neutral-600 line-through' :
+                      'bg-neutral-800/60 border-neutral-700/40 text-neutral-400',
+                    ].join(' ')}>
+                      <span className="text-neutral-600">{i + 1}.</span>
+                      {p?.username ?? uid.slice(0,6)}
+                      {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse ml-1" />}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           {clues.length === 0 ? (
             <p className="text-neutral-600 text-sm italic">No clues yet...</p>
           ) : (
@@ -391,10 +506,10 @@ export default function GamePage() {
               <div
                 key={p.id}
                 className={[
-                  'flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold',
+                  'flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold transition-all duration-500',
                   p.status === 'alive'
                     ? 'bg-neutral-800 text-white'
-                    : 'bg-neutral-900 text-neutral-600 line-through',
+                    : 'bg-red-950/30 text-neutral-600 line-through border border-red-900/20',
                 ].join(' ')}
               >
                 <span className={[

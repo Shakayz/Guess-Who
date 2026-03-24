@@ -55,7 +55,7 @@ async function advanceSpeaker(
   }
 
   const playerId = order[speakerIndex]
-  io.to(`room:${roomId}`).emit('round:speaking-turn', { playerId, timeSeconds: speakingTimeSeconds })
+  io.to(`room:${roomId}`).emit('round:speaking-turn', { playerId, timeSeconds: speakingTimeSeconds, speakingOrder: order })
 
   const timer = setTimeout(async () => {
     roomTimers.delete(roomId)
@@ -100,7 +100,8 @@ export async function tryEarlyResolve(io: IO, roomId: string) {
 
   if (allVoted) {
     clearRoomTimer(roomId)
-    await resolveRound(io, roomId)
+    io.to(`room:${roomId}`).emit('vote:all-cast' as any)
+    setTimeout(() => resolveRound(io, roomId), 1500)
   }
 }
 

@@ -29,6 +29,11 @@ export function registerGameHandlers(
       ]
       await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
       io.to(`room:${roomId}`).emit('round:vote-cast', { voterId: userId, hasVoted: true })
+      const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
+      io.to(`room:${roomId}`).emit('vote:update' as any, {
+        voteCount: currentRound.votes.length,
+        totalVoters: alivePlayers.length,
+      })
       // Resolve immediately if all alive players have voted
       await tryEarlyResolve(io, roomId)
     }
