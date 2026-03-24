@@ -141,7 +141,7 @@ async function resolveRound(io: IO, roomId: string) {
   if (mostVotedId && dbRound) {
     await prisma.round.update({
       where: { id: dbRound.id },
-      data: { eliminatedId: mostVotedId },
+      data: { eliminatedId: mostVotedId, eliminatedRole },
     }).catch(() => {})
     const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
     if (game) {
