@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { NavBar } from '../components/NavBar'
 import { WORD_CATEGORIES } from '@imposter/shared'
 import type { WordCategory } from '@imposter/shared'
+import { connectSocket, getSocket } from '../lib/socket'
 
 type GameMode = 'normal' | 'ranked' | 'lobby'
 
@@ -51,8 +52,28 @@ export default function HomePage() {
   const [roomCode, setRoomCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [matchmaking, setMatchmaking] = useState(false)
+  const [queueSize, setQueueSize] = useState(1)
 
   const hasCategories = selectedMode === 'normal' || selectedMode === 'lobby'
+
+  // Matchmaking socket listeners
+  useEffect(() => {
+    if (!matchmaking) return
+    connectSocket()
+    const sock = getSocket() as any
+    const handleStatus = (d: { queueSize: number; needed: number }) => setQueueSize(d.queueSize)
+    const handleFound = (d: { roomCode: string }) => {
+      setMatchmaking(false)
+      navigate(`/lobby/${d.roomCode}`)
+    }
+    sock.on('matchmaking:status', handleStatus)
+    sock.on('matchmaking:found', handleFound)
+    return () => {
+      sock.off('matchmaking:status', handleStatus)
+      sock.off('matchmaking:found', handleFound)
+    }
+  }, [matchmaking])
 
   const toggleCategory = (key: WordCategory) => {
     setCategories((prev) =>
@@ -62,22 +83,34 @@ export default function HomePage() {
 
   const handleCreate = async () => {
     if (!selectedMode) return
-    setLoading(true)
     setError(null)
-    try {
-      const room = await api.post<{ code: string }>('/rooms', {
-        settings: {
-          gameMode: selectedMode === 'ranked' ? 'ranked' : 'normal',
-          categories: selectedMode === 'ranked' ? [] : categories,
-          isPrivate: selectedMode === 'lobby',
-        },
-      })
-      navigate(`/lobby/${room.code}`)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
+
+    if (selectedMode === 'lobby') {
+      // Direct room creation
+      setLoading(true)
+      try {
+        const room = await api.post<{ code: string }>('/rooms', {
+          settings: { gameMode: 'normal', categories, isPrivate: true },
+        })
+        navigate(`/lobby/${room.code}`)
+      } catch (err: any) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+      return
     }
+
+    // Normal / Ranked → matchmaking
+    connectSocket()
+    setQueueSize(1)
+    setMatchmaking(true)
+    getSocket().emit('matchmaking:join' as any, { gameMode: selectedMode, categories })
+  }
+
+  const cancelMatchmaking = () => {
+    setMatchmaking(false)
+    getSocket().emit('matchmaking:leave' as any, { gameMode: selectedMode })
   }
 
   const handleJoin = (e: React.FormEvent) => {
@@ -212,8 +245,35 @@ export default function HomePage() {
             </div>
           )}
 
+          {/* Matchmaking waiting UI */}
+          {matchmaking && (
+            <div className="card animate-slide-up space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin flex-shrink-0" />
+                <div>
+                  <p className="text-white font-semibold text-sm">Finding players...</p>
+                  <p className="text-neutral-500 text-xs">
+                    {queueSize} / 4 players in queue
+                  </p>
+                </div>
+              </div>
+              <div className="w-full bg-neutral-800 rounded-full h-1.5">
+                <div
+                  className="bg-brand-500 h-1.5 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(100, (queueSize / 4) * 100)}%` }}
+                />
+              </div>
+              <button
+                onClick={cancelMatchmaking}
+                className="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white font-semibold text-sm transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
           {/* Create button */}
-          {selectedMode && (
+          {selectedMode && !matchmaking && (
             <button
               onClick={handleCreate}
               disabled={loading}
@@ -236,8 +296,8 @@ export default function HomePage() {
                 </span>
               ) : (
                 <>
-                  {selectedMode === 'normal' && '🎮 Start Normal Game'}
-                  {selectedMode === 'ranked' && '🏆 Start Ranked Game'}
+                  {selectedMode === 'normal' && '🎮 Find a Game'}
+                  {selectedMode === 'ranked' && '🏆 Find Ranked Game'}
                   {selectedMode === 'lobby' && '🚪 Create Lobby'}
                 </>
               )}

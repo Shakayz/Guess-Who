@@ -7,6 +7,7 @@ import { prisma } from '../config/prisma'
 import { registerRoomHandlers } from './handlers/room'
 import { registerGameHandlers } from './handlers/game'
 import { registerChatHandlers } from './handlers/chat'
+import { registerMatchmakingHandlers } from './handlers/matchmaking'
 
 // Track online users: userId -> socketId
 export const onlineUsers = new Map<string, string>()
@@ -44,6 +45,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     registerRoomHandlers(io, socket)
     registerGameHandlers(io, socket)
     registerChatHandlers(io, socket)
+    registerMatchmakingHandlers(io, socket)
 
     // DM: send a direct message to another user
     ;(socket as any).on('dm:send', async (data: { toUserId: string; text: string }) => {

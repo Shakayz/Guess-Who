@@ -1,12 +1,18 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
 import { useGameStore } from '../store/game'
 import { connectSocket, getSocket } from '../lib/socket'
+import { api } from '../lib/api'
 import { RoomCodeDisplay, PlayerCard } from '@imposter/ui'
 import { NavBar } from '../components/NavBar'
 import { WORD_CATEGORIES } from '@imposter/shared'
 import type { Room, GameMode, WordCategory } from '@imposter/shared'
+
+interface Friend {
+  friendshipId: string
+  user: { id: string; username: string; avatarUrl: string | null }
+}
 
 interface Settings {
   maxPlayers: number
@@ -150,6 +156,14 @@ export default function LobbyPage() {
   const { room, setRoom, setRoleAndWord, setRound } = useGameStore()
   const [isReady, setIsReady] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [settingsSaved, setSettingsSaved] = useState(false)
+  const [joinToast, setJoinToast] = useState<string | null>(null)
+  const prevPlayerCountRef = useRef(0)
+  // Invite friends
+  const [showInvite, setShowInvite] = useState(false)
+  const [friends, setFriends] = useState<Friend[]>([])
+  const [friendSearch, setFriendSearch] = useState('')
+  const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
   const [settings, setSettings] = useState<Settings>({
     maxPlayers: 10,
     imposterCount: 2,
@@ -163,6 +177,8 @@ export default function LobbyPage() {
   const handleSettingsChange = (s: Settings) => {
     setSettings(s)
     getSocket().emit('room:settings' as any, { gameMode: s.gameMode, categories: s.categories })
+    setSettingsSaved(true)
+    setTimeout(() => setSettingsSaved(false), 1500)
   }
 
   useEffect(() => {
@@ -173,6 +189,15 @@ export default function LobbyPage() {
 
     socket.on('room:updated', (r) => {
       setRoom(r as Room)
+      // Show toast when a new player joins
+      if (r.players && r.players.length > prevPlayerCountRef.current) {
+        const newPlayer = r.players[r.players.length - 1]
+        if (newPlayer && newPlayer.userId !== user?.id) {
+          setJoinToast(`${newPlayer.username} joined the room!`)
+          setTimeout(() => setJoinToast(null), 2500)
+        }
+      }
+      prevPlayerCountRef.current = r.players?.length ?? 0
       // Sync local ready state from server so allReady reflects reality
       if (r.players && user) {
         const me = r.players.find((p: any) => p.userId === user.id)
@@ -211,6 +236,23 @@ export default function LobbyPage() {
 
   const startGame = () => getSocket().emit('game:start')
 
+  const toggleInvite = async () => {
+    const next = !showInvite
+    setShowInvite(next)
+    if (next && friends.length === 0) {
+      try {
+        const data = await api.get<{ friends: Friend[] }>('/friends')
+        setFriends(data.friends)
+      } catch {}
+    }
+  }
+
+  const sendInvite = (friendId: string) => {
+    if (!code) return
+    getSocket().emit('room:invite' as any, { toUserId: friendId, roomCode: code })
+    setInvitedIds((prev) => new Set([...prev, friendId]))
+  }
+
   const isHost = room?.hostId === user?.id
   const players = room?.players ?? []
   const allReady = players.length >= 2 && players.every((p) => p.isReady || p.isHost)
@@ -222,6 +264,15 @@ export default function LobbyPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
+
+      {/* Join toast */}
+      {joinToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-neutral-800 border border-neutral-700 text-sm text-white font-semibold shadow-xl animate-slide-up flex items-center gap-2">
+          <span className="text-emerald-400">+</span>
+          {joinToast}
+        </div>
+      )}
+
       <main className="flex-1 flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-md space-y-4 animate-slide-up">
 
@@ -275,6 +326,9 @@ export default function LobbyPage() {
             >
               <span className="text-neutral-300 font-medium">⚙ Room Settings</span>
               <div className="flex items-center gap-2 text-neutral-500 text-xs">
+                {settingsSaved && (
+                  <span className="text-emerald-400 font-semibold animate-fade-in">✓ Saved</span>
+                )}
                 <span className={settings.gameMode === 'ranked' ? 'text-amber-400' : 'text-brand-400'}>
                   {settings.gameMode === 'ranked' ? '🏆 Ranked' : '🎮 Normal'}
                 </span>
@@ -287,6 +341,59 @@ export default function LobbyPage() {
 
           {isHost && showSettings && (
             <SettingsPanel settings={settings} onChange={handleSettingsChange} />
+          )}
+
+          {/* Invite friends */}
+          <button
+            onClick={toggleInvite}
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-neutral-800/60 hover:bg-neutral-800 border border-neutral-700/50 transition-colors text-sm"
+          >
+            <span className="text-neutral-300 font-medium">👥 Invite Friends</span>
+            <span className="text-neutral-500 text-xs">{showInvite ? '▴' : '▾'}</span>
+          </button>
+
+          {showInvite && (
+            <div className="card space-y-3 animate-slide-up">
+              <input
+                className="input-field w-full text-sm"
+                placeholder="Search friends..."
+                value={friendSearch}
+                onChange={(e) => setFriendSearch(e.target.value)}
+              />
+              {friends.length === 0 ? (
+                <p className="text-neutral-500 text-xs text-center py-2">No friends yet — add some from the Friends page!</p>
+              ) : (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {friends
+                    .filter((f) =>
+                      !friendSearch.trim() ||
+                      f.user.username.toLowerCase().includes(friendSearch.toLowerCase())
+                    )
+                    .map((f) => (
+                      <div key={f.friendshipId} className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-neutral-800/50">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-full bg-neutral-700 flex items-center justify-center text-xs font-bold text-neutral-300 flex-shrink-0">
+                            {f.user.username[0]?.toUpperCase()}
+                          </div>
+                          <span className="text-sm text-white font-medium truncate">{f.user.username}</span>
+                        </div>
+                        <button
+                          onClick={() => sendInvite(f.user.id)}
+                          disabled={invitedIds.has(f.user.id)}
+                          className={[
+                            'flex-shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition-colors',
+                            invitedIds.has(f.user.id)
+                              ? 'bg-emerald-900/40 border border-emerald-700/40 text-emerald-400 cursor-default'
+                              : 'bg-brand-600 hover:bg-brand-500 text-white',
+                          ].join(' ')}
+                        >
+                          {invitedIds.has(f.user.id) ? '✓ Invited' : 'Invite'}
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Settings summary (non-host) */}

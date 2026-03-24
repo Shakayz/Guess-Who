@@ -128,7 +128,9 @@ export default function ResultsPage() {
                 : 'bg-gradient-to-r from-transparent via-red-500 to-transparent',
             ].join(' ')} />
             <div className="relative">
-              <p className="text-6xl mb-3">{didWin ? '🏆' : '💀'}</p>
+              <p className={['text-6xl mb-3', didWin ? 'animate-bounce' : ''].join(' ')}>
+                {didWin ? '🏆' : '💀'}
+              </p>
               <h1 className={[
                 'text-3xl font-extrabold tracking-tight mb-1',
                 didWin ? 'text-emerald-400' : 'text-red-400',
@@ -138,6 +140,13 @@ export default function ResultsPage() {
               <p className="text-neutral-400 text-sm">
                 {winner === 'villagers' ? 'Villagers found the imposters' : 'Imposters escaped detection'}
               </p>
+              {didWin && (
+                <div className="flex justify-center gap-3 mt-4">
+                  {['+', rewards.starCoinsEarned, '⭐'].map((v, i) => (
+                    <span key={i} className="text-emerald-400 font-bold">{v}</span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -258,22 +267,22 @@ export default function ResultsPage() {
                         {HONOR_OPTIONS.find((h) => h.type === honorGiven[p.userId])?.label}
                       </span>
                     ) : honorTarget === p.userId ? (
-                      <div className="flex gap-1.5">
+                      <div className="flex flex-col gap-1.5 items-end animate-slide-up">
                         {HONOR_OPTIONS.map((h) => (
                           <button
                             key={h.type}
                             onClick={() => handleHonor(p.userId, h.type)}
-                            title={h.label}
-                            className="w-8 h-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-base transition-colors"
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-semibold text-neutral-300 hover:text-white transition-colors"
                           >
-                            {h.icon}
+                            <span>{h.icon}</span>
+                            <span>{h.label}</span>
                           </button>
                         ))}
                         <button
                           onClick={() => setHonorTarget(null)}
-                          className="w-8 h-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-500 text-xs transition-colors"
+                          className="text-[10px] text-neutral-600 hover:text-neutral-400 transition-colors"
                         >
-                          ✕
+                          Cancel
                         </button>
                       </div>
                     ) : (

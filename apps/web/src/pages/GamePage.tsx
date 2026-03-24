@@ -39,6 +39,7 @@ export default function GamePage() {
   const [deadChatInput, setDeadChatInput] = useState('')
   const [deadChatMessages, setDeadChatMessages] = useState<{ id: string; userId: string; username: string; text: string }[]>([])
   const [isEliminated, setIsEliminated] = useState(false)
+  const [showEliminatedOverlay, setShowEliminatedOverlay] = useState(false)
   const [floatingEmotes, setFloatingEmotes] = useState<{ id: string; emoji: string; username: string; x: number }[]>([])
   const [phase, setPhase] = useState<Phase>('speaking')
   const [votedFor, setVotedFor] = useState<string | null>(null)
@@ -138,6 +139,8 @@ export default function GamePage() {
         // If it's me, join dead chat
         if (round.eliminatedPlayerId === user?.id) {
           setIsEliminated(true)
+          setShowEliminatedOverlay(true)
+          setTimeout(() => setShowEliminatedOverlay(false), 3500)
           socket.emit('deadchat:join' as any)
         }
       } else {
@@ -249,6 +252,17 @@ export default function GamePage() {
           </div>
         )}
 
+        {/* You were eliminated overlay */}
+        {showEliminatedOverlay && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/75 backdrop-blur-sm pointer-events-none">
+            <div className="text-center animate-slide-up px-8 py-6 rounded-2xl bg-neutral-900/80 border border-red-900/50">
+              <p className="text-5xl mb-3">💀</p>
+              <p className="text-white font-extrabold text-xl mb-1">You've been eliminated!</p>
+              <p className="text-neutral-400 text-sm">You can now chat with other ghosts</p>
+            </div>
+          </div>
+        )}
+
         {/* Top bar */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -307,15 +321,29 @@ export default function GamePage() {
         {/* Speaking phase: clue input */}
         {phase === 'speaking' && (
           <div className="card">
-            {currentSpeakerId && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-950/60 border border-brand-800/40 mb-3">
-                <span className="w-2 h-2 rounded-full bg-brand-400 animate-pulse" />
-                <span className="text-sm font-semibold text-brand-300">
-                  {players.find(p => p.userId === currentSpeakerId)?.username ?? '...'} is speaking
-                </span>
-                {currentSpeakerId === user?.id && <span className="text-xs text-brand-500 ml-auto">← You!</span>}
-              </div>
-            )}
+            {currentSpeakerId && (() => {
+              const speaker = players.find(p => p.userId === currentSpeakerId)
+              const isMe = currentSpeakerId === user?.id
+              return (
+                <div className={[
+                  'flex items-center gap-3 px-4 py-3 rounded-xl border mb-3',
+                  isMe
+                    ? 'bg-brand-950/80 border-brand-700/60 ring-1 ring-brand-600/30'
+                    : 'bg-neutral-800/60 border-neutral-700/40',
+                ].join(' ')}>
+                  <Avatar username={speaker?.username ?? '?'} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <p className={['font-bold text-sm truncate', isMe ? 'text-brand-200' : 'text-white'].join(' ')}>
+                      {isMe ? 'Your turn to speak!' : `${speaker?.username ?? '...'} is speaking`}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {isMe ? 'Give your clue below' : 'Listening...'}
+                    </p>
+                  </div>
+                  <span className="w-2.5 h-2.5 rounded-full bg-brand-400 animate-pulse shrink-0" />
+                </div>
+              )
+            })()}
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Your Clue</p>
             {hasSubmittedClue ? (
               <div className="flex items-center gap-2 py-2 text-emerald-400 text-sm">
@@ -347,23 +375,39 @@ export default function GamePage() {
         {/* Voting phase */}
         {phase === 'voting' && (
           <div className="card">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Vote out the Imposter</p>
-              <div className="flex items-center gap-2">
-                {totalVoters > 0 && (
-                  <span className={['text-xs font-bold tabular-nums', voteCount === totalVoters ? 'text-emerald-400' : 'text-neutral-400'].join(' ')}>
-                    {voteCount}/{totalVoters} voted
-                  </span>
-                )}
-                {votedFor && <span className="text-xs text-emerald-400 font-semibold">✓ Vote cast</span>}
-              </div>
+              {totalVoters > 0 && (
+                <span className={['text-xs font-bold tabular-nums', voteCount === totalVoters ? 'text-emerald-400' : 'text-neutral-400'].join(' ')}>
+                  {voteCount}/{totalVoters} voted
+                </span>
+              )}
             </div>
+            {/* Vote progress bar */}
+            {totalVoters > 0 && (
+              <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden mb-3">
+                <div
+                  className={['h-full rounded-full transition-all duration-500', voteCount === totalVoters ? 'bg-emerald-500' : 'bg-amber-500'].join(' ')}
+                  style={{ width: `${(voteCount / totalVoters) * 100}%` }}
+                />
+              </div>
+            )}
             {allVotedMsg && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-950/60 border border-emerald-800/40 mb-3 animate-slide-up">
                 <span>✅</span>
                 <span className="text-sm font-semibold text-emerald-400">Everyone has voted! Resolving...</span>
               </div>
             )}
+            {/* Your vote summary */}
+            {votedFor && (() => {
+              const votedPlayer = alivePlayers.find(p => p.userId === votedFor)
+              return votedPlayer ? (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-950/30 border border-amber-800/30 mb-3">
+                  <span className="text-amber-400 text-xs">🗳</span>
+                  <span className="text-xs text-amber-300 font-semibold">You voted for <span className="text-amber-200">{votedPlayer.username}</span></span>
+                </div>
+              ) : null
+            })()}
             <div className="space-y-2">
               {alivePlayers
                 .filter((p) => p.userId !== user?.id)
@@ -384,7 +428,7 @@ export default function GamePage() {
                     <Avatar username={p.username} size="sm" />
                     <span className="flex-1 font-semibold text-white text-sm">{p.username}</span>
                     {votedFor === p.userId && (
-                      <span className="text-amber-400 text-xs font-bold">Voted</span>
+                      <span className="text-amber-400 text-xs font-bold">← Your vote</span>
                     )}
                     {!votedFor && (
                       <span className="text-neutral-600 text-xs">Click to vote</span>
@@ -392,6 +436,22 @@ export default function GamePage() {
                   </button>
                 ))}
             </div>
+            {/* Speaking order reminder during voting */}
+            {speakingOrder.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-neutral-800">
+                <p className="text-xs text-neutral-600 mb-1.5">Speaking order this round</p>
+                <div className="flex flex-wrap gap-1">
+                  {speakingOrder.map((uid, i) => {
+                    const p = players.find(pl => pl.userId === uid)
+                    return (
+                      <span key={uid} className="text-xs px-2 py-0.5 rounded bg-neutral-800/60 text-neutral-500 border border-neutral-700/30">
+                        {i + 1}. {p?.username ?? uid.slice(0, 6)}
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -563,18 +623,27 @@ export default function GamePage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col justify-end p-3">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600 mb-2">React</p>
-            <div className="flex gap-2 flex-wrap">
-              {EMOTES.map((emoji) => (
-                <button
-                  key={emoji}
-                  onClick={() => sendEmote(emoji)}
-                  className="text-2xl w-11 h-11 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/80 hover:scale-110 active:scale-95 transition-all border border-neutral-700/50"
-                >
-                  {emoji}
-                </button>
-              ))}
+          <div className="flex-1 flex flex-col justify-end p-3 gap-3">
+            {/* Chat disabled notice */}
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-neutral-900/60 border border-neutral-800">
+              <span className="text-neutral-600 text-sm shrink-0">🔇</span>
+              <p className="text-xs text-neutral-600 leading-relaxed">
+                Chat is disabled during gameplay to prevent cheating. React with emotes instead!
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600 mb-2">React</p>
+              <div className="flex gap-2 flex-wrap">
+                {EMOTES.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => sendEmote(emoji)}
+                    className="text-2xl w-11 h-11 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/80 hover:scale-110 active:scale-95 transition-all border border-neutral-700/50"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}

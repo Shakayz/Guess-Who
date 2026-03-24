@@ -68,8 +68,8 @@ function GlobalSocketListeners() {
       setPendingInvite({ fromUsername: data.fromUsername, roomCode: data.roomCode })
     }
 
-    const handleFriendRequest = (data: FriendRequestEvent) => {
-      console.log('Friend request received from', data.from.username)
+    const handleFriendRequest = (_data: FriendRequestEvent) => {
+      // TODO: show in-app notification for friend requests
     }
 
     sock.on('dm:receive', handleDmReceive)
