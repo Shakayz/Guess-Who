@@ -381,48 +381,9 @@ export default function GamePage() {
           </div>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {messages.length === 0 ? (
-            <p className="text-neutral-700 text-xs italic">No messages yet</p>
-          ) : (
-            messages.map((msg) => (
-              <div key={msg.id} className="text-sm">
-                <span className={[
-                  'font-semibold',
-                  msg.senderId === user?.id ? 'text-brand-400' : 'text-neutral-300',
-                ].join(' ')}>
-                  {msg.senderName}:{' '}
-                </span>
-                <span className="text-neutral-400">{msg.text}</span>
-              </div>
-            ))
-          )}
-          <div ref={chatEndRef} />
-        </div>
-
-        {/* Chat input */}
-        <div className="p-3 border-t border-neutral-800">
-          <form onSubmit={sendChat} className="flex gap-2">
-            <input
-              className="input-field flex-1 text-sm py-2"
-              placeholder="Message..."
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-            />
-            <button
-              type="submit"
-              disabled={!chatInput.trim()}
-              className="px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-semibold transition-colors disabled:opacity-40"
-            >
-              →
-            </button>
-          </form>
-        </div>
-
-        {/* Dead chat — only visible to eliminated players */}
-        {isEliminated && (
-          <div className="border-t-2 border-red-900/50 flex flex-col max-h-56">
+        {/* Ghost Chat — only for eliminated players */}
+        {isEliminated ? (
+          <div className="flex-1 flex flex-col border-t-2 border-red-900/50">
             <div className="px-3 py-2 bg-red-950/30 flex items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-widest text-red-500">💀 Ghost Chat</span>
               <span className="text-xs text-neutral-600">Only eliminated players</span>
@@ -440,6 +401,7 @@ export default function GamePage() {
                   </div>
                 ))
               )}
+              <div ref={chatEndRef} />
             </div>
             <div className="p-3 border-t border-red-900/30">
               <form onSubmit={sendDeadChat} className="flex gap-2">
@@ -458,6 +420,10 @@ export default function GamePage() {
                 </button>
               </form>
             </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center p-4">
+            <p className="text-neutral-700 text-xs text-center italic">Chat is disabled during the game<br />to prevent cheating</p>
           </div>
         )}
       </div>
