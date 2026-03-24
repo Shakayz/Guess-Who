@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #09090b;
+  }
+
+  body {
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124, 58, 237, 0.12), transparent),
+      radial-gradient(ellipse 40% 30% at 80% 80%, rgba(124, 58, 237, 0.06), transparent);
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #404040;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #525252;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-neutral-900/60 backdrop-blur-md border border-neutral-800;
+  }
+
+  .page-container {
+    @apply min-h-screen bg-neutral-950 text-white;
+  }
+
+  .card {
+    @apply rounded-2xl border border-neutral-800 bg-neutral-900/50 p-5;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2.5 rounded-xl bg-neutral-800 border border-neutral-700
+           text-white placeholder-neutral-500
+           focus:outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600
+           transition-colors duration-150;
+  }
+}

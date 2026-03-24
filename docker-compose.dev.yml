@@ -1,0 +1,98 @@
+# ── Full development stack ─────────────────────────────────────────────────────
+# Usage:
+#   docker compose -f docker-compose.dev.yml up          # start everything
+#   docker compose -f docker-compose.dev.yml up postgres redis  # infra only
+#   docker compose -f docker-compose.dev.yml build api   # rebuild after shared/ changes
+#
+# Hot-reload:
+#   • API  — tsx watch picks up changes in apps/api/src/
+#   • Web  — Vite HMR picks up changes in apps/web/src/
+#   • packages/shared — requires `docker compose build api web` to rebuild
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: imposter-postgres-dev
+    environment:
+      POSTGRES_DB:       imposter_game
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: imposter-redis-dev
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── API (Fastify + Socket.IO) ────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.dev
+    container_name: imposter-api-dev
+    # Override localhost URLs from apps/api/.env with Docker service names
+    env_file: apps/api/.env
+    environment:
+      NODE_ENV:     development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/imposter_game
+      REDIS_URL:    redis://redis:6379
+      ALLOWED_ORIGINS: >-
+        http://localhost:5173,http://localhost:19006
+    ports:
+      - "3001:3001"
+    volumes:
+      # Hot-reload: mount source so tsx watch sees file changes
+      - ./apps/api/src:/app/apps/api/src
+      - ./apps/api/prisma:/app/apps/api/prisma
+      # Optional: mount shared source (requires image rebuild to pick up in dist)
+      # - ./packages/shared/src:/app/packages/shared/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Web (Vite dev server) ────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.dev
+    container_name: imposter-web-dev
+    environment:
+      # Used by vite.config.ts to proxy /api and /socket.io to the api container
+      API_TARGET: http://api:3001
+    ports:
+      - "5173:5173"
+    volumes:
+      # Hot-reload: mount source so Vite HMR sees file changes
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/public:/app/apps/web/public
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:

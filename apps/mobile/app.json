@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Imposter Game",
+    "slug": "imposter-game",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "imposter",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#09090b"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.imposter.game"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#09090b"
+      },
+      "package": "com.imposter.game"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

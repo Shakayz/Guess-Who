@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs wc:*)",
+      "Bash(grep -r \"bullmq\\\\|bull\\\\|job\" /e/Work/Guess-Who-main/package.json /e/Work/Guess-Who-main/apps/*/package.json)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(where pnpm:*)",
+      "Bash(npm root:*)",
+      "Bash(cmd.exe /c \"where pnpm 2>&1\")",
+      "Bash(cmd.exe /c \"pnpm --version 2>&1 & npm --version 2>&1 & node --version 2>&1\")",
+      "Bash(cmd.exe /c \"where node 2>&1 && node --version 2>&1\")",
+      "Bash(docker --version)",
+      "Bash(gh auth:*)",
+      "Bash(cmd.exe /c \"cd /d E:\\\\Work\\\\Guess-Who-main && git --version 2>&1 && gh --version 2>&1\")",
+      "Bash(cmd.exe /c \"where git 2>&1 & where gh 2>&1 & where node 2>&1 & where npm 2>&1\")",
+      "Bash(powershell.exe -Command \"Get-Command git,gh,node,npm -ErrorAction SilentlyContinue | Select-Object Name,Source\")",
+      "Bash(powershell.exe -Command \"& ''C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\git.exe'' --version\")",
+      "Bash(powershell.exe -Command \"& ''C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\git.exe'' -C ''E:\\\\Work\\\\Guess-Who-main'' init 2>&1\")",
+      "Bash(powershell.exe -Command \"& ''C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\git.exe'' -C ''E:\\\\Work\\\\Guess-Who-main'' config user.email ''dev@guess-who.app''; & ''C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\git.exe'' -C ''E:\\\\Work\\\\Guess-Who-main'' config user.name ''Guess Who Dev''\")",
+      "Bash(powershell.exe -Command \"& ''C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\git.exe'' -C ''E:\\\\Work\\\\Guess-Who-main'' add . 2>&1\")"
+    ]
+  }
+}

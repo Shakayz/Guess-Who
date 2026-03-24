@@ -1,0 +1,38 @@
+{
+  "name": "imposter-game",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.2.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": ["eslint --fix", "prettier --write"],
+    "*.{md,json,yaml,yml}": ["prettier --write"]
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "react": "18.3.1",
+      "react-dom": "18.3.1"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Imposter Game — The ultimate social deduction game" />
+    <title>Imposter Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script type="text/javascript" src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"></script>
+    <meta name="appleid-signin-client-id" content="com.aghazzaf.imposter" />
+    <meta name="appleid-signin-scope" content="name email" />
+    <meta name="appleid-signin-redirect-uri" content="https://aghazzaf.com/api/auth/apple/callback" />
+    <meta name="appleid-signin-use-popup" content="true" />
+  </head>
+  <body class="bg-neutral-950 text-white antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
