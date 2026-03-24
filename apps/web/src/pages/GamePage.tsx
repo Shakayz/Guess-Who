@@ -39,6 +39,7 @@ export default function GamePage() {
   const [deadChatInput, setDeadChatInput] = useState('')
   const [deadChatMessages, setDeadChatMessages] = useState<{ id: string; userId: string; username: string; text: string }[]>([])
   const [isEliminated, setIsEliminated] = useState(false)
+  const [floatingEmotes, setFloatingEmotes] = useState<{ id: string; emoji: string; username: string; x: number }[]>([])
   const [phase, setPhase] = useState<Phase>('speaking')
   const [votedFor, setVotedFor] = useState<string | null>(null)
   const [eliminated, setEliminated] = useState<{ username: string; role: string } | null>(null)
@@ -116,6 +117,12 @@ export default function GamePage() {
       navigate(`/results/${code}`)
     })
     socket.on('chat:message', addMessage)
+    socket.on('emote:receive' as any, ({ username, emoji }: { username: string; emoji: string }) => {
+      const id = `${Date.now()}_${Math.random()}`
+      const x = 10 + Math.random() * 80
+      setFloatingEmotes((prev) => [...prev, { id, emoji, username, x }])
+      setTimeout(() => setFloatingEmotes((prev) => prev.filter((e) => e.id !== id)), 2800)
+    })
 
     return () => {
       socket.off('connect', handleConnect)
@@ -126,6 +133,7 @@ export default function GamePage() {
       socket.off('game:finished')
       socket.off('chat:message')
       socket.off('deadchat:message' as any)
+      socket.off('emote:receive' as any)
       if (timerRef.current) clearInterval(timerRef.current)
     }
   }, [startTimer])
@@ -155,6 +163,10 @@ export default function GamePage() {
     setChatInput('')
   }
 
+  const sendEmote = (emoji: string) => {
+    getSocket().emit('emote:send' as any, { emoji })
+  }
+
   const sendDeadChat = (e: React.FormEvent) => {
     e.preventDefault()
     if (!deadChatInput.trim()) return
@@ -164,10 +176,24 @@ export default function GamePage() {
 
   const alivePlayers = players.filter((p) => p.status === 'alive')
 
+  const EMOTES = ['👍', '😮', '🤔', '😂', '😱']
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* ── Main game area ── */}
-      <div className="flex-1 flex flex-col p-4 lg:p-6 gap-4 overflow-y-auto">
+      <div className="relative flex-1 flex flex-col p-4 lg:p-6 gap-4 overflow-y-auto">
+
+        {/* Floating emote reactions */}
+        {floatingEmotes.map((e) => (
+          <div
+            key={e.id}
+            className="pointer-events-none absolute bottom-20 z-50 flex flex-col items-center animate-float-up"
+            style={{ left: `${e.x}%` }}
+          >
+            <span className="text-3xl drop-shadow-lg">{e.emoji}</span>
+            <span className="text-[10px] text-white/70 font-semibold mt-0.5 bg-black/40 px-1.5 py-0.5 rounded-full">{e.username}</span>
+          </div>
+        ))}
 
         {/* Top bar */}
         <div className="space-y-2">
@@ -422,7 +448,20 @@ export default function GamePage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1" />
+          <div className="flex-1 flex flex-col justify-end p-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600 mb-2">React</p>
+            <div className="flex gap-2 flex-wrap">
+              {EMOTES.map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => sendEmote(emoji)}
+                  className="text-2xl w-11 h-11 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/80 hover:scale-110 active:scale-95 transition-all border border-neutral-700/50"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>

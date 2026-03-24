@@ -153,6 +153,18 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       io.to(`dead:${room.id}`).emit('deadchat:message' as any, msg)
     })
 
+    // Emote: quick reaction broadcast to the room
+    socket.on('emote:send' as any, (data: { emoji: string }) => {
+      if (!socket.data.userId || !socket.data.roomCode) return
+      const allowed = ['👍', '😮', '🤔', '😂', '😱']
+      if (!allowed.includes(data.emoji)) return
+      io.to(socket.data.roomCode).emit('emote:receive' as any, {
+        userId: socket.data.userId,
+        username: socket.data.username,
+        emoji: data.emoji,
+      })
+    })
+
     // Honor: give an honor to a player after a game
     socket.on('honor:give' as any, async (data: { targetUserId: string; honorType: string }) => {
       if (!socket.data.userId || !data.targetUserId || !data.honorType) return
