@@ -1,6 +1,10 @@
 import { Queue, Worker } from 'bullmq'
-import { redis } from '../config/redis'
+import Redis from 'ioredis'
 import { prisma } from '../config/prisma'
+import { env } from '../config/env'
+
+// BullMQ requires maxRetriesPerRequest: null
+const bullRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })
 import { LP_DECAY } from '@imposter/shared'
 
 const QUEUE_NAME = 'lp-decay'
@@ -8,7 +12,7 @@ const QUEUE_NAME = 'lp-decay'
 // ─── Queue ───────────────────────────────────────────────────────────────────
 
 export const lpDecayQueue = new Queue(QUEUE_NAME, {
-  connection: redis,
+  connection: bullRedis,
   defaultJobOptions: { removeOnComplete: 100, removeOnFail: 50 },
 })
 
@@ -46,7 +50,7 @@ export function startLpDecayWorker() {
 
       console.log(`[LP Decay] Applied decay to ${decayed} inactive players`)
     },
-    { connection: redis, concurrency: 1 },
+    { connection: bullRedis, concurrency: 1 },
   )
 
   worker.on('failed', (job, err) => {
