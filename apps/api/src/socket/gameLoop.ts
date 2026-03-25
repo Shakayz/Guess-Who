@@ -178,6 +178,9 @@ async function resolveRound(io: IO, roomId: string) {
 
     io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
 
+    // ── Achievement triggers ─────────────────────────────────────────────────
+    const unlockedByPlayer = await checkAndUnlockAchievements(io, roomId, winner, state, finishedGame?.id ?? null)
+
     const rewards = {
       starCoinsEarned: winner === 'villagers' ? 50 : 80,
       xpEarned: 120,
@@ -260,5 +263,98 @@ async function resolveRound(io: IO, roomId: string) {
     setTimeout(async () => {
       await startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
     }, 5000)
+  }
+}
+
+// ─── Achievement auto-triggers ────────────────────────────────────────────────
+
+async function checkAndUnlockAchievements(
+  io: IO,
+  roomId: string,
+  winner: string,
+  state: any,
+  gameId: string | null,
+) {
+  try {
+    const achievements = await prisma.achievement.findMany()
+    const achMap = new Map(achievements.map((a) => [a.key, a.id]))
+
+    const participants = gameId
+      ? await prisma.gameParticipation.findMany({ where: { gameId } })
+      : []
+
+    // Online sockets in this room keyed by userId
+    const socketMap = new Map<string, string>() // userId → socketId
+    const sockets = await io.in(`room:${roomId}`).fetchSockets().catch(() => [] as any[])
+    for (const s of sockets) {
+      const uid = (s as any).data?.userId ?? (s as any).userId
+      if (uid) socketMap.set(uid, s.id)
+    }
+
+    for (const p of participants) {
+      const userId = p.userId
+      const isWinner =
+        (winner === 'villagers' && (p.role === 'villager' || p.role === 'detective')) ||
+        (winner === 'imposters' && (p.role === 'imposter' || p.role === 'double_agent'))
+      const isImposter = p.role === 'imposter' || p.role === 'double_agent'
+      const survived = p.survived
+
+      // Gather stats for this user
+      const [totalWins, imposterWins, totalGames, friends] = await Promise.all([
+        prisma.gameParticipation.count({ where: { userId, game: { winnerTeam: { not: null } },
+          OR: [{ role: 'villager', game: { winnerTeam: 'villagers' } },
+               { role: 'detective', game: { winnerTeam: 'villagers' } },
+               { role: 'imposter', game: { winnerTeam: 'imposters' } },
+               { role: 'double_agent', game: { winnerTeam: 'imposters' } }] } }),
+        prisma.gameParticipation.count({ where: { userId,
+          OR: [{ role: 'imposter', game: { winnerTeam: 'imposters' } },
+               { role: 'double_agent', game: { winnerTeam: 'imposters' } }] } }),
+        prisma.gameParticipation.count({ where: { userId } }),
+        prisma.friendship.count({ where: { OR: [{ requesterId: userId }, { addresseeId: userId }], status: 'accepted' } }),
+      ]).catch(() => [0, 0, 0, 0] as [number, number, number, number])
+
+      const toUnlock: string[] = []
+
+      if (isWinner && totalWins === 1) toUnlock.push('first_win')
+      if (isImposter && isWinner && imposterWins === 1) toUnlock.push('first_imposter')
+      if (isImposter && isWinner && survived) toUnlock.push('perfect_imposter')
+      if (totalWins >= 10) toUnlock.push('ten_wins')
+      if (imposterWins >= 10) toUnlock.push('imposter_x10')
+      if (survived && isWinner) toUnlock.push('survivor')
+      if (friends >= 5) toUnlock.push('social_butterfly')
+
+      // Check correct_voter: voted for the eliminated imposter this game
+      if (gameId) {
+        const rounds = await prisma.round.findMany({
+          where: { gameId, eliminatedId: { not: null } },
+          select: { eliminatedId: true },
+        })
+        const eliminatedImposters = await Promise.all(rounds.map(async (r) => {
+          if (!r.eliminatedId) return false
+          const part = participants.find((pp) => pp.userId === r.eliminatedId)
+          return part?.role === 'imposter' || part?.role === 'double_agent'
+        }))
+        const votedCorrectly = eliminatedImposters.some((v) => v)
+        if (votedCorrectly) toUnlock.push('correct_voter')
+      }
+
+      // Unlock and notify
+      for (const key of toUnlock) {
+        const achId = achMap.get(key)
+        if (!achId) continue
+        const already = await prisma.userAchievement.findFirst({ where: { userId, achievementId: achId } })
+        if (already) continue
+        await prisma.userAchievement.create({ data: { userId, achievementId: achId } }).catch(() => {})
+        const ach = achievements.find((a) => a.key === key)
+        if (ach) {
+          const targetSocket = sockets.find((s: any) => (s.data?.userId ?? s.userId) === userId)
+          if (targetSocket) {
+            targetSocket.emit('achievement:unlocked' as any, { key: ach.key, name: ach.name, icon: ach.icon })
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[achievements] error:', err)
   }
 }

@@ -259,19 +259,100 @@ async function main() {
     console.log(`Created General word pack with ${WORD_PAIRS.length} pairs`)
   }
 
+  // ── Achievements ─────────────────────────────────────────────────────────────
   const ACHIEVEMENTS = [
-    { key: 'first_win',         name: 'First Win',          description: 'Win your first game',                       icon: '🏆' },
-    { key: 'imposter_wins',     name: 'Master Deceiver',    description: 'Win 5 games as the imposter',               icon: '🎭' },
-    { key: 'perfect_detective', name: 'Eagle Eye',          description: 'Vote out the imposter correctly 10 times',  icon: '🔍' },
-    { key: 'veteran',           name: 'Veteran',            description: 'Play 50 games',                             icon: '⚔️' },
-    { key: 'social_butterfly',  name: 'Social Butterfly',   description: 'Play with 5 different players',             icon: '🦋' },
-    { key: 'perfect_game',      name: 'Perfect Game',       description: 'Win without any correct votes against you', icon: '⭐' },
+    { key: 'first_win',        name: 'First Win',          description: 'Win your very first game',                     icon: '🏆' },
+    { key: 'first_imposter',   name: 'First Imposter',     description: 'Win a game as the imposter',                   icon: '🎭' },
+    { key: 'perfect_imposter', name: 'Perfect Imposter',   description: 'Win as imposter without being voted out once', icon: '🌟' },
+    { key: 'ten_wins',         name: 'Veteran',            description: 'Win 10 games total',                          icon: '🎖️' },
+    { key: 'imposter_x10',     name: 'Master of Deception',description: 'Win 10 games as the imposter',                icon: '🕵️' },
+    { key: 'honor_giver_5',    name: 'Generous',           description: 'Give honor to 5 different players',           icon: '🤝' },
+    { key: 'honor_receiver_5', name: 'Beloved',            description: 'Receive 5 honors from other players',         icon: '💖' },
+    { key: 'survivor',         name: 'Survivor',           description: 'Survive all rounds without being eliminated', icon: '💪' },
+    { key: 'correct_voter',    name: 'Good Eye',           description: 'Vote correctly to eliminate the imposter',    icon: '👁️' },
+    { key: 'social_butterfly', name: 'Social Butterfly',   description: 'Make 5 friends',                              icon: '🦋' },
   ]
-
   for (const ach of ACHIEVEMENTS) {
     await prisma.achievement.upsert({ where: { key: ach.key }, create: ach, update: {} })
   }
   console.log(`Seeded ${ACHIEVEMENTS.length} achievements`)
+
+  // ── Cosmetics ─────────────────────────────────────────────────────────────────
+  const COSMETICS = [
+    // Avatars (star coins)
+    { type: 'avatar', name: 'Shadow Fox',    description: 'A sleek dark fox', imageUrl: '/cosmetics/avatar_fox.png',    price: 200,  currency: 'star' },
+    { type: 'avatar', name: 'Neon Wolf',     description: 'Glowing cyber wolf', imageUrl: '/cosmetics/avatar_wolf.png', price: 350,  currency: 'star' },
+    { type: 'avatar', name: 'Crystal Bird',  description: 'Icy blue bird',    imageUrl: '/cosmetics/avatar_bird.png',   price: 300,  currency: 'star' },
+    { type: 'avatar', name: 'Gold Dragon',   description: 'Legendary dragon', imageUrl: '/cosmetics/avatar_dragon.png', price: 500,  currency: 'gold' },
+    { type: 'avatar', name: 'Phantom Cat',   description: 'Mystery cat',      imageUrl: '/cosmetics/avatar_cat.png',    price: 150,  currency: 'star' },
+    // Card backgrounds
+    { type: 'card_background', name: 'Midnight',     description: 'Dark starry night',   imageUrl: '/cosmetics/bg_midnight.png',   price: 100, currency: 'star' },
+    { type: 'card_background', name: 'Sunset',       description: 'Orange sunset glow',  imageUrl: '/cosmetics/bg_sunset.png',     price: 100, currency: 'star' },
+    { type: 'card_background', name: 'Aurora',       description: 'Northern lights',     imageUrl: '/cosmetics/bg_aurora.png',     price: 250, currency: 'star' },
+    { type: 'card_background', name: 'Royal Gold',   description: 'Gilded luxury theme', imageUrl: '/cosmetics/bg_gold.png',       price: 300, currency: 'gold' },
+    // Badges
+    { type: 'badge', name: 'Detective Badge',  description: 'I found the imposter!', imageUrl: '/cosmetics/badge_detective.png', price: 200, currency: 'star' },
+    { type: 'badge', name: 'Imposter Badge',   description: 'Master of deception',   imageUrl: '/cosmetics/badge_imposter.png',  price: 200, currency: 'star' },
+    { type: 'badge', name: 'Crown Badge',      description: 'Top player',            imageUrl: '/cosmetics/badge_crown.png',     price: 500, currency: 'gold' },
+    // Titles
+    { type: 'title', name: 'The Imposter',   description: 'You look sus',         imageUrl: '/cosmetics/title_imposter.png',  price: 150, currency: 'star' },
+    { type: 'title', name: 'The Detective',  description: 'Eyes everywhere',      imageUrl: '/cosmetics/title_detective.png', price: 150, currency: 'star' },
+    { type: 'title', name: 'The Legendary',  description: 'Beyond compare',       imageUrl: '/cosmetics/title_legend.png',    price: 400, currency: 'gold' },
+    // Word effects
+    { type: 'word_effect', name: 'Fire Words',    description: 'Flaming text on reveal', imageUrl: '/cosmetics/fx_fire.png',     price: 200, currency: 'star' },
+    { type: 'word_effect', name: 'Glitch Words',  description: 'Glitchy digital effect', imageUrl: '/cosmetics/fx_glitch.png',   price: 250, currency: 'star' },
+    { type: 'word_effect', name: 'Galaxy Words',  description: 'Space particle effect',  imageUrl: '/cosmetics/fx_galaxy.png',   price: 350, currency: 'gold' },
+  ]
+  for (const c of COSMETICS) {
+    await prisma.cosmetic.upsert({
+      where: { id: c.name.replace(/\s+/g, '_').toLowerCase() },
+      create: { ...c, id: c.name.replace(/\s+/g, '_').toLowerCase() },
+      update: {},
+    }).catch(async () => {
+      // If upsert fails (no id match), check by name
+      const existing = await prisma.cosmetic.findFirst({ where: { name: c.name } })
+      if (!existing) await prisma.cosmetic.create({ data: c })
+    })
+  }
+  console.log(`Seeded ${COSMETICS.length} cosmetics`)
+
+  // ── Season Pass ───────────────────────────────────────────────────────────────
+  const now = new Date()
+  const seasonStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const seasonEnd   = new Date(now.getFullYear(), now.getMonth() + 3, 0) // end of quarter
+
+  const existingSeason = await prisma.seasonPass.findFirst({
+    where: { startDate: { lte: now }, endDate: { gte: now } },
+  })
+
+  if (!existingSeason) {
+    await prisma.seasonPass.create({
+      data: {
+        name: 'Season 1 — Shadow Realm',
+        startDate: seasonStart,
+        endDate: seasonEnd,
+        isPremium: false,
+        tiers: {
+          create: [
+            { tierNumber: 1,  xpRequired: 0,    rewardType: 'starCoins', rewardValue: '50',  isPremium: false },
+            { tierNumber: 2,  xpRequired: 200,  rewardType: 'starCoins', rewardValue: '100', isPremium: false },
+            { tierNumber: 3,  xpRequired: 500,  rewardType: 'starCoins', rewardValue: '150', isPremium: false },
+            { tierNumber: 4,  xpRequired: 900,  rewardType: 'goldCoins', rewardValue: '10',  isPremium: true  },
+            { tierNumber: 5,  xpRequired: 1400, rewardType: 'starCoins', rewardValue: '200', isPremium: false },
+            { tierNumber: 6,  xpRequired: 2000, rewardType: 'starCoins', rewardValue: '250', isPremium: false },
+            { tierNumber: 7,  xpRequired: 2700, rewardType: 'goldCoins', rewardValue: '25',  isPremium: true  },
+            { tierNumber: 8,  xpRequired: 3500, rewardType: 'starCoins', rewardValue: '300', isPremium: false },
+            { tierNumber: 9,  xpRequired: 4400, rewardType: 'starCoins', rewardValue: '400', isPremium: false },
+            { tierNumber: 10, xpRequired: 5500, rewardType: 'goldCoins', rewardValue: '50',  isPremium: true  },
+          ],
+        },
+      },
+    })
+    console.log('Created Season 1 — Shadow Realm season pass with 10 tiers')
+  } else {
+    console.log('Active season pass already exists, skipping')
+  }
+
   console.log(`Seed complete. Total pairs: ${WORD_PAIRS.length}`)
 }
 

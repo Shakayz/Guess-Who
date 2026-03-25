@@ -17,7 +17,13 @@
       "Bash(powershell.exe -Command \"& ''C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\git.exe'' --version\")",
       "Bash(powershell.exe -Command \"& ''C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\git.exe'' -C ''E:\\\\Work\\\\Guess-Who-main'' init 2>&1\")",
       "Bash(powershell.exe -Command \"& ''C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\git.exe'' -C ''E:\\\\Work\\\\Guess-Who-main'' config user.email ''dev@guess-who.app''; & ''C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\git.exe'' -C ''E:\\\\Work\\\\Guess-Who-main'' config user.name ''Guess Who Dev''\")",
-      "Bash(powershell.exe -Command \"& ''C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\git.exe'' -C ''E:\\\\Work\\\\Guess-Who-main'' add . 2>&1\")"
+      "Bash(powershell.exe -Command \"& ''C:\\\\Program Files\\\\Git\\\\mingw64\\\\bin\\\\git.exe'' -C ''E:\\\\Work\\\\Guess-Who-main'' add . 2>&1\")",
+      "Bash(docker ps:*)",
+      "Bash(curl -s http://localhost:3001/health)",
+      "Bash(curl -s http://localhost:3001/)",
+      "Bash(curl -s -X POST http://localhost:3001/api/auth/register -H \"Content-Type: application/json\" -d '{\"\"username\"\":\"\"testuser_claude\"\",\"\"email\"\":\"\"claude_test@test.com\"\",\"\"password\"\":\"\"Test1234!\"\"}')",
+      "Bash(docker exec:*)",
+      "Bash(docker restart:*)"
     ]
   }
 }
