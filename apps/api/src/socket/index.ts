@@ -157,10 +157,12 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
 
     // Emote: quick reaction broadcast to the room
     socket.on('emote:send' as any, (data: { emoji: string }) => {
-      if (!socket.data.userId || !socket.data.roomCode) return
+      if (!socket.data.userId) return
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
       const allowed = ['👍', '😮', '🤔', '😂', '😱']
       if (!allowed.includes(data.emoji)) return
-      io.to(socket.data.roomCode).emit('emote:receive' as any, {
+      io.to(roomKey).emit('emote:receive' as any, {
         userId: socket.data.userId,
         username: socket.data.username,
         emoji: data.emoji,

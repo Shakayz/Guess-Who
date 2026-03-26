@@ -234,6 +234,7 @@ async function resolveRound(io: IO, roomId: string) {
     if (!nextDbRound) return
 
     state.currentRound = nextRoundNumber
+    state.status = 'in_progress'  // reset from 'voting' so advanceSpeaker can proceed
     state.rounds.push({
       id: nextDbRound.id,
       roundNumber: nextRoundNumber,

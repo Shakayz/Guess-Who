@@ -102,6 +102,7 @@ export function registerRoomHandlers(
     if (newSettings.enableDetective   !== undefined) state.enableDetective   = newSettings.enableDetective
     if (newSettings.enableDoubleAgent !== undefined) state.enableDoubleAgent = newSettings.enableDoubleAgent
     if (newSettings.voiceChatEnabled  !== undefined) state.voiceChatEnabled  = newSettings.voiceChatEnabled
+    if (newSettings.maxRounds         !== undefined) state.maxRounds         = newSettings.maxRounds
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
 
     const roomPayload = {
