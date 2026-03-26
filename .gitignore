@@ -48,5 +48,5 @@ web-build/
 android/
 ios/
 
-# Prisma
-prisma/migrations/
+# Prisma — migrations must be committed for production deploys
+# prisma/migrations/
