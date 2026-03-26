@@ -1,0 +1,156 @@
+name: CD — Production
+
+# Only triggered by push to main OR manual dispatch
+# Requires manual approval via GitHub environment protection rules
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for this production deployment'
+        required: true
+      sha_override:
+        description: 'Optional — deploy a specific SHA (leave empty for HEAD)'
+        required: false
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false   # Never cancel in-flight production deploys
+
+jobs:
+  # ─────────────────────────────────────────
+  # 1. Build & push images tagged :latest + :SHA
+  # ─────────────────────────────────────────
+  build-push:
+    name: Build & Push (prod)
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set-tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.sha_override || github.sha }}
+
+      - id: set-tag
+        run: echo "tag=${{ github.event.inputs.sha_override || github.sha }}" >> $GITHUB_OUTPUT
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push API
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/api:latest
+            ghcr.io/${{ github.repository }}/api:${{ steps.set-tag.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push Web
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/web:latest
+            ghcr.io/${{ github.repository }}/web:${{ steps.set-tag.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────
+  # 2. Manual approval gate
+  #    Configure in GitHub: Settings → Environments → production
+  #    → Required reviewers: add yourself or a team
+  # ─────────────────────────────────────────
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-push
+    environment: production    # ← APPROVAL REQUIRED here
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Production server via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/imposter-game
+
+            # Backup current running tag before deploy (for rollback)
+            PREV_TAG=$(docker inspect imposter-api-prod --format '{{.Config.Image}}' 2>/dev/null || echo "none")
+            echo "Previous image: $PREV_TAG"
+            echo "$PREV_TAG" > /opt/imposter-game/.last-prod-image
+
+            # Write production environment file from secrets
+            cat > .env.prod << 'ENVEOF'
+            NODE_ENV=production
+            PORT=3001
+            DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
+            REDIS_URL=${{ secrets.PROD_REDIS_URL }}
+            JWT_SECRET=${{ secrets.PROD_JWT_SECRET }}
+            ALLOWED_ORIGINS=${{ secrets.PROD_ALLOWED_ORIGINS }}
+            APP_URL=${{ secrets.PROD_APP_URL }}
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+            APPLE_CLIENT_ID=${{ secrets.APPLE_CLIENT_ID }}
+            APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}
+            APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
+            APPLE_PRIVATE_KEY=${{ secrets.APPLE_PRIVATE_KEY }}
+            STRIPE_SECRET_KEY=${{ secrets.PROD_STRIPE_SECRET_KEY }}
+            STRIPE_WEBHOOK_SECRET=${{ secrets.PROD_STRIPE_WEBHOOK_SECRET }}
+            POSTGRES_PASSWORD=${{ secrets.PROD_POSTGRES_PASSWORD }}
+            REDIS_PASSWORD=${{ secrets.PROD_REDIS_PASSWORD }}
+            ENVEOF
+
+            # Pull new images
+            docker compose -f docker-compose.prod.yml --env-file .env.prod pull
+
+            # Blue/green-style rolling restart (one service at a time)
+            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --remove-orphans --no-deps api
+            sleep 10
+            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps web
+
+            # Health check — wait up to 90s
+            echo "Running production health check..."
+            for i in $(seq 1 18); do
+              if docker exec imposter-api-prod wget -qO- http://localhost:3001/health > /dev/null 2>&1; then
+                echo "✅ Production deployed — SHA: ${{ needs.build-push.outputs.image_tag }}"
+                docker image prune -f
+                exit 0
+              fi
+              echo "Attempt $i/18 — waiting 5s..."
+              sleep 5
+            done
+
+            echo "❌ Health check failed — initiating rollback..."
+            PREV=$(cat /opt/imposter-game/.last-prod-image)
+            if [ "$PREV" != "none" ]; then
+              docker pull "$PREV"
+              docker tag "$PREV" ghcr.io/${{ github.repository }}/api:latest
+              docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api
+              echo "⚠️ Rolled back to $PREV"
+            fi
+            exit 1
+
+      - name: Tag release in git
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "release-$(date +'%Y%m%d-%H%M')-${{ needs.build-push.outputs.image_tag }}" || true
+          git push --tags || true
