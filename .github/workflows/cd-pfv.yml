@@ -4,7 +4,6 @@ name: CD — PFV (Pré-Production)
 on:
   push:
     branches: [staging]
-  # Allow manual trigger from any branch for hotfix testing
   workflow_dispatch:
     inputs:
       reason:
@@ -60,15 +59,24 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ─────────────────────────────────────────
-  # 2. Deploy to PFV server (requires environment approval if configured)
+  # 2. Deploy to PFV server
   # ─────────────────────────────────────────
   deploy:
     name: Deploy to PFV
     runs-on: ubuntu-latest
     needs: build-push
-    environment: pfv          # Configure required reviewers in GitHub → Settings → Environments
+    environment: pfv
     steps:
       - uses: actions/checkout@v4
+
+      - name: Copy compose file to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PFV_SSH_HOST }}
+          username: ${{ secrets.PFV_SSH_USER }}
+          key: ${{ secrets.PFV_SSH_KEY }}
+          source: docker-compose.pfv.yml
+          target: /opt/imposter-game/
 
       - name: Deploy to PFV server via SSH
         uses: appleboy/ssh-action@v1
@@ -82,10 +90,8 @@ jobs:
 
             # Write PFV environment file
             cat > .env.pfv << 'ENVEOF'
-            NODE_ENV=production
-            PORT=3001
-            DATABASE_URL=${{ secrets.PFV_DATABASE_URL }}
-            REDIS_URL=${{ secrets.PFV_REDIS_URL }}
+            POSTGRES_PASSWORD=${{ secrets.PFV_POSTGRES_PASSWORD }}
+            REDIS_PASSWORD=${{ secrets.PFV_REDIS_PASSWORD }}
             JWT_SECRET=${{ secrets.PFV_JWT_SECRET }}
             ALLOWED_ORIGINS=${{ secrets.PFV_ALLOWED_ORIGINS }}
             APP_URL=${{ secrets.PFV_APP_URL }}
@@ -93,32 +99,29 @@ jobs:
             GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
             STRIPE_SECRET_KEY=${{ secrets.STRIPE_TEST_KEY }}
             STRIPE_WEBHOOK_SECRET=${{ secrets.PFV_STRIPE_WEBHOOK_SECRET }}
-            POSTGRES_PASSWORD=${{ secrets.PFV_POSTGRES_PASSWORD }}
-            REDIS_PASSWORD=${{ secrets.PFV_REDIS_PASSWORD }}
             ENVEOF
 
-            # Update image references to pfv tag
-            export API_IMAGE=ghcr.io/${{ github.repository }}/api:pfv-${{ github.sha }}
-            export WEB_IMAGE=ghcr.io/${{ github.repository }}/web:pfv-${{ github.sha }}
+            # Login to GHCR on server
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             # Pull and deploy
-            docker compose -f docker-compose.prod.yml --env-file .env.pfv pull
-            docker compose -f docker-compose.prod.yml --env-file .env.pfv up -d --remove-orphans
+            docker compose -f docker-compose.pfv.yml --env-file .env.pfv pull
+            docker compose -f docker-compose.pfv.yml --env-file .env.pfv up -d --remove-orphans
 
-            # Health check — wait up to 60s for API to be ready
-            echo "Waiting for API health check..."
+            # Health check — wait up to 60s
+            echo "Waiting for PFV API..."
             for i in $(seq 1 12); do
-              if docker exec imposter-api-prod wget -qO- http://localhost:3001/health > /dev/null 2>&1; then
+              if docker exec imposter-api-pfv wget -qO- http://localhost:3001/health > /dev/null 2>&1; then
                 echo "✅ PFV deployed — SHA: ${{ github.sha }}"
+                docker image prune -f
                 exit 0
               fi
               echo "Attempt $i/12 — waiting 5s..."
               sleep 5
             done
-            echo "❌ Health check failed after 60s"
+            echo "❌ PFV health check failed after 60s"
             exit 1
 
       - name: Notify deployment status
         if: always()
-        run: |
-          echo "PFV Deployment ${{ job.status }} for SHA ${{ github.sha }}"
+        run: echo "PFV Deployment ${{ job.status }} for SHA ${{ github.sha }}"

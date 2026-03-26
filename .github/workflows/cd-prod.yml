@@ -70,8 +70,7 @@ jobs:
 
   # ─────────────────────────────────────────
   # 2. Manual approval gate
-  #    Configure in GitHub: Settings → Environments → production
-  #    → Required reviewers: add yourself or a team
+  #    GitHub → Settings → Environments → production → Required reviewers
   # ─────────────────────────────────────────
   deploy:
     name: Deploy to Production
@@ -80,6 +79,15 @@ jobs:
     environment: production    # ← APPROVAL REQUIRED here
     steps:
       - uses: actions/checkout@v4
+
+      - name: Copy compose file to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          source: docker-compose.prod.yml
+          target: /opt/imposter-game/
 
       - name: Deploy to Production server via SSH
         uses: appleboy/ssh-action@v1
@@ -91,17 +99,15 @@ jobs:
             set -e
             cd /opt/imposter-game
 
-            # Backup current running tag before deploy (for rollback)
+            # Save current image for rollback
             PREV_TAG=$(docker inspect imposter-api-prod --format '{{.Config.Image}}' 2>/dev/null || echo "none")
+            echo "$PREV_TAG" > .last-prod-image
             echo "Previous image: $PREV_TAG"
-            echo "$PREV_TAG" > /opt/imposter-game/.last-prod-image
 
-            # Write production environment file from secrets
+            # Write production environment file
             cat > .env.prod << 'ENVEOF'
-            NODE_ENV=production
-            PORT=3001
-            DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
-            REDIS_URL=${{ secrets.PROD_REDIS_URL }}
+            POSTGRES_PASSWORD=${{ secrets.PROD_POSTGRES_PASSWORD }}
+            REDIS_PASSWORD=${{ secrets.PROD_REDIS_PASSWORD }}
             JWT_SECRET=${{ secrets.PROD_JWT_SECRET }}
             ALLOWED_ORIGINS=${{ secrets.PROD_ALLOWED_ORIGINS }}
             APP_URL=${{ secrets.PROD_APP_URL }}
@@ -113,15 +119,16 @@ jobs:
             APPLE_PRIVATE_KEY=${{ secrets.APPLE_PRIVATE_KEY }}
             STRIPE_SECRET_KEY=${{ secrets.PROD_STRIPE_SECRET_KEY }}
             STRIPE_WEBHOOK_SECRET=${{ secrets.PROD_STRIPE_WEBHOOK_SECRET }}
-            POSTGRES_PASSWORD=${{ secrets.PROD_POSTGRES_PASSWORD }}
-            REDIS_PASSWORD=${{ secrets.PROD_REDIS_PASSWORD }}
             ENVEOF
 
-            # Pull new images
+            # Login to GHCR on server
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Pull new :latest images
             docker compose -f docker-compose.prod.yml --env-file .env.prod pull
 
-            # Blue/green-style rolling restart (one service at a time)
-            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --remove-orphans --no-deps api
+            # Rolling restart — API first, then Web (zero-downtime)
+            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api
             sleep 10
             docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps web
 
@@ -137,11 +144,12 @@ jobs:
               sleep 5
             done
 
+            # Auto-rollback on failure
             echo "❌ Health check failed — initiating rollback..."
-            PREV=$(cat /opt/imposter-game/.last-prod-image)
+            PREV=$(cat .last-prod-image)
             if [ "$PREV" != "none" ]; then
               docker pull "$PREV"
-              docker tag "$PREV" ghcr.io/${{ github.repository }}/api:latest
+              docker tag "$PREV" ghcr.io/shakayz/guess-who/api:latest
               docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api
               echo "⚠️ Rolled back to $PREV"
             fi

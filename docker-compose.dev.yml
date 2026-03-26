@@ -17,7 +17,7 @@ services:
     image: postgres:16-alpine
     container_name: imposter-postgres-dev
     environment:
-      POSTGRES_DB:       imposter_game
+      POSTGRES_DB:       imposter_game_dev
       POSTGRES_USER:     postgres
       POSTGRES_PASSWORD: postgres
     ports:
@@ -55,7 +55,7 @@ services:
     env_file: apps/api/.env
     environment:
       NODE_ENV:     development
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/imposter_game
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/imposter_game_dev
       REDIS_URL:    redis://redis:6379
       ALLOWED_ORIGINS: >-
         http://localhost:5173,http://localhost:19006

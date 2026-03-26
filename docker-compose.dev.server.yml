@@ -1,65 +1,63 @@
 version: '3.9'
-# ── PFV (Pré-Production/Validation) ────────────────────────────────────────────
-# Used by: .github/workflows/cd-pfv.yml
-# Production-like config with separate DB and QA-accessible ports
+# ── Deployed DEV environment — uses pre-built GHCR :dev images ─────────────────
+# Used by: .github/workflows/cd-dev.yml
+# For local development with hot-reload: use docker-compose.dev.yml instead
 # ──────────────────────────────────────────────────────────────────────────────
 
 networks:
-  pfv_net:
-    name: imposter_pfv_net
+  dev_net:
+    name: imposter_dev_net
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: imposter-postgres-pfv
+    container_name: imposter-postgres-dev
     environment:
-      POSTGRES_DB: imposter_game_pfv
+      POSTGRES_DB: imposter_game_dev
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres_pfv_data:/var/lib/postgresql/data
+      - postgres_dev_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
-    networks: [pfv_net]
-    # Exposed for QA inspection (not in prod)
+    networks: [dev_net]
+    # Exposed for developer inspection
     ports:
-      - "5433:5432"
+      - "5432:5432"
 
   redis:
     image: redis:7-alpine
-    container_name: imposter-redis-pfv
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    container_name: imposter-redis-dev
+    command: redis-server --appendonly yes
     volumes:
-      - redis_pfv_data:/data
+      - redis_dev_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
     restart: unless-stopped
-    networks: [pfv_net]
-    ports:
-      - "6380:6379"
+    networks: [dev_net]
+    expose:
+      - "6379"
 
   api:
-    image: ghcr.io/shakayz/guess-who/api:pfv
-    container_name: imposter-api-pfv
+    image: ghcr.io/shakayz/guess-who/api:dev
+    container_name: imposter-api-dev
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3001
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/imposter_game_pfv
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/imposter_game_dev
+      REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       APP_URL: ${APP_URL}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
     expose:
       - "3001"
     depends_on:
@@ -68,7 +66,7 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    networks: [pfv_net]
+    networks: [dev_net]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health || exit 1"]
       interval: 30s
@@ -77,16 +75,16 @@ services:
       start_period: 30s
 
   web:
-    image: ghcr.io/shakayz/guess-who/web:pfv
-    container_name: imposter-web-pfv
+    image: ghcr.io/shakayz/guess-who/web:dev
+    container_name: imposter-web-dev
     ports:
-      - "8080:80"    # port 8080 to avoid conflict with dev:3080 and prod:80
+      - "3080:80"    # port 3080 to avoid conflict with pfv:8080 and prod:80
     depends_on:
       api:
         condition: service_healthy
     restart: unless-stopped
-    networks: [pfv_net]
+    networks: [dev_net]
 
 volumes:
-  postgres_pfv_data:
-  redis_pfv_data:
+  postgres_dev_data:
+  redis_dev_data:
