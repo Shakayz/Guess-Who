@@ -153,10 +153,17 @@ export function registerRoomHandlers(
     const roomPayload = {
       id: room.id, code: room.code, hostId: room.hostId,
       status: state.status, players: state.players,
-      currentRound: 0, maxRounds: 5, createdAt: room.createdAt.toISOString(),
-      settings: { maxPlayers: room.maxPlayers, minPlayers: 4, imposterCount: room.imposterCount,
+      currentRound: state.currentRound ?? 0,
+      maxRounds: state.maxRounds ?? 0,
+      createdAt: room.createdAt.toISOString(),
+      settings: {
+        maxPlayers: room.maxPlayers, minPlayers: 4, imposterCount: room.imposterCount,
         speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
-        wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any },
+        wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
+        gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
+        enableDetective: state.enableDetective ?? false,
+        enableDoubleAgent: state.enableDoubleAgent ?? false,
+      },
     }
     io.to(`room:${roomId}`).emit('room:updated', roomPayload as any)
   })
