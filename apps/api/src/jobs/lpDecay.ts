@@ -12,7 +12,7 @@ const QUEUE_NAME = 'lp-decay'
 // ─── Queue ───────────────────────────────────────────────────────────────────
 
 export const lpDecayQueue = new Queue(QUEUE_NAME, {
-  connection: bullRedis,
+  connection: bullRedis as any,
   defaultJobOptions: { removeOnComplete: 100, removeOnFail: 50 },
 })
 
@@ -50,7 +50,7 @@ export function startLpDecayWorker() {
 
       console.log(`[LP Decay] Applied decay to ${decayed} inactive players`)
     },
-    { connection: bullRedis, concurrency: 1 },
+    { connection: bullRedis as any, concurrency: 1 },
   )
 
   worker.on('failed', (job, err) => {

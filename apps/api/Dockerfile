@@ -12,6 +12,7 @@ RUN pnpm install --frozen-lockfile
 COPY packages/shared ./packages/shared
 COPY apps/api ./apps/api
 RUN pnpm --filter @imposter/shared build
+RUN pnpm --filter @imposter/api db:generate
 RUN pnpm --filter @imposter/api build
 
 FROM node:20-alpine AS runner

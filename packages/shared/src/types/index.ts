@@ -175,9 +175,9 @@ export interface WordPair {
 export interface ServerToClientEvents {
   'room:updated': (room: Room) => void
   'game:started': (data: { round: Round; yourWord: string; yourRole: PlayerRole }) => void
-  'round:speaking-turn': (data: { playerId: string; timeSeconds: number }) => void
+  'round:speaking-turn': (data: { playerId: string; timeSeconds: number; speakingOrder: string[] }) => void
   'round:clue-submitted': (clue: Clue) => void
-  'round:voting-started': (data: { timeSeconds: number }) => void
+  'round:voting-started': (data: { timeSeconds: number; players: Player[] }) => void
   'round:vote-cast': (data: { voterId: string; hasVoted: boolean }) => void
   'round:ended': (data: { round: Round; nextRound?: Round }) => void
   'game:finished': (data: { winner: 'villagers' | 'imposters'; finalRound: Round; rewards: RewardSummary }) => void
