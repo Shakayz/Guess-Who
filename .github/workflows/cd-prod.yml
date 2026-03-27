@@ -18,6 +18,10 @@ concurrency:
   group: deploy-prod
   cancel-in-progress: false   # Never cancel in-flight production deploys
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   # ─────────────────────────────────────────
   # 1. Build & push images tagged :latest + :SHA
