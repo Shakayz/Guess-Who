@@ -206,10 +206,10 @@ async function resolveRound(io: IO, roomId: string) {
     if (!game) return
 
     const nextRoundNumber = state.currentRound + 1
-    const maxRounds = state.maxRounds ?? 5
+    const maxRounds = state.maxRounds ?? 0   // 0 = unlimited
 
-    // Imposters win if they survive all rounds without being eliminated
-    if (nextRoundNumber > maxRounds) {
+    // Imposters win if they survive all rounds (only when a round limit is set)
+    if (maxRounds > 0 && nextRoundNumber > maxRounds) {
       state.status = 'finished'
       await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
       await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})

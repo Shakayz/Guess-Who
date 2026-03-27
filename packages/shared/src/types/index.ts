@@ -62,7 +62,7 @@ export interface Room {
   createdAt: string
 }
 
-export type GameMode = 'normal' | 'ranked'
+export type GameMode = 'normal' | 'special'
 
 export const WORD_CATEGORIES = [
   { key: 'food',         label: 'Food',          icon: '🍕' },

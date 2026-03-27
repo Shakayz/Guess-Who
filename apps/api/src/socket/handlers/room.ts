@@ -64,7 +64,7 @@ export function registerRoomHandlers(
         status: state.status,
         players: state.players,
         currentRound: state.currentRound ?? 0,
-        maxRounds: state.maxRounds ?? 5,
+        maxRounds: state.maxRounds ?? 0,
         createdAt: room.createdAt.toISOString(),
         settings: {
           maxPlayers: room.maxPlayers,
@@ -77,6 +77,8 @@ export function registerRoomHandlers(
           language: room.language as any,
           gameMode: state.gameMode ?? 'normal',
           categories: state.categories ?? [],
+          enableDetective: state.enableDetective ?? false,
+          enableDoubleAgent: state.enableDoubleAgent ?? false,
         },
       }
       io.to(`room:${room.id}`).emit('room:updated', roomPayload as any)
@@ -99,21 +101,32 @@ export function registerRoomHandlers(
     // Merge allowed settings fields
     if (newSettings.gameMode)             state.gameMode = newSettings.gameMode
     if (newSettings.categories)           state.categories = newSettings.categories
-    if (newSettings.enableDetective   !== undefined) state.enableDetective   = newSettings.enableDetective
-    if (newSettings.enableDoubleAgent !== undefined) state.enableDoubleAgent = newSettings.enableDoubleAgent
     if (newSettings.voiceChatEnabled  !== undefined) state.voiceChatEnabled  = newSettings.voiceChatEnabled
     if (newSettings.maxRounds         !== undefined) state.maxRounds         = newSettings.maxRounds
+
+    // Special roles only allowed in 'special' mode — force-disable in normal mode
+    if (state.gameMode === 'normal') {
+      state.enableDetective   = false
+      state.enableDoubleAgent = false
+    } else {
+      if (newSettings.enableDetective   !== undefined) state.enableDetective   = newSettings.enableDetective
+      if (newSettings.enableDoubleAgent !== undefined) state.enableDoubleAgent = newSettings.enableDoubleAgent
+    }
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
 
     const roomPayload = {
       id: room.id, code: room.code, hostId: room.hostId,
       status: state.status, players: state.players,
-      currentRound: 0, maxRounds: 5, createdAt: room.createdAt.toISOString(),
+      currentRound: state.currentRound ?? 0,
+      maxRounds: state.maxRounds ?? 0,
+      createdAt: room.createdAt.toISOString(),
       settings: {
         maxPlayers: room.maxPlayers, minPlayers: 4, imposterCount: room.imposterCount,
         speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
         wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
+        enableDetective: state.enableDetective ?? false,
+        enableDoubleAgent: state.enableDoubleAgent ?? false,
       },
     }
     io.to(`room:${roomId}`).emit('room:updated', roomPayload as any)
@@ -187,15 +200,14 @@ export function registerRoomHandlers(
         roleIdx++
       })
 
-      // Pick words — filter by categories for normal mode, all for ranked
-      const gameMode: string = state.gameMode ?? 'normal'
+      // Pick words — filter by selected categories (empty = all categories)
       const selectedCategories: string[] = state.categories ?? []
       let wordPair = FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)]
       try {
         const pack = await prisma.wordPack.findFirst({
           include: {
             pairs: {
-              where: gameMode === 'ranked' || selectedCategories.length === 0
+              where: selectedCategories.length === 0
                 ? {}
                 : { category: { in: selectedCategories } },
             },

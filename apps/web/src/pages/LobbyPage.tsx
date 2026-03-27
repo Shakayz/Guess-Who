@@ -21,6 +21,9 @@ interface Settings {
   votingTimeSeconds: number
   gameMode: GameMode
   categories: WordCategory[]
+  enableDetective: boolean
+  enableDoubleAgent: boolean
+  maxRounds: number   // 0 = unlimited
 }
 
 function NumStepper({
@@ -60,6 +63,16 @@ function SettingsPanel({
     onChange({ ...settings, categories: cats })
   }
 
+  const handleModeChange = (mode: GameMode) => {
+    // Switching to normal disables special roles
+    onChange({
+      ...settings,
+      gameMode: mode,
+      enableDetective: mode === 'normal' ? false : settings.enableDetective,
+      enableDoubleAgent: mode === 'normal' ? false : settings.enableDoubleAgent,
+    })
+  }
+
   return (
     <div className="card space-y-4">
       <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Room Settings</p>
@@ -68,82 +81,129 @@ function SettingsPanel({
       <div>
         <p className="text-xs text-neutral-500 mb-2">Game Mode</p>
         <div className="flex gap-2">
-          {(['normal', 'ranked'] as GameMode[]).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => onChange({ ...settings, gameMode: mode, categories: mode === 'ranked' ? [] : settings.categories })}
-              className={[
-                'flex-1 py-2 rounded-xl text-sm font-semibold transition-all border',
-                settings.gameMode === mode
-                  ? mode === 'ranked'
-                    ? 'bg-amber-950/60 border-amber-700/50 text-amber-400'
-                    : 'bg-brand-950/60 border-brand-700/50 text-brand-400'
-                  : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-              ].join(' ')}
-            >
-              {mode === 'ranked' ? '🏆 Ranked' : '🎮 Normal'}
-            </button>
-          ))}
+          <button
+            onClick={() => handleModeChange('normal')}
+            className={[
+              'flex-1 py-2 rounded-xl text-sm font-semibold transition-all border',
+              settings.gameMode === 'normal'
+                ? 'bg-brand-950/60 border-brand-700/50 text-brand-400'
+                : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+            ].join(' ')}
+          >
+            🎮 Normal
+          </button>
+          <button
+            onClick={() => handleModeChange('special')}
+            className={[
+              'flex-1 py-2 rounded-xl text-sm font-semibold transition-all border',
+              settings.gameMode === 'special'
+                ? 'bg-purple-950/60 border-purple-700/50 text-purple-400'
+                : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+            ].join(' ')}
+          >
+            ✨ Spécial
+          </button>
         </div>
         <p className="text-xs text-neutral-600 mt-1.5">
-          {settings.gameMode === 'ranked'
-            ? 'All categories — affects LP'
-            : 'Custom categories — no LP impact'}
+          {settings.gameMode === 'special'
+            ? 'Roles spéciaux disponibles — détective, double agent'
+            : 'Villageois et imposteurs uniquement'}
         </p>
       </div>
 
-      {/* Category picker (normal mode only) */}
-      {settings.gameMode === 'normal' && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-neutral-500">Categories</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => onChange({ ...settings, categories: WORD_CATEGORIES.map((c) => c.key as WordCategory) })}
-                className="text-[10px] text-brand-400 hover:text-brand-300"
-              >All</button>
-              <span className="text-neutral-700">·</span>
-              <button
-                onClick={() => onChange({ ...settings, categories: [] })}
-                className="text-[10px] text-neutral-500 hover:text-neutral-400"
-              >None</button>
-            </div>
+      {/* Special roles (special mode only) */}
+      {settings.gameMode === 'special' && (
+        <div className="space-y-2">
+          <p className="text-xs text-neutral-500">Rôles spéciaux</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onChange({ ...settings, enableDetective: !settings.enableDetective })}
+              className={[
+                'flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all border',
+                settings.enableDetective
+                  ? 'bg-sky-950/60 border-sky-700/50 text-sky-400'
+                  : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+              ].join(' ')}
+            >
+              🔍 Détective
+            </button>
+            <button
+              onClick={() => onChange({ ...settings, enableDoubleAgent: !settings.enableDoubleAgent })}
+              className={[
+                'flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all border',
+                settings.enableDoubleAgent
+                  ? 'bg-rose-950/60 border-rose-700/50 text-rose-400'
+                  : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+              ].join(' ')}
+            >
+              🕵️ Double Agent
+            </button>
           </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            {WORD_CATEGORIES.map((cat) => {
-              const active = settings.categories.length === 0 || settings.categories.includes(cat.key as WordCategory)
-              const selected = settings.categories.includes(cat.key as WordCategory)
-              return (
-                <button
-                  key={cat.key}
-                  onClick={() => toggleCategory(cat.key as WordCategory)}
-                  className={[
-                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border',
-                    selected
-                      ? 'bg-brand-950/60 border-brand-700/50 text-brand-300'
-                      : settings.categories.length === 0
-                        ? 'bg-neutral-800/40 border-neutral-700/30 text-neutral-400'
-                        : 'bg-neutral-900/40 border-neutral-800/40 text-neutral-600',
-                  ].join(' ')}
-                >
-                  <span>{cat.icon}</span>
-                  <span className="truncate">{cat.label}</span>
-                </button>
-              )
-            })}
-          </div>
-          {settings.categories.length === 0 && (
-            <p className="text-[10px] text-neutral-600 mt-1">No filter — all categories included</p>
+          {settings.enableDetective && (
+            <p className="text-[10px] text-neutral-600">Détective : un joueur villageois peut révéler le rôle d'un joueur</p>
+          )}
+          {settings.enableDoubleAgent && (
+            <p className="text-[10px] text-neutral-600">Double Agent : connaît le mot des imposteurs, joue pour eux</p>
           )}
         </div>
       )}
 
+      {/* Category picker */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs text-neutral-500">Catégories</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onChange({ ...settings, categories: WORD_CATEGORIES.map((c) => c.key as WordCategory) })}
+              className="text-[10px] text-brand-400 hover:text-brand-300"
+            >Toutes</button>
+            <span className="text-neutral-700">·</span>
+            <button
+              onClick={() => onChange({ ...settings, categories: [] })}
+              className="text-[10px] text-neutral-500 hover:text-neutral-400"
+            >Aucune</button>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {WORD_CATEGORIES.map((cat) => {
+            const selected = settings.categories.includes(cat.key as WordCategory)
+            return (
+              <button
+                key={cat.key}
+                onClick={() => toggleCategory(cat.key as WordCategory)}
+                className={[
+                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border',
+                  selected
+                    ? 'bg-brand-950/60 border-brand-700/50 text-brand-300'
+                    : settings.categories.length === 0
+                      ? 'bg-neutral-800/40 border-neutral-700/30 text-neutral-400'
+                      : 'bg-neutral-900/40 border-neutral-800/40 text-neutral-600',
+                ].join(' ')}
+              >
+                <span>{cat.icon}</span>
+                <span className="truncate">{cat.label}</span>
+              </button>
+            )
+          })}
+        </div>
+        {settings.categories.length === 0 && (
+          <p className="text-[10px] text-neutral-600 mt-1">Aucun filtre — toutes les catégories</p>
+        )}
+      </div>
+
       {/* Numeric settings */}
       <div className="space-y-3 pt-1 border-t border-neutral-800">
-        <NumStepper label="Max Players"    value={settings.maxPlayers}           min={4}  max={20} onChange={(v) => onChange({ ...settings, maxPlayers: v })} />
-        <NumStepper label="Imposters"      value={settings.imposterCount}        min={1}  max={4}  onChange={(v) => onChange({ ...settings, imposterCount: v })} />
-        <NumStepper label="Speaking Time"  value={settings.speakingTimeSeconds}  min={10} max={120} step={5} format={(v) => `${v}s`} onChange={(v) => onChange({ ...settings, speakingTimeSeconds: v })} />
-        <NumStepper label="Voting Time"    value={settings.votingTimeSeconds}    min={15} max={120} step={5} format={(v) => `${v}s`} onChange={(v) => onChange({ ...settings, votingTimeSeconds: v })} />
+        <NumStepper label="Max Joueurs"       value={settings.maxPlayers}           min={4}  max={20} onChange={(v) => onChange({ ...settings, maxPlayers: v })} />
+        <NumStepper label="Imposteurs"        value={settings.imposterCount}        min={1}  max={4}  onChange={(v) => onChange({ ...settings, imposterCount: v })} />
+        <NumStepper
+          label="Rounds"
+          value={settings.maxRounds}
+          min={0} max={20}
+          format={(v) => v === 0 ? '∞' : `${v}`}
+          onChange={(v) => onChange({ ...settings, maxRounds: v })}
+        />
+        <NumStepper label="Temps de parole"   value={settings.speakingTimeSeconds}  min={10} max={120} step={5} format={(v) => `${v}s`} onChange={(v) => onChange({ ...settings, speakingTimeSeconds: v })} />
+        <NumStepper label="Temps de vote"     value={settings.votingTimeSeconds}    min={15} max={120} step={5} format={(v) => `${v}s`} onChange={(v) => onChange({ ...settings, votingTimeSeconds: v })} />
       </div>
     </div>
   )
@@ -171,12 +231,21 @@ export default function LobbyPage() {
     votingTimeSeconds: 30,
     gameMode: 'normal',
     categories: [],
+    enableDetective: false,
+    enableDoubleAgent: false,
+    maxRounds: 0,   // 0 = unlimited
   })
 
   // Push settings changes to server whenever host changes them
   const handleSettingsChange = (s: Settings) => {
     setSettings(s)
-    getSocket().emit('room:settings' as any, { gameMode: s.gameMode, categories: s.categories })
+    getSocket().emit('room:settings' as any, {
+      gameMode: s.gameMode,
+      categories: s.categories,
+      enableDetective: s.enableDetective,
+      enableDoubleAgent: s.enableDoubleAgent,
+      maxRounds: s.maxRounds,
+    })
     setSettingsSaved(true)
     setTimeout(() => setSettingsSaved(false), 1500)
   }
@@ -212,6 +281,9 @@ export default function LobbyPage() {
           votingTimeSeconds: r.settings.votingTimeSeconds,
           gameMode: (r.settings as any).gameMode ?? 'normal',
           categories: (r.settings as any).categories ?? [],
+          enableDetective: (r.settings as any).enableDetective ?? false,
+          enableDoubleAgent: (r.settings as any).enableDoubleAgent ?? false,
+          maxRounds: r.maxRounds ?? 0,
         }))
       }
     })
@@ -329,8 +401,8 @@ export default function LobbyPage() {
                 {settingsSaved && (
                   <span className="text-emerald-400 font-semibold animate-fade-in">✓ Saved</span>
                 )}
-                <span className={settings.gameMode === 'ranked' ? 'text-amber-400' : 'text-brand-400'}>
-                  {settings.gameMode === 'ranked' ? '🏆 Ranked' : '🎮 Normal'}
+                <span className={settings.gameMode === 'special' ? 'text-purple-400' : 'text-brand-400'}>
+                  {settings.gameMode === 'special' ? '✨ Spécial' : '🎮 Normal'}
                 </span>
                 <span>·</span>
                 <span>{activeCats} cats</span>
@@ -398,15 +470,23 @@ export default function LobbyPage() {
 
           {/* Settings summary (non-host) */}
           {!isHost && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-xs text-neutral-500">
-              <span>{settings.gameMode === 'ranked' ? '🏆' : '🎮'}</span>
-              <span className="capitalize">{settings.gameMode}</span>
+            <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-xs text-neutral-500">
+              <span>{settings.gameMode === 'special' ? '✨' : '🎮'}</span>
+              <span className="capitalize">{settings.gameMode === 'special' ? 'Spécial' : 'Normal'}</span>
               <span>·</span>
               <span>{settings.maxPlayers} max</span>
               <span>·</span>
-              <span>{settings.imposterCount} imposters</span>
-              {settings.gameMode === 'normal' && settings.categories.length > 0 && (
-                <><span>·</span><span>{settings.categories.length} categories</span></>
+              <span>{settings.imposterCount} imposteurs</span>
+              <span>·</span>
+              <span>{settings.maxRounds === 0 ? '∞ rounds' : `${settings.maxRounds} rounds`}</span>
+              {settings.gameMode === 'special' && settings.enableDetective && (
+                <><span>·</span><span>🔍 Détective</span></>
+              )}
+              {settings.gameMode === 'special' && settings.enableDoubleAgent && (
+                <><span>·</span><span>🕵️ Double Agent</span></>
+              )}
+              {settings.categories.length > 0 && (
+                <><span>·</span><span>{settings.categories.length} catégories</span></>
               )}
             </div>
           )}
