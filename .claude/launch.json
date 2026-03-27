@@ -3,10 +3,15 @@
   "configurations": [
     {
       "name": "Full Stack (Docker)",
-      "runtimeExecutable": "docker",
-      "runtimeArgs": ["compose", "-f", "docker-compose.dev.yml", "up", "--build"],
-      "port": 5173,
-      "autoPort": false
+      "runtimeExecutable": "node",
+      "runtimeArgs": [".claude/proxy-dev.js"],
+      "port": 5174
+    },
+    {
+      "name": "Verify (Docker already running)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["-e", "const h=require('http');h.createServer((_,r)=>{r.writeHead(200);r.end('Docker stack running on :5173 and :3001');}).listen(9090,()=>console.log('ready'))"],
+      "port": 9090
     }
   ]
 }

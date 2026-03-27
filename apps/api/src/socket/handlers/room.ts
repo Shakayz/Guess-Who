@@ -32,29 +32,37 @@ export function registerRoomHandlers(
       await socket.join(`room:${room.id}`)
       socket.data.roomCode = room.code
 
-      // Atomic-safe join: use a short retry loop to avoid race condition when
-      // multiple players join simultaneously and overwrite each other's state.
+      // Atomic join: acquire a short-lived per-room mutex so concurrent joins
+      // don't overwrite each other's Redis state.
+      const lockKey = `room:${room.id}:join-lock`
+      let lockAcquired = false
+      for (let i = 0; i < 15; i++) {
+        const result = await (redis as any).set(lockKey, '1', 'PX', 300, 'NX')
+        if (result === 'OK') { lockAcquired = true; break }
+        await new Promise((r) => setTimeout(r, 25))
+      }
+
       let state: any
-      for (let attempt = 0; attempt < 3; attempt++) {
+      try {
         const stateRaw = await redis.get(`room:${room.id}:state`)
         state = stateRaw ? JSON.parse(stateRaw) : { players: [], status: 'waiting' }
         const alreadyIn = state.players.find((p: any) => p.userId === userId)
-        if (alreadyIn) break
-        state.players.push({
-          id: socket.id,
-          userId,
-          username,
-          avatarUrl: null,
-          role: undefined,
-          status: 'alive',
-          isHost: room.hostId === userId,
-          isReady: room.hostId === userId, // host auto-ready
-          honorGiven: false,
-        })
-        // SET NX-style: only save if key hasn't changed (best-effort)
-        const saved = await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
-        if (saved === 'OK') break
-        await new Promise((r) => setTimeout(r, 20))
+        if (!alreadyIn) {
+          state.players.push({
+            id: socket.id,
+            userId,
+            username,
+            avatarUrl: null,
+            role: undefined,
+            status: 'alive',
+            isHost: room.hostId === userId,
+            isReady: room.hostId === userId, // host auto-ready
+            honorGiven: false,
+          })
+          await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
+        }
+      } finally {
+        if (lockAcquired) await redis.del(lockKey)
       }
 
       const roomPayload = {

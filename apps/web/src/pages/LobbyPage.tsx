@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
 import { useGameStore } from '../store/game'
 import { connectSocket, getSocket } from '../lib/socket'
@@ -211,6 +211,7 @@ function SettingsPanel({
 
 export default function LobbyPage() {
   const { code } = useParams<{ code: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const { room, setRoom, setRoleAndWord, setRound } = useGameStore()
@@ -218,6 +219,7 @@ export default function LobbyPage() {
   const [showSettings, setShowSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [joinToast, setJoinToast] = useState<string | null>(null)
+  const [socketError, setSocketError] = useState<string | null>(null)
   const prevPlayerCountRef = useRef(0)
   // Invite friends
   const [showInvite, setShowInvite] = useState(false)
@@ -256,6 +258,15 @@ export default function LobbyPage() {
     const socket = getSocket()
     socket.emit('room:join', { roomCode: code })
 
+    // Apply game mode from query param (?mode=special) — host only, fires once
+    const modeParam = searchParams.get('mode')
+    if (modeParam === 'normal' || modeParam === 'special') {
+      // Wait for room:join to complete before emitting settings
+      setTimeout(() => {
+        getSocket().emit('room:settings' as any, { gameMode: modeParam })
+      }, 500)
+    }
+
     socket.on('room:updated', (r) => {
       setRoom(r as Room)
       // Show toast when a new player joins
@@ -292,7 +303,10 @@ export default function LobbyPage() {
       setRound(round as any)
       navigate(`/game/${code}`)
     })
-    socket.on('error', (err) => console.error(err))
+    socket.on('error', (err) => {
+      setSocketError(err.message)
+      setTimeout(() => setSocketError(null), 4000)
+    })
 
     return () => {
       socket.off('room:updated')
@@ -342,6 +356,14 @@ export default function LobbyPage() {
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-neutral-800 border border-neutral-700 text-sm text-white font-semibold shadow-xl animate-slide-up flex items-center gap-2">
           <span className="text-emerald-400">+</span>
           {joinToast}
+        </div>
+      )}
+
+      {/* Socket error toast */}
+      {socketError && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-red-950/90 border border-red-700/60 text-sm text-red-300 font-semibold shadow-xl animate-slide-up flex items-center gap-2">
+          <span>⚠</span>
+          {socketError}
         </div>
       )}
 

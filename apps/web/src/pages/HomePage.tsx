@@ -7,7 +7,8 @@ import { WORD_CATEGORIES } from '@imposter/shared'
 import type { WordCategory } from '@imposter/shared'
 import { connectSocket, getSocket } from '../lib/socket'
 
-type GameMode = 'normal' | 'ranked' | 'lobby'
+type HomeMode = 'normal' | 'ranked' | 'lobby'
+type LobbyGameMode = 'normal' | 'special'
 
 const HOW_TO_PLAY = [
   { icon: '🎭', title: 'Get your role',   desc: 'Villager or Imposter — each gets a different word.' },
@@ -18,7 +19,7 @@ const HOW_TO_PLAY = [
 
 const MODES = [
   {
-    id: 'normal' as GameMode,
+    id: 'normal' as HomeMode,
     icon: '🎮',
     label: 'Normal',
     desc: 'Play for fun — no LP at stake',
@@ -26,7 +27,7 @@ const MODES = [
     inactive: 'border-neutral-800 hover:border-neutral-700',
   },
   {
-    id: 'ranked' as GameMode,
+    id: 'ranked' as HomeMode,
     icon: '🏆',
     label: 'Ranked',
     desc: 'All categories · affects LP',
@@ -34,7 +35,7 @@ const MODES = [
     inactive: 'border-neutral-800 hover:border-neutral-700',
   },
   {
-    id: 'lobby' as GameMode,
+    id: 'lobby' as HomeMode,
     icon: '🚪',
     label: 'Create Lobby',
     desc: 'Invite friends with a code',
@@ -43,11 +44,17 @@ const MODES = [
   },
 ]
 
+const LOBBY_GAME_MODES: { id: LobbyGameMode; icon: string; label: string; desc: string }[] = [
+  { id: 'normal',  icon: '🎮', label: 'Normal',  desc: 'Villageois & imposteurs uniquement' },
+  { id: 'special', icon: '✨', label: 'Spécial', desc: 'Détective, double agent disponibles' },
+]
+
 export default function HomePage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
-  const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
+  const [selectedMode, setSelectedMode] = useState<HomeMode | null>(null)
+  const [lobbyGameMode, setLobbyGameMode] = useState<LobbyGameMode>('normal')
   const [categories, setCategories] = useState<WordCategory[]>([])   // empty = random / all
   const [roomCode, setRoomCode] = useState('')
   const [loading, setLoading] = useState(false)
@@ -86,13 +93,13 @@ export default function HomePage() {
     setError(null)
 
     if (selectedMode === 'lobby') {
-      // Direct room creation
+      // Direct room creation — pass chosen game mode to lobby via query param
       setLoading(true)
       try {
         const room = await api.post<{ code: string }>('/rooms', {
-          settings: { gameMode: 'normal', categories, isPrivate: true },
+          settings: { categories, isPrivate: true },
         })
-        navigate(`/lobby/${room.code}`)
+        navigate(`/lobby/${room.code}?mode=${lobbyGameMode}`)
       } catch (err: any) {
         setError(err.message)
       } finally {
@@ -170,6 +177,35 @@ export default function HomePage() {
               })}
             </div>
           </div>
+
+          {/* Lobby game mode sub-selector */}
+          {selectedMode === 'lobby' && (
+            <div className="card animate-slide-up space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Mode de jeu</p>
+              <div className="flex gap-2">
+                {LOBBY_GAME_MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setLobbyGameMode(m.id)}
+                    className={[
+                      'flex-1 flex flex-col items-center gap-1 py-3 rounded-xl text-sm font-semibold transition-all border',
+                      lobbyGameMode === m.id
+                        ? m.id === 'special'
+                          ? 'bg-purple-950/60 border-purple-700/50 text-purple-400'
+                          : 'bg-brand-950/60 border-brand-700/50 text-brand-400'
+                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                    ].join(' ')}
+                  >
+                    <span className="text-lg">{m.icon}</span>
+                    <span>{m.label}</span>
+                    <span className={['text-[10px] font-normal text-center', lobbyGameMode === m.id ? 'opacity-70' : 'text-neutral-600'].join(' ')}>
+                      {m.desc}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Category picker — Normal & Lobby only */}
           {hasCategories && (

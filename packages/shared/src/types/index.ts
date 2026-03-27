@@ -95,7 +95,7 @@ export interface RoomSettings {
   isPrivate: boolean
   language: Locale
   gameMode: GameMode
-  categories: WordCategory[]   // empty = all (used in ranked)
+  categories: WordCategory[]   // empty = all categories
 }
 
 // ─── Player ──────────────────────────────────────────────────────────────────
