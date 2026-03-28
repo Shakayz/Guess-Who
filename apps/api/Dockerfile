@@ -23,10 +23,10 @@ RUN cd /app/deploy && npx --yes prisma@5 generate
 
 FROM node:20-alpine AS runner
 WORKDIR /app
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl && npm install -g prisma@5
 ENV NODE_ENV=production
 COPY --from=builder /app/deploy/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/prisma ./prisma
 EXPOSE 3001
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "prisma migrate deploy && node dist/index.js"]
