@@ -181,10 +181,26 @@ async function resolveRound(io: IO, roomId: string) {
     // ── Achievement triggers ─────────────────────────────────────────────────
     const unlockedByPlayer = await checkAndUnlockAchievements(io, roomId, winner, state, finishedGame?.id ?? null)
 
+    const isRanked = state.gameMode === 'ranked'
+    const lpChange = isRanked ? (winner === 'villagers' ? 18 : -15) : 0
+
+    // ── Persist LP for ranked games ──────────────────────────────────────────
+    if (isRanked && lpChange !== 0) {
+      const playerIds: string[] = state.players.map((p: any) => p.userId)
+      await Promise.allSettled(
+        playerIds.map((userId: string) =>
+          prisma.user.update({
+            where: { id: userId },
+            data: { rankPoints: { increment: lpChange } },
+          })
+        )
+      )
+    }
+
     const rewards = {
       starCoinsEarned: winner === 'villagers' ? 50 : 80,
       xpEarned: 120,
-      lpChange: winner === 'villagers' ? 18 : -15,
+      lpChange,
       achievements: [],
     }
     setTimeout(() => {
@@ -214,7 +230,20 @@ async function resolveRound(io: IO, roomId: string) {
       await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
       await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
       io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
-      const rewards = { starCoinsEarned: 80, xpEarned: 120, lpChange: -15, achievements: [] }
+      const isRankedSurvival = state.gameMode === 'ranked'
+      const survivalLpChange = isRankedSurvival ? -15 : 0
+      if (isRankedSurvival) {
+        const playerIds: string[] = state.players.map((p: any) => p.userId)
+        await Promise.allSettled(
+          playerIds.map((userId: string) =>
+            prisma.user.update({
+              where: { id: userId },
+              data: { rankPoints: { increment: survivalLpChange } },
+            })
+          )
+        )
+      }
+      const rewards = { starCoinsEarned: 80, xpEarned: 120, lpChange: survivalLpChange, achievements: [] }
       setTimeout(() => {
         io.to(`room:${roomId}`).emit('game:finished', { winner: 'imposters', finalRound: roundPayload as any, rewards })
       }, 3000)
