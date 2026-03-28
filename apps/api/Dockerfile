@@ -15,13 +15,15 @@ RUN pnpm --filter @imposter/shared build
 RUN pnpm --filter @imposter/api db:generate
 RUN pnpm --filter @imposter/api build
 
+# Create a self-contained deployment bundle (resolves pnpm symlinks)
+RUN pnpm --filter @imposter/api deploy --prod /app/deploy
+
 FROM node:20-alpine AS runner
 WORKDIR /app
 RUN apk add --no-cache openssl && npm install -g prisma@5
 ENV NODE_ENV=production
+COPY --from=builder /app/deploy/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/package.json ./
 COPY --from=builder /app/apps/api/prisma ./prisma
-COPY --from=builder /app/node_modules ./node_modules
 EXPOSE 3001
 CMD ["sh", "-c", "prisma migrate deploy && node dist/index.js"]
