@@ -17,10 +17,11 @@ RUN pnpm --filter @imposter/api build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
+RUN npm install -g prisma@5
 ENV NODE_ENV=production
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/package.json ./
 COPY --from=builder /app/apps/api/prisma ./prisma
 COPY --from=builder /app/node_modules ./node_modules
 EXPOSE 3001
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "prisma migrate deploy && node dist/index.js"]
