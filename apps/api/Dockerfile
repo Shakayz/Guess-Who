@@ -17,7 +17,7 @@ RUN pnpm --filter @imposter/api build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
-RUN npm install -g prisma@5
+RUN apk add --no-cache openssl && npm install -g prisma@5
 ENV NODE_ENV=production
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/package.json ./
