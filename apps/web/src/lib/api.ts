@@ -4,18 +4,24 @@ const BASE_URL = '/api'
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = useAuthStore.getState().token
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+  // Allow overriding headers (e.g. removing Content-Type for file uploads)
+  if (options.headers) {
+    Object.assign(headers, options.headers)
+  }
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers ?? {}),
-    },
+    headers,
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error ?? `HTTP ${res.status}`)
   }
+  // Handle 204 No Content
+  if (res.status === 204) return undefined as T
   return res.json()
 }
 

@@ -15,8 +15,9 @@ const envSchema = z.object({
   APPLE_KEY_ID:       z.string().optional(),
   APPLE_PRIVATE_KEY:  z.string().optional(),
   APP_URL:            z.string().default('http://localhost:5173'),
-  STRIPE_SECRET_KEY:  z.string().optional(),
-  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  // TODO: re-enable when premium/monetization is ready
+  // STRIPE_SECRET_KEY:  z.string().optional(),
+  // STRIPE_WEBHOOK_SECRET: z.string().optional(),
 })
 
 export const env = envSchema.parse(process.env)

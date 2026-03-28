@@ -86,7 +86,7 @@ export function NavBar() {
       </div>
 
       <div className="flex items-center gap-1">
-        {/* Premium button */}
+        {/* Premium button — disabled until monetization is ready
         <button
           onClick={() => navigate('/premium')}
           className={[
@@ -99,6 +99,7 @@ export function NavBar() {
           <span className="text-sm">👑</span>
           <span className="hidden sm:inline">Premium</span>
         </button>
+        */}
 
         {/* Language switcher */}
         <div ref={langRef} className="relative">

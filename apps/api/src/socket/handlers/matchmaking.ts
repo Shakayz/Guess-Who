@@ -47,7 +47,15 @@ export function registerMatchmakingHandlers(
         return
       }
 
-      const players = entries.map((e) => { try { return JSON.parse(e) } catch { return null } }).filter(Boolean)
+      const players = entries
+        .map((e) => { try { return JSON.parse(e) } catch { return null } })
+        .filter(Boolean)
+
+      // If JSON parsing dropped some entries, not enough valid players — put them back
+      if (players.length < QUEUE_MIN) {
+        for (const e of entries.reverse()) await redis.lpush(queueKey, e)
+        return
+      }
 
       // Create room with first player as host
       const hostPlayer = players[0]
@@ -63,7 +71,14 @@ export function registerMatchmakingHandlers(
           language: 'en',
         },
       }).catch(() => null)
-      if (!room) return
+
+      // Notify all matched players if room creation fails so they're not left in limbo
+      if (!room) {
+        for (const p of players) {
+          io.to(p.socketId).emit('matchmaking:error' as any, { message: 'Failed to create room. Please try again.' })
+        }
+        return
+      }
 
       // Init Redis state
       await redis.set(`room:${room.id}:state`, JSON.stringify({

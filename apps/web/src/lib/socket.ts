@@ -11,16 +11,24 @@ export function getSocket(): Socket<ServerToClientEvents, ClientToServerEvents> 
       auth: { token },
       transports: ['websocket'],
       autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     })
   }
   return socket
 }
 
 export function connectSocket() {
-  getSocket().connect()
+  const s = getSocket()
+  if (!s.connected) s.connect()
 }
 
 export function disconnectSocket() {
-  socket?.disconnect()
-  socket = null
+  if (socket) {
+    socket.removeAllListeners()
+    socket.disconnect()
+    socket = null
+  }
 }

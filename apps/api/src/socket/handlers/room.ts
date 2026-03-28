@@ -37,7 +37,7 @@ export function registerRoomHandlers(
       const lockKey = `room:${room.id}:join-lock`
       let lockAcquired = false
       for (let i = 0; i < 15; i++) {
-        const result = await (redis as any).set(lockKey, '1', 'PX', 300, 'NX')
+        const result = await (redis as any).set(lockKey, '1', 'PX', 5000, 'NX')
         if (result === 'OK') { lockAcquired = true; break }
         await new Promise((r) => setTimeout(r, 25))
       }
@@ -48,6 +48,18 @@ export function registerRoomHandlers(
         state = stateRaw ? JSON.parse(stateRaw) : { players: [], status: 'waiting' }
         const alreadyIn = state.players.find((p: any) => p.userId === userId)
         if (!alreadyIn) {
+          // ── Block new joins if game is already running ────────────────────────
+          if (state.status === 'in_progress' || state.status === 'voting') {
+            socket.emit('error', { code: 'GAME_IN_PROGRESS', message: 'This game is already in progress' })
+            await socket.leave(`room:${room.id}`)
+            return
+          }
+          // ── Block if room is full ─────────────────────────────────────────────
+          if (state.players.length >= room.maxPlayers) {
+            socket.emit('error', { code: 'ROOM_FULL', message: 'Room is full' })
+            await socket.leave(`room:${room.id}`)
+            return
+          }
           state.players.push({
             id: socket.id,
             userId,
@@ -59,6 +71,10 @@ export function registerRoomHandlers(
             isReady: room.hostId === userId, // host auto-ready
             honorGiven: false,
           })
+          await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
+        } else {
+          // Reconnection: update socket.id for the existing player entry
+          alreadyIn.id = socket.id
           await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
         }
       } finally {
@@ -189,8 +205,21 @@ export function registerRoomHandlers(
       if (!stateRaw) return
       const state = JSON.parse(stateRaw)
 
+      // ── Guard: prevent double-start ──────────────────────────────────────────
+      if (state.status === 'in_progress' || state.status === 'voting') {
+        socket.emit('error', { code: 'GAME_ALREADY_STARTED', message: 'A game is already in progress' })
+        return
+      }
+
       if (state.players.length < 4) {
         socket.emit('error', { code: 'NOT_ENOUGH_PLAYERS', message: 'Need at least 4 players' })
+        return
+      }
+
+      // ── Guard: all players must be ready ─────────────────────────────────────
+      const notReady = state.players.filter((p: any) => !p.isReady)
+      if (notReady.length > 0) {
+        socket.emit('error', { code: 'PLAYERS_NOT_READY', message: 'All players must be ready' })
         return
       }
 
@@ -215,41 +244,45 @@ export function registerRoomHandlers(
         roleIdx++
       })
 
-      // Pick words — filter by selected categories (empty = all categories)
+      // Pick words — respect room.wordPackId + filter by selected categories
       const selectedCategories: string[] = state.categories ?? []
       let wordPair = FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)]
       try {
-        const pack = await prisma.wordPack.findFirst({
-          include: {
-            pairs: {
-              where: selectedCategories.length === 0
-                ? {}
-                : { category: { in: selectedCategories } },
-            },
-          },
-          where: { isPremium: false },
-        })
+        const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
+
+        // Prefer the room's configured word pack; fall back to any non-premium pack
+        const pack = room.wordPackId && room.wordPackId !== 'default'
+          ? await prisma.wordPack.findUnique({
+              where: { id: room.wordPackId },
+              include: { pairs: { where: categoryFilter } },
+            })
+          : await prisma.wordPack.findFirst({
+              where: { isPremium: false },
+              include: { pairs: { where: categoryFilter } },
+            })
+
         if (pack && pack.pairs.length > 0) {
           const pair = pack.pairs[Math.floor(Math.random() * pack.pairs.length)]
           wordPair = { wordA: pair.wordA, wordB: pair.wordB }
         }
       } catch { /* use fallback */ }
 
-      // Create DB records
-      const game = await prisma.game.create({ data: { roomId } })
-      const round = await prisma.round.create({
-        data: { gameId: game.id, roundNumber: 1, villagerWord: wordPair.wordA, imposterWord: wordPair.wordB },
-      })
-
-      // Create participation records for all players
-      await prisma.gameParticipation.createMany({
-        data: players.map((p: any) => ({
-          gameId: game.id,
-          userId: p.userId,
-          role: p.role,
-          survived: true,
-        })),
-        skipDuplicates: true,
+      // Create DB records in a single transaction for consistency
+      const { game, round } = await prisma.$transaction(async (tx) => {
+        const game = await tx.game.create({ data: { roomId } })
+        const round = await tx.round.create({
+          data: { gameId: game.id, roundNumber: 1, villagerWord: wordPair.wordA, imposterWord: wordPair.wordB },
+        })
+        await tx.gameParticipation.createMany({
+          data: players.map((p: any) => ({
+            gameId: game.id,
+            userId: p.userId,
+            role: p.role,
+            survived: true,
+          })),
+          skipDuplicates: true,
+        })
+        return { game, round }
       })
 
       state.status = 'in_progress'
@@ -298,8 +331,32 @@ export function registerRoomHandlers(
       const stateRaw = await redis.get(`room:${roomId}:state`)
       if (stateRaw) {
         const state = JSON.parse(stateRaw)
-        state.players = state.players.filter((p: any) => p.userId !== userId)
+        const isInGame = state.status === 'in_progress' || state.status === 'voting'
+
+        if (isInGame) {
+          // Mark the player as eliminated (voluntary leave = forfeit)
+          const player = state.players.find((p: any) => p.userId === userId)
+          if (player) player.status = 'eliminated'
+        } else {
+          // In lobby: remove the player entirely
+          state.players = state.players.filter((p: any) => p.userId !== userId)
+
+          // ── Host reassignment ─────────────────────────────────────────────
+          const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
+          if (room && room.hostId === userId && state.players.length > 0) {
+            const newHost = state.players[0]
+            newHost.isHost  = true
+            newHost.isReady = true
+            await prisma.room.update({
+              where: { id: roomId },
+              data:  { hostId: newHost.userId },
+            }).catch(() => {})
+            io.to(roomKey).emit('room:host-changed' as any, { newHostId: newHost.userId, newHostUsername: newHost.username })
+          }
+        }
+
         await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+        io.to(roomKey).emit('player:left', socket.id)
       }
       await socket.leave(roomKey)
     }

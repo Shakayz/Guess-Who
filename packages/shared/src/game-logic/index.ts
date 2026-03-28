@@ -10,6 +10,8 @@ export function countAlive(players: Player[]): { villagers: number; imposters: n
 
 export function checkWinCondition(players: Player[]): 'villagers' | 'imposters' | null {
   const { villagers, imposters } = countAlive(players)
+  // No alive players at all — no winner (should not happen in practice)
+  if (villagers === 0 && imposters === 0) return null
   if (imposters === 0) return 'villagers'
   if (imposters >= villagers) return 'imposters'
   return null

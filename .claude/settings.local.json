@@ -23,7 +23,30 @@
       "Bash(curl -s http://localhost:3001/)",
       "Bash(curl -s -X POST http://localhost:3001/api/auth/register -H \"Content-Type: application/json\" -d '{\"\"username\"\":\"\"testuser_claude\"\",\"\"email\"\":\"\"claude_test@test.com\"\",\"\"password\"\":\"\"Test1234!\"\"}')",
       "Bash(docker exec:*)",
-      "Bash(docker restart:*)"
+      "Bash(docker restart:*)",
+      "Bash(docker cp:*)",
+      "Bash(docker exec imposter-api-dev sh -c \"cd /app/apps/api && node -e \"\":*)",
+      "Bash(gh run:*)",
+      "Bash(pnpm install:*)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(pnpm --filter @imposter/api build)",
+      "Bash(pnpm --filter @imposter/shared build)",
+      "Bash(find /Users/radouane/Documents/Guess Who/apps/api/src -name \"*.ts\" -exec grep -l \"POST\\\\|PATCH\" {})",
+      "Bash(docker compose:*)",
+      "Bash(pnpm --filter @imposter/shared lint)",
+      "Bash(find '/Users/radouane/Documents/Guess Who' -name .eslintrc* -o -name eslint.config*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm --filter @imposter/api lint)",
+      "Bash(grep -v \"^$\")",
+      "Bash(ngrok version:*)",
+      "Bash(brew install:*)",
+      "Bash(ngrok config:*)",
+      "Bash(\"/Users/radouane/Documents/Guess Who/.env.pfv\":*)",
+      "Bash(grep -r \"stripe\\\\|payment\\\\|purchase\\\\|premium\\\\|goldCoin\\\\|shop\\\\|seasonPass\" /Users/radouane/Documents/Guess Who/apps /Users/radouane/Documents/Guess Who/packages --include=*.ts --include=*.tsx -l)",
+      "Bash(find \"/Users/radouane/Documents/Guess Who/apps/api/src\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.js\" \\\\\\) -exec wc -l {} +)",
+      "Bash(find /Users/radouane/Documents/Guess Who/apps/web/src -type f \\\\\\( -name \"*.tsx\" -o -name \"*.ts\" -o -name \"*.css\" \\\\\\) -exec wc -l {} +)",
+      "Bash(wc -l packages/shared/src/**/*.ts packages/shared/src/*.ts)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

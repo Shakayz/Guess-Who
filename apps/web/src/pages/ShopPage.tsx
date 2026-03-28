@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
-import { GOLD_COIN_PACKS } from '@imposter/shared'
+// import { GOLD_COIN_PACKS } from '@imposter/shared'  // TODO: re-enable when premium is ready
+const GOLD_COIN_PACKS: readonly { id: string; amount: number; price: number; bonus: number }[] = [] // placeholder
 
 type Tab = 'coins' | 'cosmetics' | 'season'
 

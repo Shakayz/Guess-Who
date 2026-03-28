@@ -35,9 +35,10 @@ export const useSocialStore = create<SocialStore>((set) => ({
       },
     })),
   clearUnread: (friendId) =>
-    set((s) => ({
-      unreadCounts: { ...s.unreadCounts, [friendId]: 0 },
-    })),
+    set((s) => {
+      const { [friendId]: _, ...rest } = s.unreadCounts
+      return { unreadCounts: rest }
+    }),
   pendingInvite: null,
   setPendingInvite: (invite) => set({ pendingInvite: invite }),
   pendingFriendRequest: null,

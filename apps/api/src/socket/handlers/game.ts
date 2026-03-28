@@ -20,6 +20,17 @@ export function registerGameHandlers(
     const currentRound = state.rounds?.[state.currentRound - 1]
     if (!currentRound || state.status !== 'voting') return
 
+    // ── Validate voter is alive ───────────────────────────────────────────────
+    const voter = state.players.find((p: any) => p.userId === userId && p.status === 'alive')
+    if (!voter) return
+
+    // ── Validate target exists and is alive ───────────────────────────────────
+    const target = state.players.find((p: any) => p.userId === targetPlayerId && p.status === 'alive')
+    if (!target) return
+
+    // ── Cannot vote for yourself ──────────────────────────────────────────────
+    if (targetPlayerId === userId) return
+
     // Record vote (by userId, one vote per player)
     const existingVote = currentRound.votes?.find((v: any) => v.voterId === userId)
     if (!existingVote) {
@@ -43,6 +54,11 @@ export function registerGameHandlers(
     const roomId = [...socket.rooms].find((r) => r.startsWith('room:'))?.split(':')[1]
     if (!roomId) return
 
+    // ── Validate clue text ────────────────────────────────────────────────────
+    if (typeof text !== 'string') return
+    const sanitized = text.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/gi, '').trim().slice(0, 300)
+    if (!sanitized) return
+
     const stateRaw = await redis.get(`room:${roomId}:state`)
     if (!stateRaw) return
     const state = JSON.parse(stateRaw)
@@ -50,9 +66,20 @@ export function registerGameHandlers(
     const currentRound = state.rounds?.[state.currentRound - 1]
     if (!currentRound) return
 
+    // ── Only the current speaker can submit a clue ────────────────────────────
+    const speakingOrder: string[] = currentRound.speakingOrder ?? []
+    const clues: any[] = currentRound.clues ?? []
+    // The current speaker is the first player in speakingOrder who hasn't submitted yet
+    const speakersWithClue = new Set(clues.map((c: any) => c.playerId))
+    const currentSpeaker = speakingOrder.find((id: string) => !speakersWithClue.has(id))
+    if (currentSpeaker !== userId) return
+
+    const player = state.players.find((p: any) => p.userId === userId && p.status === 'alive')
+    if (!player) return
+
     const clue = {
       playerId: userId,
-      text,
+      text: sanitized,
       timestamp: new Date().toISOString(),
       flaggedForWord: false,
       flagVotes: [],

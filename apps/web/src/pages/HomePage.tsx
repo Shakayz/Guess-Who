@@ -130,20 +130,44 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col">
       <NavBar />
 
-      <main className="flex-1 flex flex-col items-center px-4 pt-16 pb-16">
+      <main className="flex-1 flex flex-col items-center px-4 pt-16 pb-24 sm:pb-16">
         <div className="w-full max-w-lg animate-slide-up space-y-5">
 
           {/* Heading */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-600/30 bg-brand-600/10 text-brand-400 text-xs font-semibold mb-5">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-600/30 bg-brand-600/10 text-brand-400 text-xs font-semibold mb-4">
               <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse-slow" />
               Social Deduction · Real-time · Multiplayer
             </div>
-            <h1 className="text-5xl font-extrabold text-white leading-tight tracking-tight mb-3">
-              Play the<br />
-              <span className="text-brand-500">Imposter</span> Game
+            <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight tracking-tight mb-2">
+              Play the <span className="text-brand-500">Imposter</span> Game
             </h1>
-            <p className="text-neutral-400 text-lg">Deceive. Detect. Dominate.</p>
+            <p className="text-neutral-400 text-base">Deceive. Detect. Dominate.</p>
+          </div>
+
+          {/* Quick Join — moved up for faster access */}
+          <form onSubmit={handleJoin} className="flex gap-2">
+            <input
+              className="input-field flex-1 font-mono uppercase tracking-[0.25em] text-center text-lg h-12"
+              placeholder="ROOM CODE"
+              value={roomCode}
+              onChange={(e) => setRoomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+              maxLength={8}
+              spellCheck={false}
+            />
+            <button
+              type="submit"
+              disabled={roomCode.trim().length < 4}
+              className="h-12 px-6 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-sm transition-colors disabled:opacity-40 border border-neutral-700 whitespace-nowrap"
+            >
+              {t('room.joinRoom')}
+            </button>
+          </form>
+
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-neutral-800" />
+            <span className="text-neutral-500 text-xs font-medium uppercase tracking-wider">or start new</span>
+            <div className="flex-1 h-px bg-neutral-800" />
           </div>
 
           {/* Mode selector */}
@@ -345,32 +369,6 @@ export default function HomePage() {
               <span>⚠</span> {error}
             </div>
           )}
-
-          {/* Divider */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-neutral-800" />
-            <span className="text-neutral-500 text-xs font-medium uppercase tracking-wider">or join</span>
-            <div className="flex-1 h-px bg-neutral-800" />
-          </div>
-
-          {/* Join */}
-          <form onSubmit={handleJoin} className="flex gap-2">
-            <input
-              className="input-field flex-1 font-mono uppercase tracking-[0.25em] text-center text-lg h-12"
-              placeholder="XXXXXX"
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-              maxLength={8}
-              spellCheck={false}
-            />
-            <button
-              type="submit"
-              disabled={roomCode.trim().length < 4}
-              className="h-12 px-6 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-sm transition-colors disabled:opacity-40 border border-neutral-700 whitespace-nowrap"
-            >
-              {t('room.joinRoom')}
-            </button>
-          </form>
 
         </div>
 

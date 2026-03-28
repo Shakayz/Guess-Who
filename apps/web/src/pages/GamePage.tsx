@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback, memo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useGameStore } from '../store/game'
@@ -9,7 +9,79 @@ import type { Clue } from '@imposter/shared'
 
 type Phase = 'speaking' | 'voting' | 'reveal'
 
-function CountdownBar({ seconds, total, color }: { seconds: number; total: number; color: string }) {
+const PHASE_STEPS: { id: Phase; icon: string; label: string }[] = [
+  { id: 'speaking', icon: '💬', label: 'Speaking' },
+  { id: 'voting',   icon: '🗳', label: 'Voting' },
+  { id: 'reveal',   icon: '📋', label: 'Reveal' },
+]
+
+/** SVG circular countdown timer — visually prominent */
+const CircularTimer = memo(({ seconds, total, phase }: { seconds: number; total: number; phase: Phase }) => {
+  const radius = 22
+  const circumference = 2 * Math.PI * radius
+  const pct = total > 0 ? seconds / total : 0
+  const offset = circumference * (1 - pct)
+  const urgent = seconds <= 10 && seconds > 0
+  const color = phase === 'voting' ? '#f59e0b' : '#8b5cf6'
+  const urgentColor = '#ef4444'
+
+  return (
+    <div className="relative flex items-center justify-center w-14 h-14 shrink-0">
+      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 52 52" width="56" height="56">
+        <circle cx="26" cy="26" r={radius} fill="none" stroke="#262626" strokeWidth="3" />
+        <circle
+          cx="26" cy="26" r={radius}
+          fill="none"
+          stroke={urgent ? urgentColor : color}
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          className="transition-all duration-1000 ease-linear"
+          style={{ filter: urgent ? 'drop-shadow(0 0 4px rgba(239,68,68,0.5))' : undefined }}
+        />
+      </svg>
+      <span className={[
+        'text-sm font-mono font-bold tabular-nums z-10',
+        urgent ? 'text-red-400' : 'text-white',
+      ].join(' ')}>
+        {seconds}
+      </span>
+    </div>
+  )
+})
+
+/** Phase progress bar — shows Speaking → Voting → Reveal */
+const PhaseIndicator = memo(({ currentPhase }: { currentPhase: Phase }) => {
+  const currentIdx = PHASE_STEPS.findIndex((s) => s.id === currentPhase)
+  return (
+    <div className="flex items-center gap-1">
+      {PHASE_STEPS.map((step, i) => {
+        const isActive = step.id === currentPhase
+        const isDone = i < currentIdx
+        return (
+          <React.Fragment key={step.id}>
+            {i > 0 && (
+              <div className={['h-0.5 w-4 rounded-full transition-colors', isDone ? 'bg-brand-500' : 'bg-neutral-800'].join(' ')} />
+            )}
+            <div className={[
+              'flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold transition-all',
+              isActive ? 'bg-brand-950/60 text-brand-400 border border-brand-700/40' :
+              isDone ? 'text-brand-600' :
+              'text-neutral-600',
+            ].join(' ')}>
+              <span>{step.icon}</span>
+              <span className="hidden sm:inline">{step.label}</span>
+            </div>
+          </React.Fragment>
+        )
+      })}
+    </div>
+  )
+})
+
+/** Countdown progress bar for speaking/voting phase */
+const CountdownBar = memo(({ seconds, total, color }: { seconds: number; total: number; color: string }) => {
   const pct = Math.max(0, (seconds / total) * 100)
   const urgent = seconds <= 10
   return (
@@ -25,7 +97,7 @@ function CountdownBar({ seconds, total, color }: { seconds: number; total: numbe
       </span>
     </div>
   )
-}
+})
 
 export default function GamePage() {
   const { code } = useParams<{ code: string }>()
@@ -267,26 +339,24 @@ export default function GamePage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-lg font-extrabold tracking-tight text-white">Imposter</span>
-              {code && (
-                <span className="text-xs font-mono text-neutral-500 border border-neutral-800 rounded px-2 py-0.5">
-                  {code}
-                </span>
+              {timeLeft > 0 && (
+                <CircularTimer seconds={timeLeft} total={totalTime} phase={phase} />
               )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-extrabold tracking-tight text-white">Imposter</span>
+                  {code && (
+                    <span className="text-xs font-mono text-neutral-500 border border-neutral-800 rounded px-2 py-0.5">
+                      {code}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-neutral-500">
+                  {alivePlayers.length} alive · Round {currentRound?.roundNumber ?? 1}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className={[
-                'text-xs font-semibold px-2.5 py-1 rounded-full',
-                phase === 'speaking' ? 'bg-brand-950/60 text-brand-400 border border-brand-800/40' :
-                phase === 'voting'   ? 'bg-amber-950/60 text-amber-400 border border-amber-800/40' :
-                                       'bg-neutral-800 text-neutral-400 border border-neutral-700',
-              ].join(' ')}>
-                {phase === 'speaking' ? '💬 Speaking' : phase === 'voting' ? '🗳 Voting' : '📋 Reveal'}
-              </span>
-              <span className="text-xs text-neutral-500">
-                {alivePlayers.length} alive
-              </span>
-            </div>
+            <PhaseIndicator currentPhase={phase} />
           </div>
           {timeLeft > 0 && (
             <CountdownBar
@@ -534,17 +604,31 @@ export default function GamePage() {
           {clues.length === 0 ? (
             <p className="text-neutral-600 text-sm italic">No clues yet...</p>
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {clues.map((clue, i) => {
                 const player = players.find((p) => p.userId === clue.playerId)
+                const isMe = clue.playerId === user?.id
                 return (
-                  <div key={i} className="flex items-start gap-2.5">
+                  <div
+                    key={i}
+                    className={[
+                      'flex items-start gap-2.5 px-3 py-2.5 rounded-xl border transition-all animate-scale-in',
+                      isMe
+                        ? 'bg-brand-950/30 border-brand-800/30'
+                        : 'bg-neutral-800/30 border-neutral-800/50',
+                    ].join(' ')}
+                    style={{ animationDelay: `${i * 0.05}s` }}
+                  >
                     <Avatar username={player?.username ?? '?'} size="xs" />
-                    <div>
-                      <span className="text-xs font-semibold text-neutral-400">
-                        {player?.username ?? 'Unknown'}
-                      </span>
-                      <p className="text-sm text-white leading-snug">{clue.text}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-neutral-400">
+                          {player?.username ?? 'Unknown'}
+                        </span>
+                        <span className="text-neutral-700 text-[10px]">#{i + 1}</span>
+                        {isMe && <span className="text-[10px] text-brand-400 font-bold">YOU</span>}
+                      </div>
+                      <p className="text-sm text-white leading-snug mt-0.5">{clue.text}</p>
                     </div>
                   </div>
                 )

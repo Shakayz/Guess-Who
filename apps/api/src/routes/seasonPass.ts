@@ -69,13 +69,14 @@ export const seasonPassRoutes: FastifyPluginAsync = async (fastify) => {
     })
     if (existing) return reply.status(409).send({ error: 'Already claimed' })
 
-    // Award reward
+    // Award reward (goldCoins rewards disabled until premium is ready)
     await prisma.$transaction(async (tx) => {
       await tx.seasonPassClaim.create({ data: { userId, seasonTierId: tierId } })
       if (tier.rewardType === 'starCoins') {
         await tx.user.update({ where: { id: userId }, data: { starCoins: { increment: parseInt(tier.rewardValue) } } })
       } else if (tier.rewardType === 'goldCoins') {
-        await tx.user.update({ where: { id: userId }, data: { goldCoins: { increment: parseInt(tier.rewardValue) } } })
+        // TODO: re-enable when premium is ready
+        // await tx.user.update({ where: { id: userId }, data: { goldCoins: { increment: parseInt(tier.rewardValue) } } })
       } else if (tier.rewardType === 'cosmetic') {
         await tx.userCosmetic.upsert({
           where: { userId_cosmeticId: { userId, cosmeticId: tier.rewardValue } },

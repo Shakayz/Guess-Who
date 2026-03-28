@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
@@ -24,12 +24,37 @@ const HONOR_OPTIONS: { type: HonorType; label: string; icon: string }[] = [
   { type: 'good_sport', label: 'Good Sport',  icon: '🎖️' },
 ]
 
-const MOCK_PLAYERS = [
-  { id: 'p1', userId: 'u1', username: 'Alice',   role: 'villager' as const, survived: true,  correctVote: true },
-  { id: 'p2', userId: 'u2', username: 'Bob',     role: 'imposter' as const, survived: false, correctVote: false },
-  { id: 'p3', userId: 'u3', username: 'Charlie', role: 'villager' as const, survived: true,  correctVote: true },
-  { id: 'p4', userId: 'u4', username: 'Diana',   role: 'villager' as const, survived: true,  correctVote: true },
-]
+// Animated number counter hook
+function useAnimatedNumber(target: number, duration = 1200): number {
+  const [value, setValue] = useState(0)
+  const startRef = useRef<number | null>(null)
+  const rafRef = useRef<number>(0)
+
+  useEffect(() => {
+    startRef.current = null
+    const animate = (timestamp: number) => {
+      if (!startRef.current) startRef.current = timestamp
+      const elapsed = timestamp - startRef.current
+      const progress = Math.min(elapsed / duration, 1)
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setValue(Math.round(target * eased))
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(animate)
+      }
+    }
+    // Delay start for staggered effect
+    const timeout = setTimeout(() => {
+      rafRef.current = requestAnimationFrame(animate)
+    }, 300)
+    return () => {
+      clearTimeout(timeout)
+      cancelAnimationFrame(rafRef.current)
+    }
+  }, [target, duration])
+
+  return value
+}
 
 export default function ResultsPage() {
   const navigate = useNavigate()
@@ -37,32 +62,47 @@ export default function ResultsPage() {
   const { result, room, myRole, reset } = useGameStore()
   const [honorGiven, setHonorGiven] = useState<Record<string, HonorType>>({})
   const [honorTarget, setHonorTarget] = useState<string | null>(null)
+  const [rankUp, setRankUp] = useState<{ oldTier: RankTier; newTier: RankTier; newLP: number } | null>(null)
+  const [showRankCelebration, setShowRankCelebration] = useState(false)
 
   // Game chat state
   const [chatMessages, setChatMessages] = useState<GameChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const chatBottomRef = useRef<HTMLDivElement>(null)
 
+  const winner = result?.winner ?? 'villagers'
+  const rewards = result?.rewards ?? { starCoinsEarned: 25, xpEarned: 120, lpChange: 18, achievements: [] }
+  const players = room?.players?.length ? room.players : []
+  const isImposter = myRole === 'imposter' || myRole === 'double_agent'
+  const didWin = (winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter)
+
+  // Animated counters
+  const animatedStars = useAnimatedNumber(Math.abs(rewards.starCoinsEarned))
+  const animatedXP = useAnimatedNumber(Math.abs(rewards.xpEarned))
+  const animatedLP = useAnimatedNumber(Math.abs(rewards.lpChange))
+
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sock = getSocket() as any
 
-    const handleChatHistory = (data: { messages: GameChatMessage[] }) => {
-      setChatMessages(data.messages)
-    }
-    const handleChatMessage = (msg: GameChatMessage) => {
-      setChatMessages((prev) => [...prev, msg])
+    const handleChatHistory = (data: { messages: GameChatMessage[] }) => setChatMessages(data.messages)
+    const handleChatMessage = (msg: GameChatMessage) => setChatMessages((prev) => [...prev, msg])
+    const handleRankUpdated = (data: { oldTier: RankTier; newTier: RankTier; newLP: number; promoted: boolean }) => {
+      if (data.promoted) {
+        setRankUp({ oldTier: data.oldTier, newTier: data.newTier, newLP: data.newLP })
+        setShowRankCelebration(true)
+        setTimeout(() => setShowRankCelebration(false), 5000)
+      }
     }
 
     sock.on('gamechat:history', handleChatHistory)
     sock.on('gamechat:message', handleChatMessage)
-
-    // Request history
+    sock.on('rank:updated', handleRankUpdated)
     sock.emit('gamechat:history')
 
     return () => {
       sock.off('gamechat:history', handleChatHistory)
       sock.off('gamechat:message', handleChatMessage)
+      sock.off('rank:updated', handleRankUpdated)
     }
   }, [])
 
@@ -73,9 +113,7 @@ export default function ResultsPage() {
   const handleChatSend = () => {
     const text = chatInput.trim()
     if (!text) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sock = getSocket() as any
-    sock.emit('gamechat:send', { text })
+    ;(getSocket() as any).emit('gamechat:send', { text })
     setChatInput('')
   }
 
@@ -85,13 +123,6 @@ export default function ResultsPage() {
 
   const formatTime = (iso: string) =>
     new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-
-  // Use real result if available, else show a mock for preview
-  const winner = result?.winner ?? 'villagers'
-  const rewards = result?.rewards ?? { starCoinsEarned: 25, xpEarned: 120, lpChange: 18, achievements: [] }
-  const players = room?.players?.length ? room.players : MOCK_PLAYERS
-  const isImposter = myRole === 'imposter' || myRole === 'double_agent'
-  const didWin = (winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter)
 
   const handleHonor = (targetUserId: string, honorType: HonorType) => {
     setHonorGiven((prev) => ({ ...prev, [targetUserId]: honorType }))
@@ -107,7 +138,33 @@ export default function ResultsPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
-      <main className="flex-1 p-4 pb-12">
+
+      {/* Rank Up Celebration Overlay */}
+      {showRankCelebration && rankUp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="text-center animate-bounce-in px-8 py-10">
+            <p className="text-6xl mb-4">{RANK_CONFIG[rankUp.newTier]?.icon ?? '🏅'}</p>
+            <p className="text-xs uppercase tracking-widest text-neutral-400 mb-2 font-semibold">Rank Up!</p>
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <span className="text-neutral-500 text-lg">{RANK_CONFIG[rankUp.oldTier]?.icon}</span>
+              <span className="text-neutral-500">→</span>
+              <span className="text-3xl">{RANK_CONFIG[rankUp.newTier]?.icon}</span>
+            </div>
+            <h2 className="text-3xl font-extrabold text-white mb-1">
+              {RANK_CONFIG[rankUp.newTier]?.label}
+            </h2>
+            <p className="text-neutral-400 text-sm">{rankUp.newLP} LP</p>
+            <button
+              onClick={() => setShowRankCelebration(false)}
+              className="mt-6 px-6 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold transition-colors"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
+
+      <main className="flex-1 p-4 pb-20 sm:pb-12">
         <div className="max-w-lg mx-auto space-y-4 animate-slide-up">
 
           {/* Outcome hero */}
@@ -128,7 +185,7 @@ export default function ResultsPage() {
                 : 'bg-gradient-to-r from-transparent via-red-500 to-transparent',
             ].join(' ')} />
             <div className="relative">
-              <p className={['text-6xl mb-3', didWin ? 'animate-bounce' : ''].join(' ')}>
+              <p className={['text-6xl mb-3', didWin ? 'animate-bounce-in' : ''].join(' ')}>
                 {didWin ? '🏆' : '💀'}
               </p>
               <h1 className={[
@@ -140,42 +197,35 @@ export default function ResultsPage() {
               <p className="text-neutral-400 text-sm">
                 {winner === 'villagers' ? 'Villagers found the imposters' : 'Imposters escaped detection'}
               </p>
-              {didWin && (
-                <div className="flex justify-center gap-3 mt-4">
-                  {['+', rewards.starCoinsEarned, '⭐'].map((v, i) => (
-                    <span key={i} className="text-emerald-400 font-bold">{v}</span>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
-          {/* Rewards */}
+          {/* Animated Rewards */}
           <div className="card">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Rewards Earned</p>
             <div className="grid grid-cols-3 gap-3">
-              <div className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50">
+              <div className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50 animate-count-up" style={{ animationDelay: '0.1s' }}>
                 <span className="text-xl">⭐</span>
-                <span className="text-lg font-bold text-white">+{rewards.starCoinsEarned}</span>
+                <span className="text-lg font-bold text-white tabular-nums">+{animatedStars}</span>
                 <span className="text-xs text-neutral-500">Star Coins</span>
               </div>
-              <div className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50">
+              <div className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50 animate-count-up" style={{ animationDelay: '0.3s' }}>
                 <span className="text-xl">⚡</span>
-                <span className="text-lg font-bold text-white">+{rewards.xpEarned}</span>
+                <span className="text-lg font-bold text-white tabular-nums">+{animatedXP}</span>
                 <span className="text-xs text-neutral-500">XP</span>
               </div>
               <div className={[
-                'flex flex-col items-center gap-1 p-3 rounded-xl border',
+                'flex flex-col items-center gap-1 p-3 rounded-xl border animate-count-up',
                 rewards.lpChange >= 0
                   ? 'bg-emerald-950/40 border-emerald-800/40'
                   : 'bg-red-950/40 border-red-800/40',
-              ].join(' ')}>
+              ].join(' ')} style={{ animationDelay: '0.5s' }}>
                 <span className="text-xl">📊</span>
                 <span className={[
-                  'text-lg font-bold',
+                  'text-lg font-bold tabular-nums',
                   rewards.lpChange >= 0 ? 'text-emerald-400' : 'text-red-400',
                 ].join(' ')}>
-                  {rewards.lpChange >= 0 ? '+' : ''}{rewards.lpChange}
+                  {rewards.lpChange >= 0 ? '+' : '-'}{animatedLP}
                 </span>
                 <span className="text-xs text-neutral-500">LP</span>
               </div>
@@ -186,7 +236,7 @@ export default function ResultsPage() {
                 <p className="text-xs text-neutral-500 mb-2">Achievements Unlocked</p>
                 <div className="flex flex-wrap gap-2">
                   {rewards.achievements.map((a: any) => (
-                    <div key={a.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-950/60 border border-brand-800/40 text-brand-400 text-xs font-semibold">
+                    <div key={a.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-950/60 border border-brand-800/40 text-brand-400 text-xs font-semibold animate-scale-in">
                       🏅 {a.name}
                     </div>
                   ))}
@@ -199,7 +249,7 @@ export default function ResultsPage() {
           <div className="card">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Player Roles</p>
             <div className="space-y-2">
-              {players.map((p) => {
+              {players.map((p, idx) => {
                 const role = (p as any).role as string | undefined
                 const survived = (p as any).survived as boolean | undefined
                 const isMe = p.userId === user?.id
@@ -207,9 +257,10 @@ export default function ResultsPage() {
                   <div
                     key={p.id}
                     className={[
-                      'flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors',
+                      'flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors animate-slide-up',
                       isMe ? 'border-brand-800/50 bg-brand-950/20' : 'border-neutral-800 bg-neutral-900/40',
                     ].join(' ')}
+                    style={{ animationDelay: `${idx * 0.05}s` }}
                   >
                     <Avatar username={p.username} size="sm" />
                     <div className="flex-1 min-w-0">
@@ -235,6 +286,7 @@ export default function ResultsPage() {
                     ].join(' ')}>
                       {role === 'imposter' ? '🎭 Imposter'
                         : role === 'double_agent' ? '🕵️ Double Agent'
+                        : role === 'detective' ? '🔍 Detective'
                         : '🏘️ Villager'}
                     </span>
                     {survived !== undefined && (
@@ -262,7 +314,7 @@ export default function ResultsPage() {
                     <Avatar username={p.username} size="xs" />
                     <span className="flex-1 text-sm text-white font-medium">{p.username}</span>
                     {honorGiven[p.userId] ? (
-                      <span className="text-xs text-emerald-400 font-semibold">
+                      <span className="text-xs text-emerald-400 font-semibold animate-scale-in">
                         {HONOR_OPTIONS.find((h) => h.type === honorGiven[p.userId])?.icon}{' '}
                         {HONOR_OPTIONS.find((h) => h.type === honorGiven[p.userId])?.label}
                       </span>
@@ -367,13 +419,13 @@ export default function ResultsPage() {
           <div className="flex gap-3 pt-2">
             <button
               onClick={handlePlayAgain}
-              className="flex-1 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition-all shadow-lg shadow-brand-600/20"
+              className="flex-1 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-lg transition-all shadow-lg shadow-brand-600/30 hover:shadow-brand-600/50 active:scale-[0.98]"
             >
               Play Again
             </button>
             <button
               onClick={() => navigate('/profile')}
-              className="px-5 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold transition-colors"
+              className="px-5 py-3.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold transition-colors"
             >
               Profile
             </button>

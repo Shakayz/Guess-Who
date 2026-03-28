@@ -32,7 +32,12 @@ export const useGameStore = create<GameState>((set) => ({
   setRoom: (room) => set({ room }),
   setRound: (round) => set({ currentRound: round }),
   setRoleAndWord: (myRole, myWord) => set({ myRole, myWord }),
-  addMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
+  addMessage: (msg) => set((s) => {
+    const msgs = s.messages.length >= 100
+      ? [...s.messages.slice(-99), msg]
+      : [...s.messages, msg]
+    return { messages: msgs }
+  }),
   setResult: (result) => set({ result }),
   reset: () => set({ room: null, currentRound: null, myRole: null, myWord: null, messages: [], result: null }),
 }))

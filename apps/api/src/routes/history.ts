@@ -18,12 +18,24 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
         skip,
         take: l,
         orderBy: { createdAt: 'desc' },
-        include: {
+        select: {
+          role: true,
+          survived: true,
+          starCoinsEarned: true,
           game: {
-            include: {
-              rounds: { select: { id: true } },
+            select: {
+              id: true,
+              startedAt: true,
+              endedAt: true,
+              winnerTeam: true,
+              _count: { select: { rounds: true } },
               participations: {
-                include: { user: { select: { id: true, username: true, avatarUrl: true } } },
+                select: {
+                  userId: true,
+                  role: true,
+                  survived: true,
+                  user: { select: { id: true, username: true, avatarUrl: true } },
+                },
               },
             },
           },
@@ -39,7 +51,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
       myRole: p.role,
       survived: p.survived,
       starCoinsEarned: p.starCoinsEarned,
-      roundCount: p.game.rounds.length,
+      roundCount: p.game._count.rounds,
       players: p.game.participations.map((gp) => ({
         userId: gp.userId,
         username: gp.user.username,

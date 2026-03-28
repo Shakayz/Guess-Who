@@ -98,10 +98,18 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
     const gift = await prisma.gift.findUnique({ where: { id } })
     if (!gift) return reply.status(404).send({ error: 'Gift not found' })
     if (gift.receiverId !== userId) return reply.status(403).send({ error: 'Forbidden' })
-    if (gift.claimed) return reply.status(409).send({ error: 'Already claimed' })
 
+    // ── Atomic claim: use updateMany with claimed:false filter to prevent double-claim
+    // even under concurrent requests (no optimistic locking needed)
     await prisma.$transaction(async (tx) => {
-      await tx.gift.update({ where: { id }, data: { claimed: true } })
+      const result = await tx.gift.updateMany({
+        where: { id, claimed: false },
+        data:  { claimed: true },
+      })
+      // If 0 rows updated, gift was already claimed by a concurrent request
+      if (result.count === 0) {
+        throw Object.assign(new Error('Already claimed'), { statusCode: 409 })
+      }
       if (gift.coinAmount > 0) {
         await tx.user.update({ where: { id: userId }, data: { starCoins: { increment: gift.coinAmount } } })
       }
@@ -112,6 +120,9 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
           create: { userId, cosmeticId: gift.cosmeticId },
         })
       }
+    }).catch((err: any) => {
+      if (err.statusCode === 409) return reply.status(409).send({ error: 'Already claimed' })
+      throw err
     })
 
     return reply.send({ success: true })

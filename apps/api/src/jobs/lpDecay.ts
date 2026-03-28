@@ -5,7 +5,8 @@ import { env } from '../config/env'
 
 // BullMQ requires maxRetriesPerRequest: null
 const bullRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })
-import { LP_DECAY } from '@imposter/shared'
+import { LP_DECAY, getTierFromLP } from '@imposter/shared'
+import type { RankTier } from '@imposter/shared'
 
 const QUEUE_NAME = 'lp-decay'
 
@@ -22,8 +23,8 @@ export function startLpDecayWorker() {
   const worker = new Worker(
     QUEUE_NAME,
     async () => {
-      const cutoff = new Date()
-      cutoff.setDate(cutoff.getDate() - LP_DECAY.INACTIVITY_DAYS)
+      // Use timestamp arithmetic to stay timezone-agnostic (UTC-safe)
+      const cutoff = new Date(Date.now() - LP_DECAY.INACTIVITY_DAYS * 24 * 60 * 60 * 1000)
 
       // Find ranked users inactive for more than INACTIVITY_DAYS
       // "inactive" = no game participation created after cutoff
@@ -38,14 +39,23 @@ export function startLpDecayWorker() {
         select: { id: true, rankPoints: true, rankTier: true },
       })
 
+      // Batch decay updates in chunks of 50 to avoid overwhelming the DB
+      const BATCH_SIZE = 50
       let decayed = 0
-      for (const user of inactiveUsers) {
-        const newLp = Math.max(LP_DECAY.MINIMUM_LP, user.rankPoints - LP_DECAY.DECAY_AMOUNT)
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { rankPoints: newLp },
-        }).catch(() => {})
-        decayed++
+      for (let i = 0; i < inactiveUsers.length; i += BATCH_SIZE) {
+        const batch = inactiveUsers.slice(i, i + BATCH_SIZE)
+        await prisma.$transaction(
+          batch.map((user) => {
+            const newLp      = Math.max(LP_DECAY.MINIMUM_LP, user.rankPoints - LP_DECAY.DECAY_AMOUNT)
+            const newTier    = getTierFromLP(newLp)
+            const tierChanged = newTier !== (user.rankTier as RankTier)
+            return prisma.user.update({
+              where: { id: user.id },
+              data:  { rankPoints: newLp, ...(tierChanged ? { rankTier: newTier } : {}) },
+            })
+          })
+        ).catch((err) => console.error(`[LP Decay] Batch ${i} error:`, err))
+        decayed += batch.length
       }
 
       console.log(`[LP Decay] Applied decay to ${decayed} inactive players`)

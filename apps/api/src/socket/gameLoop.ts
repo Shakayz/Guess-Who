@@ -1,6 +1,7 @@
 import type { Server } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
-import { getMostVoted, checkWinCondition } from '@imposter/shared'
+import { getMostVoted, checkWinCondition, computeRankUpdate, LP_REWARDS } from '@imposter/shared'
+import type { RankTier } from '@imposter/shared'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
 
@@ -15,6 +16,76 @@ function clearRoomTimer(roomId: string) {
     clearTimeout(t)
     roomTimers.delete(roomId)
   }
+}
+
+// ─── Room state reset after game ends ─────────────────────────────────────────
+
+function buildResetState(state: any): any {
+  return {
+    status: 'waiting',
+    gameMode:          state.gameMode,
+    categories:        state.categories ?? [],
+    maxRounds:         state.maxRounds ?? 0,
+    enableDetective:   state.enableDetective ?? false,
+    enableDoubleAgent: state.enableDoubleAgent ?? false,
+    players: state.players.map((p: any) => ({
+      ...p,
+      role:                 undefined,
+      status:              'alive',
+      isReady:             p.isHost,
+      honorGiven:          false,
+      detectiveRevealUsed: false,
+    })),
+    currentRound: 0,
+    rounds: [],
+  }
+}
+
+async function resetRoomAfterGame(roomId: string, state: any): Promise<void> {
+  const resetState = buildResetState(state)
+  await redis.set(`room:${roomId}:state`, JSON.stringify(resetState), 'EX', 86400)
+  await prisma.room.update({ where: { id: roomId }, data: { status: 'waiting' } }).catch(() => {})
+}
+
+// ─── LP helper — per-player role-based LP + rank sync ────────────────────────
+
+async function applyRankedLP(
+  io: IO,
+  roomId: string,
+  players: any[],
+  getLpDelta: (role: string) => number,
+): Promise<void> {
+  const userIds: string[] = players.map((p: any) => p.userId)
+
+  const users = await prisma.user.findMany({
+    where:  { id: { in: userIds } },
+    select: { id: true, rankPoints: true, rankTier: true },
+  })
+  const userMap = new Map(users.map((u) => [u.id, u]))
+
+  const sockets = await io.in(`room:${roomId}`).fetchSockets().catch(() => [] as any[])
+
+  await Promise.allSettled(
+    players.map(async (player: any) => {
+      const user = userMap.get(player.userId)
+      if (!user) return
+
+      const lpDelta            = getLpDelta(player.role ?? '')
+      const { newLP, newTier, promoted, demoted } = computeRankUpdate(user.rankPoints, lpDelta)
+      const oldTier            = user.rankTier as RankTier
+      const tierChanged        = newTier !== oldTier
+
+      await prisma.user.update({
+        where: { id: player.userId },
+        data:  { rankPoints: newLP, ...(tierChanged ? { rankTier: newTier } : {}) },
+      })
+
+      if (tierChanged) {
+        const sock = sockets.find((s: any) => (s.data?.userId ?? s.userId) === player.userId)
+        sock?.emit('rank:updated' as any, { oldTier, newTier, newLP, promoted })
+      }
+    })
+  )
 }
 
 // ─── Entry point called after game:start ─────────────────────────────────────
@@ -39,7 +110,10 @@ async function advanceSpeaker(
   votingTimeSeconds: number,
 ) {
   const stateRaw = await redis.get(`room:${roomId}:state`)
-  if (!stateRaw) return
+  if (!stateRaw) {
+    io.to(`room:${roomId}`).emit('error', { code: 'GAME_STATE_LOST', message: 'Game interrupted. Please reconnect.' })
+    return
+  }
   const state = JSON.parse(stateRaw)
   if (state.status !== 'in_progress') return
 
@@ -57,10 +131,10 @@ async function advanceSpeaker(
   const playerId = order[speakerIndex]
   io.to(`room:${roomId}`).emit('round:speaking-turn', { playerId, timeSeconds: speakingTimeSeconds, speakingOrder: order })
 
-  const timer = setTimeout(async () => {
+  const timer = setTimeout(async () => { try {
     roomTimers.delete(roomId)
     await advanceSpeaker(io, roomId, speakerIndex + 1, speakingTimeSeconds, votingTimeSeconds)
-  }, speakingTimeSeconds * 1000)
+  } catch (err) { console.error('[advanceSpeaker] timeout error:', err) } }, speakingTimeSeconds * 1000)
   roomTimers.set(roomId, timer)
 }
 
@@ -68,7 +142,10 @@ async function advanceSpeaker(
 
 async function startVoting(io: IO, roomId: string, votingTimeSeconds: number) {
   const stateRaw = await redis.get(`room:${roomId}:state`)
-  if (!stateRaw) return
+  if (!stateRaw) {
+    io.to(`room:${roomId}`).emit('error', { code: 'GAME_STATE_LOST', message: 'Game interrupted. Please reconnect.' })
+    return
+  }
   const state = JSON.parse(stateRaw)
   state.status = 'voting'
   await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
@@ -76,10 +153,10 @@ async function startVoting(io: IO, roomId: string, votingTimeSeconds: number) {
   const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
   io.to(`room:${roomId}`).emit('round:voting-started', { timeSeconds: votingTimeSeconds, players: alivePlayers })
 
-  const timer = setTimeout(async () => {
+  const timer = setTimeout(async () => { try {
     roomTimers.delete(roomId)
     await resolveRound(io, roomId)
-  }, votingTimeSeconds * 1000)
+  } catch (err) { console.error('[resolveRound] timeout error:', err) } }, votingTimeSeconds * 1000)
   roomTimers.set(roomId, timer)
 }
 
@@ -101,15 +178,36 @@ export async function tryEarlyResolve(io: IO, roomId: string) {
   if (allVoted) {
     clearRoomTimer(roomId)
     io.to(`room:${roomId}`).emit('vote:all-cast' as any)
-    setTimeout(() => resolveRound(io, roomId), 1500)
+    // Store timer so it can be cancelled if needed, preventing double-resolution
+    const t = setTimeout(() => {
+      roomTimers.delete(roomId)
+      resolveRound(io, roomId)
+    }, 1500)
+    roomTimers.set(roomId, t)
   }
 }
 
 // ─── Round resolution ─────────────────────────────────────────────────────────
 
 async function resolveRound(io: IO, roomId: string) {
+  // ── Atomic guard: prevent double-resolution race condition ───────────────────
+  // (can happen when early-resolve timer and voting timer both fire near-simultaneously)
+  const resolveKey = `room:${roomId}:resolving`
+  const acquired = await (redis as any).set(resolveKey, '1', 'EX', 10, 'NX')
+  if (!acquired) return
+  try {
+    await _resolveRound(io, roomId)
+  } finally {
+    await redis.del(resolveKey)
+  }
+}
+
+async function _resolveRound(io: IO, roomId: string) {
   const stateRaw = await redis.get(`room:${roomId}:state`)
-  if (!stateRaw) return
+  if (!stateRaw) {
+    io.to(`room:${roomId}`).emit('error', { code: 'GAME_STATE_LOST', message: 'Game interrupted. Please reconnect.' })
+    return
+  }
   const state = JSON.parse(stateRaw)
 
   const currentRound = state.rounds?.[state.currentRound - 1]
@@ -128,8 +226,10 @@ async function resolveRound(io: IO, roomId: string) {
     currentRound.eliminatedPlayerId = mostVotedId
     currentRound.eliminatedRole = eliminatedRole
   } else {
+    // Tie vote — notify players explicitly so UI can show a "no elimination" message
     currentRound.eliminatedPlayerId = null
     currentRound.eliminatedRole = null
+    io.to(`room:${roomId}`).emit('vote:tie' as any, { message: 'Vote tied — no one is eliminated this round' })
   }
 
   // Add word reveal from DB
@@ -137,6 +237,18 @@ async function resolveRound(io: IO, roomId: string) {
   currentRound.wordReveal = dbRound
     ? { villagerWord: dbRound.villagerWord, imposterWord: dbRound.imposterWord }
     : null
+
+  // ── Persist votes to RoundVote table ────────────────────────────────────────
+  if (dbRound && (currentRound.votes ?? []).length > 0) {
+    await prisma.roundVote.createMany({
+      data: (currentRound.votes as any[]).map((v: any) => ({
+        roundId:  dbRound.id,
+        voterId:  v.voterId,
+        targetId: v.targetId,
+      })),
+      skipDuplicates: true,
+    }).catch((err: any) => console.error('[votes] persist error:', err))
+  }
 
   // Update DB round with elimination and mark participation as not survived
   if (mostVotedId && dbRound) {
@@ -182,20 +294,20 @@ async function resolveRound(io: IO, roomId: string) {
     const unlockedByPlayer = await checkAndUnlockAchievements(io, roomId, winner, state, finishedGame?.id ?? null)
 
     const isRanked = state.gameMode === 'ranked'
-    const lpChange = isRanked ? (winner === 'villagers' ? 18 : -15) : 0
 
-    // ── Persist LP for ranked games ──────────────────────────────────────────
-    if (isRanked && lpChange !== 0) {
-      const playerIds: string[] = state.players.map((p: any) => p.userId)
-      await Promise.allSettled(
-        playerIds.map((userId: string) =>
-          prisma.user.update({
-            where: { id: userId },
-            data: { rankPoints: { increment: lpChange } },
-          })
-        )
-      )
+    // ── Persist LP per-role + sync rankTier ──────────────────────────────────
+    if (isRanked) {
+      await applyRankedLP(io, roomId, state.players, (role) => {
+        const isImposter = role === 'imposter' || role === 'double_agent'
+        if (winner === 'villagers') {
+          return isImposter ? LP_REWARDS.IMPOSTER_LOSS : LP_REWARDS.VILLAGER_WIN
+        } else {
+          return isImposter ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS
+        }
+      })
     }
+    // Representative delta for the broadcast RewardSummary (villager perspective)
+    const lpChange = isRanked ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS) : 0
 
     const rewards = {
       starCoinsEarned: winner === 'villagers' ? 50 : 80,
@@ -203,13 +315,14 @@ async function resolveRound(io: IO, roomId: string) {
       lpChange,
       achievements: [],
     }
-    setTimeout(() => {
+    setTimeout(async () => { try {
       io.to(`room:${roomId}`).emit('game:finished', {
         winner,
         finalRound: roundPayload as any,
         rewards,
       })
-    }, 3000)
+      await resetRoomAfterGame(roomId, state)
+    } catch (err) { console.error('[game:finished] emit error:', err) } }, 3000)
   } else {
     // Start next round
     const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
@@ -225,28 +338,56 @@ async function resolveRound(io: IO, roomId: string) {
     const maxRounds = state.maxRounds ?? 0   // 0 = unlimited
 
     // Imposters win if they survive all rounds (only when a round limit is set)
+    // Re-check win condition first — all imposters may have been eliminated this final round
     if (maxRounds > 0 && nextRoundNumber > maxRounds) {
+      const finalWinner = checkWinCondition(state.players as any)
+      if (finalWinner && finalWinner !== 'imposters') {
+        // Villagers won on the last round — fall through to normal winner logic above
+        // by re-invoking the winner branch inline
+        state.status = 'finished'
+        await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+        await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
+        if (game) {
+          await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: finalWinner, endedAt: new Date() } }).catch(() => {})
+        }
+        io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
+        await checkAndUnlockAchievements(io, roomId, finalWinner, state, game?.id ?? null)
+        const isRankedFinal = state.gameMode === 'ranked'
+        if (isRankedFinal) {
+          await applyRankedLP(io, roomId, state.players, (role) => {
+            const isImposter = role === 'imposter' || role === 'double_agent'
+            return finalWinner === 'villagers'
+              ? (isImposter ? LP_REWARDS.IMPOSTER_LOSS : LP_REWARDS.VILLAGER_WIN)
+              : (isImposter ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS)
+          })
+        }
+        const lpChangeFinal = isRankedFinal ? LP_REWARDS.VILLAGER_WIN : 0
+        setTimeout(async () => { try {
+          io.to(`room:${roomId}`).emit('game:finished', { winner: finalWinner, finalRound: roundPayload as any, rewards: { starCoinsEarned: 50, xpEarned: 120, lpChange: lpChangeFinal, achievements: [] } })
+          await resetRoomAfterGame(roomId, state)
+        } catch (err) { console.error('[game:finished] emit error:', err) } }, 3000)
+        return
+      }
+
       state.status = 'finished'
       await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
       await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
       io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
       const isRankedSurvival = state.gameMode === 'ranked'
-      const survivalLpChange = isRankedSurvival ? -15 : 0
+
+      // ── Persist LP per-role + sync rankTier (survival win) ─────────────────
       if (isRankedSurvival) {
-        const playerIds: string[] = state.players.map((p: any) => p.userId)
-        await Promise.allSettled(
-          playerIds.map((userId: string) =>
-            prisma.user.update({
-              where: { id: userId },
-              data: { rankPoints: { increment: survivalLpChange } },
-            })
-          )
-        )
+        await applyRankedLP(io, roomId, state.players, (role) => {
+          const isImposter = role === 'imposter' || role === 'double_agent'
+          return isImposter ? LP_REWARDS.SURVIVAL_IMPOSTER_WIN : LP_REWARDS.SURVIVAL_VILLAGER_LOSS
+        })
       }
+      const survivalLpChange = isRankedSurvival ? LP_REWARDS.SURVIVAL_VILLAGER_LOSS : 0
       const rewards = { starCoinsEarned: 80, xpEarned: 120, lpChange: survivalLpChange, achievements: [] }
-      setTimeout(() => {
+      setTimeout(async () => { try {
         io.to(`room:${roomId}`).emit('game:finished', { winner: 'imposters', finalRound: roundPayload as any, rewards })
-      }, 3000)
+        await resetRoomAfterGame(roomId, state)
+      } catch (err) { console.error('[game:finished] emit error:', err) } }, 3000)
       return
     }
     const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
@@ -290,9 +431,9 @@ async function resolveRound(io: IO, roomId: string) {
     })
 
     // Start next round after 5s reveal
-    setTimeout(async () => {
+    setTimeout(async () => { try {
       await startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
-    }, 5000)
+    } catch (err) { console.error('[startRound] timeout error:', err) } }, 5000)
   }
 }
 
@@ -353,19 +494,33 @@ async function checkAndUnlockAchievements(
       if (survived && isWinner) toUnlock.push('survivor')
       if (friends >= 5) toUnlock.push('social_butterfly')
 
-      // Check correct_voter: voted for the eliminated imposter this game
+      // Check correct_voter: batch query instead of N+1
       if (gameId) {
         const rounds = await prisma.round.findMany({
           where: { gameId, eliminatedId: { not: null } },
-          select: { eliminatedId: true },
+          select: { id: true, eliminatedId: true },
         })
-        const eliminatedImposters = await Promise.all(rounds.map(async (r) => {
-          if (!r.eliminatedId) return false
-          const part = participants.find((pp) => pp.userId === r.eliminatedId)
-          return part?.role === 'imposter' || part?.role === 'double_agent'
-        }))
-        const votedCorrectly = eliminatedImposters.some((v) => v)
-        if (votedCorrectly) toUnlock.push('correct_voter')
+        // Find rounds where an imposter was eliminated
+        const imposterRoundIds = rounds
+          .filter((r) => {
+            const eliminated = participants.find((pp) => pp.userId === r.eliminatedId)
+            return eliminated?.role === 'imposter' || eliminated?.role === 'double_agent'
+          })
+          .map((r) => ({ roundId: r.id, targetId: r.eliminatedId! }))
+
+        if (imposterRoundIds.length > 0) {
+          // Single query: did this player vote for any eliminated imposter?
+          const correctVote = await prisma.roundVote.findFirst({
+            where: {
+              voterId: userId,
+              OR: imposterRoundIds.map((ir) => ({
+                roundId: ir.roundId,
+                targetId: ir.targetId,
+              })),
+            },
+          })
+          if (correctVote) toUnlock.push('correct_voter')
+        }
       }
 
       // Unlock and notify

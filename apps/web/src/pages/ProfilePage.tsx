@@ -88,14 +88,19 @@ export default function ProfilePage() {
   const rankTier: RankTier = me?.rankTier ?? 'wooden'
   const rank = RANK_CONFIG[rankTier]
   const lp = me?.rankPoints ?? 0
-  const lpPct = rank.lpRequired === Infinity ? 100 : Math.min((lp / rank.lpRequired) * 100, 100)
+  // Calculate LP progress within current tier
+  const tierIndex = Object.keys(RANK_CONFIG).indexOf(rankTier)
+  const prevThreshold = tierIndex === 0 ? 0 : Object.values(RANK_CONFIG)[tierIndex - 1]?.lpRequired ?? 0
+  const currentThreshold = rank.lpRequired === Infinity ? prevThreshold + 100 : rank.lpRequired
+  const tierRange = currentThreshold - prevThreshold
+  const lpInTier = lp - prevThreshold
+  const lpPct = tierRange > 0 ? Math.min(Math.max((lpInTier / tierRange) * 100, 0), 100) : 100
   const nextRankTiers = Object.entries(RANK_CONFIG)
   const nextIdx = nextRankTiers.findIndex(([k]) => k === rankTier) + 1
   const nextRank = nextRankTiers[nextIdx]?.[1]
 
   const stats = [
     { label: 'Star Coins', value: me ? String(me.starCoins) : '—', icon: '⭐' },
-    { label: 'Gold Coins', value: me ? String(me.goldCoins) : '—', icon: '💰' },
     { label: 'Honor Points', value: me ? String(me.honorPoints) : '—', icon: '🎖️' },
     { label: 'Rank Points', value: me ? String(me.rankPoints) : '—', icon: '📊' },
   ]
@@ -105,7 +110,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-6 pb-24 sm:pb-6">
         <div className="max-w-xl mx-auto space-y-4 animate-slide-up">
 
           {/* Profile card */}
@@ -195,7 +200,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Currency & rank stats grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {stats.map((s) => (
               <div key={s.label} className="card text-center hover:border-neutral-700 transition-colors">
                 <p className="text-2xl mb-1">{s.icon}</p>

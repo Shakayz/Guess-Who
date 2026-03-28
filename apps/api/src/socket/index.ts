@@ -12,6 +12,25 @@ import { registerMatchmakingHandlers } from './handlers/matchmaking'
 // Track online users: userId -> socketId
 export const onlineUsers = new Map<string, string>()
 
+// Simple per-socket rate limiter to prevent event spam
+const socketRateLimits = new WeakMap<object, Map<string, number[]>>()
+
+function isRateLimited(socket: any, event: string, maxPerSecond: number = 5): boolean {
+  let events = socketRateLimits.get(socket)
+  if (!events) {
+    events = new Map()
+    socketRateLimits.set(socket, events)
+  }
+  const now = Date.now()
+  let timestamps = events.get(event) ?? []
+  // Keep only timestamps within the last second
+  timestamps = timestamps.filter((t) => now - t < 1000)
+  if (timestamps.length >= maxPerSecond) return true
+  timestamps.push(now)
+  events.set(event, timestamps)
+  return false
+}
+
 export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerToClientEvents>, fastify?: any) {
   // Attach onlineUsers and io to fastify for use in HTTP routes
   if (fastify) {
@@ -49,6 +68,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
 
     // DM: send a direct message to another user
     ;(socket as any).on('dm:send', async (data: { toUserId: string; text: string }) => {
+      if (isRateLimited(socket, 'dm:send', 3)) return
       if (!socket.data.userId) return
       if (!data.text?.trim() || !data.toUserId) return
       try {
@@ -157,6 +177,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
 
     // Emote: quick reaction broadcast to the room
     socket.on('emote:send' as any, (data: { emoji: string }) => {
+      if (isRateLimited(socket, 'emote:send', 2)) return
       if (!socket.data.userId) return
       const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
       if (!roomKey) return
@@ -188,8 +209,12 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
           return
         }
 
-        const target = state.players.find((p: any) => p.userId === data.targetUserId)
-        if (!target) return
+        // Target must be alive — no wasting ability on eliminated players
+        const target = state.players.find((p: any) => p.userId === data.targetUserId && p.status === 'alive')
+        if (!target) {
+          socket.emit('error', { code: 'TARGET_ELIMINATED', message: 'That player has already been eliminated' })
+          return
+        }
 
         detective.detectiveRevealUsed = true
         await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
@@ -202,16 +227,26 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       } catch {}
     })
 
-    // Honor: give an honor to a player after a game
-    socket.on('honor:give' as any, async (data: { targetUserId: string; honorType: string }) => {
+    // Honor: give an honor to a player after a game (once per target per game)
+    socket.on('honor:give' as any, async (data: { targetUserId: string; honorType: string; gameId?: string }) => {
       if (!socket.data.userId || !data.targetUserId || !data.honorType) return
       if (data.targetUserId === userId) return
+      const VALID_HONOR_TYPES = ['teamplayer', 'sharp_mind', 'good_sport']
+      if (!VALID_HONOR_TYPES.includes(data.honorType)) return
       try {
+        // ── One honor per sender → target per game ────────────────────────────
+        if (data.gameId) {
+          const existing = await prisma.honor.findFirst({
+            where: { senderId: userId, receiverId: data.targetUserId, gameId: data.gameId },
+          })
+          if (existing) return
+        }
         await prisma.honor.create({
           data: {
-            senderId: userId,
+            senderId:   userId,
             receiverId: data.targetUserId,
-            type: data.honorType.slice(0, 20),
+            type:       data.honorType,
+            gameId:     data.gameId ?? null,
           },
         })
         // Update receiver's honorPoints
@@ -258,12 +293,39 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       for (const roomKey of roomKeys) {
         const roomId = roomKey.split(':')[1]
         const stateRaw = await redis.get(`room:${roomId}:state`)
-        if (stateRaw) {
-          const state = JSON.parse(stateRaw)
+        if (!stateRaw) continue
+        const state = JSON.parse(stateRaw)
+
+        const wasInGame = state.status === 'in_progress' || state.status === 'voting'
+
+        if (wasInGame) {
+          // Mid-game: mark as eliminated (forfeit), don't remove from player list
+          const player = state.players.find((p: any) => p.userId === userId)
+          if (player && player.status === 'alive') player.status = 'eliminated'
+        } else {
+          // In lobby: remove the player entirely
           state.players = state.players.filter((p: any) => p.userId !== userId)
-          await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
-          io.to(roomKey).emit('player:left', socket.id)
         }
+
+        // ── Host reassignment ───────────────────────────────────────────────
+        // Only reassign host if game is in waiting state (mid-game host loss is cosmetic only)
+        if (!wasInGame && state.players.length > 0) {
+          const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
+          if (room && room.hostId === userId) {
+            // Promote the first remaining player to host
+            const newHost = state.players[0]
+            newHost.isHost  = true
+            newHost.isReady = true
+            await prisma.room.update({
+              where: { id: roomId },
+              data:  { hostId: newHost.userId },
+            }).catch(() => {})
+            io.to(roomKey).emit('room:host-changed' as any, { newHostId: newHost.userId, newHostUsername: newHost.username })
+          }
+        }
+
+        await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+        io.to(roomKey).emit('player:left', socket.id)
       }
     })
   })

@@ -42,9 +42,10 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
   })
 
   fastify.get('/leaderboard', async (_req, reply) => {
+    // Order by rankPoints descending (tier is derived from LP, so LP order = tier order)
     const users = await prisma.user.findMany({
       select: { id: true, username: true, avatarUrl: true, rankTier: true, rankPoints: true },
-      orderBy: [{ rankTier: 'desc' }, { rankPoints: 'desc' }],
+      orderBy: { rankPoints: 'desc' },
       take: 100,
     })
     return reply.send(users)
@@ -92,43 +93,54 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
 
-    const participations = await prisma.gameParticipation.findMany({
-      where: { userId: id },
-      include: {
-        game: {
-          select: { id: true, winnerTeam: true, startedAt: true, endedAt: true,
-            _count: { select: { rounds: true } } },
+    // Use parallel aggregated queries instead of fetching all participations
+    const [totalGames, wins, asVillager, asImposter, survived, recentParticipations, honorsReceived] = await Promise.all([
+      prisma.gameParticipation.count({ where: { userId: id } }),
+      prisma.gameParticipation.count({
+        where: {
+          userId: id,
+          OR: [
+            { role: 'villager', game: { winnerTeam: 'villagers' } },
+            { role: 'detective', game: { winnerTeam: 'villagers' } },
+            { role: 'imposter', game: { winnerTeam: 'imposters' } },
+            { role: 'double_agent', game: { winnerTeam: 'imposters' } },
+          ],
         },
-      },
-      orderBy: { game: { startedAt: 'desc' } },
-    })
+      }),
+      prisma.gameParticipation.count({ where: { userId: id, role: { in: ['villager', 'detective'] } } }),
+      prisma.gameParticipation.count({ where: { userId: id, role: { in: ['imposter', 'double_agent'] } } }),
+      prisma.gameParticipation.count({ where: { userId: id, survived: true } }),
+      prisma.gameParticipation.findMany({
+        where: { userId: id },
+        take: 8,
+        orderBy: { game: { startedAt: 'desc' } },
+        include: {
+          game: {
+            select: { id: true, winnerTeam: true, startedAt: true,
+              _count: { select: { rounds: true } } },
+          },
+        },
+      }),
+      prisma.honor.groupBy({
+        by: ['type'],
+        where: { receiverId: id },
+        _count: { type: true },
+      }),
+    ])
 
-    const totalGames = participations.length
-    const wins = participations.filter((p) =>
-      (p.role === 'villager' && p.game.winnerTeam === 'villagers') ||
-      (p.role === 'imposter' && p.game.winnerTeam === 'imposters')
-    ).length
-    const asVillager = participations.filter((p) => p.role === 'villager').length
-    const asImposter = participations.filter((p) => p.role === 'imposter').length
-    const survived   = participations.filter((p) => p.survived).length
-
-    const recentGames = participations.slice(0, 8).map((p) => ({
+    const recentGames = recentParticipations.map((p) => ({
       gameId: p.game.id,
       role: p.role,
       survived: p.survived,
       winnerTeam: p.game.winnerTeam,
       didWin:
         (p.role === 'villager' && p.game.winnerTeam === 'villagers') ||
-        (p.role === 'imposter' && p.game.winnerTeam === 'imposters'),
+        (p.role === 'detective' && p.game.winnerTeam === 'villagers') ||
+        (p.role === 'imposter' && p.game.winnerTeam === 'imposters') ||
+        (p.role === 'double_agent' && p.game.winnerTeam === 'imposters'),
       rounds: p.game._count.rounds,
       playedAt: p.game.startedAt,
     }))
-
-    const honorsReceived = await prisma.honor.groupBy({
-      by: ['type'],
-      where: { receiverId: id },
-      _count: { type: true },
-    })
 
     return reply.send({
       ...user,

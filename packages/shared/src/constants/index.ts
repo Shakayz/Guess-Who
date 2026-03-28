@@ -35,11 +35,12 @@ export const COIN_REWARDS = {
   DAILY_LOGIN: 10,
 } as const
 
-export const GOLD_COIN_PACKS = [
-  { id: 'pack_100',  amount: 100,  price: 0.99,  bonus: 0 },
-  { id: 'pack_550',  amount: 550,  price: 4.99,  bonus: 50 },
-  { id: 'pack_1200', amount: 1200, price: 9.99,  bonus: 200 },
-] as const
+// TODO: re-enable when premium/monetization is ready
+// export const GOLD_COIN_PACKS = [
+//   { id: 'pack_100',  amount: 100,  price: 0.99,  bonus: 0 },
+//   { id: 'pack_550',  amount: 550,  price: 4.99,  bonus: 50 },
+//   { id: 'pack_1200', amount: 1200, price: 9.99,  bonus: 200 },
+// ] as const
 
 export const LP_DECAY = {
   /** Days of inactivity before decay begins */
@@ -50,4 +51,16 @@ export const LP_DECAY = {
   MINIMUM_LP: 0,
   /** Tiers exempt from decay (Wooden never decays) */
   EXEMPT_TIERS: ['wooden'] as string[],
+} as const
+
+export const LP_REWARDS = {
+  // ── Villager team ────────────────────────────────────────────────────────────
+  VILLAGER_WIN:            18,
+  VILLAGER_LOSS:          -15,
+  // ── Imposter team ────────────────────────────────────────────────────────────
+  IMPOSTER_WIN:            25,  // rôle plus dur → récompense plus haute
+  IMPOSTER_LOSS:           -8,  // pénalité réduite pour compenser la difficulté
+  // ── Survival win (imposters survivent tous les rounds) ───────────────────────
+  SURVIVAL_IMPOSTER_WIN:   20,
+  SURVIVAL_VILLAGER_LOSS: -12,
 } as const

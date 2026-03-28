@@ -237,6 +237,7 @@ export default function LobbyPage() {
     enableDoubleAgent: false,
     maxRounds: 0,   // 0 = unlimited
   })
+  const [copied, setCopied] = useState(false)
 
   // Push settings changes to server whenever host changes them
   const handleSettingsChange = (s: Settings) => {
@@ -333,6 +334,37 @@ export default function LobbyPage() {
     }
   }
 
+  const copyRoomCode = async () => {
+    if (!code) return
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Fallback for older browsers
+      const el = document.createElement('textarea')
+      el.value = code
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const shareRoom = async () => {
+    if (!code) return
+    const url = `${window.location.origin}/lobby/${code}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Join my Imposter game!', text: `Join room ${code}`, url })
+      } catch {}
+    } else {
+      copyRoomCode()
+    }
+  }
+
   const sendInvite = (friendId: string) => {
     if (!code) return
     getSocket().emit('room:invite' as any, { toUserId: friendId, roomCode: code })
@@ -376,8 +408,27 @@ export default function LobbyPage() {
             <p className="text-neutral-500 text-sm mt-1">Share the code below to invite friends</p>
           </div>
 
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center gap-2">
             {code && <RoomCodeDisplay code={code} />}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={copyRoomCode}
+                className={[
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                  copied
+                    ? 'bg-emerald-950/60 border border-emerald-700/40 text-emerald-400'
+                    : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white border border-neutral-700',
+                ].join(' ')}
+              >
+                {copied ? '✓ Copied!' : '📋 Copy Code'}
+              </button>
+              <button
+                onClick={shareRoom}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white border border-neutral-700 transition-all"
+              >
+                📤 Share
+              </button>
+            </div>
           </div>
 
           {/* Player list */}
@@ -510,6 +561,30 @@ export default function LobbyPage() {
               {settings.categories.length > 0 && (
                 <><span>·</span><span>{settings.categories.length} catégories</span></>
               )}
+            </div>
+          )}
+
+          {/* Ready progress */}
+          {players.length >= 2 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-500">Ready status</span>
+                <span className={[
+                  'font-semibold tabular-nums',
+                  allReady ? 'text-emerald-400' : 'text-neutral-400',
+                ].join(' ')}>
+                  {players.filter((p) => p.isReady || p.isHost).length}/{players.length} ready
+                </span>
+              </div>
+              <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                <div
+                  className={[
+                    'h-full rounded-full transition-all duration-500',
+                    allReady ? 'bg-emerald-500' : 'bg-brand-500',
+                  ].join(' ')}
+                  style={{ width: `${(players.filter((p) => p.isReady || p.isHost).length / Math.max(players.length, 1)) * 100}%` }}
+                />
+              </div>
             </div>
           )}
 

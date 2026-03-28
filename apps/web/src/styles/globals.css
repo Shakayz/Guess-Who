@@ -55,4 +55,8 @@
            focus:outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600
            transition-colors duration-150;
   }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 }

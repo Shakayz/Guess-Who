@@ -31,7 +31,7 @@ export async function buildApp() {
 
   // Plugins
   await app.register(cors, {
-    origin: env.ALLOWED_ORIGINS.split(','),
+    origin: env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()),
     credentials: true,
   })
   await app.register(jwt, { secret: env.JWT_SECRET })
@@ -66,7 +66,7 @@ export async function buildApp() {
 
   // Socket.IO
   const io = new SocketServer(app.server, {
-    cors: { origin: env.ALLOWED_ORIGINS.split(','), credentials: true },
+    cors: { origin: env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()), credentials: true },
     transports: ['websocket', 'polling'],
   })
   registerSocketHandlers(io, app)

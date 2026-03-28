@@ -46,6 +46,13 @@ export interface RankInfo {
   icon: string
 }
 
+export interface RankUpdate {
+  newLP:    number
+  newTier:  RankTier
+  promoted: boolean
+  demoted:  boolean
+}
+
 // ─── Game Room ───────────────────────────────────────────────────────────────
 
 export type GameStatus = 'waiting' | 'in_progress' | 'voting' | 'reveal' | 'finished'
@@ -181,6 +188,7 @@ export interface ServerToClientEvents {
   'round:vote-cast': (data: { voterId: string; hasVoted: boolean }) => void
   'round:ended': (data: { round: Round; nextRound?: Round }) => void
   'game:finished': (data: { winner: 'villagers' | 'imposters'; finalRound: Round; rewards: RewardSummary }) => void
+  'rank:updated': (data: { oldTier: RankTier; newTier: RankTier; newLP: number; promoted: boolean }) => void
   'player:joined': (player: Player) => void
   'player:left': (playerId: string) => void
   'player:ready': (data: { playerId: string; isReady: boolean }) => void
