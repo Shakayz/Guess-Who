@@ -47,6 +47,7 @@ services:
 
   api:
     image: ghcr.io/shakayz/guess-who/api:pfv
+    platform: linux/amd64
     container_name: imposter-api-pfv
     environment:
       NODE_ENV: production
@@ -78,6 +79,7 @@ services:
 
   web:
     image: ghcr.io/shakayz/guess-who/web:pfv
+    platform: linux/amd64
     container_name: imposter-web-pfv
     ports:
       - "8080:80"    # port 8080 to avoid conflict with dev:3080 and prod:80
