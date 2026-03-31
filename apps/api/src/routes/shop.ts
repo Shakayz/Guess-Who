@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { prisma } from '../config/prisma'
+import { redis } from '../config/redis'
 // import { GOLD_COIN_PACKS } from '@imposter/shared'  // TODO: re-enable when premium is ready
 // import { env } from '../config/env'                  // TODO: re-enable when premium is ready
 
@@ -7,7 +8,12 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
   // ── Active routes (star-coin cosmetics) ─────────────────────────────────────
 
   fastify.get('/cosmetics', async (req, reply) => {
+    const cacheKey = 'cosmetics:all'
+    const cached = await redis.get(cacheKey)
+    if (cached) return reply.send(JSON.parse(cached))
+
     const cosmetics = await prisma.cosmetic.findMany({ orderBy: { createdAt: 'desc' } })
+    await redis.set(cacheKey, JSON.stringify(cosmetics), 'EX', 600) // 10 min cache
     return reply.send(cosmetics)
   })
 

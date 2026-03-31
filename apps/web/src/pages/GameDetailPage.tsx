@@ -147,16 +147,40 @@ function RoundAccordion({ round, players }: { round: RoundDetail; players: GameD
             </div>
           )}
 
-          {/* Votes */}
+          {/* Votes — with tally */}
           {round.votes.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">Votes</p>
-              <div className="space-y-1">
+              {/* Tally per target */}
+              {(() => {
+                const tally: Record<string, number> = {}
+                round.votes.forEach(v => { tally[v.targetId] = (tally[v.targetId] ?? 0) + 1 })
+                const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1])
+                const max = sorted[0]?.[1] ?? 0
+                return (
+                  <div className="space-y-1.5 mb-3">
+                    {sorted.map(([uid, count]) => (
+                      <div key={uid} className="flex items-center gap-2">
+                        <span className="text-xs text-neutral-400 w-24 truncate">{getUsername(uid)}</span>
+                        <div className="flex-1 h-4 bg-neutral-800 rounded-full overflow-hidden">
+                          <div
+                            className={['h-full rounded-full transition-all', count === max ? 'bg-amber-500' : 'bg-neutral-600'].join(' ')}
+                            style={{ width: `${(count / round.votes.length) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-bold text-neutral-300 w-4 text-right">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+              {/* Individual votes */}
+              <div className="space-y-0.5">
                 {round.votes.map((vote, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <span className="text-neutral-400">{getUsername(vote.voterId)}</span>
-                    <span className="text-neutral-600">→</span>
-                    <span className="text-white font-medium">{getUsername(vote.targetId)}</span>
+                  <div key={i} className="flex items-center gap-2 text-xs text-neutral-500">
+                    <span>{getUsername(vote.voterId)}</span>
+                    <span className="text-neutral-700">→</span>
+                    <span className="text-neutral-400">{getUsername(vote.targetId)}</span>
                   </div>
                 ))}
               </div>
@@ -282,7 +306,7 @@ export default function GameDetailPage() {
               {didWin ? 'Victory' : 'Defeat'}
             </h1>
             <p className="text-neutral-400 text-sm">{formatDate(data.startedAt)}</p>
-            <div className="flex items-center justify-center gap-3 mt-3">
+            <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
               <span className={[
                 'text-xs font-bold px-2.5 py-1 rounded-full border',
                 data.myRole === 'imposter'
@@ -294,6 +318,14 @@ export default function GameDetailPage() {
               <span className="text-xs font-semibold px-2.5 py-1 rounded-full border border-neutral-700 text-neutral-400 bg-neutral-800/60">
                 {data.rounds.length} round{data.rounds.length !== 1 ? 's' : ''}
               </span>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full border border-neutral-700 text-neutral-400 bg-neutral-800/60">
+                {data.participations.length} players
+              </span>
+              {data.endedAt && data.startedAt && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full border border-neutral-700 text-neutral-400 bg-neutral-800/60">
+                  {Math.round((new Date(data.endedAt).getTime() - new Date(data.startedAt).getTime()) / 60000)} min
+                </span>
+              )}
             </div>
           </div>
 
@@ -330,7 +362,7 @@ export default function GameDetailPage() {
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="text-base">
-                          {p.role === 'imposter' ? '🎭' : '👤'}
+                          {p.role === 'imposter' ? '🎭' : p.role === 'double_agent' ? '🕵️' : p.role === 'detective' ? '🔍' : '👤'}
                         </span>
                         <span className={[
                           'text-[10px]',

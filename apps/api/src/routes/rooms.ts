@@ -12,7 +12,7 @@ const createRoomSchema = z.object({
     votingTimeSeconds:    z.number().min(15).max(120).default(30),
     wordPackId:           z.string().default('default'),
     isPrivate:            z.boolean().default(false),
-    language:             z.enum(['en', 'fr', 'ar', 'es', 'de']).default('en'),
+    language:             z.enum(['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh']).default('en'),
   }).optional(),
 })
 
@@ -22,6 +22,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/', async (req, reply) => {
     const { settings } = createRoomSchema.parse(req.body)
     const payload = req.user as { sub: string }
+    const host = await prisma.user.findUnique({ where: { id: payload.sub }, select: { locale: true } })
     const code = generateRoomCode()
     const room = await prisma.room.create({
       data: {
@@ -33,7 +34,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
         votingTimeSeconds:    settings?.votingTimeSeconds ?? 30,
         wordPackId:           settings?.wordPackId ?? 'default',
         isPrivate:            settings?.isPrivate ?? false,
-        language:             settings?.language ?? 'en',
+        language:             settings?.language ?? host?.locale ?? 'en',
       },
     })
     await redis.set(`room:${room.id}:state`, JSON.stringify({ players: [], status: 'waiting' }), 'EX', 86400)

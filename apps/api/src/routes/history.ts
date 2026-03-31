@@ -61,6 +61,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
       })),
     }))
 
+    reply.header('Cache-Control', 'private, max-age=60')
     return reply.send({ games, total, page: p, totalPages: Math.ceil(total / l) })
   })
 
@@ -93,6 +94,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
     })
     if (!game) return reply.status(404).send({ error: 'Game not found' })
 
+    reply.header('Cache-Control', 'private, max-age=3600')
     return reply.send({
       id: game.id,
       startedAt: game.startedAt,

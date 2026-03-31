@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
 import { useGameStore } from '../store/game'
 import { connectSocket, getSocket } from '../lib/socket'
@@ -23,7 +24,7 @@ interface Settings {
   categories: WordCategory[]
   enableDetective: boolean
   enableDoubleAgent: boolean
-  maxRounds: number   // 0 = unlimited
+  maxRounds: number
 }
 
 function NumStepper({
@@ -56,6 +57,8 @@ function NumStepper({
 function SettingsPanel({
   settings, onChange,
 }: { settings: Settings; onChange: (s: Settings) => void }) {
+  const { t } = useTranslation()
+
   const toggleCategory = (key: WordCategory) => {
     const cats = settings.categories.includes(key)
       ? settings.categories.filter((c) => c !== key)
@@ -64,7 +67,6 @@ function SettingsPanel({
   }
 
   const handleModeChange = (mode: GameMode) => {
-    // Switching to normal disables special roles
     onChange({
       ...settings,
       gameMode: mode,
@@ -75,11 +77,11 @@ function SettingsPanel({
 
   return (
     <div className="card space-y-4">
-      <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Room Settings</p>
+      <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">{t('lobby.roomSettings')}</p>
 
       {/* Game mode */}
       <div>
-        <p className="text-xs text-neutral-500 mb-2">Game Mode</p>
+        <p className="text-xs text-neutral-500 mb-2">{t('lobby.gameMode')}</p>
         <div className="flex gap-2">
           <button
             onClick={() => handleModeChange('normal')}
@@ -90,7 +92,7 @@ function SettingsPanel({
                 : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
             ].join(' ')}
           >
-            🎮 Normal
+            🎭 {t('lobby.normal')}
           </button>
           <button
             onClick={() => handleModeChange('special')}
@@ -101,20 +103,18 @@ function SettingsPanel({
                 : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
             ].join(' ')}
           >
-            ✨ Spécial
+            ✨ {t('lobby.special')}
           </button>
         </div>
         <p className="text-xs text-neutral-600 mt-1.5">
-          {settings.gameMode === 'special'
-            ? 'Roles spéciaux disponibles — détective, double agent'
-            : 'Villageois et imposteurs uniquement'}
+          {settings.gameMode === 'special' ? t('lobby.specialDesc') : t('lobby.normalDesc')}
         </p>
       </div>
 
-      {/* Special roles (special mode only) */}
+      {/* Special roles */}
       {settings.gameMode === 'special' && (
         <div className="space-y-2">
-          <p className="text-xs text-neutral-500">Rôles spéciaux</p>
+          <p className="text-xs text-neutral-500">{t('lobby.specialRoles')}</p>
           <div className="flex gap-2">
             <button
               onClick={() => onChange({ ...settings, enableDetective: !settings.enableDetective })}
@@ -125,7 +125,7 @@ function SettingsPanel({
                   : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
               ].join(' ')}
             >
-              🔍 Détective
+              {t('lobby.detective')}
             </button>
             <button
               onClick={() => onChange({ ...settings, enableDoubleAgent: !settings.enableDoubleAgent })}
@@ -136,14 +136,14 @@ function SettingsPanel({
                   : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
               ].join(' ')}
             >
-              🕵️ Double Agent
+              {t('lobby.doubleAgent')}
             </button>
           </div>
           {settings.enableDetective && (
-            <p className="text-[10px] text-neutral-600">Détective : un joueur villageois peut révéler le rôle d'un joueur</p>
+            <p className="text-[10px] text-neutral-600">{t('lobby.detectiveDesc')}</p>
           )}
           {settings.enableDoubleAgent && (
-            <p className="text-[10px] text-neutral-600">Double Agent : connaît le mot des imposteurs, joue pour eux</p>
+            <p className="text-[10px] text-neutral-600">{t('lobby.doubleAgentDesc')}</p>
           )}
         </div>
       )}
@@ -151,17 +151,17 @@ function SettingsPanel({
       {/* Category picker */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs text-neutral-500">Catégories</p>
+          <p className="text-xs text-neutral-500">{t('lobby.categories')}</p>
           <div className="flex gap-2">
             <button
               onClick={() => onChange({ ...settings, categories: WORD_CATEGORIES.map((c) => c.key as WordCategory) })}
               className="text-[10px] text-brand-400 hover:text-brand-300"
-            >Toutes</button>
+            >{t('lobby.catAll')}</button>
             <span className="text-neutral-700">·</span>
             <button
               onClick={() => onChange({ ...settings, categories: [] })}
               className="text-[10px] text-neutral-500 hover:text-neutral-400"
-            >Aucune</button>
+            >{t('lobby.catNone')}</button>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-1.5">
@@ -187,23 +187,23 @@ function SettingsPanel({
           })}
         </div>
         {settings.categories.length === 0 && (
-          <p className="text-[10px] text-neutral-600 mt-1">Aucun filtre — toutes les catégories</p>
+          <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.catNoFilter')}</p>
         )}
       </div>
 
       {/* Numeric settings */}
       <div className="space-y-3 pt-1 border-t border-neutral-800">
-        <NumStepper label="Max Joueurs"       value={settings.maxPlayers}           min={4}  max={20} onChange={(v) => onChange({ ...settings, maxPlayers: v })} />
-        <NumStepper label="Imposteurs"        value={settings.imposterCount}        min={1}  max={4}  onChange={(v) => onChange({ ...settings, imposterCount: v })} />
+        <NumStepper label={t('lobby.maxPlayers')}   value={settings.maxPlayers}           min={4}  max={20} onChange={(v) => onChange({ ...settings, maxPlayers: v })} />
+        <NumStepper label={t('lobby.imposters')}    value={settings.imposterCount}        min={1}  max={4}  onChange={(v) => onChange({ ...settings, imposterCount: v })} />
         <NumStepper
-          label="Rounds"
+          label={t('lobby.rounds')}
           value={settings.maxRounds}
           min={0} max={20}
           format={(v) => v === 0 ? '∞' : `${v}`}
           onChange={(v) => onChange({ ...settings, maxRounds: v })}
         />
-        <NumStepper label="Temps de parole"   value={settings.speakingTimeSeconds}  min={10} max={120} step={5} format={(v) => `${v}s`} onChange={(v) => onChange({ ...settings, speakingTimeSeconds: v })} />
-        <NumStepper label="Temps de vote"     value={settings.votingTimeSeconds}    min={15} max={120} step={5} format={(v) => `${v}s`} onChange={(v) => onChange({ ...settings, votingTimeSeconds: v })} />
+        <NumStepper label={t('lobby.speakingTime')} value={settings.speakingTimeSeconds}  min={10} max={120} step={5} format={(v) => `${v}s`} onChange={(v) => onChange({ ...settings, speakingTimeSeconds: v })} />
+        <NumStepper label={t('lobby.votingTime')}   value={settings.votingTimeSeconds}    min={15} max={120} step={5} format={(v) => `${v}s`} onChange={(v) => onChange({ ...settings, votingTimeSeconds: v })} />
       </div>
     </div>
   )
@@ -213,6 +213,7 @@ export default function LobbyPage() {
   const { code } = useParams<{ code: string }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
   const { room, setRoom, setRoleAndWord, setRound } = useGameStore()
   const [isReady, setIsReady] = useState(false)
@@ -221,7 +222,6 @@ export default function LobbyPage() {
   const [joinToast, setJoinToast] = useState<string | null>(null)
   const [socketError, setSocketError] = useState<string | null>(null)
   const prevPlayerCountRef = useRef(0)
-  // Invite friends
   const [showInvite, setShowInvite] = useState(false)
   const [friends, setFriends] = useState<Friend[]>([])
   const [friendSearch, setFriendSearch] = useState('')
@@ -235,11 +235,10 @@ export default function LobbyPage() {
     categories: [],
     enableDetective: false,
     enableDoubleAgent: false,
-    maxRounds: 0,   // 0 = unlimited
+    maxRounds: 0,
   })
   const [copied, setCopied] = useState(false)
 
-  // Push settings changes to server whenever host changes them
   const handleSettingsChange = (s: Settings) => {
     setSettings(s)
     getSocket().emit('room:settings' as any, {
@@ -248,6 +247,10 @@ export default function LobbyPage() {
       enableDetective: s.enableDetective,
       enableDoubleAgent: s.enableDoubleAgent,
       maxRounds: s.maxRounds,
+      maxPlayers: s.maxPlayers,
+      imposterCount: s.imposterCount,
+      speakingTimeSeconds: s.speakingTimeSeconds,
+      votingTimeSeconds: s.votingTimeSeconds,
     })
     setSettingsSaved(true)
     setTimeout(() => setSettingsSaved(false), 1500)
@@ -259,10 +262,8 @@ export default function LobbyPage() {
     const socket = getSocket()
     socket.emit('room:join', { roomCode: code })
 
-    // Apply game mode from query param (?mode=special) — host only, fires once
     const modeParam = searchParams.get('mode')
     if (modeParam === 'normal' || modeParam === 'special') {
-      // Wait for room:join to complete before emitting settings
       setTimeout(() => {
         getSocket().emit('room:settings' as any, { gameMode: modeParam })
       }, 500)
@@ -270,16 +271,14 @@ export default function LobbyPage() {
 
     socket.on('room:updated', (r) => {
       setRoom(r as Room)
-      // Show toast when a new player joins
       if (r.players && r.players.length > prevPlayerCountRef.current) {
         const newPlayer = r.players[r.players.length - 1]
         if (newPlayer && newPlayer.userId !== user?.id) {
-          setJoinToast(`${newPlayer.username} joined the room!`)
+          setJoinToast(t('lobby.joinedRoom', { name: newPlayer.username }))
           setTimeout(() => setJoinToast(null), 2500)
         }
       }
       prevPlayerCountRef.current = r.players?.length ?? 0
-      // Sync local ready state from server so allReady reflects reality
       if (r.players && user) {
         const me = r.players.find((p: any) => p.userId === user.id)
         if (me) setIsReady(!!me.isReady)
@@ -299,8 +298,8 @@ export default function LobbyPage() {
         }))
       }
     })
-    socket.on('game:started', ({ round, yourWord, yourRole }) => {
-      setRoleAndWord(yourRole, yourWord)
+    socket.on('game:started', ({ round, yourWord, yourRole, yourVillagerWord }) => {
+      setRoleAndWord(yourRole, yourWord, yourVillagerWord)
       setRound(round as any)
       navigate(`/game/${code}`)
     })
@@ -341,7 +340,6 @@ export default function LobbyPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Fallback for older browsers
       const el = document.createElement('textarea')
       el.value = code
       document.body.appendChild(el)
@@ -383,7 +381,6 @@ export default function LobbyPage() {
     <div className="min-h-screen flex flex-col">
       <NavBar />
 
-      {/* Join toast */}
       {joinToast && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-neutral-800 border border-neutral-700 text-sm text-white font-semibold shadow-xl animate-slide-up flex items-center gap-2">
           <span className="text-emerald-400">+</span>
@@ -391,7 +388,6 @@ export default function LobbyPage() {
         </div>
       )}
 
-      {/* Socket error toast */}
       {socketError && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-red-950/90 border border-red-700/60 text-sm text-red-300 font-semibold shadow-xl animate-slide-up flex items-center gap-2">
           <span>⚠</span>
@@ -403,38 +399,25 @@ export default function LobbyPage() {
         <div className="w-full max-w-md space-y-4 animate-slide-up">
 
           <div className="text-center mb-2">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-1">Room</p>
-            <h1 className="text-2xl font-extrabold text-white">Waiting for players</h1>
-            <p className="text-neutral-500 text-sm mt-1">Share the code below to invite friends</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-1">{t('room.roomCode')}</p>
+            <h1 className="text-2xl font-extrabold text-white">{t('lobby.waiting')}</h1>
+            <p className="text-neutral-500 text-sm mt-1">{t('lobby.shareHint')}</p>
           </div>
 
           <div className="flex flex-col items-center gap-2">
             {code && <RoomCodeDisplay code={code} />}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={copyRoomCode}
-                className={[
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                  copied
-                    ? 'bg-emerald-950/60 border border-emerald-700/40 text-emerald-400'
-                    : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white border border-neutral-700',
-                ].join(' ')}
-              >
-                {copied ? '✓ Copied!' : '📋 Copy Code'}
-              </button>
-              <button
-                onClick={shareRoom}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white border border-neutral-700 transition-all"
-              >
-                📤 Share
-              </button>
-            </div>
+            <button
+              onClick={shareRoom}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white border border-neutral-700 transition-all"
+            >
+              {t('lobby.share')}
+            </button>
           </div>
 
           {/* Player list */}
           <div className="card space-y-2">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Players</p>
+              <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">{t('lobby.players')}</p>
               <span className="text-xs text-neutral-500 tabular-nums">
                 {players.length} / {settings.maxPlayers}
               </span>
@@ -446,8 +429,8 @@ export default function LobbyPage() {
                     <div key={i} className="w-8 h-8 rounded-full bg-neutral-800 border-2 border-dashed border-neutral-700 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
                   ))}
                 </div>
-                <p className="text-neutral-500 text-sm">Waiting for players to join...</p>
-                <p className="text-neutral-600 text-xs mt-1">Need at least {minPlayers} to start</p>
+                <p className="text-neutral-500 text-sm">{t('lobby.waitingToJoin')}</p>
+                <p className="text-neutral-600 text-xs mt-1">{t('lobby.needAtLeast', { count: minPlayers })}</p>
               </div>
             ) : (
               players.map((p) => (
@@ -459,7 +442,7 @@ export default function LobbyPage() {
           {players.length > 0 && players.length < minPlayers && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-950/40 border border-amber-800/30 text-amber-400 text-xs">
               <span>⚠</span>
-              <span>Need at least {minPlayers} players to start ({minPlayers - players.length} more needed)</span>
+              <span>{t('lobby.needMore', { min: minPlayers, more: minPlayers - players.length })}</span>
             </div>
           )}
 
@@ -469,13 +452,13 @@ export default function LobbyPage() {
               onClick={() => setShowSettings((s) => !s)}
               className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-neutral-800/60 hover:bg-neutral-800 border border-neutral-700/50 transition-colors text-sm"
             >
-              <span className="text-neutral-300 font-medium">⚙ Room Settings</span>
+              <span className="text-neutral-300 font-medium">⚙ {t('lobby.roomSettings')}</span>
               <div className="flex items-center gap-2 text-neutral-500 text-xs">
                 {settingsSaved && (
-                  <span className="text-emerald-400 font-semibold animate-fade-in">✓ Saved</span>
+                  <span className="text-emerald-400 font-semibold animate-fade-in">{t('lobby.saved')}</span>
                 )}
                 <span className={settings.gameMode === 'special' ? 'text-purple-400' : 'text-brand-400'}>
-                  {settings.gameMode === 'special' ? '✨ Spécial' : '🎮 Normal'}
+                  {settings.gameMode === 'special' ? `✨ ${t('lobby.special')}` : `🎮 ${t('lobby.normal')}`}
                 </span>
                 <span>·</span>
                 <span>{activeCats} cats</span>
@@ -493,7 +476,7 @@ export default function LobbyPage() {
             onClick={toggleInvite}
             className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-neutral-800/60 hover:bg-neutral-800 border border-neutral-700/50 transition-colors text-sm"
           >
-            <span className="text-neutral-300 font-medium">👥 Invite Friends</span>
+            <span className="text-neutral-300 font-medium">{t('lobby.inviteFriends')}</span>
             <span className="text-neutral-500 text-xs">{showInvite ? '▴' : '▾'}</span>
           </button>
 
@@ -501,12 +484,12 @@ export default function LobbyPage() {
             <div className="card space-y-3 animate-slide-up">
               <input
                 className="input-field w-full text-sm"
-                placeholder="Search friends..."
+                placeholder={t('lobby.searchFriends')}
                 value={friendSearch}
                 onChange={(e) => setFriendSearch(e.target.value)}
               />
               {friends.length === 0 ? (
-                <p className="text-neutral-500 text-xs text-center py-2">No friends yet — add some from the Friends page!</p>
+                <p className="text-neutral-500 text-xs text-center py-2">{t('lobby.noFriends')}</p>
               ) : (
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {friends
@@ -532,7 +515,7 @@ export default function LobbyPage() {
                               : 'bg-brand-600 hover:bg-brand-500 text-white',
                           ].join(' ')}
                         >
-                          {invitedIds.has(f.user.id) ? '✓ Invited' : 'Invite'}
+                          {invitedIds.has(f.user.id) ? t('lobby.invited') : t('lobby.invite')}
                         </button>
                       </div>
                     ))}
@@ -545,21 +528,21 @@ export default function LobbyPage() {
           {!isHost && (
             <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-xs text-neutral-500">
               <span>{settings.gameMode === 'special' ? '✨' : '🎮'}</span>
-              <span className="capitalize">{settings.gameMode === 'special' ? 'Spécial' : 'Normal'}</span>
+              <span>{settings.gameMode === 'special' ? t('lobby.special') : t('lobby.normal')}</span>
               <span>·</span>
               <span>{settings.maxPlayers} max</span>
               <span>·</span>
-              <span>{settings.imposterCount} imposteurs</span>
+              <span>{settings.imposterCount} {t('lobby.imposters').toLowerCase()}</span>
               <span>·</span>
               <span>{settings.maxRounds === 0 ? '∞ rounds' : `${settings.maxRounds} rounds`}</span>
               {settings.gameMode === 'special' && settings.enableDetective && (
-                <><span>·</span><span>🔍 Détective</span></>
+                <><span>·</span><span>{t('lobby.detective')}</span></>
               )}
               {settings.gameMode === 'special' && settings.enableDoubleAgent && (
-                <><span>·</span><span>🕵️ Double Agent</span></>
+                <><span>·</span><span>{t('lobby.doubleAgent')}</span></>
               )}
               {settings.categories.length > 0 && (
-                <><span>·</span><span>{settings.categories.length} catégories</span></>
+                <><span>·</span><span>{settings.categories.length} {t('lobby.categories').toLowerCase()}</span></>
               )}
             </div>
           )}
@@ -568,12 +551,15 @@ export default function LobbyPage() {
           {players.length >= 2 && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-500">Ready status</span>
+                <span className="text-neutral-500">{t('lobby.readyStatus')}</span>
                 <span className={[
                   'font-semibold tabular-nums',
                   allReady ? 'text-emerald-400' : 'text-neutral-400',
                 ].join(' ')}>
-                  {players.filter((p) => p.isReady || p.isHost).length}/{players.length} ready
+                  {t('lobby.readyCount', {
+                    ready: players.filter((p) => p.isReady || p.isHost).length,
+                    total: players.length,
+                  })}
                 </span>
               </div>
               <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
@@ -594,7 +580,7 @@ export default function LobbyPage() {
               onClick={() => { getSocket().emit('room:leave'); navigate('/') }}
               className="px-4 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold text-sm transition-colors"
             >
-              ← Leave
+              {t('lobby.leave')}
             </button>
             {!isHost ? (
               <button
@@ -606,7 +592,7 @@ export default function LobbyPage() {
                     : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300',
                 ].join(' ')}
               >
-                {isReady ? '✓ Ready' : 'Not Ready'}
+                {isReady ? t('lobby.ready') : t('lobby.notReady')}
               </button>
             ) : (
               <button
@@ -614,13 +600,13 @@ export default function LobbyPage() {
                 disabled={players.length < minPlayers}
                 className="flex-1 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition-all disabled:opacity-40 shadow-lg shadow-brand-600/20"
               >
-                Start Game
+                {t('lobby.startGame')}
               </button>
             )}
           </div>
 
           {isHost && !allReady && players.length >= minPlayers && (
-            <p className="text-xs text-neutral-500 text-center">Waiting for all players to be ready</p>
+            <p className="text-xs text-neutral-500 text-center">{t('lobby.waitingAllReady')}</p>
           )}
         </div>
       </main>

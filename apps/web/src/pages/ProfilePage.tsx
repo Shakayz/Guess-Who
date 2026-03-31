@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../store/auth'
 import { NavBar } from '../components/NavBar'
@@ -44,6 +45,16 @@ interface UserStats {
   survived: number
 }
 
+interface RecentGame {
+  gameId: string
+  role: string
+  survived: boolean
+  winnerTeam: string
+  didWin: boolean
+  rounds: number
+  playedAt: string
+}
+
 const HONOR_LABELS = [
   { key: 'teamplayer', label: 'Team Player', icon: '🤝', field: 'honorTeamplayer' },
   { key: 'sharp_mind', label: 'Sharp Mind',  icon: '🧠', field: 'honorSharpMind' },
@@ -56,6 +67,9 @@ export default function ProfilePage() {
   const [editingAvatar, setEditingAvatar] = useState(false)
   const [avatarInput, setAvatarInput] = useState('')
   const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [editingUsername, setEditingUsername] = useState(false)
+  const [usernameInput, setUsernameInput] = useState('')
+  const [usernameError, setUsernameError] = useState<string | null>(null)
 
   const { data: me, isLoading } = useQuery<MeResponse>({
     queryKey: ['me'],
@@ -69,7 +83,7 @@ export default function ProfilePage() {
     retry: false,
   })
 
-  const { data: profileStats } = useQuery<{ stats: UserStats }>({
+  const { data: profileStats } = useQuery<{ stats: UserStats; recentGames: RecentGame[] }>({
     queryKey: ['profile-stats', me?.id],
     queryFn: () => api.get(`/users/${me!.id}/profile`),
     enabled: !!me?.id,
@@ -84,6 +98,22 @@ export default function ProfilePage() {
       setAvatarInput('')
     },
   })
+
+  const usernameMutation = useMutation({
+    mutationFn: (username: string) => api.patch('/users/me', { username }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+      setEditingUsername(false)
+      setUsernameInput('')
+      setUsernameError(null)
+    },
+    onError: () => {
+      setUsernameError('Username already taken or invalid')
+    },
+  })
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 
   const rankTier: RankTier = me?.rankTier ?? 'wooden'
   const rank = RANK_CONFIG[rankTier]
@@ -142,8 +172,55 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                   <>
-                    <h1 className="text-2xl font-extrabold text-white">{me?.username ?? authUser?.username}</h1>
+                    <div className="flex items-center gap-2">
+                      {editingUsername ? (
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <input
+                            autoFocus
+                            type="text"
+                            value={usernameInput}
+                            onChange={(e) => { setUsernameInput(e.target.value); setUsernameError(null) }}
+                            placeholder={me?.username}
+                            maxLength={20}
+                            className="flex-1 min-w-0 px-2 py-1 rounded-lg bg-neutral-800 border border-neutral-600 text-white text-lg font-bold focus:outline-none focus:border-brand-600 transition-colors"
+                          />
+                          <button
+                            onClick={() => {
+                              if (usernameInput.trim().length >= 2) usernameMutation.mutate(usernameInput.trim())
+                              else setUsernameError('Min 2 characters')
+                            }}
+                            disabled={usernameMutation.isPending}
+                            className="px-2 py-1 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold transition-colors disabled:opacity-40"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => { setEditingUsername(false); setUsernameError(null) }}
+                            className="px-2 py-1 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-neutral-300 text-xs font-semibold transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <h1 className="text-2xl font-extrabold text-white">{me?.username ?? authUser?.username}</h1>
+                          <button
+                            onClick={() => { setEditingUsername(true); setUsernameInput(me?.username ?? '') }}
+                            className="text-neutral-600 hover:text-neutral-400 transition-colors text-sm"
+                            title="Edit username"
+                          >
+                            ✏️
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {usernameError && (
+                      <p className="text-red-400 text-xs mt-0.5">{usernameError}</p>
+                    )}
                     <p className="text-neutral-500 text-sm truncate">{me?.email ?? authUser?.email ?? '—'}</p>
+                    {me?.createdAt && (
+                      <p className="text-neutral-600 text-xs mt-0.5">Joined {formatDate(me.createdAt)}</p>
+                    )}
                     <div className="flex items-center gap-2 mt-2">
                       <Badge variant="rank">{rank.icon} {rank.label}</Badge>
                       <span className="text-xs text-neutral-500">
@@ -336,6 +413,41 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+
+          {/* Recent games */}
+          {(profileStats?.recentGames?.length ?? 0) > 0 && (
+            <div className="card">
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Recent Games</p>
+              <div className="space-y-2">
+                {profileStats!.recentGames.map((g) => (
+                  <Link
+                    key={g.gameId}
+                    to={`/history/${g.gameId}`}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40 hover:border-neutral-700 hover:bg-neutral-800/40 transition-colors"
+                  >
+                    <span className="text-2xl">{g.didWin ? '🏆' : '💀'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className={['text-xs font-bold', g.didWin ? 'text-emerald-400' : 'text-red-400'].join(' ')}>
+                          {g.didWin ? 'Victory' : 'Defeat'}
+                        </span>
+                        <span className="text-neutral-600">·</span>
+                        <span className="text-xs text-neutral-400">
+                          {g.role === 'imposter' ? '🎭 Imposter' : g.role === 'double_agent' ? '🕵️ D.Agent' : g.role === 'detective' ? '🔍 Detective' : '👤 Villager'}
+                        </span>
+                        <span className="text-neutral-600">·</span>
+                        <span className="text-xs text-neutral-500">{g.rounds}R</span>
+                      </div>
+                      <p className="text-xs text-neutral-600 mt-0.5">{formatDate(g.playedAt)}</p>
+                    </div>
+                    <span className={['text-xs', g.survived ? 'text-emerald-500' : 'text-neutral-600'].join(' ')}>
+                      {g.survived ? 'Survived' : 'Eliminated'}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
         </div>
       </main>

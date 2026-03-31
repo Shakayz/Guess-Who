@@ -437,6 +437,35 @@ async function _resolveRound(io: IO, roomId: string) {
   }
 }
 
+// ─── Word-said instant elimination ────────────────────────────────────────────
+
+export async function eliminatePlayerForWord(
+  io: IO,
+  roomId: string,
+  speakingTimeSeconds: number,
+  votingTimeSeconds: number,
+): Promise<void> {
+  const stateRaw = await redis.get(`room:${roomId}:state`)
+  if (!stateRaw) return
+  const state = JSON.parse(stateRaw)
+
+  // Cancel current speaking timer
+  const existing = roomTimers.get(roomId)
+  if (existing) { clearTimeout(existing); roomTimers.delete(roomId) }
+
+  // Find next unspoken speaker index
+  const currentRound = state.rounds?.[state.currentRound - 1]
+  if (!currentRound) return
+  const speakingOrder: string[] = currentRound.speakingOrder ?? []
+  const speakersWithClue = new Set((currentRound.clues ?? []).map((c: any) => c.playerId))
+  const currentIndex = speakingOrder.findIndex((id) => !speakersWithClue.has(id))
+
+  // 3s delay for overlay to show, then advance to next speaker
+  setTimeout(async () => { try {
+    await advanceSpeaker(io, roomId, currentIndex + 1, speakingTimeSeconds, votingTimeSeconds)
+  } catch (err) { console.error('[word-said] advanceSpeaker error:', err) } }, 3000)
+}
+
 // ─── Achievement auto-triggers ────────────────────────────────────────────────
 
 async function checkAndUnlockAchievements(
@@ -524,11 +553,18 @@ async function checkAndUnlockAchievements(
       }
 
       // Unlock and notify
+      // Batch-check already unlocked for this user
+      const alreadyUnlocked = new Set(
+        (await prisma.userAchievement.findMany({
+          where: { userId, achievementId: { in: toUnlock.map((k) => achMap.get(k)!).filter(Boolean) } },
+          select: { achievementId: true },
+        })).map((ua) => ua.achievementId)
+      )
+
       for (const key of toUnlock) {
         const achId = achMap.get(key)
         if (!achId) continue
-        const already = await prisma.userAchievement.findFirst({ where: { userId, achievementId: achId } })
-        if (already) continue
+        if (alreadyUnlocked.has(achId)) continue
         await prisma.userAchievement.create({ data: { userId, achievementId: achId } }).catch(() => {})
         const ach = achievements.find((a) => a.key === key)
         if (ach) {

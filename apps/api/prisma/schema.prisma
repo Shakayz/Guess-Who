@@ -22,6 +22,9 @@ model User {
   rankPoints    Int      @default(0)
   honorPoints   Int      @default(0)
   seasonXp      Int      @default(0)
+  emailVerified            Boolean   @default(false)
+  emailVerificationCode    String?   @db.VarChar(6)
+  emailVerificationExpires DateTime?
   pushToken     String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -41,6 +44,7 @@ model User {
   seasonPassClaims       SeasonPassClaim[]
   purchases              Purchase[]
 
+  @@index([rankPoints(sort: Desc)])
   @@map("users")
 }
 
@@ -78,6 +82,7 @@ model Game {
   participations GameParticipation[]
   chatMessages  GameChatMessage[]
 
+  @@index([roomId, startedAt(sort: Desc)])
   @@map("games")
 }
 
@@ -95,6 +100,7 @@ model Round {
   votes   RoundVote[]
   clues   RoundClue[]
 
+  @@index([gameId])
   @@map("rounds")
 }
 
@@ -108,6 +114,8 @@ model RoundVote {
   round Round @relation(fields: [roundId], references: [id])
 
   @@unique([roundId, voterId])
+  @@index([roundId])
+  @@index([voterId])
   @@map("round_votes")
 }
 
@@ -121,6 +129,7 @@ model RoundClue {
 
   round Round @relation(fields: [roundId], references: [id])
 
+  @@index([roundId])
   @@map("round_clues")
 }
 
@@ -137,6 +146,9 @@ model GameParticipation {
   user User @relation(fields: [userId], references: [id])
 
   @@unique([gameId, userId])
+  @@index([userId])
+  @@index([gameId])
+  @@index([userId, createdAt(sort: Desc)])
   @@map("game_participations")
 }
 
@@ -181,6 +193,7 @@ model Honor {
   sender   User @relation("sender",   fields: [senderId],   references: [id])
   receiver User @relation("receiver", fields: [receiverId], references: [id])
 
+  @@index([receiverId])
   @@map("honors")
 }
 
@@ -253,6 +266,8 @@ model Friendship {
   addressee User @relation("ReceivedRequests", fields: [addresseeId], references: [id], onDelete: Cascade)
 
   @@unique([requesterId, addresseeId])
+  @@index([requesterId, status])
+  @@index([addresseeId, status])
   @@map("friendships")
 }
 
@@ -267,6 +282,8 @@ model DirectMessage {
   sender   User @relation("SentDMs",     fields: [senderId],   references: [id], onDelete: Cascade)
   receiver User @relation("ReceivedDMs", fields: [receiverId], references: [id], onDelete: Cascade)
 
+  @@index([senderId, receiverId])
+  @@index([receiverId, createdAt])
   @@map("direct_messages")
 }
 

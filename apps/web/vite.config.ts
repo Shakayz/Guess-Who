@@ -10,11 +10,28 @@ export default defineConfig({
     },
     dedupe: ['react', 'react-dom'],
   },
+  build: {
+    target: 'es2020',
+    minify: 'esbuild',
+    cssMinify: true,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'i18n': ['i18next', 'react-i18next'],
+          'socket': ['socket.io-client'],
+          'zustand': ['zustand'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
-    host: true, // listen on 0.0.0.0 so the port is reachable inside Docker
+    host: true,
+    allowedHosts: ['sonly-unanimating-gemma.ngrok-free.dev'],
     proxy: {
-      '/api':      { target: process.env.API_TARGET ?? 'http://localhost:3001', changeOrigin: true },
+      '/api':       { target: process.env.API_TARGET ?? 'http://localhost:3001', changeOrigin: true },
       '/socket.io': { target: process.env.API_TARGET ?? 'http://localhost:3001', ws: true },
     },
   },

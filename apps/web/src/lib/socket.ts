@@ -22,7 +22,20 @@ export function getSocket(): Socket<ServerToClientEvents, ClientToServerEvents> 
 
 export function connectSocket() {
   const s = getSocket()
+  // Always update auth in case token changed
+  const token = useAuthStore.getState().token
+  s.auth = { token }
   if (!s.connected) s.connect()
+}
+
+export function updateSocketAuth() {
+  if (!socket) return
+  const token = useAuthStore.getState().token
+  socket.auth = { token }
+  // If disconnected, reconnect with new auth
+  if (!socket.connected) {
+    socket.connect()
+  }
 }
 
 export function disconnectSocket() {

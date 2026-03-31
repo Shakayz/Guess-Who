@@ -1,10 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../config/prisma'
+import { redis } from '../config/redis'
 
 const patchMeSchema = z.object({
   avatarUrl: z.string().url().optional().nullable(),
-  locale: z.enum(['en', 'fr', 'ar', 'es', 'de']).optional(),
+  locale: z.enum(['en', 'fr', 'ar', 'es', 'de', 'it', 'pt', 'zh']).optional(),
+  username: z.string().min(2).max(20).regex(/^[a-zA-Z0-9_]+$/).optional(),
 })
 
 export const userRoutes: FastifyPluginAsync = async (fastify) => {
@@ -19,6 +21,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       data: {
         ...(body.avatarUrl !== undefined ? { avatarUrl: body.avatarUrl } : {}),
         ...(body.locale !== undefined ? { locale: body.locale } : {}),
+        ...(body.username !== undefined ? { username: body.username } : {}),
       },
       select: { id: true, username: true, avatarUrl: true, locale: true },
     })
@@ -42,12 +45,16 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
   })
 
   fastify.get('/leaderboard', async (_req, reply) => {
-    // Order by rankPoints descending (tier is derived from LP, so LP order = tier order)
+    const cacheKey = 'leaderboard:top100'
+    const cached = await redis.get(cacheKey)
+    if (cached) return reply.send(JSON.parse(cached))
+
     const users = await prisma.user.findMany({
       select: { id: true, username: true, avatarUrl: true, rankTier: true, rankPoints: true },
       orderBy: { rankPoints: 'desc' },
       take: 100,
     })
+    await redis.set(cacheKey, JSON.stringify(users), 'EX', 300) // 5 min cache
     return reply.send(users)
   })
 

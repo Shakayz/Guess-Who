@@ -168,6 +168,26 @@ export default function HistoryPage() {
                           {game.survived ? '✓ Survived' : '✗ Eliminated'}
                         </span>
                       </div>
+
+                      {/* Players — clickable chips to view profiles */}
+                      {game.players.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-neutral-800/60">
+                          {game.players.map((p) => (
+                            <button
+                              key={p.userId}
+                              onClick={(e) => { e.stopPropagation(); navigate(`/player/${p.userId}`) }}
+                              className={[
+                                'text-xs font-semibold px-2 py-0.5 rounded-full border transition-all hover:scale-105',
+                                p.role === 'imposter' || p.role === 'double_agent'
+                                  ? 'bg-red-950/30 text-red-400 border-red-900/40 hover:border-red-700/50'
+                                  : 'bg-neutral-800/60 text-neutral-300 border-neutral-700/40 hover:border-neutral-600/60',
+                              ].join(' ')}
+                            >
+                              {p.username}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </button>
                   )
                 })}

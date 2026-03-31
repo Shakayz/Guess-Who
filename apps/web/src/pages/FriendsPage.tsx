@@ -40,6 +40,81 @@ function InitialsAvatar({ username }: { username: string }) {
   )
 }
 
+function ShareCard() {
+  const appUrl = window.location.origin
+  const [copied, setCopied] = useState(false)
+  const canShare = typeof navigator !== 'undefined' && !!navigator.share
+
+  const handleShare = async () => {
+    if (canShare) {
+      try {
+        await navigator.share({
+          title: 'Imposter Game',
+          text: 'Join me in Imposter Game — the real-time social deduction game! Deceive. Detect. Dominate.',
+          url: appUrl,
+        })
+      } catch {
+        // user cancelled or share failed — fall through to clipboard
+      }
+    } else {
+      navigator.clipboard.writeText(appUrl).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
+    }
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(appUrl).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <section className="rounded-2xl border border-brand-800/30 bg-gradient-to-br from-brand-950/60 to-neutral-900/60 p-4 relative overflow-hidden">
+      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-brand-600/50 to-transparent" />
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-brand-800/40 border border-brand-700/40 flex items-center justify-center text-xl flex-shrink-0">
+          🎭
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-bold text-sm">Invite friends to play</p>
+          <p className="text-neutral-400 text-xs mt-0.5 leading-relaxed">
+            Share the link — anyone can join and play for free.
+          </p>
+          {/* URL row */}
+          <div className="flex items-center gap-2 mt-3">
+            <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-neutral-800/80 border border-neutral-700/50 min-w-0">
+              <span className="text-neutral-600 text-xs">🔗</span>
+              <span className="text-neutral-300 text-xs font-mono truncate">{appUrl}</span>
+            </div>
+            <button
+              onClick={handleCopy}
+              className={[
+                'px-3 py-2 rounded-xl text-xs font-semibold transition-all flex-shrink-0 border',
+                copied
+                  ? 'bg-emerald-950/60 border-emerald-800/50 text-emerald-400'
+                  : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:text-white hover:bg-neutral-700',
+              ].join(' ')}
+            >
+              {copied ? '✓ Copied' : '📋 Copy'}
+            </button>
+          </div>
+        </div>
+      </div>
+      {/* Share button */}
+      <button
+        onClick={handleShare}
+        className="w-full mt-3 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-brand-600/20"
+      >
+        <span>📤</span>
+        {canShare ? 'Share with friends' : (copied ? '✓ Link copied!' : 'Copy link')}
+      </button>
+    </section>
+  )
+}
+
 export default function FriendsPage() {
   const navigate = useNavigate()
   const setActiveDm = useSocialStore((s) => s.setActiveDm)
@@ -151,6 +226,9 @@ export default function FriendsPage() {
         <div className="max-w-xl mx-auto space-y-5 animate-slide-up">
 
           <h1 className="text-2xl font-extrabold text-white tracking-tight">Friends</h1>
+
+          {/* Share the app */}
+          <ShareCard />
 
           {/* Pending Requests */}
           {(loadingRequests || requests.length > 0) && (

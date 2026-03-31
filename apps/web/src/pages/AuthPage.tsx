@@ -4,7 +4,22 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
 
+const LANGUAGES = [
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'fr', label: 'Français', flag: '🇫🇷' },
+  { code: 'ar', label: 'العربية', flag: '🇸🇦' },
+  { code: 'es', label: 'Español', flag: '🇪🇸' },
+  { code: 'it', label: 'Italiano', flag: '🇮🇹' },
+  { code: 'pt', label: 'Português', flag: '🇧🇷' },
+  { code: 'zh', label: '中文', flag: '🇨🇳' },
+]
+
 type Mode = 'signin' | 'signup'
+
+type UsernameSetup = {
+  setupToken: string
+  suggestedUsername: string
+}
 
 // ─── OAuth helpers ────────────────────────────────────────────────────────────
 
@@ -21,8 +36,8 @@ function GoogleIcon() {
 
 function AppleIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 814 1000" fill="currentColor">
-      <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76.5 0-103.7 40.8-165.9 40.8s-105-37.3-142.9-88.6c-43.3-59.1-79.4-154.4-79.4-244.8 0-152.5 99.6-232.9 197.2-232.9 55.9 0 102.3 36.7 137.3 36.7 33.4 0 85.7-38.9 150.1-38.9 24.7 0 108.2 2.6 168.6 75.4zm-133.5-177.1c-.6-.6-32.1-23.7-32.1-70.5 0-52.5 37.3-98.1 74.7-120.7 1.3-.6 45.4-26.3 79.4-26.3l2.6 2.6c-1.9 59.7-28.9 112.9-63.5 148.4-33.4 33.9-72.8 58.2-61.1 66.5z"/>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/>
     </svg>
   )
 }
@@ -30,34 +45,63 @@ function AppleIcon() {
 // ─── AuthPage ─────────────────────────────────────────────────────────────────
 
 export default function AuthPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const setAuth = useAuthStore((s) => s.setAuth)
   const [mode, setMode] = useState<Mode>('signin')
-  const [form, setForm] = useState({ email: '', password: '', username: '' })
+  const [form, setForm] = useState({ identifier: '', email: '', password: '', username: '' })
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null)
+  const [usernameSetup, setUsernameSetup] = useState<UsernameSetup | null>(null)
+  const [chosenUsername, setChosenUsername] = useState('')
+  const [usernameError, setUsernameError] = useState<string | null>(null)
+  const [usernameLoading, setUsernameLoading] = useState(false)
 
   const update = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }))
 
-  const handleOAuthSuccess = (data: { token: string; user: any }) => {
-    setAuth(data.token, data.user)
-    navigate('/')
+  const handleLangChange = (code: string) => {
+    i18n.changeLanguage(code)
+    document.documentElement.dir = code === 'ar' ? 'rtl' : 'ltr'
   }
 
-  // ── Google (via GIS SDK loaded in index.html) ──
+  const handleOAuthResponse = (data: { token?: string; user?: any; needsUsername?: boolean; setupToken?: string; suggestedUsername?: string }) => {
+    if (data.needsUsername && data.setupToken && data.suggestedUsername) {
+      setUsernameSetup({ setupToken: data.setupToken, suggestedUsername: data.suggestedUsername })
+      setChosenUsername(data.suggestedUsername)
+      return
+    }
+    if (data.token && data.user) {
+      setAuth(data.token, data.user)
+      navigate('/')
+    }
+  }
+
+  const handleUsernameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!usernameSetup) return
+    setUsernameError(null)
+    setUsernameLoading(true)
+    try {
+      const data = await api.post<{ token: string; user: any }>('/auth/setup-username', {
+        setupToken: usernameSetup.setupToken,
+        username: chosenUsername,
+      })
+      setAuth(data.token, data.user)
+      navigate('/')
+    } catch (err: any) {
+      setUsernameError(err.message ?? 'Failed to set username')
+    } finally {
+      setUsernameLoading(false)
+    }
+  }
+
+  // ── Google ──
   const handleGoogle = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
-    if (!clientId) {
-      setError('Google sign-in is not configured (missing VITE_GOOGLE_CLIENT_ID)')
-      return
-    }
-    if (!window.google) {
-      setError('Google sign-in script is still loading, try again in a moment')
-      return
-    }
+    if (!clientId) { setError('Google sign-in is not configured (missing VITE_GOOGLE_CLIENT_ID)'); return }
+    if (!window.google) { setError('Google sign-in script is still loading, try again in a moment'); return }
     setError(null)
     setOauthLoading('google')
     const client = window.google.accounts.oauth2.initTokenClient({
@@ -70,10 +114,8 @@ export default function AuthPage() {
           return
         }
         try {
-          const data = await api.post<{ token: string; user: any }>('/auth/google/verify', {
-            accessToken: response.access_token,
-          })
-          handleOAuthSuccess(data)
+          const data = await api.post<any>('/auth/google/verify', { accessToken: response.access_token })
+          handleOAuthResponse(data)
         } catch (err: any) {
           setError(err.message ?? 'Google sign-in failed')
         } finally {
@@ -86,10 +128,7 @@ export default function AuthPage() {
 
   // ── Apple ──
   const handleApple = () => {
-    if (!window.AppleID) {
-      setError('Apple Sign-In is not available in this browser')
-      return
-    }
+    if (!window.AppleID) { setError('Apple Sign-In is not available in this browser'); return }
     setOauthLoading('apple')
     window.AppleID.auth.signIn()
       .then(async (res: any) => {
@@ -97,11 +136,8 @@ export default function AuthPage() {
         const name = res.user?.name
           ? `${res.user.name.firstName ?? ''} ${res.user.name.lastName ?? ''}`.trim()
           : undefined
-        const data = await api.post<{ token: string; user: any }>('/auth/apple/verify', {
-          identityToken,
-          name,
-        })
-        handleOAuthSuccess(data)
+        const data = await api.post<any>('/auth/apple/verify', { identityToken, name })
+        handleOAuthResponse(data)
       })
       .catch(() => setError('Apple sign-in was cancelled or failed'))
       .finally(() => setOauthLoading(null))
@@ -114,7 +150,9 @@ export default function AuthPage() {
     try {
       const data = await api.post<{ token: string; user: any }>(
         mode === 'signin' ? '/auth/signin' : '/auth/signup',
-        form,
+        mode === 'signup'
+          ? { username: form.username, email: form.email, password: form.password, locale: i18n.language }
+          : { identifier: form.identifier, password: form.password },
       )
       setAuth(data.token, data.user)
       navigate('/')
@@ -125,9 +163,90 @@ export default function AuthPage() {
     }
   }
 
+  // ── Username setup screen (OAuth new user) ──
+  if (usernameSetup) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-sm animate-slide-up">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-600 mb-5 shadow-xl shadow-brand-600/30">
+              <span className="text-3xl">🎭</span>
+            </div>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">Choose your username</h1>
+            <p className="text-neutral-500 text-sm mt-1.5">This is how other players will see you</p>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/70 backdrop-blur-sm p-6 shadow-2xl">
+            <form onSubmit={handleUsernameSubmit} className="flex flex-col gap-4">
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">@</span>
+                <input
+                  className="input-field pl-8"
+                  placeholder="username"
+                  value={chosenUsername}
+                  onChange={(e) => { setChosenUsername(e.target.value); setUsernameError(null) }}
+                  minLength={3}
+                  maxLength={20}
+                  pattern="[a-zA-Z0-9_]+"
+                  required
+                  autoFocus
+                  autoComplete="username"
+                />
+              </div>
+              <p className="text-neutral-600 text-xs">3-20 characters — letters, numbers, underscores only</p>
+
+              {usernameError && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-950/60 border border-red-800/50 text-red-400 text-sm">
+                  <span className="shrink-0">⚠</span>
+                  <span>{usernameError}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={usernameLoading || chosenUsername.length < 3}
+                className="w-full py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 active:scale-[0.98] text-white font-semibold transition-all duration-150 shadow-lg shadow-brand-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {usernameLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Setting up...
+                  </span>
+                ) : 'Continue'}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm animate-slide-up">
+
+        {/* Language selector */}
+        <div className="flex justify-center gap-1.5 flex-wrap mb-6">
+          {LANGUAGES.map((lang) => (
+            <button
+              key={lang.code}
+              type="button"
+              onClick={() => handleLangChange(lang.code)}
+              className={[
+                'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all',
+                i18n.language === lang.code
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white',
+              ].join(' ')}
+            >
+              <span>{lang.flag}</span>
+              <span>{lang.label}</span>
+            </button>
+          ))}
+        </div>
 
         {/* Logo */}
         <div className="text-center mb-8">
@@ -135,7 +254,7 @@ export default function AuthPage() {
             <span className="text-3xl">🎭</span>
           </div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight">Imposter Game</h1>
-          <p className="text-neutral-500 text-sm mt-1.5">Deceive. Detect. Dominate.</p>
+          <p className="text-neutral-500 text-sm mt-1.5">{t('home.subtitle')}</p>
         </div>
 
         {/* Card */}
@@ -187,7 +306,7 @@ export default function AuthPage() {
               <button
                 key={m}
                 type="button"
-                onClick={() => { setMode(m); setError(null) }}
+                onClick={() => { setMode(m); setError(null); setForm({ identifier: '', email: '', password: '', username: '' }) }}
                 className={[
                   'flex-1 py-1.5 text-sm font-semibold rounded-lg transition-all duration-150',
                   mode === m
@@ -216,15 +335,28 @@ export default function AuthPage() {
                 />
               </div>
             )}
-            <input
-              className="input-field"
-              type="email"
-              placeholder={t('auth.email')}
-              value={form.email}
-              onChange={update('email')}
-              required
-              autoComplete="email"
-            />
+            {mode === 'signin' ? (
+              <input
+                className="input-field"
+                type="text"
+                placeholder="Email or username"
+                value={form.identifier}
+                onChange={update('identifier')}
+                required
+                autoComplete="username"
+                autoCapitalize="none"
+              />
+            ) : (
+              <input
+                className="input-field"
+                type="email"
+                placeholder={t('auth.email')}
+                value={form.email}
+                onChange={update('email')}
+                required
+                autoComplete="email"
+              />
+            )}
             <input
               className="input-field"
               type="password"

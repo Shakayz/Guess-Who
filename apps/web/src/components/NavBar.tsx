@@ -6,23 +6,22 @@ import { useSocialStore } from '../store/social'
 import { DmChatPanel } from './DmChatPanel'
 import { api } from '../lib/api'
 
-const LINKS = [
-  { label: 'Play', path: '/' },
-  { label: 'Leaderboard', path: '/leaderboard' },
-  { label: 'History', path: '/history' },
-  { label: 'Friends', path: '/friends' },
-]
+const NAV_PATHS = ['/', '/leaderboard', '/history', '/friends'] as const
 
 const LANGUAGES = [
   { code: 'en', label: 'English', flag: '🇬🇧' },
   { code: 'fr', label: 'Français', flag: '🇫🇷' },
   { code: 'ar', label: 'العربية', flag: '🇸🇦' },
+  { code: 'es', label: 'Español', flag: '🇪🇸' },
+  { code: 'it', label: 'Italiano', flag: '🇮🇹' },
+  { code: 'pt', label: 'Português', flag: '🇧🇷' },
+  { code: 'zh', label: '中文', flag: '🇨🇳' },
 ]
 
 export function NavBar() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { i18n } = useTranslation()
+  const { i18n, t } = useTranslation()
   const user = useAuthStore((s) => s.user)
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const [langOpen, setLangOpen] = useState(false)
@@ -30,16 +29,6 @@ export function NavBar() {
 
   const activeDm = useSocialStore((s) => s.activeDm)
   const setActiveDm = useSocialStore((s) => s.setActiveDm)
-  const [pendingRequestCount, setPendingRequestCount] = useState(0)
-
-  useEffect(() => {
-    if (!user) return
-    api
-      .get<{ requests: unknown[] }>('/friends/requests')
-      .then((res) => setPendingRequestCount(res.requests.length))
-      .catch(() => {})
-  }, [user])
-
   React.useEffect(() => {
     if (!langOpen) return
     const handler = (e: MouseEvent) => {
@@ -68,20 +57,23 @@ export function NavBar() {
           <span className="font-bold text-white tracking-tight">Imposter</span>
         </button>
         <nav className="hidden sm:flex items-center gap-1">
-          {LINKS.map((l) => (
-            <button
-              key={l.path}
-              onClick={() => navigate(l.path)}
-              className={[
-                'px-3 py-1.5 text-sm rounded-lg transition-all',
-                location.pathname === l.path
-                  ? 'text-white bg-neutral-800'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60',
-              ].join(' ')}
-            >
-              {l.label}
-            </button>
-          ))}
+          {NAV_PATHS.map((path) => {
+            const labelKey = path === '/' ? 'nav.play' : path === '/leaderboard' ? 'nav.leaderboard' : path === '/history' ? 'nav.history' : 'nav.friends'
+            return (
+              <button
+                key={path}
+                onClick={() => navigate(path)}
+                className={[
+                  'px-3 py-1.5 text-sm rounded-lg transition-all',
+                  location.pathname === path
+                    ? 'text-white bg-neutral-800'
+                    : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60',
+                ].join(' ')}
+              >
+                {t(labelKey)}
+              </button>
+            )
+          })}
         </nav>
       </div>
 
@@ -133,20 +125,6 @@ export function NavBar() {
           )}
         </div>
 
-        {/* Friends icon with badge */}
-        <button
-          onClick={() => navigate('/friends')}
-          className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all"
-          title="Friends"
-        >
-          <span className="text-base">👥</span>
-          {pendingRequestCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center text-[9px] text-white font-bold px-0.5">
-              {pendingRequestCount > 9 ? '9+' : pendingRequestCount}
-            </span>
-          )}
-        </button>
-
         <div className="w-px h-4 bg-neutral-800 mx-0.5" />
 
         <button
@@ -160,7 +138,7 @@ export function NavBar() {
           onClick={clearAuth}
           className="px-3 py-1.5 text-sm text-neutral-500 hover:text-red-400 rounded-lg transition-all"
         >
-          Sign out
+          {t('nav.signOut')}
         </button>
       </div>
     </header>

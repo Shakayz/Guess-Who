@@ -138,16 +138,26 @@ export function registerRoomHandlers(
     }
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
 
+    // Persist numeric settings to Prisma
+    const dbUpdate: Record<string, number> = {}
+    if (typeof newSettings.maxPlayers === 'number')          dbUpdate.maxPlayers          = Math.min(20, Math.max(4,   newSettings.maxPlayers))
+    if (typeof newSettings.imposterCount === 'number')       dbUpdate.imposterCount       = Math.min(4,  Math.max(1,   newSettings.imposterCount))
+    if (typeof newSettings.speakingTimeSeconds === 'number') dbUpdate.speakingTimeSeconds = Math.min(120, Math.max(10, newSettings.speakingTimeSeconds))
+    if (typeof newSettings.votingTimeSeconds === 'number')   dbUpdate.votingTimeSeconds   = Math.min(120, Math.max(15, newSettings.votingTimeSeconds))
+    const updatedRoom = Object.keys(dbUpdate).length > 0
+      ? await prisma.room.update({ where: { id: roomId }, data: dbUpdate })
+      : room
+
     const roomPayload = {
-      id: room.id, code: room.code, hostId: room.hostId,
+      id: updatedRoom.id, code: updatedRoom.code, hostId: updatedRoom.hostId,
       status: state.status, players: state.players,
       currentRound: state.currentRound ?? 0,
       maxRounds: state.maxRounds ?? 0,
-      createdAt: room.createdAt.toISOString(),
+      createdAt: updatedRoom.createdAt.toISOString(),
       settings: {
-        maxPlayers: room.maxPlayers, minPlayers: 4, imposterCount: room.imposterCount,
-        speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
-        wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
+        maxPlayers: updatedRoom.maxPlayers, minPlayers: 4, imposterCount: updatedRoom.imposterCount,
+        speakingTimeSeconds: updatedRoom.speakingTimeSeconds, votingTimeSeconds: updatedRoom.votingTimeSeconds,
+        wordPackId: updatedRoom.wordPackId, isPrivate: updatedRoom.isPrivate, language: updatedRoom.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         enableDetective: state.enableDetective ?? false,
         enableDoubleAgent: state.enableDoubleAgent ?? false,
@@ -288,6 +298,8 @@ export function registerRoomHandlers(
       state.status = 'in_progress'
       state.gameId = game.id
       state.currentRound = 1
+      state.villagerWord = wordPair.wordA
+      state.imposterWord = wordPair.wordB
       state.rounds = [{ id: round.id, roundNumber: 1, votes: [], clues: [],
         speakingOrder: players.map((p: any) => p.userId) }]
       await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
@@ -305,12 +317,14 @@ export function registerRoomHandlers(
         const socketUserId = (s as any).userId
         const playerData = players.find((p: any) => p.userId === socketUserId)
         if (!playerData) continue
-        // Double agent also receives the imposter word (they know the secret)
+        // Double agent receives the imposter word as their primary word
         const getsImposterWord = playerData.role === 'imposter' || playerData.role === 'double_agent'
         s.emit('game:started', {
           round: roundPayload as any,
           yourWord: getsImposterWord ? wordPair.wordB : wordPair.wordA,
           yourRole: playerData.role,
+          // Double agent also needs the villager word to blend in
+          yourVillagerWord: playerData.role === 'double_agent' ? wordPair.wordA : undefined,
         })
       }
 
@@ -321,6 +335,40 @@ export function registerRoomHandlers(
     } catch (err) {
       console.error('game:start error', err)
       socket.emit('error', { code: 'INTERNAL', message: 'Server error' })
+    }
+  })
+
+  socket.on('detective:reveal', async ({ targetUserId }) => {
+    try {
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      const detective = state.players.find((p: any) => p.userId === userId)
+      if (!detective || detective.role !== 'detective') return
+
+      if (detective.detectiveRevealUsed) {
+        socket.emit('error', { code: 'DETECTIVE_USED', message: 'Reveal already used' })
+        return
+      }
+
+      const target = state.players.find((p: any) => p.userId === targetUserId)
+      if (!target) return
+
+      detective.detectiveRevealUsed = true
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+
+      socket.emit('detective:result', {
+        targetUserId: target.userId,
+        targetUsername: target.username,
+        role: target.role,
+      })
+    } catch (err) {
+      console.error('detective:reveal error', err)
     }
   })
 

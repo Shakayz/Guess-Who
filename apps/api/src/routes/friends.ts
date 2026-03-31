@@ -15,6 +15,7 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
         requester: { select: { id: true, username: true, avatarUrl: true } },
         addressee: { select: { id: true, username: true, avatarUrl: true } },
       },
+      take: 200,
     })
     const friends = friendships.map((f) => ({
       friendshipId: f.id,

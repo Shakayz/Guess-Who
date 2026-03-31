@@ -13,7 +13,11 @@ export function registerMatchmakingHandlers(
 
   socket.on('matchmaking:join', async (data: { gameMode: string; categories: string[] }) => {
     const gameMode = data?.gameMode ?? 'normal'
-    const queueKey = `matchmaking:${gameMode}`
+
+    // Fetch user's locale from DB — the queue is language-scoped
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
+    const locale = user?.locale ?? 'en'
+    const queueKey = `matchmaking:${gameMode}:${locale}`
 
     // Remove stale entry if any (in case of reconnect)
     const current = await redis.lrange(queueKey, 0, -1)
@@ -27,7 +31,7 @@ export function registerMatchmakingHandlers(
     }
 
     // Add to queue
-    const entry = JSON.stringify({ userId, socketId: socket.id, categories: data?.categories ?? [] })
+    const entry = JSON.stringify({ userId, socketId: socket.id, categories: data?.categories ?? [], locale })
     await redis.rpush(queueKey, entry)
     await redis.expire(queueKey, 300) // 5-min TTL
 
@@ -42,7 +46,6 @@ export function registerMatchmakingHandlers(
         if (e) entries.push(e)
       }
       if (entries.length < QUEUE_MIN) {
-        // Unlikely — put back and abort
         for (const e of entries.reverse()) await redis.lpush(queueKey, e)
         return
       }
@@ -51,13 +54,12 @@ export function registerMatchmakingHandlers(
         .map((e) => { try { return JSON.parse(e) } catch { return null } })
         .filter(Boolean)
 
-      // If JSON parsing dropped some entries, not enough valid players — put them back
       if (players.length < QUEUE_MIN) {
         for (const e of entries.reverse()) await redis.lpush(queueKey, e)
         return
       }
 
-      // Create room with first player as host
+      // Create room with first player as host, using shared locale
       const hostPlayer = players[0]
       const room = await prisma.room.create({
         data: {
@@ -68,11 +70,10 @@ export function registerMatchmakingHandlers(
           speakingTimeSeconds: 30,
           votingTimeSeconds: 30,
           isPrivate: false,
-          language: 'en',
+          language: locale,
         },
       }).catch(() => null)
 
-      // Notify all matched players if room creation fails so they're not left in limbo
       if (!room) {
         for (const p of players) {
           io.to(p.socketId).emit('matchmaking:error' as any, { message: 'Failed to create room. Please try again.' })
@@ -80,7 +81,6 @@ export function registerMatchmakingHandlers(
         return
       }
 
-      // Init Redis state
       await redis.set(`room:${room.id}:state`, JSON.stringify({
         status: 'waiting',
         gameMode,
@@ -90,7 +90,6 @@ export function registerMatchmakingHandlers(
         maxRounds: 5,
       }), 'EX', 86400)
 
-      // Notify each matched player
       for (const player of players) {
         io.to(player.socketId).emit('matchmaking:found' as any, { roomCode: room.code })
       }
@@ -99,7 +98,9 @@ export function registerMatchmakingHandlers(
 
   socket.on('matchmaking:leave', async (data: { gameMode?: string }) => {
     const gameMode = data?.gameMode ?? 'normal'
-    const queueKey = `matchmaking:${gameMode}`
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
+    const locale = user?.locale ?? 'en'
+    const queueKey = `matchmaking:${gameMode}:${locale}`
     const current = await redis.lrange(queueKey, 0, -1)
     for (const entry of current) {
       try {

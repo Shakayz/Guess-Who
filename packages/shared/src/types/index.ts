@@ -69,7 +69,7 @@ export interface Room {
   createdAt: string
 }
 
-export type GameMode = 'normal' | 'special'
+export type GameMode = 'normal' | 'special' | 'ranked'
 
 export const WORD_CATEGORIES = [
   { key: 'food',         label: 'Food',          icon: '🍕' },
@@ -134,6 +134,7 @@ export interface Round {
   votes: Vote[]
   eliminatedPlayerId: string | null
   eliminatedRole: PlayerRole | null
+  eliminationReason?: 'vote' | 'said_word'
   wordReveal: WordReveal | null
 }
 
@@ -181,12 +182,14 @@ export interface WordPair {
 
 export interface ServerToClientEvents {
   'room:updated': (room: Room) => void
-  'game:started': (data: { round: Round; yourWord: string; yourRole: PlayerRole }) => void
+  'game:started': (data: { round: Round; yourWord: string; yourRole: PlayerRole; yourVillagerWord?: string }) => void
+  'detective:result': (data: { targetUserId: string; targetUsername: string; role: PlayerRole }) => void
   'round:speaking-turn': (data: { playerId: string; timeSeconds: number; speakingOrder: string[] }) => void
   'round:clue-submitted': (clue: Clue) => void
   'round:voting-started': (data: { timeSeconds: number; players: Player[] }) => void
   'round:vote-cast': (data: { voterId: string; hasVoted: boolean }) => void
   'round:ended': (data: { round: Round; nextRound?: Round }) => void
+  'round:word-said': (data: { playerId: string; username: string; clueText: string; role: PlayerRole }) => void
   'game:finished': (data: { winner: 'villagers' | 'imposters'; finalRound: Round; rewards: RewardSummary }) => void
   'rank:updated': (data: { oldTier: RankTier; newTier: RankTier; newLP: number; promoted: boolean }) => void
   'player:joined': (player: Player) => void
@@ -206,6 +209,7 @@ export interface ClientToServerEvents {
   'vote:cast': (targetPlayerId: string) => void
   'chat:send': (text: string) => void
   'honor:give': (data: { targetPlayerId: string; honorType: HonorType }) => void
+  'detective:reveal': (data: { targetUserId: string }) => void
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────

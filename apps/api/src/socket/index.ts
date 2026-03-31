@@ -241,19 +241,20 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
           })
           if (existing) return
         }
-        await prisma.honor.create({
-          data: {
-            senderId:   userId,
-            receiverId: data.targetUserId,
-            type:       data.honorType,
-            gameId:     data.gameId ?? null,
-          },
-        })
-        // Update receiver's honorPoints
-        await prisma.user.update({
-          where: { id: data.targetUserId },
-          data: { honorPoints: { increment: 1 } },
-        }).catch(() => {})
+        await prisma.$transaction([
+          prisma.honor.create({
+            data: {
+              senderId:   userId,
+              receiverId: data.targetUserId,
+              type:       data.honorType,
+              gameId:     data.gameId ?? null,
+            },
+          }),
+          prisma.user.update({
+            where: { id: data.targetUserId },
+            data:  { honorPoints: { increment: 1 } },
+          }),
+        ])
         // Notify receiver if online
         const recipientSocketId = onlineUsers.get(data.targetUserId)
         if (recipientSocketId) {
@@ -288,6 +289,21 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       console.log(`Socket disconnected: ${socket.id}`)
       // Remove from online users map
       onlineUsers.delete(userId)
+      // Remove player from any matchmaking queues
+      try {
+        const queueKeys = await redis.keys('matchmaking:*')
+        for (const queueKey of queueKeys) {
+          const entries = await redis.lrange(queueKey, 0, -1)
+          for (const entry of entries) {
+            try {
+              if (JSON.parse(entry).userId === userId) {
+                await redis.lrem(queueKey, 0, entry)
+                break
+              }
+            } catch {}
+          }
+        }
+      } catch {}
       // Remove player from any rooms they were in
       const roomKeys = [...socket.rooms].filter((r) => r.startsWith('room:'))
       for (const roomKey of roomKeys) {

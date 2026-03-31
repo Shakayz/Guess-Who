@@ -18,7 +18,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.error ?? `HTTP ${res.status}`)
+    const error = Object.assign(new Error(err.error ?? `HTTP ${res.status}`), { status: res.status, data: err })
+    throw error
   }
   // Handle 204 No Content
   if (res.status === 204) return undefined as T

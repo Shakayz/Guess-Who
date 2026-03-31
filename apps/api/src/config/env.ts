@@ -15,6 +15,12 @@ const envSchema = z.object({
   APPLE_KEY_ID:       z.string().optional(),
   APPLE_PRIVATE_KEY:  z.string().optional(),
   APP_URL:            z.string().default('http://localhost:5173'),
+  RESEND_API_KEY:     z.string().optional(),
+  SMTP_HOST:          z.string().optional(),
+  SMTP_PORT:          z.coerce.number().default(587),
+  SMTP_USER:          z.string().optional(),
+  SMTP_PASS:          z.string().optional(),
+  SMTP_FROM:          z.string().default('noreply@imposter.game'),
   // TODO: re-enable when premium/monetization is ready
   // STRIPE_SECRET_KEY:  z.string().optional(),
   // STRIPE_WEBHOOK_SECRET: z.string().optional(),

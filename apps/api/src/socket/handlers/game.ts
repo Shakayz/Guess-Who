@@ -1,7 +1,16 @@
 import type { Server, Socket } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
 import { redis } from '../../config/redis'
-import { tryEarlyResolve } from '../gameLoop'
+import { prisma } from '../../config/prisma'
+import { tryEarlyResolve, eliminatePlayerForWord } from '../gameLoop'
+
+// Whole-word, case-insensitive match
+function containsWord(text: string, word: string): boolean {
+  if (!word) return false
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, ' ').trim()
+  const w = normalize(word).replace(/\s+/g, '\\s+')
+  return new RegExp(`(?:^|\\s)${w}(?:\\s|$)`).test(normalize(text))
+}
 
 export function registerGameHandlers(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
@@ -69,7 +78,6 @@ export function registerGameHandlers(
     // ── Only the current speaker can submit a clue ────────────────────────────
     const speakingOrder: string[] = currentRound.speakingOrder ?? []
     const clues: any[] = currentRound.clues ?? []
-    // The current speaker is the first player in speakingOrder who hasn't submitted yet
     const speakersWithClue = new Set(clues.map((c: any) => c.playerId))
     const currentSpeaker = speakingOrder.find((id: string) => !speakersWithClue.has(id))
     if (currentSpeaker !== userId) return
@@ -87,5 +95,47 @@ export function registerGameHandlers(
     currentRound.clues = [...(currentRound.clues ?? []), clue]
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
     io.to(`room:${roomId}`).emit('round:clue-submitted', clue)
+
+    // ── Word detection ────────────────────────────────────────────────────────
+    const villagerWord: string = state.villagerWord ?? ''
+    const imposterWord: string = state.imposterWord ?? ''
+    const role: string = player.role ?? 'villager'
+
+    const forbidden: string[] = []
+    if (role === 'villager' || role === 'detective') forbidden.push(villagerWord)
+    else if (role === 'imposter') forbidden.push(imposterWord)
+    else if (role === 'double_agent') forbidden.push(villagerWord, imposterWord)
+
+    if (forbidden.some((w) => containsWord(sanitized, w))) {
+      // Mark clue as flagged and eliminate player
+      clue.flaggedForWord = true
+      player.status = 'eliminated'
+      currentRound.eliminationReason = 'said_word'
+      currentRound.eliminatedPlayerId = userId
+      currentRound.eliminatedRole = player.role
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+
+      // Get username from connected socket
+      const sockets = await io.in(`room:${roomId}`).fetchSockets().catch(() => [] as any[])
+      const username = (sockets.find((s: any) => (s.data?.userId ?? s.userId) === userId) as any)
+        ?.data?.username ?? userId.slice(0, 6)
+
+      io.to(`room:${roomId}`).emit('round:word-said' as any, {
+        playerId: userId,
+        username,
+        clueText: sanitized,
+        role: player.role,
+      })
+
+      // Also emit the updated flagged clue to all players
+      io.to(`room:${roomId}`).emit('round:clue-submitted', clue)
+
+      const room = await prisma.room.findUnique({
+        where: { id: roomId },
+        select: { speakingTimeSeconds: true, votingTimeSeconds: true },
+      })
+      await eliminatePlayerForWord(io, roomId, room?.speakingTimeSeconds ?? 60, room?.votingTimeSeconds ?? 30)
+      return
+    }
   })
 }
