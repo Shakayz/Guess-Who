@@ -102,16 +102,24 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       let user = await prisma.user.findFirst({ where: { googleId } })
+      let isNewUser = false
       if (!user) {
         const byEmail = email ? await prisma.user.findUnique({ where: { email } }) : null
         if (byEmail) {
           user = await prisma.user.update({ where: { id: byEmail.id }, data: { googleId, avatarUrl: byEmail.avatarUrl ?? avatarUrl } })
         } else {
-          const username = await uniqueUsername(name)
+          const tempUsername = `pending_${Date.now()}`
           user = await prisma.user.create({
-            data: { googleId, email: email ?? `${googleId}@google.oauth`, username, avatarUrl },
+            data: { googleId, email: email ?? `${googleId}@google.oauth`, username: tempUsername, avatarUrl },
           })
+          isNewUser = true
         }
+      }
+
+      if (isNewUser) {
+        const setupToken = fastify.jwt.sign({ sub: user.id, setup: true }, { expiresIn: '10m' })
+        const suggestedUsername = name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || 'user'
+        return reply.send({ needsUsername: true, setupToken, suggestedUsername, user: { id: user.id, email: user.email } })
       }
 
       const token = issueToken(fastify, user)
@@ -145,18 +153,58 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
     const displayName = name ?? email?.split('@')[0] ?? 'user'
 
     let user = await prisma.user.findFirst({ where: { appleId } })
+    let isNewUser = false
     if (!user) {
       const byEmail = email ? await prisma.user.findUnique({ where: { email } }) : null
       if (byEmail) {
         user = await prisma.user.update({ where: { id: byEmail.id }, data: { appleId } })
       } else {
-        const username = await uniqueUsername(displayName)
+        const tempUsername = `pending_${Date.now()}`
         const safeEmail = email ?? `${appleId}@apple.oauth`
         user = await prisma.user.create({
-          data: { appleId, email: safeEmail, username },
+          data: { appleId, email: safeEmail, username: tempUsername },
         })
+        isNewUser = true
       }
     }
+
+    if (isNewUser) {
+      const setupToken = fastify.jwt.sign({ sub: user.id, setup: true }, { expiresIn: '10m' })
+      const suggestedUsername = displayName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || 'user'
+      return reply.send({ needsUsername: true, setupToken, suggestedUsername, user: { id: user.id, email: user.email } })
+    }
+
+    const token = issueToken(fastify, user)
+    return reply.send({ token, user: { id: user.id, username: user.username, email: user.email } })
+  })
+
+  // POST /api/auth/setup-username — finalize new OAuth user with chosen username
+  fastify.post('/setup-username', async (req, reply) => {
+    const { setupToken, username } = req.body as { setupToken?: string; username?: string }
+    if (!setupToken || !username) return reply.status(400).send({ error: 'Missing setupToken or username' })
+
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+      return reply.status(400).send({ error: 'Username must be 3-20 characters (letters, numbers, underscores)' })
+    }
+
+    let payload: { sub: string; setup: boolean }
+    try {
+      payload = fastify.jwt.verify(setupToken) as any
+    } catch {
+      return reply.status(401).send({ error: 'Invalid or expired setup token' })
+    }
+
+    if (!payload.setup) return reply.status(401).send({ error: 'Invalid setup token' })
+
+    const existing = await prisma.user.findUnique({ where: { username } })
+    if (existing && existing.id !== payload.sub) {
+      return reply.status(409).send({ error: 'Username already taken' })
+    }
+
+    const user = await prisma.user.update({
+      where: { id: payload.sub },
+      data: { username },
+    })
 
     const token = issueToken(fastify, user)
     return reply.send({ token, user: { id: user.id, username: user.username, email: user.email } })

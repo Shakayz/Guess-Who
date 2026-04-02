@@ -58,7 +58,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/imposter_game_dev
       REDIS_URL:    redis://redis:6379
       ALLOWED_ORIGINS: >-
-        http://localhost:5173,http://localhost:19006
+        http://localhost:5173,http://localhost:19006,https://sonly-unanimating-gemma.ngrok-free.dev
     ports:
       - "3001:3001"
     volumes:
@@ -83,6 +83,7 @@ services:
     environment:
       # Used by vite.config.ts to proxy /api and /socket.io to the api container
       API_TARGET: http://api:3001
+      VITE_GOOGLE_CLIENT_ID: 358295814462-f9098rilnci6d8dkdhkofo02l12ukqm5.apps.googleusercontent.com
     ports:
       - "5173:5173"
     volumes:
