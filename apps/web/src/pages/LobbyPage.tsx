@@ -258,10 +258,10 @@ export default function LobbyPage() {
   const isInActiveGame = activeRoom && (activeRoom.status === 'in_progress' || activeRoom.status === 'voting')
   const isDifferentGame = isInActiveGame && activeRoom.code !== code
   useEffect(() => {
-    if (isDifferentGame && activeRoom) {
-      navigate(`/game/${activeRoom.code}`, { replace: true })
+    if (isDifferentGame) {
+      navigate('/', { replace: true })
     }
-  }, [isDifferentGame, activeRoom, navigate])
+  }, [isDifferentGame, navigate])
   const [isReady, setIsReady] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)

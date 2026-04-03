@@ -29,59 +29,71 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Redirects the user back to their active game if they try to navigate away
- * while a game is in progress or the result hasn't been acknowledged.
- * Prevents URL tricks / playing two games at once.
+ * Prevents ALIVE players from navigating away during an active game.
+ * You must forfeit or get eliminated before you can leave.
  *
- * Eliminated players who chose to leave the game view can browse freely BUT
- * cannot start or join another game (blocked in HomePage). They'll be
- * auto-navigated to results when the game finishes (via GlobalSocketListeners).
+ * Eliminated / forfeited players are NOT blocked — they can browse freely
+ * and will see a "Rejoin Game" banner on the home page.
  */
 function ActiveGameGuard() {
   const room = useGameStore((s) => s.room)
-  const result = useGameStore((s) => s.result)
-  const gameFinished = useGameStore((s) => s.gameFinished)
   const location = useLocation()
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
 
   useEffect(() => {
     if (!room) return
+    const isActiveGame = room.status === 'in_progress' || room.status === 'voting'
+    if (!isActiveGame) return
+
+    // Check if I'm still alive in this game
+    const me = room.players?.find((p) => p.userId === user?.id)
+    const isAlive = me && me.status === 'alive'
+    if (!isAlive) return // eliminated/forfeited — free to browse
+
     const gameCode = room.code
     const gamePath = `/game/${gameCode}`
     const resultsPath = `/results/${gameCode}`
     const { pathname } = location
 
-    const isActiveGame = room.status === 'in_progress' || room.status === 'voting'
+    if (pathname !== gamePath && pathname !== resultsPath) {
+      navigate(gamePath, { replace: true })
+    }
+  }, [room, location.pathname, navigate, user])
 
-    if (isActiveGame) {
-      // Check if player is eliminated — they can browse freely (except start new games)
-      const me = room.players?.find((p) => p.userId === user?.id)
-      const isEliminated = me && (me.status === 'eliminated' || me.status === 'forfeited')
+  return null
+}
 
-      if (isEliminated) {
-        // Eliminated players can browse but not join lobbies or other games
-        if (pathname.startsWith('/lobby/') || pathname.startsWith('/game/')) {
-          // Allow staying on THEIR game page, block other game/lobby pages
-          if (pathname !== gamePath) {
-            navigate(gamePath, { replace: true })
+/**
+ * On app load (and after login), checks the server for any active game
+ * the user is part of.
+ * - If active → restores the room into the game store (rejoin card appears)
+ * - If NOT active → clears any stale game state from sessionStorage
+ */
+function ActiveGameRestorer() {
+  const token = useAuthStore((s) => s.token)
+
+  useEffect(() => {
+    if (!token) return
+
+    let cancelled = false
+    api.get<{ active: boolean; roomCode?: string; room?: any }>('/rooms/active')
+      .then((data) => {
+        if (cancelled) return
+        if (data.active && data.room) {
+          useGameStore.getState().setRoom(data.room)
+        } else {
+          // No active game on server — clear any stale client state
+          const store = useGameStore.getState()
+          if (store.room) {
+            store.reset()
           }
         }
-        return
-      }
+      })
+      .catch(() => {})
 
-      // Alive players — force back to game page
-      if (pathname !== gamePath && pathname !== resultsPath) {
-        navigate(gamePath, { replace: true })
-      }
-      return
-    }
-
-    // Game finished but result not yet acknowledged — redirect to results
-    if (gameFinished && result && pathname !== resultsPath && pathname !== gamePath) {
-      navigate(resultsPath, { replace: true })
-    }
-  }, [room, result, gameFinished, location.pathname, navigate, user])
+    return () => { cancelled = true }
+  }, [token]) // only on login / app mount
 
   return null
 }
@@ -257,6 +269,7 @@ function InviteBanner() {
 export default function App() {
   return (
     <Suspense fallback={<Spinner />}>
+      <ActiveGameRestorer />
       <GlobalSocketListeners />
       <ActiveGameGuard />
       <InviteBanner />

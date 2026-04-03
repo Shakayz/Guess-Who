@@ -18,30 +18,22 @@ export default function HomePage() {
   const activeRoom = useGameStore((s) => s.room)
   const gameFinished = useGameStore((s) => s.gameFinished)
   const gameResult = useGameStore((s) => s.result)
-
-  // If the player has an active game, determine what state they're in
-  const hasActiveGame = activeRoom && (
-    activeRoom.status === 'in_progress' || activeRoom.status === 'voting'
-  )
-  const hasUnacknowledgedResult = gameFinished && gameResult && activeRoom
-
-  // Check if eliminated — they can browse but not start new games
   const user = useAuthStore((s) => s.user)
-  const isEliminatedInActiveGame = hasActiveGame && activeRoom?.players?.some(
-    (p) => p.userId === user?.id && (p.status === 'eliminated' || p.status === 'forfeited')
+
+  // Determine if the player currently has a game they can return to
+  const hasActiveGame = !!(activeRoom && (
+    activeRoom.status === 'in_progress' || activeRoom.status === 'voting'
+  ))
+  const hasUnacknowledgedResult = !!(gameFinished && gameResult && activeRoom)
+
+  // Whether the player is still playing (alive) — they get redirected by ActiveGameGuard
+  // Whether the player is eliminated/forfeited — they see the "rejoin" banner but can browse
+  const isAliveInGame = hasActiveGame && activeRoom?.players?.some(
+    (p) => p.userId === user?.id && p.status === 'alive'
   )
 
-  // Non-eliminated alive players or unacknowledged results → redirect
-  useEffect(() => {
-    if (hasActiveGame && !isEliminatedInActiveGame && activeRoom) {
-      navigate(`/game/${activeRoom.code}`, { replace: true })
-    } else if (hasUnacknowledgedResult && activeRoom) {
-      navigate(`/results/${activeRoom.code}`, { replace: true })
-    }
-  }, [hasActiveGame, isEliminatedInActiveGame, hasUnacknowledgedResult, activeRoom, navigate])
-
-  // Whether to block game creation/join buttons
-  const isBlockedFromNewGame = hasActiveGame && isEliminatedInActiveGame
+  // Block starting new games while in an active game (alive OR eliminated — game isn't over yet)
+  const isBlockedFromNewGame = hasActiveGame
 
   const [selectedMode, setSelectedMode] = useState<HomeMode | null>(null)
   const [unrankedSubMode, setUnrankedSubMode] = useState<SubGameMode>('normal')
@@ -170,21 +162,113 @@ export default function HomePage() {
             <p className="text-neutral-400 text-base">{t('home.subtitle')}</p>
           </div>
 
-          {/* Active game warning — shown to eliminated players who can browse but not start new games */}
-          {isBlockedFromNewGame && activeRoom && (
-            <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-950/40 border border-amber-800/40 animate-slide-up">
-              <span className="text-amber-400 mt-0.5">⚠</span>
-              <div className="flex-1">
-                <p className="text-amber-400 text-sm font-semibold">{t('home.activeGameWarning', 'Game Still In Progress')}</p>
-                <p className="text-amber-600 text-xs mt-0.5">{t('home.activeGameWarningDesc', 'You are still part of an active game. Wait for it to finish before starting a new one.')}</p>
-              </div>
+          {/* ── Active game card — rejoin / spectate ── */}
+          {hasActiveGame && activeRoom && (() => {
+            const me = activeRoom.players?.find(p => p.userId === user?.id)
+            const amAlive = me?.status === 'alive'
+            const amEliminated = me?.status === 'eliminated'
+            const alivePlayers = activeRoom.players?.filter(p => p.status === 'alive').length ?? 0
+            const totalPlayers = activeRoom.players?.length ?? 0
+            const roundNum = (activeRoom as any).currentRound ?? '?'
+
+            return (
               <button
                 onClick={() => navigate(`/game/${activeRoom.code}`)}
-                className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                className={[
+                  'w-full group relative overflow-hidden rounded-2xl border p-4 text-left transition-all active:scale-[0.99]',
+                  amAlive
+                    ? 'border-brand-600/60 bg-brand-950/60 hover:border-brand-500/80 hover:bg-brand-950/80'
+                    : 'border-neutral-700/50 bg-neutral-900/60 hover:border-neutral-600/70 hover:bg-neutral-800/60',
+                ].join(' ')}
               >
-                {t('home.returnToGame', 'Return')}
+                {/* Top glow line */}
+                <div className={[
+                  'absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent to-transparent',
+                  amAlive ? 'via-brand-500' : 'via-neutral-600',
+                ].join(' ')} />
+
+                <div className="flex items-center gap-4">
+                  {/* Icon */}
+                  <div className={[
+                    'w-12 h-12 rounded-xl border flex items-center justify-center text-2xl shrink-0',
+                    amAlive
+                      ? 'bg-brand-600/20 border-brand-700/40'
+                      : 'bg-neutral-800/60 border-neutral-700/40',
+                  ].join(' ')}>
+                    {amAlive ? '🎮' : amEliminated ? '👻' : '🏳'}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-white font-bold text-sm">
+                        {t('home.activeGame', 'Game In Progress')}
+                      </p>
+                      {amAlive && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-900/60 text-emerald-400 border border-emerald-800/40">
+                          {t('home.statusPlaying', 'Playing')}
+                        </span>
+                      )}
+                      {amEliminated && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-red-900/40 text-red-400 border border-red-800/30">
+                          {t('home.statusEliminated', 'Eliminated')}
+                        </span>
+                      )}
+                      {me?.status === 'forfeited' && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-orange-900/40 text-orange-400 border border-orange-800/30">
+                          {t('home.statusForfeited', 'Forfeited')}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-neutral-400 text-xs mt-0.5">
+                      {t('home.activeGameInfo', '{{alive}} of {{total}} alive · Round {{round}}', { alive: alivePlayers, total: totalPlayers, round: roundNum })}
+                      {' · '}
+                      <span className="font-mono text-neutral-500">{activeRoom.code}</span>
+                    </p>
+                  </div>
+
+                  {/* CTA */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                    </span>
+                    <span className={[
+                      'font-semibold text-sm transition-colors',
+                      amAlive
+                        ? 'text-brand-400 group-hover:text-brand-300'
+                        : 'text-neutral-400 group-hover:text-neutral-300',
+                    ].join(' ')}>
+                      {amAlive
+                        ? t('home.rejoinGame', 'Rejoin')
+                        : t('home.spectateGame', 'Watch')} →
+                    </span>
+                  </div>
+                </div>
               </button>
-            </div>
+            )
+          })()}
+
+          {/* Unacknowledged result — link to results page */}
+          {!hasActiveGame && hasUnacknowledgedResult && activeRoom && (
+            <button
+              onClick={() => navigate(`/results/${activeRoom.code}`)}
+              className="w-full group relative overflow-hidden rounded-2xl border border-amber-700/50 bg-amber-950/40 p-4 text-left transition-all hover:border-amber-600/70 hover:bg-amber-950/60 active:scale-[0.99]"
+            >
+              <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-amber-500 to-transparent" />
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-amber-600/20 border border-amber-700/40 flex items-center justify-center text-2xl shrink-0">
+                  🏆
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-bold text-sm">{t('home.gameEnded', 'Game Finished')}</p>
+                  <p className="text-neutral-400 text-xs mt-0.5">{t('home.viewResults', 'View your results and rewards')}</p>
+                </div>
+                <span className="text-amber-400 font-semibold text-sm group-hover:text-amber-300 transition-colors">
+                  {t('home.seeResults', 'Results')} →
+                </span>
+              </div>
+            </button>
           )}
 
           {/* Quick Join */}

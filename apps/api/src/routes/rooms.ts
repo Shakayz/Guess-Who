@@ -21,6 +21,67 @@ const createRoomSchema = z.object({
 export const roomRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('onRequest', fastify.authenticate)
 
+  // ── Check if the player is currently in an active game ──────────────────────
+  fastify.get('/active', async (req, reply) => {
+    const payload = req.user as { sub: string }
+
+    // Find a game the user participates in that hasn't ended yet
+    const participation = await prisma.gameParticipation.findFirst({
+      where: { userId: payload.sub, game: { endedAt: null } },
+      include: {
+        game: {
+          include: {
+            room: { select: { id: true, code: true, hostId: true, maxPlayers: true, imposterCount: true, speakingTimeSeconds: true, votingTimeSeconds: true, wordPackId: true, isPrivate: true, language: true, createdAt: true } },
+          },
+        },
+      },
+    })
+
+    if (!participation) {
+      return reply.send({ active: false })
+    }
+
+    const room = participation.game.room
+
+    // Get current Redis state for live player data
+    const stateRaw = await redis.get(`room:${room.id}:state`)
+    const state = stateRaw ? JSON.parse(stateRaw) : null
+
+    if (!state || (state.status !== 'in_progress' && state.status !== 'voting')) {
+      // Game record exists but Redis state is gone or game ended — not truly active
+      return reply.send({ active: false })
+    }
+
+    return reply.send({
+      active: true,
+      roomCode: room.code,
+      room: {
+        id: room.id,
+        code: room.code,
+        hostId: room.hostId,
+        status: state.status,
+        players: state.players ?? [],
+        currentRound: state.currentRound ?? 0,
+        maxRounds: state.maxRounds ?? 0,
+        createdAt: room.createdAt.toISOString(),
+        settings: {
+          maxPlayers: room.maxPlayers,
+          minPlayers: 4,
+          imposterCount: room.imposterCount,
+          speakingTimeSeconds: room.speakingTimeSeconds,
+          votingTimeSeconds: room.votingTimeSeconds,
+          wordPackId: room.wordPackId,
+          isPrivate: room.isPrivate,
+          language: room.language as any,
+          gameMode: state.gameMode ?? 'normal',
+          categories: state.categories ?? [],
+          enableDetective: state.enableDetective ?? false,
+          enableDoubleAgent: state.enableDoubleAgent ?? false,
+        },
+      },
+    })
+  })
+
   fastify.post('/', async (req, reply) => {
     const { settings } = createRoomSchema.parse(req.body)
     const payload = req.user as { sub: string }
