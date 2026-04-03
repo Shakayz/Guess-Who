@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, memo } from 'react'
-import { useParams, useNavigate, useBlocker } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation, Trans } from 'react-i18next'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
@@ -155,15 +155,22 @@ export default function GamePage() {
   const gameIsRunning = room?.status === 'in_progress' || room?.status === 'voting'
   const isAliveInGame = gameIsRunning && !isEliminated
 
-  // Block navigation (URL change, back button) while alive in a running game
-  const blocker = useBlocker(isAliveInGame)
-
-  // Also block tab close / browser refresh while alive in game
+  // Block tab close / browser refresh + back button while alive in game
   useEffect(() => {
     if (!isAliveInGame) return
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault() }
-    window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault() }
+    const handlePopState = () => {
+      // Push state back so the user stays on the game page
+      window.history.pushState(null, '', window.location.href)
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('popstate', handlePopState)
+    // Push an extra history entry so back button triggers popstate instead of leaving
+    window.history.pushState(null, '', window.location.href)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('popstate', handlePopState)
+    }
   }, [isAliveInGame])
 
   /** In ranked games, hide other players' real names. Your own name is always visible. */
@@ -445,23 +452,6 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
-
-      {/* Navigation blocker — shown when player tries to leave mid-game */}
-      {blocker.state === 'blocked' && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="card max-w-sm mx-4 text-center space-y-4">
-            <p className="text-2xl">⚠️</p>
-            <p className="text-white font-bold text-lg">{t('game.leaveWarningTitle', 'Game in progress!')}</p>
-            <p className="text-neutral-400 text-sm">{t('game.leaveWarningText', 'You cannot leave while the game is running. Forfeit first if you want to quit.')}</p>
-            <button
-              onClick={() => blocker.reset?.()}
-              className="w-full py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition-colors"
-            >
-              {t('game.stayInGame', 'Stay in Game')}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ── Main game area ── */}
       <div className="relative flex-1 flex flex-col p-4 lg:p-6 gap-4 overflow-y-auto">
