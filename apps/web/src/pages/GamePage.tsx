@@ -160,9 +160,11 @@ export default function GamePage() {
     return idx >= 0 ? `Player ${idx + 1}` : realName
   }, [isRanked, players, user?.id])
 
-  // Use a ref so socket handlers always call the latest version without re-subscribing
+  // Refs so socket handlers always call the latest version without re-subscribing
   const getDisplayNameRef = useRef(getDisplayName)
   useEffect(() => { getDisplayNameRef.current = getDisplayName }, [getDisplayName])
+  const startTimerRef = useRef(startTimer)
+  useEffect(() => { startTimerRef.current = startTimer }, [startTimer])
 
   useEffect(() => {
     connectSocket()
@@ -199,7 +201,7 @@ export default function GamePage() {
         setPhase('speaking')
         setCurrentSpeakerId(speakerId ?? null)
         if (order) setSpeakingOrder(order)
-        startTimer(timeRemainingSeconds ?? 30)
+        startTimerRef.current(timeRemainingSeconds ?? 30)
         // Restore clue-submitted state if we already spoke this turn
         const myClue = (syncClues ?? []).find((c: any) => c.playerId === user?.id)
         if (myClue) setHasSubmittedClue(true)
@@ -211,7 +213,7 @@ export default function GamePage() {
         setVoteCount((syncVotes ?? []).length)
         // speakingOrder at round start = alive player count = total voters
         setTotalVoters(order?.length ?? 0)
-        startTimer(timeRemainingSeconds ?? 30)
+        startTimerRef.current(timeRemainingSeconds ?? 30)
         // Restore our own vote if we already cast one
         const myVote = (syncVotes ?? []).find((v: any) => v.voterId === user?.id)
         if (myVote) setVotedFor(myVote.targetId)
@@ -247,7 +249,7 @@ export default function GamePage() {
       if (order) setSpeakingOrder(order)
       phaseRef.current = 'speaking'
       setPhase('speaking')
-      startTimer(timeSeconds)
+      startTimerRef.current(timeSeconds)
     })
     socket.on('round:voting-started', ({ timeSeconds, players: vPlayers }: any) => {
       phaseRef.current = 'voting'
@@ -256,7 +258,7 @@ export default function GamePage() {
       setVoteCount(0)
       setTotalVoters(vPlayers?.length ?? 0)
       setAllVotedMsg(false)
-      startTimer(timeSeconds ?? 30)
+      startTimerRef.current(timeSeconds ?? 30)
     })
     socket.on('round:ended', ({ round, nextRound }: any) => {
       phaseRef.current = 'reveal'
@@ -290,7 +292,10 @@ export default function GamePage() {
       setAllVotedMsg(true)
     })
     socket.on('deadchat:message' as any, (msg: { id: string; userId: string; username: string; text: string }) => {
-      setDeadChatMessages((prev) => [...prev, msg])
+      setDeadChatMessages((prev) => {
+        const next = [...prev, msg]
+        return next.length > 200 ? next.slice(-200) : next
+      })
     })
     socket.on('detective:result', ({ targetUserId, targetUsername, role }) => {
       setDetectiveRevealUsed()
@@ -320,7 +325,7 @@ export default function GamePage() {
     socket.on('emote:receive' as any, ({ username, emoji }: { username: string; emoji: string }) => {
       const id = `${Date.now()}_${Math.random()}`
       const x = 10 + Math.random() * 80
-      setFloatingEmotes((prev) => [...prev, { id, emoji, username, x }])
+      setFloatingEmotes((prev) => prev.length >= 20 ? prev : [...prev, { id, emoji, username, x }])
       const tid = setTimeout(() => setFloatingEmotes((prev) => prev.filter((e) => e.id !== id)), 2800)
       timeoutRefs.current.push(tid)
     })
@@ -346,7 +351,7 @@ export default function GamePage() {
       timeoutRefs.current.forEach(clearTimeout)
       timeoutRefs.current = []
     }
-  }, [code, startTimer])
+  }, [code])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })

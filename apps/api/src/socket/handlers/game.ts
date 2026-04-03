@@ -47,7 +47,7 @@ export function registerGameHandlers(
         ...(currentRound.votes ?? []),
         { voterId: userId, targetId: targetPlayerId, timestamp: new Date().toISOString() },
       ]
-      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
       io.to(`room:${roomId}`).emit('round:vote-cast', { voterId: userId, hasVoted: true })
       const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
       io.to(`room:${roomId}`).emit('vote:update' as any, {
@@ -77,8 +77,7 @@ export function registerGameHandlers(
 
     // ── Any alive player who hasn't submitted yet can submit a clue ─────────
     const clues: any[] = currentRound.clues ?? []
-    const alreadySubmitted = clues.some((c: any) => c.playerId === userId)
-    if (alreadySubmitted) return
+    if (clues.some((c: any) => c.playerId === userId)) return
 
     const player = state.players.find((p: any) => p.userId === userId && p.status === 'alive')
     if (!player) return
@@ -90,47 +89,39 @@ export function registerGameHandlers(
       flaggedForWord: false,
       flagVotes: [],
     }
-    currentRound.clues = [...(currentRound.clues ?? []), clue]
-    await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
-    io.to(`room:${roomId}`).emit('round:clue-submitted', clue)
 
-    // ── Word detection (check BEFORE early voting so elimination takes priority) ─
-    const villagerWord: string = state.villagerWord ?? ''
-    const imposterWord: string = state.imposterWord ?? ''
+    // ── Word detection — check BEFORE writing to Redis so we only write once ─
     const role: string = player.role ?? 'villager'
+    const forbidden: string[] =
+      role === 'double_agent' ? [state.villagerWord ?? '', state.imposterWord ?? ''] :
+      (role === 'villager' || role === 'detective') ? [state.villagerWord ?? ''] :
+      [state.imposterWord ?? '']
 
-    const forbidden: string[] = []
-    if (role === 'villager' || role === 'detective') forbidden.push(villagerWord)
-    else if (role === 'imposter') forbidden.push(imposterWord)
-    else if (role === 'double_agent') forbidden.push(villagerWord, imposterWord)
+    const saidWord = forbidden.some((w) => containsWord(sanitized, w))
 
-    if (forbidden.some((w) => containsWord(sanitized, w))) {
-      // Mark clue as flagged and eliminate player
+    if (saidWord) {
       clue.flaggedForWord = true
       player.status = 'eliminated'
       currentRound.eliminationReason = 'said_word'
       currentRound.eliminatedPlayerId = userId
       currentRound.eliminatedRole = player.role
-      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+    }
 
-      // Get username from the player's room state entry (no fetchSockets needed)
+    // Single Redis write for both normal clue and word-said paths
+    currentRound.clues = [...clues, clue]
+    await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+
+    io.to(`room:${roomId}`).emit('round:clue-submitted', clue)
+
+    if (saidWord) {
       const username = player.username ?? (socket as any).username ?? userId.slice(0, 6)
-
       io.to(`room:${roomId}`).emit('round:word-said' as any, {
         playerId: userId,
         username,
         clueText: sanitized,
         role: player.role,
       })
-
-      // Also emit the updated flagged clue to all players
-      io.to(`room:${roomId}`).emit('round:clue-submitted', clue)
-
-      const room = await prisma.room.findUnique({
-        where: { id: roomId },
-        select: { speakingTimeSeconds: true, votingTimeSeconds: true },
-      })
-      await eliminatePlayerForWord(io, roomId, room?.speakingTimeSeconds ?? 60, room?.votingTimeSeconds ?? 30)
+      await eliminatePlayerForWord(io, roomId, 0, 0)
       return
     }
 

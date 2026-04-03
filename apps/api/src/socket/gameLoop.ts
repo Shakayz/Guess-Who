@@ -42,10 +42,56 @@ function buildResetState(state: any): any {
   }
 }
 
+const REDIS_ROOM_TTL = 21600  // 6 hours (was 24h — no game lasts that long)
+
 async function resetRoomAfterGame(roomId: string, state: any): Promise<void> {
   const resetState = buildResetState(state)
-  await redis.set(`room:${roomId}:state`, JSON.stringify(resetState), 'EX', 86400)
+  await redis.set(`room:${roomId}:state`, JSON.stringify(resetState), 'EX', REDIS_ROOM_TTL)
   await prisma.room.update({ where: { id: roomId }, data: { status: 'waiting' } }).catch(() => {})
+}
+
+/** Shared helper to build the round payload sent to clients */
+function buildRoundPayload(round: any) {
+  return {
+    id: round.id,
+    roundNumber: round.roundNumber,
+    speakingOrder: round.speakingOrder ?? [],
+    clues: round.clues ?? [],
+    votes: round.votes ?? [],
+    eliminatedPlayerId: round.eliminatedPlayerId ?? null,
+    eliminatedRole: round.eliminatedRole ?? null,
+    eliminationReason: round.eliminationReason ?? undefined,
+    wordReveal: round.wordReveal ?? null,
+  }
+}
+
+/** Shared LP delta calculator — avoids 4x duplication */
+function getWinLpDelta(role: string, winner: string): number {
+  const isImposter = role === 'imposter' || role === 'double_agent'
+  if (winner === 'villagers') {
+    return isImposter ? LP_REWARDS.IMPOSTER_LOSS : LP_REWARDS.VILLAGER_WIN
+  }
+  return isImposter ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS
+}
+
+function getSurvivalLpDelta(role: string): number {
+  const isImposter = role === 'imposter' || role === 'double_agent'
+  return isImposter ? LP_REWARDS.SURVIVAL_IMPOSTER_WIN : LP_REWARDS.SURVIVAL_VILLAGER_LOSS
+}
+
+/** Read + parse Redis state with timer cleanup on loss */
+async function getState(roomId: string): Promise<any | null> {
+  const raw = await redis.get(`room:${roomId}:state`)
+  if (!raw) {
+    clearRoomTimer(roomId)
+    return null
+  }
+  return JSON.parse(raw)
+}
+
+/** Write state back to Redis */
+async function saveState(roomId: string, state: any): Promise<void> {
+  await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', REDIS_ROOM_TTL)
 }
 
 // ─── LP helper — per-player role-based LP + rank sync ────────────────────────
@@ -110,12 +156,11 @@ async function startCluePhase(
   speakingTimeSeconds: number,
   votingTimeSeconds: number,
 ) {
-  const stateRaw = await redis.get(`room:${roomId}:state`)
-  if (!stateRaw) {
+  const state = await getState(roomId)
+  if (!state) {
     io.to(`room:${roomId}`).emit('error', { code: 'GAME_STATE_LOST', message: 'Game interrupted. Please reconnect.' })
     return
   }
-  const state = JSON.parse(stateRaw)
   if (state.status !== 'in_progress') return
 
   const currentRound = state.rounds?.[state.currentRound - 1]
@@ -128,7 +173,7 @@ async function startCluePhase(
   state.phaseStartedAt = Date.now()
   state.phaseDurationSeconds = speakingTimeSeconds
   state.votingTimeSeconds = votingTimeSeconds  // store for tryEarlyVoting
-  await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+  await saveState(roomId, state)
 
   // Notify all clients: everyone can submit their clue now
   io.to(`room:${roomId}`).emit('round:speaking-turn', { playerId: null, timeSeconds: speakingTimeSeconds, speakingOrder: order })
@@ -142,10 +187,8 @@ async function startCluePhase(
 
 // Called from clue:submit when all alive players have submitted
 export async function tryEarlyVoting(io: IO, roomId: string) {
-  const stateRaw = await redis.get(`room:${roomId}:state`)
-  if (!stateRaw) return
-  const state = JSON.parse(stateRaw)
-  if (state.status !== 'in_progress') return
+  const state = await getState(roomId)
+  if (!state || state.status !== 'in_progress') return
 
   const currentRound = state.rounds?.[state.currentRound - 1]
   if (!currentRound) return
@@ -168,17 +211,16 @@ export async function tryEarlyVoting(io: IO, roomId: string) {
 // ─── Voting phase ─────────────────────────────────────────────────────────────
 
 async function startVoting(io: IO, roomId: string, votingTimeSeconds: number) {
-  const stateRaw = await redis.get(`room:${roomId}:state`)
-  if (!stateRaw) {
+  const state = await getState(roomId)
+  if (!state) {
     io.to(`room:${roomId}`).emit('error', { code: 'GAME_STATE_LOST', message: 'Game interrupted. Please reconnect.' })
     return
   }
-  const state = JSON.parse(stateRaw)
   state.status = 'voting'
   state.currentSpeakerId = null
   state.phaseStartedAt = Date.now()
   state.phaseDurationSeconds = votingTimeSeconds
-  await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+  await saveState(roomId, state)
 
   const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
   io.to(`room:${roomId}`).emit('round:voting-started', { timeSeconds: votingTimeSeconds, players: alivePlayers })
@@ -192,10 +234,8 @@ async function startVoting(io: IO, roomId: string, votingTimeSeconds: number) {
 
 // Called from vote:cast when all alive players have voted
 export async function tryEarlyResolve(io: IO, roomId: string) {
-  const stateRaw = await redis.get(`room:${roomId}:state`)
-  if (!stateRaw) return
-  const state = JSON.parse(stateRaw)
-  if (state.status !== 'voting') return
+  const state = await getState(roomId)
+  if (!state || state.status !== 'voting') return
 
   const currentRound = state.rounds?.[state.currentRound - 1]
   if (!currentRound) return
@@ -233,12 +273,11 @@ async function resolveRound(io: IO, roomId: string) {
 }
 
 async function _resolveRound(io: IO, roomId: string) {
-  const stateRaw = await redis.get(`room:${roomId}:state`)
-  if (!stateRaw) {
+  const state = await getState(roomId)
+  if (!state) {
     io.to(`room:${roomId}`).emit('error', { code: 'GAME_STATE_LOST', message: 'Game interrupted. Please reconnect.' })
     return
   }
-  const state = JSON.parse(stateRaw)
 
   const currentRound = state.rounds?.[state.currentRound - 1]
   if (!currentRound) return
@@ -295,23 +334,14 @@ async function _resolveRound(io: IO, roomId: string) {
     }
   }
 
-  const roundPayload = {
-    id: currentRound.id,
-    roundNumber: currentRound.roundNumber,
-    speakingOrder: currentRound.speakingOrder,
-    clues: currentRound.clues ?? [],
-    votes: currentRound.votes ?? [],
-    eliminatedPlayerId: currentRound.eliminatedPlayerId ?? null,
-    eliminatedRole: currentRound.eliminatedRole ?? null,
-    wordReveal: currentRound.wordReveal ?? null,
-  }
+  const roundPayload = buildRoundPayload(currentRound)
 
   // Check win condition
   const winner = checkWinCondition(state.players as any)
 
   if (winner) {
     state.status = 'finished'
-    await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+    await saveState(roomId, state)
     await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
     const finishedGame = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
     if (finishedGame) {
@@ -327,14 +357,7 @@ async function _resolveRound(io: IO, roomId: string) {
 
     // ── Persist LP per-role + sync rankTier ──────────────────────────────────
     if (isRanked) {
-      await applyRankedLP(io, roomId, state.players, (role) => {
-        const isImposter = role === 'imposter' || role === 'double_agent'
-        if (winner === 'villagers') {
-          return isImposter ? LP_REWARDS.IMPOSTER_LOSS : LP_REWARDS.VILLAGER_WIN
-        } else {
-          return isImposter ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS
-        }
-      })
+      await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, winner))
     }
     // Representative delta for the broadcast RewardSummary (villager perspective)
     const lpChange = isRanked ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS) : 0
@@ -375,7 +398,7 @@ async function _resolveRound(io: IO, roomId: string) {
         // Villagers won on the last round — fall through to normal winner logic above
         // by re-invoking the winner branch inline
         state.status = 'finished'
-        await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+        await saveState(roomId, state)
         await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
         if (game) {
           await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: finalWinner, endedAt: new Date() } }).catch(() => {})
@@ -384,12 +407,7 @@ async function _resolveRound(io: IO, roomId: string) {
         await checkAndUnlockAchievements(io, roomId, finalWinner, state, game?.id ?? null)
         const isRankedFinal = state.gameMode === 'ranked'
         if (isRankedFinal) {
-          await applyRankedLP(io, roomId, state.players, (role) => {
-            const isImposter = role === 'imposter' || role === 'double_agent'
-            return finalWinner === 'villagers'
-              ? (isImposter ? LP_REWARDS.IMPOSTER_LOSS : LP_REWARDS.VILLAGER_WIN)
-              : (isImposter ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS)
-          })
+          await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, finalWinner))
         }
         const lpChangeFinal = isRankedFinal ? LP_REWARDS.VILLAGER_WIN : 0
         setTimeout(async () => { try {
@@ -400,17 +418,14 @@ async function _resolveRound(io: IO, roomId: string) {
       }
 
       state.status = 'finished'
-      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+      await saveState(roomId, state)
       await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
       io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
       const isRankedSurvival = state.gameMode === 'ranked'
 
       // ── Persist LP per-role + sync rankTier (survival win) ─────────────────
       if (isRankedSurvival) {
-        await applyRankedLP(io, roomId, state.players, (role) => {
-          const isImposter = role === 'imposter' || role === 'double_agent'
-          return isImposter ? LP_REWARDS.SURVIVAL_IMPOSTER_WIN : LP_REWARDS.SURVIVAL_VILLAGER_LOSS
-        })
+        await applyRankedLP(io, roomId, state.players, (role) => getSurvivalLpDelta(role))
       }
       const survivalLpChange = isRankedSurvival ? LP_REWARDS.SURVIVAL_VILLAGER_LOSS : 0
       const rewards = { starCoinsEarned: 80, xpEarned: 120, lpChange: survivalLpChange, achievements: [] }
@@ -442,7 +457,7 @@ async function _resolveRound(io: IO, roomId: string) {
       clues: [],
       speakingOrder: nextSpeakingOrder,
     })
-    await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+    await saveState(roomId, state)
 
     const nextRoundPayload = {
       id: nextDbRound.id,
@@ -486,9 +501,8 @@ export async function eliminatePlayerForWord(
 // ─── Forfeit player ───────────────────────────────────────────────────────────
 
 export async function forfeitPlayer(io: IO, roomId: string, userId: string): Promise<void> {
-  const stateRaw = await redis.get(`room:${roomId}:state`)
-  if (!stateRaw) return
-  const state = JSON.parse(stateRaw)
+  const state = await getState(roomId)
+  if (!state) return
 
   const player = state.players.find((p: any) => p.userId === userId)
   if (!player || player.status !== 'alive') return
@@ -505,7 +519,7 @@ export async function forfeitPlayer(io: IO, roomId: string, userId: string): Pro
     currentRound.speakingOrder = speakingOrder.filter((id: string) => id !== userId)
   }
 
-  await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+  await saveState(roomId, state)
 
   // Mark as not survived in DB
   const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
@@ -546,7 +560,7 @@ async function _forfeitEndGame(
   game: any,
 ): Promise<void> {
   state.status = 'finished'
-  await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+  await saveState(roomId, state)
   await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
 
   if (game) {
@@ -556,18 +570,7 @@ async function _forfeitEndGame(
     }).catch(() => {})
   }
 
-  const roundPayload = currentRound
-    ? {
-        id:                 currentRound.id,
-        roundNumber:        currentRound.roundNumber,
-        speakingOrder:      currentRound.speakingOrder ?? [],
-        clues:              currentRound.clues ?? [],
-        votes:              currentRound.votes ?? [],
-        eliminatedPlayerId: null,
-        eliminatedRole:     null,
-        wordReveal:         null,
-      }
-    : null
+  const roundPayload = currentRound ? buildRoundPayload(currentRound) : null
 
   if (roundPayload) {
     io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
@@ -575,14 +578,7 @@ async function _forfeitEndGame(
 
   const isRanked = state.gameMode === 'ranked'
   if (isRanked) {
-    await applyRankedLP(io, roomId, state.players, (role) => {
-      const isImposter = role === 'imposter' || role === 'double_agent'
-      if (winner === 'villagers') {
-        return isImposter ? LP_REWARDS.IMPOSTER_LOSS : LP_REWARDS.VILLAGER_WIN
-      } else {
-        return isImposter ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS
-      }
-    })
+    await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, winner))
   }
 
   const lpChange = isRanked ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS) : 0

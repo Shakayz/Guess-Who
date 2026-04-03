@@ -287,7 +287,10 @@ export default function ResultsPage() {
     const sock = getSocket() as any
 
     const handleChatHistory = (data: { messages: GameChatMessage[] }) => setChatMessages(data.messages)
-    const handleChatMessage = (msg: GameChatMessage) => setChatMessages((prev) => [...prev, msg])
+    const handleChatMessage = (msg: GameChatMessage) => setChatMessages((prev) => {
+      const next = [...prev, msg]
+      return next.length > 200 ? next.slice(-200) : next
+    })
     const handleRankUpdated = (data: { oldTier: RankTier; newTier: RankTier; newLP: number; promoted: boolean }) => {
       if (data.promoted) {
         setRankUp({ oldTier: data.oldTier, newTier: data.newTier, newLP: data.newLP })

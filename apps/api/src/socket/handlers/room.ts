@@ -80,11 +80,11 @@ export function registerRoomHandlers(
             isReady: room.hostId === userId, // host auto-ready
             honorGiven: false,
           })
-          await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
+          await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 21600)
         } else {
           // Reconnection: update socket.id for the existing player entry
           alreadyIn.id = socket.id
-          await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
+          await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 21600)
 
           // Re-send word/role + full phase sync if game is already in progress
           if (state.status === 'in_progress' || state.status === 'voting') {
@@ -175,7 +175,7 @@ export function registerRoomHandlers(
       if (newSettings.enableDetective   !== undefined) state.enableDetective   = newSettings.enableDetective
       if (newSettings.enableDoubleAgent !== undefined) state.enableDoubleAgent = newSettings.enableDoubleAgent
     }
-    await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+    await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
     // Persist numeric settings to Prisma
     const dbUpdate: Record<string, number> = {}
@@ -217,7 +217,7 @@ export function registerRoomHandlers(
     const player = state.players.find((p: any) => p.userId === userId)
     if (player) {
       player.isReady = isReady
-      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
     }
 
     const room = await prisma.room.findUnique({ where: { id: roomId } })
@@ -350,7 +350,7 @@ export function registerRoomHandlers(
       state.imposterWord = wordPair.wordB
       state.rounds = [{ id: round.id, roundNumber: 1, votes: [], clues: [],
         speakingOrder: players.map((p: any) => p.userId) }]
-      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
       await prisma.room.update({ where: { id: roomId }, data: { status: 'in_progress' } })
 
       const roundPayload = {
@@ -434,7 +434,7 @@ export function registerRoomHandlers(
       if (!target) return
 
       detective.detectiveRevealUsed = true
-      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
       socket.emit('detective:result', {
         targetUserId: target.userId,
@@ -515,7 +515,7 @@ export function registerRoomHandlers(
           }
         }
 
-        await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+        await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
         io.to(roomKey).emit('player:left', socket.id)
       }
       await socket.leave(roomKey)

@@ -48,7 +48,9 @@ export const useGameStore = create<GameState>((set) => ({
   result: null,
   setRoom: (room) => set({ room }),
   setRound: (round) => set({ currentRound: round }),
-  addCompletedRound: (round) => set((s) => ({ completedRounds: [...s.completedRounds, round] })),
+  addCompletedRound: (round) => set((s) => ({
+    completedRounds: [...s.completedRounds, round].slice(-20),
+  })),
   setRoleAndWord: (myRole, myWord, villagerWord) => set({ myRole, myWord, myVillagerWord: villagerWord ?? null }),
   setDetectiveRevealUsed: () => set({ detectiveRevealUsed: true }),
   setRevealedPlayer: (revealedPlayer) => set({ revealedPlayer }),
