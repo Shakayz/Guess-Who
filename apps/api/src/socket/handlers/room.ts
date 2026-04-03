@@ -30,13 +30,10 @@ export function registerRoomHandlers(
         return
       }
 
-      // ── Block if player's language doesn't match room's language ─────────────
-      const playerUser = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
-      const playerLocale = playerUser?.locale ?? 'en'
-      if (room.language !== playerLocale) {
-        socket.emit('error', { code: 'LANGUAGE_MISMATCH', message: `This room is in a different language (${room.language}).` })
-        return
-      }
+      // Language check removed — all word pairs are currently in English and
+      // enforcing locale matching caused false rejections (e.g. host with locale
+      // 'fr' joining their own 'en' room, or 'en-US' vs 'en' mismatches).
+      // TODO: re-enable when multi-language word packs are fully supported.
 
       await socket.join(`room:${room.id}`)
       socket.data.roomCode = room.code
