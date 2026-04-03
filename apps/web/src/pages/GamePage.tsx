@@ -109,7 +109,7 @@ export default function GamePage() {
   const { code } = useParams<{ code: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { room, currentRound, myRole, myWord, myVillagerWord, detectiveRevealUsed, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setRevealedPlayer, setRoom } = useGameStore()
+  const { room, currentRound, myRole, myWord, myVillagerWord, detectiveRevealUsed, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setRevealedPlayer, setRoom, setRoleAndWord } = useGameStore()
   const user = useAuthStore((s) => s.user)
   const [clueText, setClueText] = useState('')
   const [clues, setClues] = useState<Clue[]>([])

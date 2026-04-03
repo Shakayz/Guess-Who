@@ -1,3 +1,4 @@
+name: imposter-dev
 # ── Full development stack ─────────────────────────────────────────────────────
 # Usage:
 #   docker compose -f docker-compose.dev.yml up          # start everything
