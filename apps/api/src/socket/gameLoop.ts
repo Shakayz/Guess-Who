@@ -563,6 +563,23 @@ async function startTiebreakerVoting(io: IO, roomId: string) {
   const state = await getState(roomId)
   if (!state) return
 
+  const tiedPlayerIds: string[] = state.tiebreakerPlayerIds ?? []
+  const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
+  const eligibleVoters = alivePlayers.filter((p: any) => !tiedPlayerIds.includes(p.userId))
+
+  // If ALL alive players are tied, no one can vote — skip to next round
+  if (eligibleVoters.length === 0) {
+    state.tiebreakerActive = false
+    state.tiebreakerPhase = null
+    state.tiebreakerPlayerIds = []
+    state.tiebreakerVotes = []
+    state.status = 'in_progress'
+    await saveState(roomId, state)
+    // Proceed to next round with no elimination (tie stands)
+    await resolveRoundNoElimination(io, roomId, state)
+    return
+  }
+
   state.tiebreakerPhase = 'vote'
   state.status = 'voting'
   state.phaseStartedAt = Date.now()
@@ -571,7 +588,7 @@ async function startTiebreakerVoting(io: IO, roomId: string) {
   await saveState(roomId, state)
 
   io.to(`room:${roomId}`).emit('round:tiebreaker-voting' as any, {
-    tiedPlayerIds: state.tiebreakerPlayerIds ?? [],
+    tiedPlayerIds,
     timeSeconds: votingTimeSeconds,
   })
 
@@ -580,6 +597,55 @@ async function startTiebreakerVoting(io: IO, roomId: string) {
     await resolveTiebreaker(io, roomId)
   } catch (err) { console.error('[tiebreakerVoting] timeout error:', err) } }, votingTimeSeconds * 1000)
   roomTimers.set(roomId, timer)
+}
+
+/** All alive players were tied — no one can vote. End round with no elimination, start next. */
+async function resolveRoundNoElimination(io: IO, roomId: string, state: any) {
+  const currentRound = state.rounds?.[state.currentRound - 1]
+  const roundPayload = currentRound ? buildRoundPayload(currentRound) : null
+
+  const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
+  const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
+  if (!room || !game) return
+
+  const nextRoundNumber = state.currentRound + 1
+  const dbRound = currentRound
+    ? await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
+    : null
+
+  const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
+  const nextSpeakingOrder: string[] = alivePlayers.map((p: any) => p.userId)
+  const nextDbRound = await prisma.round.create({
+    data: {
+      gameId: game.id,
+      roundNumber: nextRoundNumber,
+      villagerWord: dbRound?.villagerWord ?? '',
+      imposterWord: dbRound?.imposterWord ?? '',
+    },
+  }).catch(() => null)
+  if (!nextDbRound) return
+
+  state.currentRound = nextRoundNumber
+  state.status = 'in_progress'
+  state.rounds.push({
+    id: nextDbRound.id,
+    roundNumber: nextRoundNumber,
+    votes: [],
+    clues: [],
+    speakingOrder: nextSpeakingOrder,
+  })
+  await saveState(roomId, state)
+
+  const nextRoundPayload = {
+    id: nextDbRound.id, roundNumber: nextRoundNumber, speakingOrder: nextSpeakingOrder,
+    clues: [], votes: [], eliminatedPlayerId: null, eliminatedRole: null, wordReveal: null,
+  }
+  if (roundPayload) {
+    io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any, nextRound: nextRoundPayload as any })
+  }
+  setTimeout(async () => { try {
+    await startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
+  } catch (err) { console.error('[tiebreaker:noVoters:startRound] error:', err) } }, 5000)
 }
 
 async function resolveTiebreaker(io: IO, roomId: string) {

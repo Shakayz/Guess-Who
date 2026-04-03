@@ -16,6 +16,7 @@ const LANGUAGES = [
   { code: 'it', label: 'Italiano', flag: '🇮🇹' },
   { code: 'pt', label: 'Português', flag: '🇧🇷' },
   { code: 'zh', label: '中文', flag: '🇨🇳' },
+  { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
 ]
 
 export function NavBar() {
