@@ -274,29 +274,17 @@ export default function ResultsPage() {
   const [chatInput, setChatInput] = useState('')
   const chatBottomRef = useRef<HTMLDivElement>(null)
 
-  // Guard: if no game result data, redirect home (after all hooks)
-  if (!result) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <p className="text-neutral-400 text-sm">{t('results.noGameData', 'No game data available.')}</p>
-        <button onClick={() => { reset(); navigate('/') }} className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold transition-colors">
-          {t('results.backHome', 'Back to Home')}
-        </button>
-      </div>
-    )
-  }
-
-  const winner = result.winner
-  const rewards = result.rewards
+  const winner = result?.winner ?? 'draw'
+  const rewards = result?.rewards
   const players = room?.players?.length ? room.players : []
   const isImposter = myRole === 'imposter' || myRole === 'double_agent'
   const isDraw = winner === 'draw'
   const didWin = !isDraw && ((winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter))
 
-  // Animated counters
-  const animatedStars = useAnimatedNumber(Math.abs(rewards.starCoinsEarned))
-  const animatedXP = useAnimatedNumber(Math.abs(rewards.xpEarned))
-  const animatedLP = useAnimatedNumber(Math.abs(rewards.lpChange))
+  // Animated counters — must be called before any conditional return (hooks rule)
+  const animatedStars = useAnimatedNumber(Math.abs(rewards?.starCoinsEarned ?? 0))
+  const animatedXP = useAnimatedNumber(Math.abs(rewards?.xpEarned ?? 0))
+  const animatedLP = useAnimatedNumber(Math.abs(rewards?.lpChange ?? 0))
 
   useEffect(() => {
     const sock = getSocket() as any
@@ -365,6 +353,18 @@ export default function ResultsPage() {
     const roomCode = code ?? room?.code   // route param is most reliable
     reset()
     navigate(roomCode ? `/lobby/${roomCode}` : '/')
+  }
+
+  // Guard: if no game result data, show fallback
+  if (!result) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <p className="text-neutral-400 text-sm">{t('results.noGameData', 'No game data available.')}</p>
+        <button onClick={() => { reset(); navigate('/') }} className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold transition-colors">
+          {t('results.backHome', 'Back to Home')}
+        </button>
+      </div>
+    )
   }
 
   return (

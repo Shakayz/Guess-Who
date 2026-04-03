@@ -41,6 +41,8 @@ export function registerGameHandlers(
     // ── TIEBREAKER vote path ──────────────────────────────────────────────────
     if (state.tiebreakerActive && state.tiebreakerPhase === 'vote') {
       const tiebreakerPlayerIds: string[] = state.tiebreakerPlayerIds ?? []
+      // Tied players cannot vote — only non-tied alive players decide
+      if (tiebreakerPlayerIds.includes(userId)) return
       // Target must be one of the tied players
       if (!tiebreakerPlayerIds.includes(targetPlayerId)) return
 
@@ -53,9 +55,10 @@ export function registerGameHandlers(
 
       io.to(`room:${roomId}`).emit('round:vote-cast', { voterId: userId, hasVoted: true })
       const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
+      const eligibleVoters = alivePlayers.filter((p: any) => !tiebreakerPlayerIds.includes(p.userId))
       io.to(`room:${roomId}`).emit('vote:update' as any, {
         voteCount: tiebreakerVotes.length,
-        totalVoters: alivePlayers.length,
+        totalVoters: eligibleVoters.length,
       })
       await tryEarlyTiebreakerResolve(io, roomId)
       return

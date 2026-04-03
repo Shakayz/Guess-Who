@@ -733,9 +733,11 @@ export async function tryEarlyTiebreakerResolve(io: IO, roomId: string) {
   if (!state || !state.tiebreakerActive || state.tiebreakerPhase !== 'vote') return
 
   const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
+  const tiedPlayerIds: string[] = state.tiebreakerPlayerIds ?? []
+  const eligibleVoters = alivePlayers.filter((p: any) => !tiedPlayerIds.includes(p.userId))
   const tiebreakerVotes: any[] = state.tiebreakerVotes ?? []
   const voterIds = new Set(tiebreakerVotes.map((v: any) => v.voterId))
-  const allVoted = alivePlayers.every((p: any) => voterIds.has(p.userId))
+  const allVoted = eligibleVoters.every((p: any) => voterIds.has(p.userId))
 
   if (allVoted) {
     clearRoomTimer(roomId)

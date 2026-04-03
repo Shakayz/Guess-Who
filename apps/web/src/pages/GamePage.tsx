@@ -131,6 +131,7 @@ export default function GamePage() {
   const [isTie, setIsTie] = useState(false)
   const [totalTime, setTotalTime] = useState(30)
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
+  const [showRoleCard, setShowRoleCard] = useState(!!myRole)
   const [tiebreakerActive, setTiebreakerActive] = useState(false)
   const [tiebreakerPlayerIds, setTiebreakerPlayerIds] = useState<string[]>([])
   const [tiebreakerUsernames, setTiebreakerUsernames] = useState<string[]>([])
@@ -214,6 +215,7 @@ export default function GamePage() {
     // On game start, reset ALL UI state and set new role/word
     socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
       setRoleAndWord(yourRole, yourWord, yourVillagerWord)
+      setShowRoleCard(true)
       // Clear all per-round UI state from any previous game
       setClues([])
       setHasSubmittedClue(false)
@@ -462,8 +464,12 @@ export default function GamePage() {
     setHasSubmittedClue(true)
   }
 
+  const iAmTiedPlayer = tiebreakerActive && tiebreakerPlayerIds.includes(user?.id ?? '')
+
   const vote = (playerId: string) => {
     if (votedFor || phase !== 'voting') return
+    // Tied players cannot vote during tiebreaker
+    if (iAmTiedPlayer) return
     setVotedFor(playerId)
     getSocket().emit('vote:cast', playerId)
   }
@@ -502,8 +508,78 @@ export default function GamePage() {
     navigate('/')
   }
 
+  // Auto-dismiss role card after 5 seconds
+  useEffect(() => {
+    if (!showRoleCard) return
+    const timer = setTimeout(() => setShowRoleCard(false), 5000)
+    return () => clearTimeout(timer)
+  }, [showRoleCard])
+
+  const ROLE_CONFIG: Record<string, { icon: string; label: string; color: string; bg: string }> = {
+    villager:     { icon: '🏘️', label: t('game.roleVillager', 'Villager'),     color: 'text-emerald-400', bg: 'from-emerald-900/40' },
+    imposter:     { icon: '🔪', label: t('game.roleImposter', 'Imposter'),     color: 'text-red-400',     bg: 'from-red-900/40' },
+    detective:    { icon: '🔍', label: t('game.roleDetective', 'Detective'),    color: 'text-blue-400',    bg: 'from-blue-900/40' },
+    double_agent: { icon: '🎭', label: t('game.roleDoubleAgent', 'Double Agent'), color: 'text-orange-400',  bg: 'from-orange-900/40' },
+  }
+  const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
+
+      {/* ── Role reveal overlay ── */}
+      {showRoleCard && myRole && (
+        <>
+          <style>{`
+            @keyframes role-drop { 0% { transform: translateY(-60px) scale(0.7); opacity: 0; } 60% { transform: translateY(8px) scale(1.05); } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+            @keyframes role-rise { 0% { transform: translateY(20px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+            @keyframes role-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(168,85,247,0.4); } 50% { box-shadow: 0 0 0 20px rgba(168,85,247,0); } }
+          `}</style>
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
+            onClick={() => setShowRoleCard(false)}
+          >
+            <div className="text-center pointer-events-none select-none px-6">
+              <div style={{ animation: 'role-drop 0.6s cubic-bezier(0.34,1.56,0.64,1) both', fontSize: 80 }}>
+                {roleInfo.icon}
+              </div>
+              <p
+                className={['text-xs font-bold uppercase tracking-[0.3em] mt-4', roleInfo.color].join(' ')}
+                style={{ animation: 'role-rise 0.4s ease 0.2s both' }}
+              >
+                {t('game.yourRole', 'YOUR ROLE')}
+              </p>
+              <h1
+                className={['text-4xl sm:text-5xl font-black tracking-tight mt-1', roleInfo.color].join(' ')}
+                style={{ animation: 'role-rise 0.4s ease 0.3s both' }}
+              >
+                {roleInfo.label}
+              </h1>
+              <div className="mt-5" style={{ animation: 'role-rise 0.4s ease 0.45s both' }}>
+                {myVillagerWord ? (
+                  <div className="flex gap-3 justify-center">
+                    <div className="rounded-xl bg-emerald-950/60 border border-emerald-800/40 px-4 py-2 text-center">
+                      <p className="text-[10px] text-emerald-500 font-bold uppercase">{t('game.villagerWord')}</p>
+                      <p className="text-xl font-extrabold text-emerald-200 mt-0.5">{myVillagerWord}</p>
+                    </div>
+                    <div className="rounded-xl bg-orange-950/60 border border-orange-800/40 px-4 py-2 text-center">
+                      <p className="text-[10px] text-orange-500 font-bold uppercase">{t('game.imposterWord')}</p>
+                      <p className="text-xl font-extrabold text-orange-200 mt-0.5">{myWord}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="inline-block rounded-xl bg-neutral-900/80 border border-neutral-700/50 px-6 py-3" style={{ animation: 'role-pulse 2s ease infinite' }}>
+                    <p className="text-[10px] text-neutral-500 font-bold uppercase">{t('game.yourWordLabel')}</p>
+                    <p className="text-2xl font-extrabold text-white mt-0.5">{myWord}</p>
+                  </div>
+                )}
+              </div>
+              <p className="text-neutral-500 text-xs mt-6" style={{ animation: 'role-rise 0.4s ease 0.6s both' }}>
+                {t('game.tapToContinue', 'Tap to continue')}
+              </p>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── Main game area ── */}
       <div className="relative flex-1 flex flex-col p-4 lg:p-6 gap-4 overflow-y-auto">
@@ -693,6 +769,14 @@ export default function GamePage() {
                 <span className="text-sm font-semibold text-emerald-400">{t('game.everyoneVoted')}</span>
               </div>
             )}
+            {/* Tied players cannot vote during tiebreaker — show waiting message */}
+            {tiebreakerActive && iAmTiedPlayer ? (
+              <div className="flex items-center gap-2 py-3 text-amber-400 text-sm animate-slide-up">
+                <span>⏳</span>
+                <span>{t('game.tiebreakerCannotVote', 'You are tied — waiting for others to vote...')}</span>
+              </div>
+            ) : (
+            <>
             {/* Your vote summary */}
             {votedFor && (() => {
               const votedPlayer = alivePlayers.find(p => p.userId === votedFor)
@@ -731,55 +815,94 @@ export default function GamePage() {
                   </button>
                 ))}
             </div>
+            </>
+            )}
           </div>
         )}
 
         {/* Reveal phase */}
-        {phase === 'reveal' && (
-          <div className="card border-neutral-700 text-center py-6">
-            <p className="text-4xl mb-3">
-              {eliminated?.role === 'imposter' || eliminated?.role === 'double_agent' ? '🎉' : '😬'}
-            </p>
-            {eliminated ? (
-              <>
-                <p className="text-white font-bold text-lg mb-1">
-                  {t('game.wasEliminatedPlayer', { name: eliminated.username })}
-                </p>
-                <p className={[
-                  'text-sm font-semibold',
-                  eliminated.role === 'imposter' || eliminated.role === 'double_agent'
-                    ? 'text-red-400'
-                    : 'text-brand-400',
-                ].join(' ')}>
-                  {t('game.theyWereA')}{' '}
-                  {eliminated.role === 'imposter' ? t('game.roleImposter')
-                    : eliminated.role === 'double_agent' ? t('game.roleDoubleAgent')
-                    : t('game.roleVillager')}
-                </p>
-              </>
-            ) : isTie ? (
-              <>
-                <p className="text-white font-bold text-lg mb-1">🤝 {t('game.itsTie')}</p>
-                <p className="text-neutral-400 text-sm">{t('game.tieDesc')}</p>
-              </>
-            ) : (
-              <p className="text-neutral-400 text-sm">{t('game.noEliminatedRound')}</p>
-            )}
-            {wordReveal && (
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <div className="rounded-xl bg-brand-950/40 border border-brand-800/40 p-3 text-center">
-                  <p className="text-xs text-neutral-500 mb-1">{t('game.villagerWord')}</p>
-                  <p className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</p>
-                </div>
-                <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
-                  <p className="text-xs text-neutral-500 mb-1">{t('game.imposterWord')}</p>
-                  <p className="text-amber-300 font-extrabold text-xl">{wordReveal.imposterWord}</p>
-                </div>
+        {phase === 'reveal' && (() => {
+          const isImposterElim = eliminated?.role === 'imposter' || eliminated?.role === 'double_agent'
+          return (
+            <div className={[
+              'card text-center py-8 relative overflow-hidden',
+              eliminated
+                ? isImposterElim ? 'border-emerald-800/40' : 'border-red-800/40'
+                : isTie ? 'border-amber-800/40' : 'border-neutral-700',
+            ].join(' ')}>
+              {/* Background glow */}
+              {eliminated && (
+                <div className={[
+                  'absolute inset-0 opacity-10',
+                  isImposterElim
+                    ? 'bg-gradient-to-br from-emerald-500 to-transparent'
+                    : 'bg-gradient-to-br from-red-600 to-transparent',
+                ].join(' ')} />
+              )}
+              <div className="relative">
+                {eliminated ? (
+                  <>
+                    <p className="text-5xl mb-2" style={{ animation: 'role-drop 0.5s cubic-bezier(0.34,1.56,0.64,1) both' }}>
+                      💀
+                    </p>
+                    <p
+                      className="text-white font-bold text-lg mb-1"
+                      style={{ animation: 'role-rise 0.4s ease 0.2s both' }}
+                    >
+                      {t('game.wasEliminatedPlayer', { name: eliminated.username })}
+                    </p>
+                    <p
+                      className={[
+                        'text-sm font-bold px-3 py-1 rounded-full inline-block',
+                        isImposterElim
+                          ? 'text-red-400 bg-red-950/60 border border-red-800/40'
+                          : 'text-brand-400 bg-brand-950/60 border border-brand-800/40',
+                      ].join(' ')}
+                      style={{ animation: 'role-rise 0.4s ease 0.4s both' }}
+                    >
+                      {eliminated.role === 'imposter' ? t('game.roleImposter')
+                        : eliminated.role === 'double_agent' ? t('game.roleDoubleAgent')
+                        : eliminated.role === 'detective' ? t('game.roleDetective')
+                        : t('game.roleVillager')}
+                    </p>
+                    {isImposterElim && (
+                      <p className="text-emerald-400 text-xs font-semibold mt-2" style={{ animation: 'role-rise 0.4s ease 0.55s both' }}>
+                        {t('game.goodCatch', 'Nice catch!')}
+                      </p>
+                    )}
+                  </>
+                ) : isTie ? (
+                  <>
+                    <p className="text-5xl mb-2" style={{ animation: 'role-drop 0.5s cubic-bezier(0.34,1.56,0.64,1) both' }}>
+                      🤝
+                    </p>
+                    <p className="text-white font-bold text-lg mb-1" style={{ animation: 'role-rise 0.4s ease 0.2s both' }}>
+                      {t('game.itsTie')}
+                    </p>
+                    <p className="text-neutral-400 text-sm" style={{ animation: 'role-rise 0.4s ease 0.35s both' }}>
+                      {t('game.tieDesc')}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-neutral-400 text-sm animate-slide-up">{t('game.noEliminatedRound')}</p>
+                )}
               </div>
-            )}
-            <p className="text-xs text-neutral-600 mt-4">{t('game.nextRoundSoon')}</p>
-          </div>
-        )}
+              {wordReveal && (
+                <div className="grid grid-cols-2 gap-3 mt-5 relative" style={{ animation: 'role-rise 0.4s ease 0.5s both' }}>
+                  <div className="rounded-xl bg-brand-950/40 border border-brand-800/40 p-3 text-center">
+                    <p className="text-xs text-neutral-500 mb-1">{t('game.villagerWord')}</p>
+                    <p className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
+                    <p className="text-xs text-neutral-500 mb-1">{t('game.imposterWord')}</p>
+                    <p className="text-amber-300 font-extrabold text-xl">{wordReveal.imposterWord}</p>
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-neutral-600 mt-4 relative">{t('game.nextRoundSoon')}</p>
+            </div>
+          )
+        })()}
 
         {/* Clues log — hidden during clue phase until you submit (prevents copying) */}
         <div className="card flex-1">
