@@ -108,7 +108,7 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
         if (byEmail) {
           user = await prisma.user.update({ where: { id: byEmail.id }, data: { googleId, avatarUrl: byEmail.avatarUrl ?? avatarUrl } })
         } else {
-          const tempUsername = `pending_${Date.now()}`
+          const tempUsername = `pending_${Date.now()}`.slice(0, 20)
           user = await prisma.user.create({
             data: { googleId, email: email ?? `${googleId}@google.oauth`, username: tempUsername, avatarUrl },
           })
