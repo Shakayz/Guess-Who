@@ -76,7 +76,7 @@ export default function AuthPage() {
     }
     if (data.token && data.user) {
       setAuth(data.token, data.user)
-      navigate('/')
+      window.location.replace('/')
     }
   }
 
@@ -91,7 +91,7 @@ export default function AuthPage() {
         username: chosenUsername,
       })
       setAuth(data.token, data.user)
-      navigate('/')
+      window.location.replace('/')
     } catch (err: any) {
       setUsernameError(err.message ?? 'Failed to set username')
     } finally {
@@ -177,7 +177,7 @@ export default function AuthPage() {
           : { identifier: form.identifier, password: form.password },
       )
       setAuth(data.token, data.user)
-      navigate('/')
+      window.location.replace('/')
     } catch (err: any) {
       setError(err.message)
     } finally {
