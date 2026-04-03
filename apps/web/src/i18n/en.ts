@@ -295,6 +295,7 @@ export default {
     noMessages: 'No messages yet. Start the conversation!',
     playAgain: 'Play Again',
     profile: 'Profile',
+    exit: 'Exit',
     rankUp: 'Rank Up!',
     continue: 'Continue',
     imposter: '🎭 Imposter',

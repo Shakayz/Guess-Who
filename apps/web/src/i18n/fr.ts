@@ -295,6 +295,7 @@ export default {
     noMessages: 'Aucun message. Commencez la conversation !',
     playAgain: 'Rejouer',
     profile: 'Profil',
+    exit: 'Quitter',
     rankUp: 'Montée en rang !',
     continue: 'Continuer',
     imposter: '🎭 Imposteur',

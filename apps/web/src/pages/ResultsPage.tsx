@@ -448,6 +448,20 @@ export default function ResultsPage() {
             </div>
           </div>
 
+          {/* Word reveal — show the two words from the game */}
+          {result.finalRound?.wordReveal && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="card text-center py-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">{t('game.villagerWord', 'Villager Word')}</p>
+                <p className="text-xl font-extrabold text-white">{result.finalRound.wordReveal.villagerWord}</p>
+              </div>
+              <div className="card text-center py-4 border-amber-800/30">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">{t('game.imposterWord', 'Imposter Word')}</p>
+                <p className="text-xl font-extrabold text-amber-400">{result.finalRound.wordReveal.imposterWord}</p>
+              </div>
+            </div>
+          )}
+
           {/* Animated Rewards */}
           <div className="card">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('results.rewards')}</p>
@@ -691,10 +705,10 @@ export default function ResultsPage() {
               {t('results.playAgain')}
             </button>
             <button
-              onClick={() => { reset(); navigate('/profile') }}
+              onClick={() => { reset(); navigate('/') }}
               className="px-5 py-3.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold transition-colors"
             >
-              {t('results.profile')}
+              {t('results.exit', 'Exit')}
             </button>
           </div>
 
