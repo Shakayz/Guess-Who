@@ -122,10 +122,10 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       try {
         const room = await prisma.room.findUnique({
           where: { code: roomCode },
-          include: { games: { where: { endedAt: { not: null } }, orderBy: { startedAt: 'desc' }, take: 1 } },
+          include: { games: { orderBy: { startedAt: 'desc' }, take: 1 } },
         })
         const game = room?.games[0]
-        if (!game) return
+        if (!room || !game) return
         const msg = await prisma.gameChatMessage.create({
           data: {
             gameId: game.id,
@@ -134,7 +134,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
             text: data.text.trim().slice(0, 500),
           },
         })
-        io.to(roomCode).emit('gamechat:message' as any, {
+        io.to(`room:${room.id}`).emit('gamechat:message' as any, {
           id: msg.id,
           userId: msg.userId,
           username: msg.username,
@@ -274,7 +274,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       try {
         const room = await prisma.room.findUnique({
           where: { code: socket.data.roomCode },
-          include: { games: { where: { endedAt: { not: null } }, orderBy: { startedAt: 'desc' }, take: 1 } },
+          include: { games: { orderBy: { startedAt: 'desc' }, take: 1 } },
         })
         const game = room?.games[0]
         if (!game) { socket.emit('gamechat:history' as any, { messages: [] }); return }
