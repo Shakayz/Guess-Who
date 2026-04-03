@@ -13,6 +13,8 @@ const createRoomSchema = z.object({
     wordPackId:           z.string().default('default'),
     isPrivate:            z.boolean().default(false),
     language:             z.enum(['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh']).default('en'),
+    categories:           z.array(z.string()).default([]),
+    gameMode:             z.enum(['normal', 'special', 'ranked']).default('normal'),
   }).optional(),
 })
 
@@ -37,7 +39,12 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
         language:             settings?.language ?? host?.locale ?? 'en',
       },
     })
-    await redis.set(`room:${room.id}:state`, JSON.stringify({ players: [], status: 'waiting' }), 'EX', 86400)
+    await redis.set(`room:${room.id}:state`, JSON.stringify({
+      players: [],
+      status: 'waiting',
+      categories: settings?.categories ?? [],
+      gameMode: settings?.gameMode ?? 'normal',
+    }), 'EX', 21600)
     return reply.status(201).send(room)
   })
 

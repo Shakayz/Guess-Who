@@ -84,14 +84,18 @@ export function registerMatchmakingHandlers(
         return
       }
 
+      // Merge categories from all matched players:
+      // Use the host's categories (first player). If empty, means "all categories".
+      const matchedCategories: string[] = hostPlayer.categories ?? []
+
       await redis.set(`room:${room.id}:state`, JSON.stringify({
         status: 'waiting',
         gameMode,
-        categories: [],
+        categories: matchedCategories,
         players: [],
         currentRound: 0,
         maxRounds: 5,
-      }), 'EX', 86400)
+      }), 'EX', 21600)
 
       for (const player of players) {
         // Use onlineUsers map for reliable delivery — queue entry socketId may be stale
