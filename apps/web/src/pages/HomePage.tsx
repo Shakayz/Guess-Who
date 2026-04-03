@@ -284,7 +284,7 @@ export default function HomePage() {
             <button
               type="submit"
               disabled={roomCode.trim().length < 4 || !!isBlockedFromNewGame}
-              className="h-12 px-6 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-sm transition-colors disabled:opacity-40 border border-neutral-700 whitespace-nowrap"
+              className="h-12 px-6 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-neutral-800 border border-neutral-700 whitespace-nowrap"
             >
               {t('room.joinRoom')}
             </button>

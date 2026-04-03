@@ -622,12 +622,12 @@ export default function GamePage() {
 
         {/* Top bar */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 min-w-0">
               {timeLeft > 0 && (
                 <CircularTimer seconds={timeLeft} total={totalTime} phase={phase} />
               )}
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-lg font-extrabold tracking-tight text-white">Imposter</span>
                   {code && (
@@ -641,28 +641,29 @@ export default function GamePage() {
                 </span>
               </div>
             </div>
-            {/* Forfeit button — always visible in main area */}
-            {!isEliminated && (
-              showForfeitConfirm ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-orange-300 font-semibold">{t('game.forfeitConfirmText', 'Forfeit?')}</span>
-                  <button onClick={handleForfeit} className="px-2.5 py-1 rounded-lg bg-orange-700 hover:bg-orange-600 text-white text-xs font-bold transition-colors">
-                    {t('game.forfeitConfirmYes', 'Yes')}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Forfeit button — always visible in main area */}
+              {!isEliminated && (
+                showForfeitConfirm ? (
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={handleForfeit} className="px-2.5 py-1 rounded-lg bg-orange-700 hover:bg-orange-600 text-white text-xs font-bold transition-colors">
+                      {t('game.forfeitConfirmYes', 'Yes, forfeit')}
+                    </button>
+                    <button onClick={() => setShowForfeitConfirm(false)} className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition-colors">
+                      {t('game.forfeitConfirmNo', 'Cancel')}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowForfeitConfirm(true)}
+                    className="px-2.5 py-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-700/50 hover:border-orange-800/50 text-neutral-500 hover:text-orange-400 text-xs font-semibold transition-all"
+                  >
+                    🏳 {t('game.forfeit', 'Forfeit')}
                   </button>
-                  <button onClick={() => setShowForfeitConfirm(false)} className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition-colors">
-                    {t('game.forfeitConfirmNo', 'No')}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowForfeitConfirm(true)}
-                  className="px-3 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-700/50 hover:border-orange-800/50 text-neutral-500 hover:text-orange-400 text-xs font-semibold transition-all"
-                >
-                  🏳 {t('game.forfeit', 'Forfeit')}
-                </button>
-              )
-            )}
-            <PhaseIndicator currentPhase={phase} />
+                )
+              )}
+              <PhaseIndicator currentPhase={phase} />
+            </div>
           </div>
           {timeLeft > 0 && (
             <CountdownBar
