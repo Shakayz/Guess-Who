@@ -334,8 +334,34 @@ export function registerRoomHandlers(
         clues: [], votes: [], eliminatedPlayerId: null, eliminatedRole: null, wordReveal: null,
       }
 
-      // Emit game:started to each player directly via their socketId (more reliable than fetchSockets
-      // which only covers sockets currently joined to the socket.io room)
+      // Step 1 — broadcast room status change to the whole room so ALL lobby clients navigate
+      // (fallback in case individual game:started delivery fails for any player)
+      io.to(`room:${roomId}`).emit('room:updated', {
+        id: room.id,
+        code: room.code,
+        hostId: room.hostId,
+        status: 'in_progress',
+        players: state.players,
+        currentRound: 1,
+        maxRounds: state.maxRounds ?? 0,
+        createdAt: room.createdAt.toISOString(),
+        settings: {
+          maxPlayers: room.maxPlayers,
+          minPlayers: 4,
+          imposterCount: room.imposterCount,
+          speakingTimeSeconds: room.speakingTimeSeconds,
+          votingTimeSeconds: room.votingTimeSeconds,
+          wordPackId: room.wordPackId,
+          isPrivate: room.isPrivate,
+          language: room.language as any,
+          gameMode: state.gameMode ?? 'normal',
+          categories: state.categories ?? [],
+          enableDetective: state.enableDetective ?? false,
+          enableDoubleAgent: state.enableDoubleAgent ?? false,
+        },
+      } as any)
+
+      // Step 2 — send each player their private word/role via direct socket
       for (const playerData of players) {
         const socketId = onlineUsers.get(playerData.userId)
         if (!socketId) continue

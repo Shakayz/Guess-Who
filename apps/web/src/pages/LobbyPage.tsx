@@ -276,6 +276,11 @@ export default function LobbyPage() {
     }
 
     socket.on('room:updated', (r) => {
+      // If the game already started (e.g. we missed game:started), navigate immediately
+      if ((r as any).status === 'in_progress' || (r as any).status === 'voting') {
+        navigate(`/game/${code}`)
+        return
+      }
       setRoom(r as Room)
       if (r.players && r.players.length > prevPlayerCountRef.current) {
         const newPlayer = r.players[r.players.length - 1]
@@ -595,8 +600,8 @@ export default function LobbyPage() {
                 className={[
                   'flex-1 py-3 rounded-xl font-semibold transition-all',
                   isReady
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
-                    : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300',
+                    ? 'bg-neutral-700 hover:bg-red-900/60 text-neutral-400 hover:text-red-300 border border-neutral-600'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20',
                 ].join(' ')}
               >
                 {isReady ? t('lobby.ready') : t('lobby.notReady')}
