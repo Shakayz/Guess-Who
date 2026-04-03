@@ -252,6 +252,16 @@ export default function LobbyPage() {
   const { t, i18n } = useTranslation()
   const user = useAuthStore((s) => s.user)
   const { room, setRoom, setRoleAndWord, setRound } = useGameStore()
+
+  // Block joining a DIFFERENT lobby while in an active game
+  const activeRoom = useGameStore((s) => s.room)
+  const isInActiveGame = activeRoom && (activeRoom.status === 'in_progress' || activeRoom.status === 'voting')
+  const isDifferentGame = isInActiveGame && activeRoom.code !== code
+  useEffect(() => {
+    if (isDifferentGame && activeRoom) {
+      navigate(`/game/${activeRoom.code}`, { replace: true })
+    }
+  }, [isDifferentGame, activeRoom, navigate])
   const [isReady, setIsReady] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)

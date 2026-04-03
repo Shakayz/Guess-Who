@@ -46,6 +46,8 @@ export function NavBar() {
     i18n.changeLanguage(code)
     document.documentElement.dir = code === 'ar' ? 'rtl' : 'ltr'
     setLangOpen(false)
+    // Persist the new locale to the DB so matchmaking and room joining use it
+    api.patch('/users/me', { locale: code }).catch(() => {/* non-critical */})
   }
 
   return (

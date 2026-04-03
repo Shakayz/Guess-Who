@@ -29,7 +29,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    allowedHosts: ['sonly-unanimating-gemma.ngrok-free.dev'],
+    allowedHosts: true,
     proxy: {
       '/api':       { target: process.env.API_TARGET ?? 'http://localhost:3001', changeOrigin: true },
       '/socket.io': { target: process.env.API_TARGET ?? 'http://localhost:3001', ws: true },

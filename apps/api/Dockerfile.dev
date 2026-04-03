@@ -31,5 +31,5 @@ WORKDIR /app/apps/api
 
 EXPOSE 3001
 
-# Run migrations then start the dev server with hot-reload
-CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && pnpm dev"]
+# Run migrations, seed word packs (idempotent), then start the dev server with hot-reload
+CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && npx tsx prisma/seed.ts && pnpm dev"]

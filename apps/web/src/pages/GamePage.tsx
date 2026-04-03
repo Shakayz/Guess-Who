@@ -157,6 +157,16 @@ export default function GamePage() {
   const players = room?.players ?? []
   const isRanked = room?.settings?.gameMode === 'ranked'
   const gameIsRunning = room?.status === 'in_progress' || room?.status === 'voting'
+
+  // Restore eliminated state from persisted room data (e.g. after page refresh)
+  useEffect(() => {
+    if (!room || !user) return
+    const me = room.players?.find((p) => p.userId === user.id)
+    if (me && (me.status === 'eliminated' || me.status === 'forfeited') && !isEliminated) {
+      setIsEliminated(true)
+    }
+  }, [room, user])
+
   const isAliveInGame = gameIsRunning && !isEliminated
 
   // Block tab close / browser refresh + back button while alive in game
@@ -486,7 +496,9 @@ export default function GamePage() {
 
   const handleLeaveEliminated = () => {
     getSocket().emit('game:leave-eliminated')
-    reset()
+    // Don't reset game state — the game is still running. The player stays
+    // "associated" with this game and cannot start a new one until game:finished
+    // arrives. They'll be redirected to results when the game ends.
     navigate('/')
   }
 

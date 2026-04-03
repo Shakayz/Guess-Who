@@ -12,7 +12,7 @@ const createRoomSchema = z.object({
     votingTimeSeconds:    z.number().min(15).max(120).default(30),
     wordPackId:           z.string().default('default'),
     isPrivate:            z.boolean().default(false),
-    language:             z.enum(['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh']).default('en'),
+    language:             z.enum(['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de']).default('en'),
     categories:           z.array(z.string()).default([]),
     gameMode:             z.enum(['normal', 'special', 'ranked']).default('normal'),
   }).optional(),

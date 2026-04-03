@@ -364,7 +364,7 @@ export default function ResultsPage() {
   const handlePlayAgain = () => {
     const roomCode = code ?? room?.code   // route param is most reliable
     reset()
-    navigate(roomCode ? `/room/${roomCode}` : '/')
+    navigate(roomCode ? `/lobby/${roomCode}` : '/')
   }
 
   return (
@@ -675,7 +675,7 @@ export default function ResultsPage() {
               {t('results.playAgain')}
             </button>
             <button
-              onClick={() => navigate('/profile')}
+              onClick={() => { reset(); navigate('/profile') }}
               className="px-5 py-3.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold transition-colors"
             >
               {t('results.profile')}

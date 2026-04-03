@@ -30,26 +30,58 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 /**
  * Redirects the user back to their active game if they try to navigate away
- * while a game is in progress. Prevents URL tricks / playing two games at once.
+ * while a game is in progress or the result hasn't been acknowledged.
+ * Prevents URL tricks / playing two games at once.
+ *
+ * Eliminated players who chose to leave the game view can browse freely BUT
+ * cannot start or join another game (blocked in HomePage). They'll be
+ * auto-navigated to results when the game finishes (via GlobalSocketListeners).
  */
 function ActiveGameGuard() {
   const room = useGameStore((s) => s.room)
+  const result = useGameStore((s) => s.result)
+  const gameFinished = useGameStore((s) => s.gameFinished)
   const location = useLocation()
   const navigate = useNavigate()
+  const user = useAuthStore((s) => s.user)
 
   useEffect(() => {
     if (!room) return
-    const isActiveGame = room.status === 'in_progress' || room.status === 'voting'
-    if (!isActiveGame) return
     const gameCode = room.code
     const gamePath = `/game/${gameCode}`
     const resultsPath = `/results/${gameCode}`
     const { pathname } = location
-    // Allow staying on game or results pages, nowhere else
-    if (pathname !== gamePath && pathname !== resultsPath) {
-      navigate(gamePath, { replace: true })
+
+    const isActiveGame = room.status === 'in_progress' || room.status === 'voting'
+
+    if (isActiveGame) {
+      // Check if player is eliminated — they can browse freely (except start new games)
+      const me = room.players?.find((p) => p.userId === user?.id)
+      const isEliminated = me && (me.status === 'eliminated' || me.status === 'forfeited')
+
+      if (isEliminated) {
+        // Eliminated players can browse but not join lobbies or other games
+        if (pathname.startsWith('/lobby/') || pathname.startsWith('/game/')) {
+          // Allow staying on THEIR game page, block other game/lobby pages
+          if (pathname !== gamePath) {
+            navigate(gamePath, { replace: true })
+          }
+        }
+        return
+      }
+
+      // Alive players — force back to game page
+      if (pathname !== gamePath && pathname !== resultsPath) {
+        navigate(gamePath, { replace: true })
+      }
+      return
     }
-  }, [room, location.pathname, navigate])
+
+    // Game finished but result not yet acknowledged — redirect to results
+    if (gameFinished && result && pathname !== resultsPath && pathname !== gamePath) {
+      navigate(resultsPath, { replace: true })
+    }
+  }, [room, result, gameFinished, location.pathname, navigate, user])
 
   return null
 }
@@ -85,6 +117,7 @@ function GlobalSocketListeners() {
   const incrementUnread = useSocialStore((s) => s.incrementUnread)
   const setPendingInvite = useSocialStore((s) => s.setPendingInvite)
   const setPendingFriendRequest = useSocialStore((s) => s.setPendingFriendRequest)
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (!token) return
@@ -105,16 +138,31 @@ function GlobalSocketListeners() {
       setPendingFriendRequest({ friendshipId: data.friendshipId, fromId: data.from.id, fromUsername: data.from.username })
     }
 
+    // Global game:finished listener — catches game end even if the player
+    // left the GamePage (e.g. eliminated player browsing home).
+    // The GamePage has its own handler that navigates to /results/:code;
+    // this one is a fallback for when the player is elsewhere.
+    const handleGameFinished = (data: any) => {
+      const store = useGameStore.getState()
+      // Only act if the game store still has an active room (not yet reset)
+      if (store.room && !store.result) {
+        store.setResult(data)
+        navigate(`/results/${store.room.code}`)
+      }
+    }
+
     sock.on('dm:receive', handleDmReceive)
     sock.on('room:invited', handleRoomInvited)
     sock.on('friend:request', handleFriendRequest)
+    sock.on('game:finished', handleGameFinished)
 
     return () => {
       sock.off('dm:receive', handleDmReceive)
       sock.off('room:invited', handleRoomInvited)
       sock.off('friend:request', handleFriendRequest)
+      sock.off('game:finished', handleGameFinished)
     }
-  }, [token, activeDm, incrementUnread, setPendingInvite, setPendingFriendRequest])
+  }, [token, activeDm, incrementUnread, setPendingInvite, setPendingFriendRequest, navigate])
 
   return null
 }
@@ -169,8 +217,15 @@ function InviteBanner() {
   const navigate = useNavigate()
   const pendingInvite = useSocialStore((s) => s.pendingInvite)
   const setPendingInvite = useSocialStore((s) => s.setPendingInvite)
+  const activeRoom = useGameStore((s) => s.room)
+  const isInActiveGame = activeRoom && (activeRoom.status === 'in_progress' || activeRoom.status === 'voting')
 
   if (!pendingInvite) return null
+
+  // Don't show invite banner if player is in an active game
+  if (isInActiveGame) {
+    return null
+  }
 
   return (
     <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 animate-slide-up">

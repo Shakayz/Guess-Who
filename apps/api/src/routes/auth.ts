@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import bcrypt from 'bcryptjs'
 
-const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh'] as const
+const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de'] as const
 
 const signUpSchema = z.object({
   username: z.string().min(3).max(20),

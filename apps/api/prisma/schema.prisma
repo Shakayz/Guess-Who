@@ -177,9 +177,11 @@ model WordPair {
   wordB      String
   difficulty String   @default("medium") @db.VarChar(10)
   category   String   @default("general")
+  locale     String   @default("en") @db.VarChar(5)
 
   pack WordPack @relation(fields: [packId], references: [id])
 
+  @@index([packId, locale, category])
   @@map("word_pairs")
 }
 

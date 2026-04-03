@@ -28,21 +28,58 @@ imposter-game/
 └── .github/        # GitHub Actions CI/CD
 ```
 
-## Quick Start
+## Docker Quick Start (Fresh Machine)
+
+The only prerequisite is **Docker Desktop**.
+
+```bash
+# 1. Clone and enter the repo
+git clone <repo-url> && cd imposter-game
+
+# 2. One-time setup (copies .env.example → .env)
+bash setup.sh
+
+# 3. Start everything
+docker compose -f docker-compose.dev.yml up
+```
+
+- Web: http://localhost:5173
+- API: http://localhost:3001
+
+Migrations and seed data (word packs) run automatically on first start. No other setup needed.
+
+### Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `env_file not found` error | Run `bash setup.sh` to create `apps/api/.env` |
+| API crashes at startup | Check `JWT_SECRET` in `apps/api/.env` is at least 32 characters |
+| Port already in use | Stop any local Postgres/Redis, or change ports in `docker-compose.dev.yml` |
+| `pnpm: not found` inside container | Rebuild: `docker compose -f docker-compose.dev.yml build` |
+
+---
+
+## Local Development (without Docker)
 
 ### Prerequisites
 - Node.js ≥ 20
 - pnpm ≥ 9
-- Docker + Docker Compose
+- Docker + Docker Compose (for PostgreSQL + Redis only)
 
-### Development
+### Setup
 
 ```bash
 # Install dependencies
 pnpm install
 
-# Start infrastructure (PostgreSQL + Redis)
-docker compose -f docker-compose.dev.yml up -d
+# Start infrastructure only (PostgreSQL + Redis)
+docker compose -f docker-compose.dev.yml up postgres redis -d
+
+# Copy and configure env
+cp apps/api/.env.example apps/api/.env
+
+# Run migrations + seed
+cd apps/api && pnpm db:migrate && pnpm db:seed && cd ../..
 
 # Start all dev servers
 pnpm dev
@@ -51,16 +88,6 @@ pnpm dev
 pnpm --filter @imposter/api dev     # API on :3001
 pnpm --filter @imposter/web dev     # Web on :5173
 pnpm --filter @imposter/mobile dev  # Expo
-```
-
-### Database Setup
-
-```bash
-cd apps/api
-cp .env.example .env
-# Edit .env with your values
-pnpm db:generate
-pnpm db:migrate
 ```
 
 ## Game Rules

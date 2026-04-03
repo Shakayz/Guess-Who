@@ -51,7 +51,7 @@ export default {
     rankedDesc: 'Todas las categorías · afecta LP',
     lobbyLabel: 'Crear sala',
     lobbyDesc: 'Invita amigos con un código',
-    rankedModeInfo: 'Se usan las 12 categorías. Las victorias y derrotas afectan tu LP y rango.',
+    rankedModeInfo: 'Se usan las 10 categorías. Las victorias y derrotas afectan tu LP y rango.',
     normalGameMode: 'Normal',
     normalGameModeDesc: 'Solo aldeanos e impostores',
     specialGameMode: 'Especial',

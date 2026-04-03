@@ -6,6 +6,8 @@ import { NavBar } from '../components/NavBar'
 import { WORD_CATEGORIES } from '@imposter/shared'
 import type { WordCategory } from '@imposter/shared'
 import { connectSocket, getSocket } from '../lib/socket'
+import { useGameStore } from '../store/game'
+import { useAuthStore } from '../store/auth'
 
 type HomeMode = 'normal' | 'ranked' | 'lobby'
 type SubGameMode = 'normal' | 'special'
@@ -13,6 +15,33 @@ type SubGameMode = 'normal' | 'special'
 export default function HomePage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
+  const activeRoom = useGameStore((s) => s.room)
+  const gameFinished = useGameStore((s) => s.gameFinished)
+  const gameResult = useGameStore((s) => s.result)
+
+  // If the player has an active game, determine what state they're in
+  const hasActiveGame = activeRoom && (
+    activeRoom.status === 'in_progress' || activeRoom.status === 'voting'
+  )
+  const hasUnacknowledgedResult = gameFinished && gameResult && activeRoom
+
+  // Check if eliminated — they can browse but not start new games
+  const user = useAuthStore((s) => s.user)
+  const isEliminatedInActiveGame = hasActiveGame && activeRoom?.players?.some(
+    (p) => p.userId === user?.id && (p.status === 'eliminated' || p.status === 'forfeited')
+  )
+
+  // Non-eliminated alive players or unacknowledged results → redirect
+  useEffect(() => {
+    if (hasActiveGame && !isEliminatedInActiveGame && activeRoom) {
+      navigate(`/game/${activeRoom.code}`, { replace: true })
+    } else if (hasUnacknowledgedResult && activeRoom) {
+      navigate(`/results/${activeRoom.code}`, { replace: true })
+    }
+  }, [hasActiveGame, isEliminatedInActiveGame, hasUnacknowledgedResult, activeRoom, navigate])
+
+  // Whether to block game creation/join buttons
+  const isBlockedFromNewGame = hasActiveGame && isEliminatedInActiveGame
 
   const [selectedMode, setSelectedMode] = useState<HomeMode | null>(null)
   const [unrankedSubMode, setUnrankedSubMode] = useState<SubGameMode>('normal')
@@ -51,7 +80,7 @@ export default function HomePage() {
   }
 
   const handleCreate = async () => {
-    if (!selectedMode) return
+    if (!selectedMode || isBlockedFromNewGame) return
     setError(null)
 
     if (selectedMode === 'lobby') {
@@ -84,7 +113,7 @@ export default function HomePage() {
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!roomCode.trim()) return
+    if (!roomCode.trim() || isBlockedFromNewGame) return
     navigate(`/lobby/${roomCode.trim().toUpperCase()}`)
   }
 
@@ -141,6 +170,23 @@ export default function HomePage() {
             <p className="text-neutral-400 text-base">{t('home.subtitle')}</p>
           </div>
 
+          {/* Active game warning — shown to eliminated players who can browse but not start new games */}
+          {isBlockedFromNewGame && activeRoom && (
+            <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-950/40 border border-amber-800/40 animate-slide-up">
+              <span className="text-amber-400 mt-0.5">⚠</span>
+              <div className="flex-1">
+                <p className="text-amber-400 text-sm font-semibold">{t('home.activeGameWarning', 'Game Still In Progress')}</p>
+                <p className="text-amber-600 text-xs mt-0.5">{t('home.activeGameWarningDesc', 'You are still part of an active game. Wait for it to finish before starting a new one.')}</p>
+              </div>
+              <button
+                onClick={() => navigate(`/game/${activeRoom.code}`)}
+                className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-xs font-semibold transition-colors whitespace-nowrap"
+              >
+                {t('home.returnToGame', 'Return')}
+              </button>
+            </div>
+          )}
+
           {/* Quick Join */}
           <form onSubmit={handleJoin} className="flex gap-2">
             <input
@@ -153,7 +199,7 @@ export default function HomePage() {
             />
             <button
               type="submit"
-              disabled={roomCode.trim().length < 4}
+              disabled={roomCode.trim().length < 4 || !!isBlockedFromNewGame}
               className="h-12 px-6 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-sm transition-colors disabled:opacity-40 border border-neutral-700 whitespace-nowrap"
             >
               {t('room.joinRoom')}
@@ -333,7 +379,7 @@ export default function HomePage() {
           {selectedMode && !matchmaking && (
             <button
               onClick={handleCreate}
-              disabled={loading}
+              disabled={loading || !!isBlockedFromNewGame}
               className={[
                 'w-full py-4 rounded-2xl font-bold text-lg text-white transition-all duration-150 active:scale-[0.98] shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed',
                 selectedMode === 'ranked'

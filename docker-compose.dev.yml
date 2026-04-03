@@ -53,11 +53,14 @@ services:
       dockerfile: apps/api/Dockerfile.dev
     container_name: imposter-api-dev
     # Override localhost URLs from apps/api/.env with Docker service names
-    env_file: apps/api/.env
+    env_file:
+      - path: apps/api/.env
+        required: false   # optional — env vars below take precedence
     environment:
       NODE_ENV:     development
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/imposter_game_dev
       REDIS_URL:    redis://redis:6379
+      JWT_SECRET:   ${JWT_SECRET:-dev-only-secret-please-change-in-production-123}
       ALLOWED_ORIGINS: >-
         http://localhost:5173,http://localhost:19006,https://sonly-unanimating-gemma.ngrok-free.dev
     ports:

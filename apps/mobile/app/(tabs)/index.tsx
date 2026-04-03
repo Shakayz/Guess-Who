@@ -277,7 +277,7 @@ export default function HomeScreen() {
               <View className="flex-1">
                 <Text className="text-amber-400 text-sm font-semibold">Ranked mode</Text>
                 <Text className="text-amber-600 text-xs mt-0.5">
-                  All 12 categories are used. Wins and losses affect your LP and rank.
+                  All 10 categories are used. Wins and losses affect your LP and rank.
                 </Text>
               </View>
             </View>

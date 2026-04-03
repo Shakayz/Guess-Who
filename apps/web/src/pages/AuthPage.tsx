@@ -64,6 +64,8 @@ export default function AuthPage() {
   const handleLangChange = (code: string) => {
     i18n.changeLanguage(code)
     document.documentElement.dir = code === 'ar' ? 'rtl' : 'ltr'
+    // Also update DB locale if already logged in (edge case: language switcher on auth page)
+    api.patch('/users/me', { locale: code }).catch(() => {/* non-critical — user may not be logged in yet */})
   }
 
   const handleOAuthResponse = (data: { token?: string; user?: any; needsUsername?: boolean; setupToken?: string; suggestedUsername?: string }) => {

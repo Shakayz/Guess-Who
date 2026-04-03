@@ -37,10 +37,14 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     container_name: imposter-api
-    env_file: apps/api/.env
+    env_file:
+      - path: apps/api/.env
+        required: false   # optional — env vars below take precedence
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/imposter_game
       REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-please-change-in-production-123}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
     ports:
       - "3001:3001"
     depends_on:
