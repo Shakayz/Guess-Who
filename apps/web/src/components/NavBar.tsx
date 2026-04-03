@@ -137,7 +137,7 @@ export function NavBar() {
         </button>
         <div className="w-px h-4 bg-neutral-800 mx-0.5" />
         <button
-          onClick={clearAuth}
+          onClick={() => { navigate('/auth'); clearAuth() }}
           className="px-3 py-1.5 text-sm text-neutral-500 hover:text-red-400 rounded-lg transition-all"
         >
           {t('nav.signOut')}
