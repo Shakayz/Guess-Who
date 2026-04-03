@@ -444,7 +444,7 @@ export default function LobbyPage() {
 
   const isHost = room?.hostId === user?.id
   const players = room?.players ?? []
-  const allReady = players.length >= 2 && players.every((p) => p.isReady || p.isHost)
+  const allReady = players.length >= 2 && players.every((p) => p.isReady || p.userId === room?.hostId)
   const minPlayers = 4
   const activeCats = settings.categories.length > 0
     ? settings.categories.length
@@ -661,17 +661,17 @@ export default function LobbyPage() {
                 className={[
                   'flex-1 py-3 rounded-xl font-semibold transition-all',
                   isReady
-                    ? 'bg-neutral-700 hover:bg-red-900/60 text-neutral-400 hover:text-red-300 border border-neutral-600'
+                    ? 'bg-emerald-700/60 hover:bg-red-900/60 text-emerald-300 hover:text-red-300 border border-emerald-700/50'
                     : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20',
                 ].join(' ')}
               >
-                {isReady ? t('lobby.ready') : t('lobby.notReady')}
+                {isReady ? `✓ ${t('lobby.ready')}` : t('lobby.notReady')}
               </button>
             ) : (
               <button
                 onClick={startGame}
-                disabled={players.length < minPlayers}
-                className="flex-1 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition-all disabled:opacity-40 shadow-lg shadow-brand-600/20"
+                disabled={players.length < minPlayers || !allReady}
+                className="flex-1 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-brand-600/20"
               >
                 {t('lobby.startGame')}
               </button>
