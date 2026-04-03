@@ -344,6 +344,7 @@ export default function LobbyPage() {
       }
       if (r.settings) {
         const serverCats: WordCategory[] = (r.settings as any).categories ?? []
+        const roomLang = (r.settings.language as Locale) ?? 'en'
         setSettings((prev) => ({
           ...prev,
           maxPlayers: r.settings.maxPlayers,
@@ -355,8 +356,13 @@ export default function LobbyPage() {
           enableDetective: (r.settings as any).enableDetective ?? false,
           enableDoubleAgent: (r.settings as any).enableDoubleAgent ?? false,
           maxRounds: r.maxRounds ?? 0,
-          language: (r.settings.language as Locale) ?? prev.language,
+          language: roomLang,
         }))
+        // Switch UI language to match the room's language
+        if (i18n.language.split('-')[0] !== roomLang) {
+          i18n.changeLanguage(roomLang)
+          document.documentElement.dir = roomLang === 'ar' ? 'rtl' : 'ltr'
+        }
       }
     })
     socket.on('game:started', ({ round, yourWord, yourRole, yourVillagerWord }) => {
