@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -14,12 +14,37 @@ import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import * as AppleAuthentication from 'expo-apple-authentication'
 import * as WebBrowser from 'expo-web-browser'
+import * as AuthSession from 'expo-auth-session'
+import * as Crypto from 'expo-crypto'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
+import i18n from '../i18n'
 
 WebBrowser.maybeCompleteAuthSession()
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const GOOGLE_CLIENT_ID = '' // TODO: fill in your Google OAuth client ID
+
+const LANGUAGES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh'] as const
+
+const googleDiscovery = {
+  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+  tokenEndpoint: 'https://oauth2.googleapis.com/token',
+  revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
+}
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 type Mode = 'signin' | 'signup'
+
+interface GoogleVerifyResponse {
+  token?: string
+  user?: { id: string; username: string; email: string }
+  setupToken?: string
+}
+
+// ─── AuthScreen ──────────────────────────────────────────────────────────────
 
 export default function AuthScreen() {
   const { t } = useTranslation()
@@ -31,6 +56,116 @@ export default function AuthScreen() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Google OAuth username setup state
+  const [setupToken, setSetupToken] = useState<string | null>(null)
+  const [setupUsername, setSetupUsername] = useState('')
+
+  // Language switcher state
+  const [currentLangIndex, setCurrentLangIndex] = useState(
+    LANGUAGES.indexOf(i18n.language as typeof LANGUAGES[number]) >= 0
+      ? LANGUAGES.indexOf(i18n.language as typeof LANGUAGES[number])
+      : 0,
+  )
+
+  // ─── Google OAuth ────────────────────────────────────────────────────────
+
+  const [googleRequest, googleResponse, googlePromptAsync] =
+    AuthSession.useAuthRequest(
+      {
+        clientId: GOOGLE_CLIENT_ID,
+        scopes: ['openid', 'profile', 'email'],
+        responseType: AuthSession.ResponseType.Token,
+        usePKCE: false,
+      },
+      googleDiscovery,
+    )
+
+  useEffect(() => {
+    if (googleResponse?.type === 'success') {
+      const accessToken = googleResponse.params.access_token
+      if (accessToken) {
+        handleGoogleToken(accessToken)
+      }
+    } else if (googleResponse?.type === 'error') {
+      setError(googleResponse.error?.message ?? 'Google sign-in failed')
+      setLoading(false)
+    } else if (googleResponse?.type === 'dismiss') {
+      setLoading(false)
+    }
+  }, [googleResponse])
+
+  const handleGoogleToken = async (accessToken: string) => {
+    setError(null)
+    setLoading(true)
+    try {
+      const data = await api.post<GoogleVerifyResponse>(
+        '/auth/google/verify',
+        { accessToken },
+      )
+
+      if (data.setupToken) {
+        // New user -- need to pick a username
+        setSetupToken(data.setupToken)
+        setLoading(false)
+        return
+      }
+
+      if (data.token && data.user) {
+        setAuth(data.token, data.user)
+        router.replace('/')
+      }
+    } catch (err: any) {
+      setError(err.message ?? 'Google sign-in failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoogleSignIn = async () => {
+    if (!GOOGLE_CLIENT_ID) {
+      setError('Google sign-in: configure GOOGLE_CLIENT_ID')
+      return
+    }
+    setError(null)
+    setLoading(true)
+    await googlePromptAsync()
+  }
+
+  // ─── Username setup (for new Google OAuth users) ─────────────────────────
+
+  const handleSetupUsername = async () => {
+    if (!setupUsername.trim()) {
+      setError('Please enter a username')
+      return
+    }
+    setError(null)
+    setLoading(true)
+    try {
+      const data = await api.post<{ token: string; user: { id: string; username: string; email: string } }>(
+        '/auth/setup-username',
+        { setupToken, username: setupUsername.trim() },
+      )
+      setAuth(data.token, data.user)
+      setSetupToken(null)
+      setSetupUsername('')
+      router.replace('/')
+    } catch (err: any) {
+      setError(err.message ?? 'Username setup failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ─── Language switcher ───────────────────────────────────────────────────
+
+  const cycleLanguage = () => {
+    const nextIndex = (currentLangIndex + 1) % LANGUAGES.length
+    setCurrentLangIndex(nextIndex)
+    i18n.changeLanguage(LANGUAGES[nextIndex])
+  }
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
   const update = (field: keyof typeof form) => (value: string) =>
     setForm((f) => ({ ...f, [field]: value }))
 
@@ -38,6 +173,8 @@ export default function AuthScreen() {
     setMode(m)
     setError(null)
   }
+
+  // ─── Email / password ────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
     setError(null)
@@ -55,6 +192,8 @@ export default function AuthScreen() {
       setLoading(false)
     }
   }
+
+  // ─── Apple ───────────────────────────────────────────────────────────────
 
   const handleApple = async () => {
     setError(null)
@@ -84,8 +223,101 @@ export default function AuthScreen() {
     }
   }
 
+  // ─── Username setup screen ──────────────────────────────────────────────
+
+  if (setupToken) {
+    return (
+      <SafeAreaView className="flex-1 bg-neutral-950">
+        <KeyboardAvoidingView
+          className="flex-1"
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View className="flex-1 items-center justify-center p-6">
+            <View className="w-full max-w-sm">
+              <View className="items-center mb-10">
+                <View className="w-16 h-16 rounded-2xl bg-violet-700 items-center justify-center mb-5">
+                  <Text className="text-3xl">🎭</Text>
+                </View>
+                <Text className="text-2xl font-extrabold text-white tracking-tight">
+                  Choose a Username
+                </Text>
+                <Text className="text-neutral-500 text-sm mt-1.5">
+                  Pick a display name for your account
+                </Text>
+              </View>
+
+              <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+                <View className="mb-4">
+                  <TextInput
+                    className="bg-neutral-800 text-white px-4 py-3 rounded-xl border border-neutral-700"
+                    placeholder="Username"
+                    placeholderTextColor="#737373"
+                    value={setupUsername}
+                    onChangeText={setSetupUsername}
+                    autoCapitalize="none"
+                    autoComplete="username"
+                    maxLength={20}
+                    autoFocus
+                  />
+                </View>
+
+                {error && (
+                  <View className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800 mb-4">
+                    <Text className="text-red-400 text-sm">⚠ {error}</Text>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  onPress={handleSetupUsername}
+                  disabled={loading || !setupUsername.trim()}
+                  className={[
+                    'py-3 rounded-xl items-center',
+                    loading || !setupUsername.trim() ? 'bg-violet-800 opacity-60' : 'bg-violet-600',
+                  ].join(' ')}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text className="text-white font-semibold text-base">Continue</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setSetupToken(null)
+                  setSetupUsername('')
+                  setError(null)
+                }}
+                className="mt-4 items-center"
+              >
+                <Text className="text-neutral-500 text-xs">Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    )
+  }
+
+  // ─── Main auth screen ───────────────────────────────────────────────────
+
   return (
     <SafeAreaView className="flex-1 bg-neutral-950">
+      {/* Language switcher */}
+      <View className="flex-row justify-end px-4 pt-2">
+        <TouchableOpacity
+          onPress={cycleLanguage}
+          className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700"
+          activeOpacity={0.7}
+        >
+          <Text className="text-white text-xs font-bold uppercase">
+            {LANGUAGES[currentLangIndex].toUpperCase()}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -116,7 +348,8 @@ export default function AuthScreen() {
                   onPress={handleApple}
                 />
                 <TouchableOpacity
-                  onPress={() => setError('Google sign-in: configure VITE_GOOGLE_CLIENT_ID')}
+                  onPress={handleGoogleSignIn}
+                  disabled={loading}
                   className="flex-row items-center justify-center gap-3 py-3 rounded-xl bg-white border border-neutral-200"
                   activeOpacity={0.8}
                 >

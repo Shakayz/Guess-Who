@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -10,8 +10,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '../store/auth'
-import { api } from '../lib/api'
+import { useAuthStore } from '../../store/auth'
+import { api } from '../../lib/api'
+import { connectSocket, getSocket } from '../../lib/socket'
 import { WORD_CATEGORIES } from '@imposter/shared'
 import type { WordCategory } from '@imposter/shared'
 
@@ -33,15 +34,66 @@ const MODES: { id: GameMode; icon: string; label: string; desc: string }[] = [
 export default function HomeScreen() {
   const { t } = useTranslation()
   const router = useRouter()
-  const { user, clearAuth } = useAuthStore()
+  const user = useAuthStore((s) => s.user)
 
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
   const [categories, setCategories] = useState<WordCategory[]>([])
   const [roomCode, setRoomCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [inQueue, setInQueue] = useState(false)
+  const [queueCount, setQueueCount] = useState(0)
 
   const hasCategories = selectedMode === 'normal' || selectedMode === 'lobby'
+
+  // Matchmaking listeners
+  useEffect(() => {
+    if (!inQueue) return
+    connectSocket()
+    const socket = getSocket()
+
+    const onStatus = (data: any) => setQueueCount(data.queueSize ?? 0)
+    const onFound = (data: any) => {
+      setInQueue(false)
+      setLoading(false)
+      router.push(`/lobby/${data.roomCode}`)
+    }
+    const onError = (data: any) => {
+      setInQueue(false)
+      setLoading(false)
+      setError(data.message ?? 'Matchmaking error')
+    }
+
+    socket.on('matchmaking:status' as any, onStatus)
+    socket.on('matchmaking:found' as any, onFound)
+    socket.on('matchmaking:error' as any, onError)
+
+    return () => {
+      socket.off('matchmaking:status' as any, onStatus)
+      socket.off('matchmaking:found' as any, onFound)
+      socket.off('matchmaking:error' as any, onError)
+    }
+  }, [inQueue])
+
+  const handleMatchmaking = useCallback(() => {
+    if (!selectedMode || selectedMode === 'lobby') return
+    connectSocket()
+    const socket = getSocket()
+    setInQueue(true)
+    setLoading(true)
+    setError(null)
+    socket.emit('matchmaking:join' as any, {
+      gameMode: selectedMode === 'ranked' ? 'ranked' : 'normal',
+      categories: selectedMode === 'ranked' ? [] : categories,
+    })
+  }, [selectedMode, categories])
+
+  const cancelMatchmaking = useCallback(() => {
+    const socket = getSocket()
+    socket.emit('matchmaking:leave' as any, {})
+    setInQueue(false)
+    setLoading(false)
+  }, [])
 
   const toggleCategory = (key: WordCategory) => {
     setCategories((prev) =>
@@ -89,12 +141,7 @@ export default function HomeScreen() {
             <Text className="text-white font-bold text-lg tracking-tight">Imposter</Text>
           </View>
           {user && (
-            <View className="flex-row items-center gap-3">
-              <Text className="text-neutral-400 text-sm">@{user.username}</Text>
-              <TouchableOpacity onPress={clearAuth}>
-                <Text className="text-neutral-600 text-sm">Sign out</Text>
-              </TouchableOpacity>
-            </View>
+            <Text className="text-neutral-400 text-sm">@{user.username}</Text>
           )}
         </View>
 
@@ -236,10 +283,10 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* Create button */}
-          {selectedMode && (
+          {/* Create / Find button */}
+          {selectedMode && !inQueue && (
             <TouchableOpacity
-              onPress={handleCreate}
+              onPress={selectedMode === 'lobby' ? handleCreate : handleMatchmaking}
               disabled={loading}
               className={[
                 'py-4 rounded-2xl items-center',
@@ -254,12 +301,31 @@ export default function HomeScreen() {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text className="text-white font-bold text-lg">
-                  {selectedMode === 'normal' && '🎮 Start Normal Game'}
-                  {selectedMode === 'ranked' && '🏆 Start Ranked Game'}
-                  {selectedMode === 'lobby' && '🚪 Create Lobby'}
+                  {selectedMode === 'normal' && t('home.findGame')}
+                  {selectedMode === 'ranked' && t('home.findRanked')}
+                  {selectedMode === 'lobby' && t('home.createLobby')}
                 </Text>
               )}
             </TouchableOpacity>
+          )}
+
+          {/* Matchmaking queue */}
+          {inQueue && (
+            <View className="bg-violet-950 border border-violet-800 rounded-2xl p-5 items-center gap-3">
+              <ActivityIndicator color="#8b5cf6" size="large" />
+              <Text className="text-violet-300 font-semibold text-sm">
+                {t('home.findingPlayers')}
+              </Text>
+              <Text className="text-violet-500 text-xs">
+                {t('home.inQueue', { count: queueCount })}
+              </Text>
+              <TouchableOpacity
+                onPress={cancelMatchmaking}
+                className="px-5 py-2 rounded-xl bg-neutral-800 border border-neutral-700 mt-1"
+              >
+                <Text className="text-neutral-300 font-semibold text-sm">{t('common.cancel')}</Text>
+              </TouchableOpacity>
+            </View>
           )}
 
           {/* Error */}

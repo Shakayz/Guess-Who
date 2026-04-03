@@ -1,0 +1,210 @@
+import React, { useState, useEffect, useCallback } from 'react'
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
+} from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
+import { useTranslation } from 'react-i18next'
+import { api } from '../../../lib/api'
+import { useAuthStore } from '../../../store/auth'
+
+interface GameSummary {
+  id: string
+  winner: 'villagers' | 'imposters'
+  myRole: 'villager' | 'imposter' | 'detective' | 'doubleAgent'
+  roundCount: number
+  players: string[]
+  createdAt: string
+}
+
+interface HistoryResponse {
+  games: GameSummary[]
+  totalPages: number
+}
+
+const ROLE_CONFIG: Record<string, { emoji: string; label: string }> = {
+  villager: { emoji: '🏘️', label: 'Villager' },
+  imposter: { emoji: '🎭', label: 'Imposter' },
+  detective: { emoji: '🔍', label: 'Detective' },
+  doubleAgent: { emoji: '🕵️', label: 'Double Agent' },
+}
+
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+})
+
+function didWin(winner: string, myRole: string): boolean {
+  const villagerTeam = ['villager', 'detective']
+  const imposterTeam = ['imposter', 'doubleAgent']
+  if (winner === 'villagers') return villagerTeam.includes(myRole)
+  return imposterTeam.includes(myRole)
+}
+
+export default function HistoryScreen() {
+  const { t } = useTranslation()
+  const router = useRouter()
+  const user = useAuthStore((s) => s.user)
+
+  const [games, setGames] = useState<GameSummary[]>([])
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchPage = useCallback(
+    async (p: number) => {
+      try {
+        const data = await api.get<HistoryResponse>(
+          `/history?page=${p}&limit=10`,
+        )
+        if (p === 1) {
+          setGames(data.games)
+        } else {
+          setGames((prev) => [...prev, ...data.games])
+        }
+        setTotalPages(data.totalPages)
+      } catch (err: any) {
+        setError(err.message)
+      }
+    },
+    [],
+  )
+
+  useEffect(() => {
+    setLoading(true)
+    fetchPage(1).finally(() => setLoading(false))
+  }, [fetchPage])
+
+  const handleLoadMore = useCallback(() => {
+    if (loadingMore || page >= totalPages) return
+    const nextPage = page + 1
+    setPage(nextPage)
+    setLoadingMore(true)
+    fetchPage(nextPage).finally(() => setLoadingMore(false))
+  }, [loadingMore, page, totalPages, fetchPage])
+
+  const renderGame = useCallback(
+    ({ item }: { item: GameSummary }) => {
+      const won = didWin(item.winner, item.myRole)
+      const role = ROLE_CONFIG[item.myRole] ?? ROLE_CONFIG.villager
+
+      return (
+        <TouchableOpacity
+          onPress={() => router.push(`/history/${item.id}`)}
+          className="mx-4 mb-3 p-4 rounded-2xl border border-neutral-800 bg-neutral-900"
+          activeOpacity={0.7}
+        >
+          <View className="flex-row items-center justify-between mb-2">
+            <View
+              className={`px-2.5 py-1 rounded-lg ${won ? 'bg-emerald-950 border border-emerald-800' : 'bg-red-950 border border-red-800'}`}
+            >
+              <Text
+                className={`text-xs font-bold ${won ? 'text-emerald-400' : 'text-red-400'}`}
+              >
+                {won ? t('results.victory') : t('results.defeat')}
+              </Text>
+            </View>
+            <Text className="text-neutral-500 text-xs">
+              {dateFormatter.format(new Date(item.createdAt))}
+            </Text>
+          </View>
+
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center gap-2">
+              <Text className="text-lg">{role.emoji}</Text>
+              <Text className="text-white font-semibold text-sm">
+                {role.label}
+              </Text>
+            </View>
+            <Text className="text-neutral-500 text-xs">
+              {item.roundCount} {item.roundCount === 1 ? 'round' : 'rounds'}
+            </Text>
+          </View>
+
+          <View className="flex-row items-center mt-2 gap-1">
+            <Text className="text-neutral-600 text-xs">
+              {item.players.length} {t('common.players').toLowerCase()}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )
+    },
+    [router, t],
+  )
+
+  if (loading) {
+    return (
+      <SafeAreaView className="flex-1 bg-neutral-950 items-center justify-center">
+        <ActivityIndicator size="large" color="#8b5cf6" />
+        <Text className="text-neutral-500 mt-3 text-sm">
+          {t('common.loading')}
+        </Text>
+      </SafeAreaView>
+    )
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView className="flex-1 bg-neutral-950 items-center justify-center px-6">
+        <Text className="text-red-400 text-sm text-center mb-4">
+          {error}
+        </Text>
+        <TouchableOpacity
+          onPress={() => {
+            setError(null)
+            setLoading(true)
+            setPage(1)
+            fetchPage(1).finally(() => setLoading(false))
+          }}
+          className="px-5 py-2.5 rounded-xl bg-violet-600"
+          activeOpacity={0.8}
+        >
+          <Text className="text-white font-semibold text-sm">
+            {t('common.retry')}
+          </Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    )
+  }
+
+  return (
+    <SafeAreaView className="flex-1 bg-neutral-950" edges={['bottom']}>
+      <FlatList
+        data={games}
+        keyExtractor={(item) => item.id}
+        renderItem={renderGame}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}
+        showsVerticalScrollIndicator={false}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={
+          loadingMore ? (
+            <View className="py-4 items-center">
+              <ActivityIndicator size="small" color="#8b5cf6" />
+            </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          <View className="items-center justify-center pt-24 px-6">
+            <Text className="text-4xl mb-4">📜</Text>
+            <Text className="text-neutral-500 text-base text-center">
+              No games played yet
+            </Text>
+            <Text className="text-neutral-600 text-sm text-center mt-1">
+              Your game history will appear here
+            </Text>
+          </View>
+        }
+      />
+    </SafeAreaView>
+  )
+}

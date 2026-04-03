@@ -9,9 +9,10 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useGameStore } from '../../store/game'
 import { useAuthStore } from '../../store/auth'
-import { getSocket } from '../../lib/socket'
+import { getSocket, disconnectSocket } from '../../lib/socket'
 import { RANK_CONFIG } from '@imposter/shared'
 import type { HonorType } from '@imposter/shared'
+import { useTranslation } from 'react-i18next'
 
 const HONOR_OPTIONS: { type: HonorType; label: string; icon: string }[] = [
   { type: 'teamplayer', label: 'Team Player', icon: '🤝' },

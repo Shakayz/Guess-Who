@@ -1,16 +1,22 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   ScrollView,
   Alert,
+  Switch,
+  ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
+import * as Clipboard from 'expo-clipboard'
+import * as Sharing from 'expo-sharing'
 import { useAuthStore } from '../../store/auth'
 import { useGameStore } from '../../store/game'
 import { connectSocket, getSocket } from '../../lib/socket'
+import { api } from '../../lib/api'
 import { WORD_CATEGORIES } from '@imposter/shared'
 import type { Room, GameMode, WordCategory } from '@imposter/shared'
 
@@ -64,8 +70,11 @@ interface Settings {
   imposterCount: number
   speakingTimeSeconds: number
   votingTimeSeconds: number
-  gameMode: GameMode
+  maxRounds: number
+  gameMode: GameMode | 'special'
   categories: WordCategory[]
+  hasDetective: boolean
+  hasDoubleAgent: boolean
 }
 
 function SettingsPanel({
@@ -92,7 +101,7 @@ function SettingsPanel({
       <View>
         <Text className="text-xs text-neutral-500 mb-2">Game Mode</Text>
         <View className="flex-row gap-2">
-          {(['normal', 'ranked'] as GameMode[]).map((mode) => (
+          {(['normal', 'special', 'ranked'] as const).map((mode) => (
             <TouchableOpacity
               key={mode}
               onPress={() =>
@@ -100,6 +109,9 @@ function SettingsPanel({
                   ...settings,
                   gameMode: mode,
                   categories: mode === 'ranked' ? [] : settings.categories,
+                  // Reset special roles when leaving special mode
+                  hasDetective: mode === 'special' ? settings.hasDetective : false,
+                  hasDoubleAgent: mode === 'special' ? settings.hasDoubleAgent : false,
                 })
               }
               className={[
@@ -107,21 +119,25 @@ function SettingsPanel({
                 settings.gameMode === mode
                   ? mode === 'ranked'
                     ? 'bg-amber-950 border-amber-700'
+                    : mode === 'special'
+                    ? 'bg-cyan-950 border-cyan-700'
                     : 'bg-violet-950 border-violet-700'
                   : 'bg-neutral-800 border-neutral-700',
               ].join(' ')}
             >
               <Text
                 className={[
-                  'text-sm font-semibold',
+                  'text-xs font-semibold',
                   settings.gameMode === mode
                     ? mode === 'ranked'
                       ? 'text-amber-400'
+                      : mode === 'special'
+                      ? 'text-cyan-400'
                       : 'text-violet-400'
                     : 'text-neutral-400',
                 ].join(' ')}
               >
-                {mode === 'ranked' ? '🏆 Ranked' : '🎮 Normal'}
+                {mode === 'ranked' ? '🏆 Ranked' : mode === 'special' ? '🔮 Special' : '🎮 Normal'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -129,12 +145,49 @@ function SettingsPanel({
         <Text className="text-xs text-neutral-600 mt-1.5">
           {settings.gameMode === 'ranked'
             ? 'All categories — affects LP'
+            : settings.gameMode === 'special'
+            ? 'Special roles enabled — custom rules'
             : 'Custom categories — no LP impact'}
         </Text>
       </View>
 
-      {/* Categories (normal only) */}
-      {settings.gameMode === 'normal' && (
+      {/* Special Roles (special mode only) */}
+      {settings.gameMode === 'special' && (
+        <View className="gap-3 pt-2 border-t border-neutral-800">
+          <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+            Special Roles
+          </Text>
+
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1">
+              <Text className="text-sm text-neutral-300">🔍 Detective</Text>
+              <Text className="text-xs text-neutral-600">Can reveal one player's role per game</Text>
+            </View>
+            <Switch
+              value={settings.hasDetective}
+              onValueChange={(v) => onChange({ ...settings, hasDetective: v })}
+              trackColor={{ false: '#404040', true: '#0e7490' }}
+              thumbColor={settings.hasDetective ? '#22d3ee' : '#a3a3a3'}
+            />
+          </View>
+
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1">
+              <Text className="text-sm text-neutral-300">🕵️ Double Agent</Text>
+              <Text className="text-xs text-neutral-600">Knows the imposters but plays as villager</Text>
+            </View>
+            <Switch
+              value={settings.hasDoubleAgent}
+              onValueChange={(v) => onChange({ ...settings, hasDoubleAgent: v })}
+              trackColor={{ false: '#404040', true: '#0e7490' }}
+              thumbColor={settings.hasDoubleAgent ? '#22d3ee' : '#a3a3a3'}
+            />
+          </View>
+        </View>
+      )}
+
+      {/* Categories (normal / special only) */}
+      {settings.gameMode !== 'ranked' && (
         <View>
           <View className="flex-row items-center justify-between mb-2">
             <Text className="text-xs text-neutral-500">Categories</Text>
@@ -208,6 +261,14 @@ function SettingsPanel({
           onChange={(v) => onChange({ ...settings, imposterCount: v })}
         />
         <NumStepper
+          label="Max Rounds"
+          value={settings.maxRounds}
+          min={0}
+          max={20}
+          format={(v) => (v === 0 ? '∞' : `${v}`)}
+          onChange={(v) => onChange({ ...settings, maxRounds: v })}
+        />
+        <NumStepper
           label="Speaking Time"
           value={settings.speakingTimeSeconds}
           min={10}
@@ -230,6 +291,14 @@ function SettingsPanel({
   )
 }
 
+// ─── Friend invite types ─────────────────────────────────────────────────────
+
+interface Friend {
+  id: string
+  username: string
+  status?: string
+}
+
 // ─── LobbyScreen ─────────────────────────────────────────────────────────────
 
 const DEFAULT_SETTINGS: Settings = {
@@ -237,8 +306,11 @@ const DEFAULT_SETTINGS: Settings = {
   imposterCount: 2,
   speakingTimeSeconds: 30,
   votingTimeSeconds: 30,
+  maxRounds: 0,
   gameMode: 'normal',
   categories: [],
+  hasDetective: false,
+  hasDoubleAgent: false,
 }
 
 export default function LobbyScreen() {
@@ -250,14 +322,82 @@ export default function LobbyScreen() {
   const [isReady, setIsReady] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
+  const [codeCopied, setCodeCopied] = useState(false)
+
+  // Friends invite state
+  const [friends, setFriends] = useState<Friend[]>([])
+  const [friendsLoading, setFriendsLoading] = useState(false)
+  const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
+  const [showFriends, setShowFriends] = useState(false)
+
+  // ─── Settings change ────────────────────────────────────────────────────
 
   const handleSettingsChange = (s: Settings) => {
     setSettings(s)
     getSocket().emit('room:settings' as any, {
       gameMode: s.gameMode,
       categories: s.categories,
+      maxPlayers: s.maxPlayers,
+      imposterCount: s.imposterCount,
+      speakingTimeSeconds: s.speakingTimeSeconds,
+      votingTimeSeconds: s.votingTimeSeconds,
+      maxRounds: s.maxRounds,
+      hasDetective: s.hasDetective,
+      hasDoubleAgent: s.hasDoubleAgent,
     })
   }
+
+  // ─── Copy room code ─────────────────────────────────────────────────────
+
+  const copyRoomCode = useCallback(async () => {
+    if (!code) return
+    await Clipboard.setStringAsync(code)
+    setCodeCopied(true)
+    setTimeout(() => setCodeCopied(false), 2000)
+  }, [code])
+
+  // ─── Share room code ────────────────────────────────────────────────────
+
+  const shareRoomCode = useCallback(async () => {
+    if (!code) return
+    const isAvailable = await Sharing.isAvailableAsync()
+    if (isAvailable) {
+      // Sharing.shareAsync requires a file URI; for plain text we use Alert fallback
+      // or we can use the Share API from react-native instead
+      Alert.alert('Share Room Code', `Join my game! Room code: ${code}`, [
+        { text: 'Copy & Share', onPress: copyRoomCode },
+        { text: 'Cancel', style: 'cancel' },
+      ])
+    } else {
+      await copyRoomCode()
+    }
+  }, [code, copyRoomCode])
+
+  // ─── Fetch friends ──────────────────────────────────────────────────────
+
+  const fetchFriends = useCallback(async () => {
+    setFriendsLoading(true)
+    try {
+      const data = await api.get<{ friends: Friend[] }>('/friends')
+      setFriends(data.friends ?? [])
+    } catch (err) {
+      console.error('[lobby] failed to fetch friends:', err)
+      setFriends([])
+    } finally {
+      setFriendsLoading(false)
+    }
+  }, [])
+
+  const inviteFriend = useCallback(
+    (friendId: string) => {
+      if (!code) return
+      getSocket().emit('room:invite' as any, { toUserId: friendId, roomCode: code })
+      setInvitedIds((prev) => new Set(prev).add(friendId))
+    },
+    [code],
+  )
+
+  // ─── Socket setup ──────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!code) return
@@ -274,8 +414,11 @@ export default function LobbyScreen() {
           imposterCount: r.settings.imposterCount,
           speakingTimeSeconds: r.settings.speakingTimeSeconds,
           votingTimeSeconds: r.settings.votingTimeSeconds,
+          maxRounds: (r.settings as any).maxRounds ?? 0,
           gameMode: (r.settings as any).gameMode ?? 'normal',
           categories: (r.settings as any).categories ?? [],
+          hasDetective: (r.settings as any).hasDetective ?? false,
+          hasDoubleAgent: (r.settings as any).hasDoubleAgent ?? false,
         }))
       }
     })
@@ -286,14 +429,26 @@ export default function LobbyScreen() {
       router.replace(`/game/${code}`)
     })
 
+    // Matchmaking events
+    socket.on('matchmaking:found' as any, (data: any) => {
+      console.log('[lobby] matchmaking found:', data)
+    })
+    socket.on('matchmaking:cancelled' as any, () => {
+      console.log('[lobby] matchmaking cancelled')
+    })
+
     socket.on('error', (err) => console.error('[socket error]', err))
 
     return () => {
       socket.off('room:updated')
       socket.off('game:started')
+      socket.off('matchmaking:found' as any)
+      socket.off('matchmaking:cancelled' as any)
       socket.off('error')
     }
   }, [code])
+
+  // ─── Actions ───────────────────────────────────────────────────────────
 
   const toggleReady = () => {
     getSocket().emit('player:ready', !isReady)
@@ -306,6 +461,8 @@ export default function LobbyScreen() {
     getSocket().emit('room:leave')
     router.replace('/')
   }
+
+  // ─── Derived state ─────────────────────────────────────────────────────
 
   const isHost = room?.hostId === user?.id
   const players = room?.players ?? []
@@ -325,14 +482,25 @@ export default function LobbyScreen() {
           <Text className="text-neutral-500 text-sm mt-1">Share the code below to invite friends</Text>
         </View>
 
-        {/* Room code */}
+        {/* Room code + share */}
         <TouchableOpacity
-          onPress={() => Alert.alert('Room Code', code ?? '', [{ text: 'OK' }])}
+          onPress={copyRoomCode}
           className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 items-center"
         >
           <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">Room Code</Text>
           <Text className="text-4xl font-black font-mono text-white tracking-[0.2em]">{code}</Text>
-          <Text className="text-xs text-neutral-600 mt-2">Tap to copy</Text>
+          <Text className="text-xs text-neutral-600 mt-2">
+            {codeCopied ? '✓ Copied!' : 'Tap to copy'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Share button */}
+        <TouchableOpacity
+          onPress={shareRoomCode}
+          className="flex-row items-center justify-center gap-2 py-3 rounded-xl bg-violet-950 border border-violet-800"
+          activeOpacity={0.8}
+        >
+          <Text className="text-violet-300 font-semibold text-sm">📤 Share Room Code</Text>
         </TouchableOpacity>
 
         {/* Player list */}
@@ -416,6 +584,77 @@ export default function LobbyScreen() {
           </View>
         )}
 
+        {/* Invite Friends section */}
+        <TouchableOpacity
+          onPress={() => {
+            setShowFriends((s) => !s)
+            if (!showFriends && friends.length === 0) fetchFriends()
+          }}
+          className="flex-row items-center justify-between px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700"
+          activeOpacity={0.8}
+        >
+          <Text className="text-neutral-300 font-medium text-sm">👥 Invite Friends</Text>
+          <Text className="text-neutral-500 text-xs">{showFriends ? '▴' : '▾'}</Text>
+        </TouchableOpacity>
+
+        {showFriends && (
+          <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
+            {friendsLoading ? (
+              <View className="items-center py-4">
+                <ActivityIndicator color="#a78bfa" size="small" />
+                <Text className="text-neutral-500 text-xs mt-2">Loading friends...</Text>
+              </View>
+            ) : friends.length === 0 ? (
+              <View className="items-center py-4">
+                <Text className="text-neutral-500 text-sm">No friends found</Text>
+                <Text className="text-neutral-600 text-xs mt-1">Add friends from the Friends tab</Text>
+              </View>
+            ) : (
+              <View className="gap-2">
+                {friends.map((friend) => {
+                  const invited = invitedIds.has(friend.id)
+                  return (
+                    <View
+                      key={friend.id}
+                      className="flex-row items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-800/30"
+                    >
+                      <View className="w-8 h-8 rounded-full bg-cyan-700 items-center justify-center">
+                        <Text className="text-white text-sm font-bold">
+                          {friend.username.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-white font-semibold text-sm">{friend.username}</Text>
+                        {friend.status && (
+                          <Text className="text-neutral-500 text-xs">{friend.status}</Text>
+                        )}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => inviteFriend(friend.id)}
+                        disabled={invited}
+                        className={[
+                          'px-3 py-1.5 rounded-lg',
+                          invited ? 'bg-emerald-900' : 'bg-violet-700',
+                        ].join(' ')}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          className={[
+                            'text-xs font-semibold',
+                            invited ? 'text-emerald-400' : 'text-white',
+                          ].join(' ')}
+                        >
+                          {invited ? '✓ Invited' : 'Invite'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Settings toggle (host only) */}
         {isHost && (
           <TouchableOpacity
@@ -428,13 +667,27 @@ export default function LobbyScreen() {
               <Text
                 className={[
                   'text-xs font-semibold',
-                  settings.gameMode === 'ranked' ? 'text-amber-400' : 'text-violet-400',
+                  settings.gameMode === 'ranked'
+                    ? 'text-amber-400'
+                    : settings.gameMode === 'special'
+                    ? 'text-cyan-400'
+                    : 'text-violet-400',
                 ].join(' ')}
               >
-                {settings.gameMode === 'ranked' ? '🏆 Ranked' : '🎮 Normal'}
+                {settings.gameMode === 'ranked'
+                  ? '🏆 Ranked'
+                  : settings.gameMode === 'special'
+                  ? '🔮 Special'
+                  : '🎮 Normal'}
               </Text>
               <Text className="text-neutral-700">·</Text>
               <Text className="text-neutral-500 text-xs">{activeCats} cats</Text>
+              {settings.maxRounds > 0 && (
+                <>
+                  <Text className="text-neutral-700">·</Text>
+                  <Text className="text-neutral-500 text-xs">{settings.maxRounds} rnd</Text>
+                </>
+              )}
               <Text className="text-neutral-500 text-xs">{showSettings ? '▴' : '▾'}</Text>
             </View>
           </TouchableOpacity>
@@ -446,19 +699,37 @@ export default function LobbyScreen() {
 
         {/* Settings summary (non-host) */}
         {!isHost && (
-          <View className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800">
+          <View className="flex-row flex-wrap items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800">
             <Text className="text-xs text-neutral-500">
-              {settings.gameMode === 'ranked' ? '🏆' : '🎮'}
+              {settings.gameMode === 'ranked' ? '🏆' : settings.gameMode === 'special' ? '🔮' : '🎮'}
             </Text>
             <Text className="text-xs text-neutral-500 capitalize">{settings.gameMode}</Text>
             <Text className="text-neutral-700">·</Text>
             <Text className="text-xs text-neutral-500">{settings.maxPlayers} max</Text>
             <Text className="text-neutral-700">·</Text>
             <Text className="text-xs text-neutral-500">{settings.imposterCount} imposters</Text>
-            {settings.gameMode === 'normal' && settings.categories.length > 0 && (
+            {settings.maxRounds > 0 && (
+              <>
+                <Text className="text-neutral-700">·</Text>
+                <Text className="text-xs text-neutral-500">{settings.maxRounds} rounds</Text>
+              </>
+            )}
+            {settings.gameMode !== 'ranked' && settings.categories.length > 0 && (
               <>
                 <Text className="text-neutral-700">·</Text>
                 <Text className="text-xs text-neutral-500">{settings.categories.length} categories</Text>
+              </>
+            )}
+            {settings.gameMode === 'special' && settings.hasDetective && (
+              <>
+                <Text className="text-neutral-700">·</Text>
+                <Text className="text-xs text-cyan-500">🔍 Detective</Text>
+              </>
+            )}
+            {settings.gameMode === 'special' && settings.hasDoubleAgent && (
+              <>
+                <Text className="text-neutral-700">·</Text>
+                <Text className="text-xs text-cyan-500">🕵️ Double Agent</Text>
               </>
             )}
           </View>
