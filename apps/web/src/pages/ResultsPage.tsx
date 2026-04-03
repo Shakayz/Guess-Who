@@ -483,11 +483,11 @@ export default function ResultsPage() {
               )}
             </div>
 
-            {rewards.achievements.length > 0 && (
+            {(rewards?.achievements?.length ?? 0) > 0 && (
               <div className="mt-3 pt-3 border-t border-neutral-800">
                 <p className="text-xs text-neutral-500 mb-2">{t('results.achievementsUnlocked')}</p>
                 <div className="flex flex-wrap gap-2">
-                  {rewards.achievements.map((a: any) => (
+                  {rewards!.achievements.map((a: any) => (
                     <div key={a.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-950/60 border border-brand-800/40 text-brand-400 text-xs font-semibold animate-scale-in">
                       🏅 {a.name}
                     </div>
