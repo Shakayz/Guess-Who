@@ -343,6 +343,8 @@ export function registerRoomHandlers(
         return { game, round }
       })
 
+      // Update state.players with the shuffled+role-assigned players
+      state.players = players
       state.status = 'in_progress'
       state.gameId = game.id
       state.currentRound = 1

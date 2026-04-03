@@ -190,14 +190,6 @@ export default function GamePage() {
     connectSocket()
     const socket = getSocket()
 
-    // Join room immediately on mount (handles page refresh / direct navigation)
-    // and again on every reconnect (socket.io room membership is server-side only)
-    if (code) socket.emit('room:join', { roomCode: code })
-    const handleConnect = () => {
-      if (code) socket.emit('room:join', { roomCode: code })
-    }
-    socket.on('connect', handleConnect)
-
     // Clear any stale result from a previous game so this new game starts fresh.
     // (The old code navigated to /results here, which caused players to see old
     //  win/loss screens when starting a new game in the same room.)
@@ -374,6 +366,13 @@ export default function GamePage() {
       const tid = setTimeout(() => setFloatingEmotes((prev) => prev.filter((e) => e.id !== id)), 2800)
       timeoutRefs.current.push(tid)
     })
+
+    // Register all handlers BEFORE emitting room:join so we don't miss the response
+    const handleConnect = () => {
+      if (code) socket.emit('room:join', { roomCode: code })
+    }
+    socket.on('connect', handleConnect)
+    if (code) socket.emit('room:join', { roomCode: code })
 
     return () => {
       socket.off('connect', handleConnect)
