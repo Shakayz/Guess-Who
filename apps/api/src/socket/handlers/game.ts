@@ -2,7 +2,7 @@ import type { Server, Socket } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
 import { redis } from '../../config/redis'
 import { prisma } from '../../config/prisma'
-import { tryEarlyResolve, eliminatePlayerForWord } from '../gameLoop'
+import { tryEarlyResolve, tryEarlyVoting, eliminatePlayerForWord } from '../gameLoop'
 
 // Whole-word, case-insensitive match
 function containsWord(text: string, word: string): boolean {
@@ -75,12 +75,10 @@ export function registerGameHandlers(
     const currentRound = state.rounds?.[state.currentRound - 1]
     if (!currentRound) return
 
-    // ── Only the current speaker can submit a clue ────────────────────────────
-    const speakingOrder: string[] = currentRound.speakingOrder ?? []
+    // ── Any alive player who hasn't submitted yet can submit a clue ─────────
     const clues: any[] = currentRound.clues ?? []
-    const speakersWithClue = new Set(clues.map((c: any) => c.playerId))
-    const currentSpeaker = speakingOrder.find((id: string) => !speakersWithClue.has(id))
-    if (currentSpeaker !== userId) return
+    const alreadySubmitted = clues.some((c: any) => c.playerId === userId)
+    if (alreadySubmitted) return
 
     const player = state.players.find((p: any) => p.userId === userId && p.status === 'alive')
     if (!player) return
@@ -96,7 +94,7 @@ export function registerGameHandlers(
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
     io.to(`room:${roomId}`).emit('round:clue-submitted', clue)
 
-    // ── Word detection ────────────────────────────────────────────────────────
+    // ── Word detection (check BEFORE early voting so elimination takes priority) ─
     const villagerWord: string = state.villagerWord ?? ''
     const imposterWord: string = state.imposterWord ?? ''
     const role: string = player.role ?? 'villager'
@@ -135,5 +133,8 @@ export function registerGameHandlers(
       await eliminatePlayerForWord(io, roomId, room?.speakingTimeSeconds ?? 60, room?.votingTimeSeconds ?? 30)
       return
     }
+
+    // All alive players submitted? → move to voting early
+    await tryEarlyVoting(io, roomId)
   })
 }

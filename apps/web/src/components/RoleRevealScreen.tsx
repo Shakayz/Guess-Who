@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -34,6 +34,10 @@ export function RoleRevealScreen({ word, villagerWord, onDone }: Props) {
   const [particlesExpanded, setParticlesExpanded] = useState(false)
   const [exiting, setExiting]                     = useState(false)
 
+  // Use a ref so the effect runs exactly once and always calls the latest onDone
+  const onDoneRef = useRef(onDone)
+  onDoneRef.current = onDone
+
   useEffect(() => {
     const t0 = setTimeout(() => setAppeared(true), 80)
     const t1 = setTimeout(() => {
@@ -44,9 +48,9 @@ export function RoleRevealScreen({ word, villagerWord, onDone }: Props) {
     }, 1100)
     const t2 = setTimeout(() => setShowWord(true), 2050)
     const t3 = setTimeout(() => setExiting(true), 3900)
-    const t4 = setTimeout(() => onDone(), 4350)
+    const t4 = setTimeout(() => onDoneRef.current(), 4350)
     return () => [t0, t1, t2, t3, t4].forEach(clearTimeout)
-  }, [onDone])
+  }, []) // run once on mount — no deps
 
   return (
     <div

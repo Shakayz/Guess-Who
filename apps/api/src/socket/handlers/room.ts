@@ -3,7 +3,7 @@ import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/share
 import { shuffleArray } from '@imposter/shared'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
-import { startRound } from '../gameLoop'
+import { startRound, forfeitPlayer } from '../gameLoop'
 import { onlineUsers } from '../onlineUsers'
 
 // Default word pairs when no word pack is configured
@@ -48,6 +48,14 @@ export function registerRoomHandlers(
         const stateRaw = await redis.get(`room:${room.id}:state`)
         state = stateRaw ? JSON.parse(stateRaw) : { players: [], status: 'waiting' }
         const alreadyIn = state.players.find((p: any) => p.userId === userId)
+
+        // ── Block forfeited players from rejoining the same game ────────────────
+        if (alreadyIn && alreadyIn.status === 'forfeited') {
+          socket.emit('error', { code: 'PLAYER_FORFEITED', message: 'You forfeited this game and cannot rejoin' })
+          await socket.leave(`room:${room.id}`)
+          return
+        }
+
         if (!alreadyIn) {
           // ── Block new joins if game is already running ────────────────────────
           if (state.status === 'in_progress' || state.status === 'voting') {
@@ -78,7 +86,7 @@ export function registerRoomHandlers(
           alreadyIn.id = socket.id
           await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
 
-          // Re-send word/role if game is already in progress so the player doesn't see ???
+          // Re-send word/role + full phase sync if game is already in progress
           if (state.status === 'in_progress' || state.status === 'voting') {
             const getsImposterWord = alreadyIn.role === 'imposter' || alreadyIn.role === 'double_agent'
             const rounds: any[] = state.rounds ?? []
@@ -88,6 +96,24 @@ export function registerRoomHandlers(
               yourWord: getsImposterWord ? state.imposterWord : state.villagerWord,
               yourRole: alreadyIn.role,
               yourVillagerWord: alreadyIn.role === 'double_agent' ? state.villagerWord : undefined,
+            })
+
+            // Emit full phase sync so reconnecting client can resume at the correct phase
+            const elapsedSeconds = state.phaseStartedAt
+              ? Math.floor((Date.now() - state.phaseStartedAt) / 1000)
+              : 0
+            const timeRemainingSeconds = Math.max(
+              0,
+              (state.phaseDurationSeconds ?? 0) - elapsedSeconds,
+            )
+            socket.emit('game:sync', {
+              phase: state.status === 'voting' ? 'voting' : 'speaking',
+              currentSpeakerId: state.currentSpeakerId ?? null,
+              speakingOrder: currentRoundData?.speakingOrder ?? [],
+              clues: currentRoundData?.clues ?? [],
+              votes: currentRoundData?.votes ?? [],
+              timeRemainingSeconds,
+              currentRound: currentRoundData,
             })
           }
         }
@@ -139,7 +165,6 @@ export function registerRoomHandlers(
     // Merge allowed settings fields
     if (newSettings.gameMode)             state.gameMode = newSettings.gameMode
     if (newSettings.categories)           state.categories = newSettings.categories
-    if (newSettings.voiceChatEnabled  !== undefined) state.voiceChatEnabled  = newSettings.voiceChatEnabled
     if (newSettings.maxRounds         !== undefined) state.maxRounds         = newSettings.maxRounds
 
     // Special roles only allowed in 'special' mode — force-disable in normal mode
@@ -418,6 +443,44 @@ export function registerRoomHandlers(
       })
     } catch (err) {
       console.error('detective:reveal error', err)
+    }
+  })
+
+  // ── Forfeit (alive player quits mid-game — guaranteed LP loss) ───────────────
+  socket.on('game:forfeit', async () => {
+    try {
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+      await forfeitPlayer(io, roomId, userId)
+      // Leave the socket room so the player stops receiving game events
+      await socket.leave(roomKey)
+    } catch (err) {
+      console.error('game:forfeit error', err)
+    }
+  })
+
+  // ── Eliminated player leaves game view (no LP penalty, just removes from state) ──
+  socket.on('game:leave-eliminated', async () => {
+    try {
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) {
+        await socket.leave(roomKey)
+        return
+      }
+      const state = JSON.parse(stateRaw)
+      const player = state.players.find((p: any) => p.userId === userId)
+
+      // Only allow leaving if the player is actually eliminated (not forfeited, not alive)
+      if (player && player.status === 'eliminated') {
+        await socket.leave(roomKey)
+      }
+    } catch (err) {
+      console.error('game:leave-eliminated error', err)
     }
   })
 

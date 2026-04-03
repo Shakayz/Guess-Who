@@ -6,8 +6,7 @@ import { useAuthStore } from '../store/auth'
 import { getSocket, connectSocket } from '../lib/socket'
 import { Avatar } from '@imposter/ui'
 import type { Clue } from '@imposter/shared'
-import { RoleRevealScreen } from '../components/RoleRevealScreen'
-import { EliminationOverlay } from '../components/EliminationOverlay'
+// Overlays removed — they blocked gameplay and caused desync between players
 
 type Phase = 'speaking' | 'voting' | 'reveal'
 
@@ -109,7 +108,7 @@ export default function GamePage() {
   const { code } = useParams<{ code: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { room, currentRound, myRole, myWord, myVillagerWord, detectiveRevealUsed, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setRevealedPlayer, setRoom, setRoleAndWord, result } = useGameStore()
+  const { room, currentRound, myRole, myWord, myVillagerWord, detectiveRevealUsed, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
   const user = useAuthStore((s) => s.user)
   const [clueText, setClueText] = useState('')
   const [clues, setClues] = useState<Clue[]>([])
@@ -117,7 +116,6 @@ export default function GamePage() {
   const [deadChatInput, setDeadChatInput] = useState('')
   const [deadChatMessages, setDeadChatMessages] = useState<{ id: string; userId: string; username: string; text: string }[]>([])
   const [isEliminated, setIsEliminated] = useState(false)
-  const [eliminationAnim, setEliminationAnim] = useState<{ playerName: string; role: string; isMe: boolean; reason?: 'said_word' } | null>(null)
   const [floatingEmotes, setFloatingEmotes] = useState<{ id: string; emoji: string; username: string; x: number }[]>([])
   const [phase, setPhase] = useState<Phase>('speaking')
   const [votedFor, setVotedFor] = useState<string | null>(null)
@@ -131,15 +129,11 @@ export default function GamePage() {
   const [allVotedMsg, setAllVotedMsg] = useState(false)
   const [wordReveal, setWordReveal] = useState<{ villagerWord: string; imposterWord: string } | null>(null)
   const [isTie, setIsTie] = useState(false)
-  const [showCountdown, setShowCountdown] = useState(false)
-  const [countdownVal, setCountdownVal] = useState(3)
   const [totalTime, setTotalTime] = useState(30)
-  const [showRoleReveal, setShowRoleReveal] = useState(false)
-  const roleRevealShownRef = useRef(false)
+  const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const phaseRef = useRef<Phase>('speaking')
-  const isFirstRoundRef = useRef(true)
   const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const startTimer = useCallback((seconds: number) => {
@@ -154,13 +148,6 @@ export default function GamePage() {
     }, 1000)
   }, [])
 
-  // Trigger role reveal exactly once when we arrive with a role
-  useEffect(() => {
-    if (myRole && !roleRevealShownRef.current) {
-      roleRevealShownRef.current = true
-      setShowRoleReveal(true)
-    }
-  }, [myRole])
 
   const isImposter = myRole === 'imposter' || myRole === 'double_agent'
   const players = room?.players ?? []
@@ -172,6 +159,10 @@ export default function GamePage() {
     const idx = players.findIndex(p => p.userId === playerId)
     return idx >= 0 ? `Player ${idx + 1}` : realName
   }, [isRanked, players, user?.id])
+
+  // Use a ref so socket handlers always call the latest version without re-subscribing
+  const getDisplayNameRef = useRef(getDisplayName)
+  useEffect(() => { getDisplayNameRef.current = getDisplayName }, [getDisplayName])
 
   useEffect(() => {
     connectSocket()
@@ -185,24 +176,63 @@ export default function GamePage() {
     }
     socket.on('connect', handleConnect)
 
-    // If game:finished was missed while disconnected but the result is already in the store,
-    // navigate to results immediately instead of showing a stale game screen
+    // Clear any stale result from a previous game so this new game starts fresh.
+    // (The old code navigated to /results here, which caused players to see old
+    //  win/loss screens when starting a new game in the same room.)
     if (result) {
-      navigate(`/results/${code}`)
-      return
+      reset()
     }
 
-    // Re-hydrate word/role if the player reconnects mid-game (e.g. page refresh) and the store is empty
+    // On game start, always set the new role/word (clears stale data from previous games).
+    // Also handles reconnect mid-game (e.g. page refresh) when the store is empty.
     socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
-      if (!myWord || !myRole) {
-        setRoleAndWord(yourRole, yourWord, yourVillagerWord)
+      setRoleAndWord(yourRole, yourWord, yourVillagerWord)
+    })
+
+    // Full phase sync on reconnect — restores timer, clues, votes and speaking order
+    socket.on('game:sync', ({ phase: syncPhase, currentSpeakerId: speakerId, speakingOrder: order, clues: syncClues, votes: syncVotes, timeRemainingSeconds, currentRound: syncRound }: any) => {
+      setClues(syncClues ?? [])
+      if (syncRound) setRound(syncRound)
+
+      if (syncPhase === 'speaking') {
+        phaseRef.current = 'speaking'
+        setPhase('speaking')
+        setCurrentSpeakerId(speakerId ?? null)
+        if (order) setSpeakingOrder(order)
+        startTimer(timeRemainingSeconds ?? 30)
+        // Restore clue-submitted state if we already spoke this turn
+        const myClue = (syncClues ?? []).find((c: any) => c.playerId === user?.id)
+        if (myClue) setHasSubmittedClue(true)
+      } else if (syncPhase === 'voting') {
+        phaseRef.current = 'voting'
+        setPhase('voting')
+        setCurrentSpeakerId(null)
+        if (order) setSpeakingOrder(order)
+        setVoteCount((syncVotes ?? []).length)
+        // speakingOrder at round start = alive player count = total voters
+        setTotalVoters(order?.length ?? 0)
+        startTimer(timeRemainingSeconds ?? 30)
+        // Restore our own vote if we already cast one
+        const myVote = (syncVotes ?? []).find((v: any) => v.voterId === user?.id)
+        if (myVote) setVotedFor(myVote.targetId)
       }
+    })
+
+    // Update room state when a player forfeits mid-game
+    socket.on('game:player-forfeited', ({ userId: forfeitedId }: any) => {
+      const s = useGameStore.getState()
+      if (!s.room) return
+      s.setRoom({
+        ...s.room,
+        players: s.room.players.map((p) =>
+          p.userId === forfeitedId ? { ...p, status: 'forfeited' as const } : p
+        ),
+      })
     })
 
     socket.on('round:clue-submitted', (clue) => setClues((c) => [...c, clue as Clue]))
     socket.on('round:speaking-turn', ({ playerId, timeSeconds, speakingOrder: order }: any) => {
-      // Clean up previous round state whenever we transition into a new speaking turn
-      // (handles missed round:ended — coming from 'voting' — as well as normal 'reveal' → next round)
+      // Clean up previous round state when entering a new clue phase
       if (phaseRef.current !== 'speaking') {
         setClues([])
         setHasSubmittedClue(false)
@@ -213,22 +243,11 @@ export default function GamePage() {
         setVoteCount(0)
         setAllVotedMsg(false)
       }
-      setCurrentSpeakerId(playerId)
+      setCurrentSpeakerId(null)
       if (order) setSpeakingOrder(order)
       phaseRef.current = 'speaking'
       setPhase('speaking')
-      // Show 3-2-1 countdown on very first speaking turn
-      if (isFirstRoundRef.current) {
-        isFirstRoundRef.current = false
-        setShowCountdown(true)
-        setCountdownVal(3)
-        setTimeout(() => setCountdownVal(2), 1000)
-        setTimeout(() => setCountdownVal(1), 2000)
-        setTimeout(() => setShowCountdown(false), 3000)
-        startTimer(timeSeconds)
-      } else {
-        startTimer(timeSeconds)
-      }
+      startTimer(timeSeconds)
     })
     socket.on('round:voting-started', ({ timeSeconds, players: vPlayers }: any) => {
       phaseRef.current = 'voting'
@@ -250,11 +269,9 @@ export default function GamePage() {
       if (round?.eliminatedPlayerId) {
         const elim = players.find((p: any) => p.userId === round.eliminatedPlayerId)
         const elimRole = round.eliminatedRole ?? (elim as any)?.role ?? 'villager'
-        const elimName = getDisplayName(round.eliminatedPlayerId, elim?.username ?? round.eliminatedPlayerId)
+        const elimName = getDisplayNameRef.current(round.eliminatedPlayerId, elim?.username ?? round.eliminatedPlayerId)
         setEliminated({ username: elimName, role: elimRole })
-        // Show elimination animation for everyone
         const isMe = round.eliminatedPlayerId === user?.id
-        setEliminationAnim({ playerName: elimName, role: elimRole, isMe })
         // If it's me, join dead chat
         if (isMe) {
           setIsEliminated(true)
@@ -290,7 +307,6 @@ export default function GamePage() {
         })
       }
       const isMe = playerId === user?.id
-      setEliminationAnim({ playerName: username, role, isMe, reason: 'said_word' })
       if (isMe) {
         setIsEliminated(true)
         socket.emit('deadchat:join' as any)
@@ -312,6 +328,8 @@ export default function GamePage() {
     return () => {
       socket.off('connect', handleConnect)
       socket.off('game:started')
+      socket.off('game:sync')
+      socket.off('game:player-forfeited')
       socket.off('round:clue-submitted')
       socket.off('round:speaking-turn')
       socket.off('round:voting-started')
@@ -328,7 +346,7 @@ export default function GamePage() {
       timeoutRefs.current.forEach(clearTimeout)
       timeoutRefs.current = []
     }
-  }, [code, startTimer, getDisplayName])
+  }, [code, startTimer])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -368,6 +386,18 @@ export default function GamePage() {
 
   const alivePlayers = players.filter((p) => p.status === 'alive')
 
+  const handleForfeit = () => {
+    getSocket().emit('game:forfeit')
+    reset()
+    navigate('/')
+  }
+
+  const handleLeaveEliminated = () => {
+    getSocket().emit('game:leave-eliminated')
+    reset()
+    navigate('/')
+  }
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* ── Main game area ── */}
@@ -385,56 +415,23 @@ export default function GamePage() {
           </div>
         ))}
 
-        {showCountdown && !showRoleReveal && (
-          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-            <div className="text-center animate-slide-up">
-              <p className="text-neutral-400 text-sm font-semibold uppercase tracking-widest mb-2">{t('game.gameStartsIn')}</p>
-              <p className="text-8xl font-extrabold text-brand-400 tabular-nums">{countdownVal}</p>
-            </div>
-          </div>
-        )}
-
-        {showRoleReveal && myRole && myWord && (
-          <RoleRevealScreen
-            role={myRole}
-            word={myWord}
-            villagerWord={myVillagerWord ?? undefined}
-            onDone={() => setShowRoleReveal(false)}
-          />
-        )}
-
-        {/* Detective role reveal result */}
+        {/* Detective role reveal — small non-blocking toast */}
         {revealedPlayer && (
-          <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
-            <div className="animate-bounce-in px-6 py-5 rounded-2xl border text-center max-w-xs mx-4"
-              style={{ backgroundColor: 'rgba(8,8,20,0.95)', borderColor: '#3b82f6', boxShadow: '0 0 30px rgba(59,130,246,0.3)' }}>
-              <p className="text-3xl mb-2">🔍</p>
-              <p className="text-xs font-bold uppercase tracking-widest text-blue-400 mb-1">{t('game.detectiveRevealTitle')}</p>
-              <p className="text-white font-extrabold text-lg">{revealedPlayer.username}</p>
-              <div className={[
-                'mt-2 px-3 py-1.5 rounded-lg text-sm font-bold',
-                revealedPlayer.role === 'imposter' ? 'bg-red-950/60 text-red-400 border border-red-800/40' :
-                revealedPlayer.role === 'double_agent' ? 'bg-orange-950/60 text-orange-400 border border-orange-800/40' :
-                revealedPlayer.role === 'detective' ? 'bg-blue-950/60 text-blue-400 border border-blue-800/40' :
-                'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40',
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-slide-up">
+            <div className="px-4 py-3 rounded-xl border text-center"
+              style={{ backgroundColor: 'rgba(8,8,20,0.95)', borderColor: '#3b82f6', boxShadow: '0 0 20px rgba(59,130,246,0.3)' }}>
+              <span className="text-blue-400 font-bold text-sm">🔍 {revealedPlayer.username}: </span>
+              <span className={[
+                'text-sm font-bold',
+                revealedPlayer.role === 'imposter' || revealedPlayer.role === 'double_agent' ? 'text-red-400' : 'text-emerald-400',
               ].join(' ')}>
                 {revealedPlayer.role === 'imposter' ? t('game.roleImposter') :
                  revealedPlayer.role === 'double_agent' ? t('game.roleDoubleAgent') :
                  revealedPlayer.role === 'detective' ? t('game.roleDetective') :
                  t('game.roleVillager')}
-              </div>
+              </span>
             </div>
           </div>
-        )}
-
-        {eliminationAnim && (
-          <EliminationOverlay
-            playerName={eliminationAnim.playerName}
-            role={eliminationAnim.role}
-            isMe={eliminationAnim.isMe}
-            reason={eliminationAnim.reason}
-            onDone={() => setEliminationAnim(null)}
-          />
         )}
 
         {/* Top bar */}
@@ -513,32 +510,9 @@ export default function GamePage() {
           )}
         </div>
 
-        {/* Speaking phase: clue input */}
+        {/* Speaking phase: everyone submits clues simultaneously */}
         {phase === 'speaking' && (
           <div className="card">
-            {currentSpeakerId && (() => {
-              const speaker = players.find(p => p.userId === currentSpeakerId)
-              const isMe = currentSpeakerId === user?.id
-              return (
-                <div className={[
-                  'flex items-center gap-3 px-4 py-3 rounded-xl border mb-3',
-                  isMe
-                    ? 'bg-brand-950/80 border-brand-700/60 ring-1 ring-brand-600/30'
-                    : 'bg-neutral-800/60 border-neutral-700/40',
-                ].join(' ')}>
-                  <Avatar username={speaker?.username ?? '?'} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className={['font-bold text-sm truncate', isMe ? 'text-brand-200' : 'text-white'].join(' ')}>
-                      {isMe ? t('game.yourTurn') : t('game.isSpeaking', { name: currentSpeakerId ? getDisplayName(currentSpeakerId, speaker?.username ?? '...') : '...' })}
-                    </p>
-                    <p className="text-xs text-neutral-500">
-                      {isMe ? t('game.yourTurnHint') : t('game.isListening')}
-                    </p>
-                  </div>
-                  <span className="w-2.5 h-2.5 rounded-full bg-brand-400 animate-pulse shrink-0" />
-                </div>
-              )
-            })()}
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('game.yourClue')}</p>
             {hasSubmittedClue ? (
               <div className="flex items-center gap-2 py-2 text-emerald-400 text-sm">
@@ -799,12 +773,14 @@ export default function GamePage() {
                     'flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold transition-all duration-500',
                     p.status === 'alive'
                       ? 'bg-neutral-800 text-white'
+                      : p.status === 'forfeited'
+                      ? 'bg-orange-950/30 text-neutral-600 line-through border border-orange-900/20'
                       : 'bg-red-950/30 text-neutral-600 line-through border border-red-900/20',
                   ].join(' ')}
                 >
                   <span className={[
                     'w-1.5 h-1.5 rounded-full',
-                    p.status === 'alive' ? 'bg-emerald-400' : 'bg-neutral-700',
+                    p.status === 'alive' ? 'bg-emerald-400' : p.status === 'forfeited' ? 'bg-orange-700' : 'bg-neutral-700',
                   ].join(' ')} />
                   {getDisplayName(p.userId, p.username)}
                   {canReveal && (
@@ -825,9 +801,20 @@ export default function GamePage() {
         {/* Ghost Chat — only for eliminated players */}
         {isEliminated ? (
           <div className="flex-1 flex flex-col border-t-2 border-red-900/50">
-            <div className="px-3 py-2 bg-red-950/30 flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-widest text-red-500">{t('game.ghostChat')}</span>
-              <span className="text-xs text-neutral-600">{t('game.ghostOnly')}</span>
+            {/* Eliminated banner with prominent Leave button */}
+            <div className="px-3 py-3 bg-red-950/30 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-red-500">{t('game.ghostChat')}</span>
+                  <span className="text-xs text-neutral-600">{t('game.ghostOnly')}</span>
+                </div>
+              </div>
+              <button
+                onClick={handleLeaveEliminated}
+                className="w-full py-2 rounded-xl bg-red-900/60 hover:bg-red-800/70 text-red-300 hover:text-white text-sm font-bold transition-colors border border-red-800/40"
+              >
+                ← {t('game.leaveGame')}
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
               {deadChatMessages.length === 0 ? (
@@ -885,6 +872,33 @@ export default function GamePage() {
                 ))}
               </div>
             </div>
+            {/* Quit & Forfeit */}
+            {showForfeitConfirm ? (
+              <div className="rounded-xl border border-orange-800/50 bg-orange-950/30 p-3 space-y-2">
+                <p className="text-xs font-semibold text-orange-300">{t('game.forfeitConfirmText')}</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleForfeit}
+                    className="flex-1 py-1.5 rounded-lg bg-orange-700 hover:bg-orange-600 text-white text-xs font-bold transition-colors"
+                  >
+                    {t('game.forfeitConfirmYes')}
+                  </button>
+                  <button
+                    onClick={() => setShowForfeitConfirm(false)}
+                    className="flex-1 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition-colors"
+                  >
+                    {t('game.forfeitConfirmNo')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowForfeitConfirm(true)}
+                className="w-full py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700/50 hover:border-orange-800/50 text-neutral-500 hover:text-orange-400 text-xs font-semibold transition-all"
+              >
+                🏳 {t('game.quitForfeit')}
+              </button>
+            )}
           </div>
         )}
       </div>

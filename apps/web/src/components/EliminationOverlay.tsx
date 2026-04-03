@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -36,13 +36,17 @@ export function EliminationOverlay({ playerName, role, isMe, reason, onDone }: P
   const [stage, setStage] = useState<'entering' | 'visible' | 'exiting'>('entering')
   const [showBadge, setShowBadge] = useState(false)
 
+  // Use a ref so the effect runs exactly once and always calls the latest onDone
+  const onDoneRef = useRef(onDone)
+  onDoneRef.current = onDone
+
   useEffect(() => {
     const t1 = setTimeout(() => setStage('visible'), 50)
     const t2 = setTimeout(() => setShowBadge(true), 500)
     const t3 = setTimeout(() => setStage('exiting'), exitDelay)
-    const t4 = setTimeout(() => onDone(), doneDelay)
+    const t4 = setTimeout(() => onDoneRef.current(), doneDelay)
     return () => [t1, t2, t3, t4].forEach(clearTimeout)
-  }, [exitDelay, doneDelay, onDone])
+  }, [exitDelay, doneDelay])
 
   return (
     <div

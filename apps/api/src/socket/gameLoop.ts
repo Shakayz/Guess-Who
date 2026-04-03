@@ -69,7 +69,10 @@ async function applyRankedLP(
       const user = userMap.get(player.userId)
       if (!user) return
 
-      const lpDelta            = getLpDelta(player.role ?? '')
+      // Forfeited players always get the maximum loss, regardless of team result
+      const lpDelta = player.status === 'forfeited'
+        ? LP_REWARDS.IMPOSTER_LOSS
+        : getLpDelta(player.role ?? '')
       const { newLP, newTier, promoted, demoted } = computeRankUpdate(user.rankPoints, lpDelta)
       const oldTier            = user.rankTier as RankTier
       const tierChanged        = newTier !== oldTier
@@ -96,15 +99,14 @@ export async function startRound(
   votingTimeSeconds: number,
 ) {
   clearRoomTimer(roomId)
-  await advanceSpeaker(io, roomId, 0, speakingTimeSeconds, votingTimeSeconds)
+  await startCluePhase(io, roomId, speakingTimeSeconds, votingTimeSeconds)
 }
 
-// ─── Speaking phase ───────────────────────────────────────────────────────────
+// ─── Clue phase (everyone submits simultaneously) ────────────────────────────
 
-async function advanceSpeaker(
+async function startCluePhase(
   io: IO,
   roomId: string,
-  speakerIndex: number,
   speakingTimeSeconds: number,
   votingTimeSeconds: number,
 ) {
@@ -121,20 +123,46 @@ async function advanceSpeaker(
 
   const order: string[] = currentRound.speakingOrder ?? []
 
-  if (speakerIndex >= order.length) {
-    // All speakers done → start voting
-    await startVoting(io, roomId, votingTimeSeconds)
-    return
-  }
+  // Track phase timing for sync/reconnect
+  state.currentSpeakerId = null  // no individual speaker — everyone speaks at once
+  state.phaseStartedAt = Date.now()
+  state.phaseDurationSeconds = speakingTimeSeconds
+  state.votingTimeSeconds = votingTimeSeconds  // store for tryEarlyVoting
+  await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
 
-  const playerId = order[speakerIndex]
-  io.to(`room:${roomId}`).emit('round:speaking-turn', { playerId, timeSeconds: speakingTimeSeconds, speakingOrder: order })
+  // Notify all clients: everyone can submit their clue now
+  io.to(`room:${roomId}`).emit('round:speaking-turn', { playerId: null, timeSeconds: speakingTimeSeconds, speakingOrder: order })
 
   const timer = setTimeout(async () => { try {
     roomTimers.delete(roomId)
-    await advanceSpeaker(io, roomId, speakerIndex + 1, speakingTimeSeconds, votingTimeSeconds)
-  } catch (err) { console.error('[advanceSpeaker] timeout error:', err) } }, speakingTimeSeconds * 1000)
+    await startVoting(io, roomId, votingTimeSeconds)
+  } catch (err) { console.error('[cluePhase] timeout error:', err) } }, speakingTimeSeconds * 1000)
   roomTimers.set(roomId, timer)
+}
+
+// Called from clue:submit when all alive players have submitted
+export async function tryEarlyVoting(io: IO, roomId: string) {
+  const stateRaw = await redis.get(`room:${roomId}:state`)
+  if (!stateRaw) return
+  const state = JSON.parse(stateRaw)
+  if (state.status !== 'in_progress') return
+
+  const currentRound = state.rounds?.[state.currentRound - 1]
+  if (!currentRound) return
+
+  const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
+  const cluePlayerIds = new Set((currentRound.clues ?? []).map((c: any) => c.playerId))
+  const allSubmitted = alivePlayers.every((p: any) => cluePlayerIds.has(p.userId))
+
+  if (allSubmitted) {
+    clearRoomTimer(roomId)
+    // Small delay so the last clue is visible before transitioning
+    const t = setTimeout(async () => {
+      roomTimers.delete(roomId)
+      await startVoting(io, roomId, state.votingTimeSeconds ?? 30)
+    }, 1500)
+    roomTimers.set(roomId, t)
+  }
 }
 
 // ─── Voting phase ─────────────────────────────────────────────────────────────
@@ -147,6 +175,9 @@ async function startVoting(io: IO, roomId: string, votingTimeSeconds: number) {
   }
   const state = JSON.parse(stateRaw)
   state.status = 'voting'
+  state.currentSpeakerId = null
+  state.phaseStartedAt = Date.now()
+  state.phaseDurationSeconds = votingTimeSeconds
   await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
 
   const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
@@ -403,7 +434,7 @@ async function _resolveRound(io: IO, roomId: string) {
     if (!nextDbRound) return
 
     state.currentRound = nextRoundNumber
-    state.status = 'in_progress'  // reset from 'voting' so advanceSpeaker can proceed
+    state.status = 'in_progress'  // reset from 'voting' so clue phase can proceed
     state.rounds.push({
       id: nextDbRound.id,
       roundNumber: nextRoundNumber,
@@ -444,25 +475,132 @@ export async function eliminatePlayerForWord(
   speakingTimeSeconds: number,
   votingTimeSeconds: number,
 ): Promise<void> {
+  // Player was already eliminated and state saved by the caller (game.ts).
+  // After a short delay for the overlay animation, check if all remaining
+  // alive players have submitted clues — if so, move to voting early.
+  setTimeout(async () => { try {
+    await tryEarlyVoting(io, roomId)
+  } catch (err) { console.error('[word-said] tryEarlyVoting error:', err) } }, 3000)
+}
+
+// ─── Forfeit player ───────────────────────────────────────────────────────────
+
+export async function forfeitPlayer(io: IO, roomId: string, userId: string): Promise<void> {
   const stateRaw = await redis.get(`room:${roomId}:state`)
   if (!stateRaw) return
   const state = JSON.parse(stateRaw)
 
-  // Cancel current speaking timer
-  const existing = roomTimers.get(roomId)
-  if (existing) { clearTimeout(existing); roomTimers.delete(roomId) }
+  const player = state.players.find((p: any) => p.userId === userId)
+  if (!player || player.status !== 'alive') return
 
-  // Find next unspoken speaker index
+  // Mark as forfeited (treated like eliminated for win condition but gets guaranteed LP loss)
+  player.status = 'forfeited'
+
   const currentRound = state.rounds?.[state.currentRound - 1]
-  if (!currentRound) return
-  const speakingOrder: string[] = currentRound.speakingOrder ?? []
-  const speakersWithClue = new Set((currentRound.clues ?? []).map((c: any) => c.playerId))
-  const currentIndex = speakingOrder.findIndex((id) => !speakersWithClue.has(id))
+  const phase: string = state.status  // 'in_progress' | 'voting'
 
-  // 3s delay for overlay to show, then advance to next speaker
+  if (currentRound && phase === 'in_progress') {
+    // Remove from speaking order so they don't count for early-voting check
+    const speakingOrder: string[] = currentRound.speakingOrder ?? []
+    currentRound.speakingOrder = speakingOrder.filter((id: string) => id !== userId)
+  }
+
+  await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+
+  // Mark as not survived in DB
+  const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
+  if (game) {
+    await prisma.gameParticipation.updateMany({
+      where: { gameId: game.id, userId },
+      data:  { survived: false },
+    }).catch(() => {})
+  }
+
+  // Broadcast forfeit to everyone in the room
+  io.to(`room:${roomId}`).emit('game:player-forfeited', { userId, username: player.username })
+
+  // Check if forfeit triggered a win condition
+  const winner = checkWinCondition(state.players as any)
+  if (winner) {
+    clearRoomTimer(roomId)
+    await _forfeitEndGame(io, roomId, state, winner, currentRound, game)
+    return
+  }
+
+  // Handle phase-specific behaviour
+  if (phase === 'in_progress') {
+    // Check if all remaining alive players have submitted — move to voting early
+    await tryEarlyVoting(io, roomId)
+  } else if (phase === 'voting') {
+    // Forfeited player can't vote — check if remaining alive players have all voted
+    await tryEarlyResolve(io, roomId)
+  }
+}
+
+async function _forfeitEndGame(
+  io: IO,
+  roomId: string,
+  state: any,
+  winner: string,
+  currentRound: any,
+  game: any,
+): Promise<void> {
+  state.status = 'finished'
+  await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+  await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
+
+  if (game) {
+    await prisma.game.update({
+      where: { id: game.id },
+      data:  { winnerTeam: winner, endedAt: new Date() },
+    }).catch(() => {})
+  }
+
+  const roundPayload = currentRound
+    ? {
+        id:                 currentRound.id,
+        roundNumber:        currentRound.roundNumber,
+        speakingOrder:      currentRound.speakingOrder ?? [],
+        clues:              currentRound.clues ?? [],
+        votes:              currentRound.votes ?? [],
+        eliminatedPlayerId: null,
+        eliminatedRole:     null,
+        wordReveal:         null,
+      }
+    : null
+
+  if (roundPayload) {
+    io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
+  }
+
+  const isRanked = state.gameMode === 'ranked'
+  if (isRanked) {
+    await applyRankedLP(io, roomId, state.players, (role) => {
+      const isImposter = role === 'imposter' || role === 'double_agent'
+      if (winner === 'villagers') {
+        return isImposter ? LP_REWARDS.IMPOSTER_LOSS : LP_REWARDS.VILLAGER_WIN
+      } else {
+        return isImposter ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS
+      }
+    })
+  }
+
+  const lpChange = isRanked ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS) : 0
+  const rewards = {
+    starCoinsEarned: winner === 'villagers' ? 50 : 80,
+    xpEarned: 120,
+    lpChange,
+    achievements: [],
+  }
+
   setTimeout(async () => { try {
-    await advanceSpeaker(io, roomId, currentIndex + 1, speakingTimeSeconds, votingTimeSeconds)
-  } catch (err) { console.error('[word-said] advanceSpeaker error:', err) } }, 3000)
+    io.to(`room:${roomId}`).emit('game:finished', {
+      winner: winner as any,
+      finalRound: roundPayload as any,
+      rewards,
+    })
+    await resetRoomAfterGame(roomId, state)
+  } catch (err) { console.error('[forfeit:game:finished] emit error:', err) } }, 3000)
 }
 
 // ─── Achievement auto-triggers ────────────────────────────────────────────────
