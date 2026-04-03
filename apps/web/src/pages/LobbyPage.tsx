@@ -343,6 +343,7 @@ export default function LobbyPage() {
         if (me) setIsReady(!!me.isReady)
       }
       if (r.settings) {
+        const serverCats: WordCategory[] = (r.settings as any).categories ?? []
         setSettings((prev) => ({
           ...prev,
           maxPlayers: r.settings.maxPlayers,
@@ -350,7 +351,7 @@ export default function LobbyPage() {
           speakingTimeSeconds: r.settings.speakingTimeSeconds,
           votingTimeSeconds: r.settings.votingTimeSeconds,
           gameMode: (r.settings as any).gameMode ?? 'normal',
-          categories: (r.settings as any).categories ?? [],
+          categories: serverCats,
           enableDetective: (r.settings as any).enableDetective ?? false,
           enableDoubleAgent: (r.settings as any).enableDoubleAgent ?? false,
           maxRounds: r.maxRounds ?? 0,

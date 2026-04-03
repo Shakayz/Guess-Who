@@ -190,8 +190,8 @@ export function registerRoomHandlers(
     if (!stateRaw) return
     const state = JSON.parse(stateRaw)
     // Merge allowed settings fields
-    if (newSettings.gameMode)             state.gameMode = newSettings.gameMode
-    if (newSettings.categories)           state.categories = newSettings.categories
+    if (newSettings.gameMode)                        state.gameMode = newSettings.gameMode
+    if (newSettings.categories !== undefined)         state.categories = newSettings.categories
     if (newSettings.maxRounds         !== undefined) state.maxRounds         = newSettings.maxRounds
 
     // Special roles only allowed in 'special' mode — force-disable in normal mode
