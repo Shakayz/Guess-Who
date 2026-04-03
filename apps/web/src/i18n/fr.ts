@@ -144,6 +144,7 @@ export default {
     nextRoundSoon: 'Prochaine manche bientôt...',
     cluesTitle: 'Indices — Manche {{round}}',
     noClues: 'Aucun indice encore...',
+    submitClueFirst: 'Envoyez votre indice pour voir ce que les autres ont écrit',
     ghostChat: '💀 Chat des Fantômes',
     ghostOnly: 'Joueurs éliminés uniquement',
     ghostDesc: 'Vous êtes un fantôme maintenant...',

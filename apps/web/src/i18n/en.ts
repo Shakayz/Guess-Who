@@ -144,6 +144,7 @@ export default {
     nextRoundSoon: 'Next round starting soon...',
     cluesTitle: 'Clues — Round {{round}}',
     noClues: 'No clues yet...',
+    submitClueFirst: 'Submit your clue to see what others wrote',
     ghostChat: '💀 Ghost Chat',
     ghostOnly: 'Only eliminated players',
     ghostDesc: 'You are a ghost now...',

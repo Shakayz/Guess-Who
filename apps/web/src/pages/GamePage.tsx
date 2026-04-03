@@ -406,7 +406,7 @@ export default function GamePage() {
 
   const submitClue = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!clueText.trim() || hasSubmittedClue || phase !== 'clues') return
+    if (!clueText.trim() || hasSubmittedClue || phase !== 'clues' || isEliminated) return
     getSocket().emit('clue:submit', clueText.trim())
     setClueText('')
     setHasSubmittedClue(true)
@@ -564,7 +564,7 @@ export default function GamePage() {
         </div>
 
         {/* Clue phase: everyone submits clues simultaneously */}
-        {phase === 'clues' && (
+        {phase === 'clues' && !isEliminated && (
           <div className="card">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('game.yourClue')}</p>
             {hasSubmittedClue ? (
@@ -708,12 +708,14 @@ export default function GamePage() {
           </div>
         )}
 
-        {/* Clues log */}
+        {/* Clues log — hidden during clue phase until you submit (prevents copying) */}
         <div className="card flex-1">
           <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
             {t('game.cluesTitle', { round: currentRound?.roundNumber ?? 1 })}
           </p>
-          {clues.length === 0 ? (
+          {phase === 'clues' && !hasSubmittedClue && !isEliminated ? (
+            <p className="text-neutral-600 text-sm italic">{t('game.submitClueFirst', 'Submit your clue to see what others wrote')}</p>
+          ) : clues.length === 0 ? (
             <p className="text-neutral-600 text-sm italic">{t('game.noClues')}</p>
           ) : (
             <div className="space-y-2">
