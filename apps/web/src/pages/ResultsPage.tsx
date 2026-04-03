@@ -261,6 +261,7 @@ export default function ResultsPage() {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
   const { result, room, myRole, completedRounds, reset } = useGameStore()
+
   const [showCinematic, setShowCinematic] = useState(true)
   const [honorGiven, setHonorGiven] = useState<Record<string, HonorType>>({})
   const [honorTarget, setHonorTarget] = useState<string | null>(null)
@@ -272,8 +273,20 @@ export default function ResultsPage() {
   const [chatInput, setChatInput] = useState('')
   const chatBottomRef = useRef<HTMLDivElement>(null)
 
-  const winner = result?.winner ?? 'villagers'
-  const rewards = result?.rewards ?? { starCoinsEarned: 25, xpEarned: 120, lpChange: 18, achievements: [] }
+  // Guard: if no game result data, redirect home (after all hooks)
+  if (!result) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <p className="text-neutral-400 text-sm">{t('results.noGameData', 'No game data available.')}</p>
+        <button onClick={() => { reset(); navigate('/') }} className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold transition-colors">
+          {t('results.backHome', 'Back to Home')}
+        </button>
+      </div>
+    )
+  }
+
+  const winner = result.winner
+  const rewards = result.rewards
   const players = room?.players?.length ? room.players : []
   const isImposter = myRole === 'imposter' || myRole === 'double_agent'
   const didWin = (winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter)

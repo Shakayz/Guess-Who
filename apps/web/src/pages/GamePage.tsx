@@ -185,10 +185,24 @@ export default function GamePage() {
       reset()
     }
 
-    // On game start, always set the new role/word (clears stale data from previous games).
-    // Also handles reconnect mid-game (e.g. page refresh) when the store is empty.
+    // On game start, reset ALL UI state and set new role/word
     socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
       setRoleAndWord(yourRole, yourWord, yourVillagerWord)
+      // Clear all per-round UI state from any previous game
+      setClues([])
+      setHasSubmittedClue(false)
+      setVotedFor(null)
+      setEliminated(null)
+      setWordReveal(null)
+      setIsTie(false)
+      setVoteCount(0)
+      setTotalVoters(0)
+      setAllVotedMsg(false)
+      setIsEliminated(false)
+      setDeadChatMessages([])
+      setCurrentSpeakerId(null)
+      phaseRef.current = 'speaking'
+      setPhase('speaking')
     })
 
     // Full phase sync on reconnect — restores timer, clues, votes and speaking order
@@ -321,6 +335,17 @@ export default function GamePage() {
       setResult(data)
       navigate(`/results/${code}`)
     })
+    // Keep room state in sync (player list, status changes)
+    socket.on('room:updated', (roomData: any) => {
+      setRoom(roomData)
+      // If game ended externally (e.g. all forfeited), navigate to results
+      if (roomData.status === 'finished' && useGameStore.getState().result) {
+        navigate(`/results/${code}`)
+      }
+    })
+    socket.on('error', (err: any) => {
+      console.error('[game] socket error:', err?.code, err?.message)
+    })
     socket.on('chat:message', addMessage)
     socket.on('emote:receive' as any, ({ username, emoji }: { username: string; emoji: string }) => {
       const id = `${Date.now()}_${Math.random()}`
@@ -340,6 +365,8 @@ export default function GamePage() {
       socket.off('round:voting-started')
       socket.off('round:ended')
       socket.off('game:finished')
+      socket.off('room:updated')
+      socket.off('error')
       socket.off('chat:message')
       socket.off('deadchat:message' as any)
       socket.off('emote:receive' as any)
@@ -355,18 +382,18 @@ export default function GamePage() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, deadChatMessages])
 
   const submitClue = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!clueText.trim() || hasSubmittedClue) return
+    if (!clueText.trim() || hasSubmittedClue || phase !== 'speaking') return
     getSocket().emit('clue:submit', clueText.trim())
     setClueText('')
     setHasSubmittedClue(true)
   }
 
   const vote = (playerId: string) => {
-    if (votedFor) return
+    if (votedFor || phase !== 'voting') return
     setVotedFor(playerId)
     getSocket().emit('vote:cast', playerId)
   }

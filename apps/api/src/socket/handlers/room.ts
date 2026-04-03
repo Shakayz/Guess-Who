@@ -494,9 +494,8 @@ export function registerRoomHandlers(
         const isInGame = state.status === 'in_progress' || state.status === 'voting'
 
         if (isInGame) {
-          // Mark the player as eliminated (voluntary leave = forfeit)
-          const player = state.players.find((p: any) => p.userId === userId)
-          if (player) player.status = 'eliminated'
+          // Voluntary leave during game = forfeit (guaranteed LP loss)
+          await forfeitPlayer(io, roomId, userId)
         } else {
           // In lobby: remove the player entirely
           state.players = state.players.filter((p: any) => p.userId !== userId)

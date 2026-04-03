@@ -490,9 +490,38 @@ export async function eliminatePlayerForWord(
   speakingTimeSeconds: number,
   votingTimeSeconds: number,
 ): Promise<void> {
-  // Player was already eliminated and state saved by the caller (game.ts).
-  // After a short delay for the overlay animation, check if all remaining
-  // alive players have submitted clues — if so, move to voting early.
+  // Check if the elimination triggered a win condition (e.g. all imposters eliminated)
+  const state = await getState(roomId)
+  if (state) {
+    const winner = checkWinCondition(state.players as any)
+    if (winner) {
+      clearRoomTimer(roomId)
+      state.status = 'finished'
+      await saveState(roomId, state)
+      await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
+      const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
+      if (game) {
+        await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: winner, endedAt: new Date() } }).catch(() => {})
+      }
+      const currentRound = state.rounds?.[state.currentRound - 1]
+      const roundPayload = currentRound ? buildRoundPayload(currentRound) : null
+      if (roundPayload) io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
+      const isRanked = state.gameMode === 'ranked'
+      if (isRanked) {
+        await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, winner))
+      }
+      const lpChange = isRanked ? getWinLpDelta('villager', winner) : 0
+      const rewards = { starCoinsEarned: winner === 'villagers' ? 50 : 80, xpEarned: 120, lpChange, achievements: [] }
+      setTimeout(async () => { try {
+        io.to(`room:${roomId}`).emit('game:finished', { winner, finalRound: roundPayload as any, rewards })
+        await resetRoomAfterGame(roomId, state)
+      } catch (err) { console.error('[word-said:finished] error:', err) } }, 3000)
+      return
+    }
+  }
+
+  // No winner yet — after a short delay, check if all remaining alive players
+  // have submitted clues and move to voting early if so.
   setTimeout(async () => { try {
     await tryEarlyVoting(io, roomId)
   } catch (err) { console.error('[word-said] tryEarlyVoting error:', err) } }, 3000)
