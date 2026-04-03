@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
@@ -258,6 +258,7 @@ function useAnimatedNumber(target: number, duration = 1200): number {
 
 export default function ResultsPage() {
   const navigate = useNavigate()
+  const { code } = useParams<{ code: string }>()
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
   const { result, room, myRole, completedRounds, reset } = useGameStore()
@@ -289,7 +290,8 @@ export default function ResultsPage() {
   const rewards = result.rewards
   const players = room?.players?.length ? room.players : []
   const isImposter = myRole === 'imposter' || myRole === 'double_agent'
-  const didWin = (winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter)
+  const isDraw = winner === 'draw'
+  const didWin = !isDraw && ((winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter))
 
   // Animated counters
   const animatedStars = useAnimatedNumber(Math.abs(rewards.starCoinsEarned))
@@ -312,17 +314,28 @@ export default function ResultsPage() {
       }
     }
 
+    // If the host starts a new game while this player is still on the results screen,
+    // auto-navigate them to the game so they don't miss it.
+    const handleNewGame = ({ yourWord, yourRole, yourVillagerWord }: any) => {
+      const roomCode = code ?? room?.code
+      if (!roomCode) return
+      useGameStore.getState().setRoleAndWord(yourRole, yourWord, yourVillagerWord)
+      navigate(`/game/${roomCode}`)
+    }
+
     sock.on('gamechat:history', handleChatHistory)
     sock.on('gamechat:message', handleChatMessage)
     sock.on('rank:updated', handleRankUpdated)
+    sock.on('game:started', handleNewGame)
     sock.emit('gamechat:history')
 
     return () => {
       sock.off('gamechat:history', handleChatHistory)
       sock.off('gamechat:message', handleChatMessage)
       sock.off('rank:updated', handleRankUpdated)
+      sock.off('game:started', handleNewGame)
     }
-  }, [])
+  }, [code])
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -349,8 +362,9 @@ export default function ResultsPage() {
   }
 
   const handlePlayAgain = () => {
+    const roomCode = code ?? room?.code   // route param is most reliable
     reset()
-    navigate('/')
+    navigate(roomCode ? `/room/${roomCode}` : '/')
   }
 
   return (
@@ -414,10 +428,10 @@ export default function ResultsPage() {
                 'text-3xl font-extrabold tracking-tight mb-1',
                 didWin ? 'text-emerald-400' : 'text-red-400',
               ].join(' ')}>
-                {didWin ? t('results.victory') : t('results.defeat')}
+                {isDraw ? t('results.draw', "It's a Draw!") : didWin ? t('results.victory') : t('results.defeat')}
               </h1>
               <p className="text-neutral-400 text-sm">
-                {winner === 'villagers' ? t('results.villagersWon') : t('results.impostersWon')}
+                {isDraw ? t('results.drawDesc', 'The game lasted 30 rounds with no winner') : winner === 'villagers' ? t('results.villagersWon') : t('results.impostersWon')}
               </p>
             </div>
           </div>

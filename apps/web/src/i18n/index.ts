@@ -9,7 +9,7 @@ const loadLanguage = async (lng: string) => {
   const base = lng.split('-')[0] // 'fr-FR' → 'fr'
   if (base === 'en' || i18n.hasResourceBundle(base, 'translation')) return
   try {
-    const supported = ['fr', 'ar', 'es', 'it', 'pt', 'zh']
+    const supported = ['fr', 'ar', 'es', 'it', 'pt', 'zh', 'de']
     if (!supported.includes(base)) return
     const mod = await import(`./${base}`)
     i18n.addResourceBundle(base, 'translation', mod.default, true, true)

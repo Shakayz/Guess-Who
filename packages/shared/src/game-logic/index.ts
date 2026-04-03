@@ -30,6 +30,19 @@ export function getMostVoted(votes: Vote[]): string | null {
   return null // tie
 }
 
+/** Returns the IDs of players tied for most votes. Empty array if no votes. */
+export function getTiedPlayerIds(votes: Vote[]): string[] {
+  if (votes.length === 0) return []
+  const tally: Record<string, number> = {}
+  for (const v of votes) {
+    tally[v.targetId] = (tally[v.targetId] ?? 0) + 1
+  }
+  const maxVotes = Math.max(...Object.values(tally))
+  return Object.entries(tally)
+    .filter(([, count]) => count === maxVotes)
+    .map(([id]) => id)
+}
+
 export function shuffleArray<T>(array: T[]): T[] {
   const arr = [...array]
   for (let i = arr.length - 1; i > 0; i--) {

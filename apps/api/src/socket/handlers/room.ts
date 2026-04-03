@@ -30,6 +30,14 @@ export function registerRoomHandlers(
         return
       }
 
+      // ── Block if player's language doesn't match room's language ─────────────
+      const playerUser = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
+      const playerLocale = playerUser?.locale ?? 'en'
+      if (room.language !== playerLocale) {
+        socket.emit('error', { code: 'LANGUAGE_MISMATCH', message: `This room is in a different language (${room.language}).` })
+        return
+      }
+
       await socket.join(`room:${room.id}`)
       socket.data.roomCode = room.code
 
@@ -60,6 +68,16 @@ export function registerRoomHandlers(
           // ── Block new joins if game is already running ────────────────────────
           if (state.status === 'in_progress' || state.status === 'voting') {
             socket.emit('error', { code: 'GAME_IN_PROGRESS', message: 'This game is already in progress' })
+            await socket.leave(`room:${room.id}`)
+            return
+          }
+          // ── Block if player is currently in another active game ───────────────
+          const activeParticipation = await prisma.gameParticipation.findFirst({
+            where: { userId, game: { endedAt: null } },
+            select: { game: { select: { roomId: true } } },
+          }).catch(() => null)
+          if (activeParticipation && activeParticipation.game.roomId !== room.id) {
+            socket.emit('error', { code: 'ALREADY_IN_GAME', message: 'You are already in an active game. Finish your current game first.' })
             await socket.leave(`room:${room.id}`)
             return
           }
@@ -111,9 +129,12 @@ export function registerRoomHandlers(
               currentSpeakerId: state.currentSpeakerId ?? null,
               speakingOrder: currentRoundData?.speakingOrder ?? [],
               clues: currentRoundData?.clues ?? [],
-              votes: currentRoundData?.votes ?? [],
+              votes: state.tiebreakerActive ? (state.tiebreakerVotes ?? []) : (currentRoundData?.votes ?? []),
               timeRemainingSeconds,
               currentRound: currentRoundData,
+              tiebreakerActive: state.tiebreakerActive ?? false,
+              tiebreakerPlayerIds: state.tiebreakerPlayerIds ?? [],
+              tiebreakerPhase: state.tiebreakerPhase ?? undefined,
             })
           }
         }
@@ -177,12 +198,14 @@ export function registerRoomHandlers(
     }
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
-    // Persist numeric settings to Prisma
-    const dbUpdate: Record<string, number> = {}
+    // Persist numeric and language settings to Prisma
+    const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de']
+    const dbUpdate: Record<string, number | string> = {}
     if (typeof newSettings.maxPlayers === 'number')          dbUpdate.maxPlayers          = Math.min(20, Math.max(4,   newSettings.maxPlayers))
     if (typeof newSettings.imposterCount === 'number')       dbUpdate.imposterCount       = Math.min(4,  Math.max(1,   newSettings.imposterCount))
     if (typeof newSettings.speakingTimeSeconds === 'number') dbUpdate.speakingTimeSeconds = Math.min(120, Math.max(10, newSettings.speakingTimeSeconds))
     if (typeof newSettings.votingTimeSeconds === 'number')   dbUpdate.votingTimeSeconds   = Math.min(120, Math.max(15, newSettings.votingTimeSeconds))
+    if (typeof newSettings.language === 'string' && SUPPORTED_LOCALES.includes(newSettings.language)) dbUpdate.language = newSettings.language
     const updatedRoom = Object.keys(dbUpdate).length > 0
       ? await prisma.room.update({ where: { id: roomId }, data: dbUpdate })
       : room

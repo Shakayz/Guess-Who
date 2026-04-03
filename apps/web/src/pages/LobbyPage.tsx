@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import type { Locale } from '@imposter/shared'
 import { useAuthStore } from '../store/auth'
 import { useGameStore } from '../store/game'
 import { connectSocket, getSocket } from '../lib/socket'
@@ -15,6 +16,17 @@ interface Friend {
   user: { id: string; username: string; avatarUrl: string | null }
 }
 
+const LANGUAGE_OPTIONS: { value: Locale; flag: string; label: string }[] = [
+  { value: 'en', flag: '🇬🇧', label: 'English' },
+  { value: 'fr', flag: '🇫🇷', label: 'Français' },
+  { value: 'es', flag: '🇪🇸', label: 'Español' },
+  { value: 'pt', flag: '🇧🇷', label: 'Português' },
+  { value: 'ar', flag: '🇸🇦', label: 'العربية' },
+  { value: 'it', flag: '🇮🇹', label: 'Italiano' },
+  { value: 'zh', flag: '🇨🇳', label: '中文' },
+  { value: 'de', flag: '🇩🇪', label: 'Deutsch' },
+]
+
 interface Settings {
   maxPlayers: number
   imposterCount: number
@@ -25,6 +37,7 @@ interface Settings {
   enableDetective: boolean
   enableDoubleAgent: boolean
   maxRounds: number
+  language: Locale
 }
 
 function NumStepper({
@@ -57,7 +70,7 @@ function NumStepper({
 function SettingsPanel({
   settings, onChange,
 }: { settings: Settings; onChange: (s: Settings) => void }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const toggleCategory = (key: WordCategory) => {
     const cats = settings.categories.includes(key)
@@ -191,6 +204,29 @@ function SettingsPanel({
         )}
       </div>
 
+      {/* Language */}
+      <div>
+        <p className="text-xs text-neutral-500 mb-2">{t('lobby.language')}</p>
+        <div className="grid grid-cols-4 gap-1.5">
+          {LANGUAGE_OPTIONS.map((lang) => (
+            <button
+              key={lang.value}
+              onClick={() => onChange({ ...settings, language: lang.value })}
+              className={[
+                'flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl text-xs font-semibold transition-all border',
+                settings.language === lang.value
+                  ? 'bg-brand-950/60 border-brand-700/50 text-brand-300'
+                  : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+              ].join(' ')}
+            >
+              <span className="text-base leading-none">{lang.flag}</span>
+              <span className="truncate w-full text-center text-[10px]">{lang.label}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.languageDesc')}</p>
+      </div>
+
       {/* Numeric settings */}
       <div className="space-y-3 pt-1 border-t border-neutral-800">
         <NumStepper label={t('lobby.maxPlayers')}   value={settings.maxPlayers}           min={4}  max={20} onChange={(v) => onChange({ ...settings, maxPlayers: v })} />
@@ -213,7 +249,7 @@ export default function LobbyPage() {
   const { code } = useParams<{ code: string }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const user = useAuthStore((s) => s.user)
   const { room, setRoom, setRoleAndWord, setRound } = useGameStore()
   const [isReady, setIsReady] = useState(false)
@@ -236,6 +272,7 @@ export default function LobbyPage() {
     enableDetective: false,
     enableDoubleAgent: false,
     maxRounds: 0,
+    language: (i18n.language.split('-')[0] as Locale) || 'en',
   })
   const [copied, setCopied] = useState(false)
 
@@ -251,6 +288,7 @@ export default function LobbyPage() {
       imposterCount: s.imposterCount,
       speakingTimeSeconds: s.speakingTimeSeconds,
       votingTimeSeconds: s.votingTimeSeconds,
+      language: s.language,
     })
     setSettingsSaved(true)
     setTimeout(() => setSettingsSaved(false), 1500)
@@ -306,6 +344,7 @@ export default function LobbyPage() {
           enableDetective: (r.settings as any).enableDetective ?? false,
           enableDoubleAgent: (r.settings as any).enableDoubleAgent ?? false,
           maxRounds: r.maxRounds ?? 0,
+          language: (r.settings.language as Locale) ?? prev.language,
         }))
       }
     })
@@ -315,7 +354,10 @@ export default function LobbyPage() {
       navigate(`/game/${code}`)
     })
     socket.on('error', (err) => {
-      setSocketError(err.message)
+      const msg = (err as any).code === 'LANGUAGE_MISMATCH'
+        ? t('room.languageMismatch')
+        : err.message
+      setSocketError(msg)
       setTimeout(() => setSocketError(null), 4000)
     })
 

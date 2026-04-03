@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Room, Round, ChatMessage, RewardSummary } from '@imposter/shared'
 
 interface GameResult {
-  winner: 'villagers' | 'imposters'
+  winner: 'villagers' | 'imposters' | 'draw'
   finalRound: Round
   rewards: RewardSummary
 }

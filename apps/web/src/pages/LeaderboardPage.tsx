@@ -29,11 +29,16 @@ function SkeletonRow() {
 }
 
 export default function LeaderboardPage() {
+  const [search, setSearch] = React.useState('')
   const { data: users = [], isLoading } = useQuery<LeaderboardUser[]>({
     queryKey: ['leaderboard'],
     queryFn: () => api.get('/users/leaderboard'),
     retry: false,
   })
+
+  const filtered = search.trim()
+    ? users.filter((u) => u.username.toLowerCase().includes(search.toLowerCase()))
+    : users
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -42,13 +47,24 @@ export default function LeaderboardPage() {
         <div className="max-w-xl mx-auto">
 
           {/* Header */}
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="text-3xl font-extrabold text-white tracking-tight">Leaderboard</h1>
             <p className="text-neutral-500 text-sm mt-1">Top players this season</p>
           </div>
 
-          {/* Top 3 podium (when data available) */}
-          {!isLoading && users.length >= 3 && (
+          {/* Search */}
+          <div className="mb-6 relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">🔍</span>
+            <input
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-brand-600 transition-colors"
+              placeholder="Search player..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {/* Top 3 podium (when data available and no search) */}
+          {!isLoading && !search.trim() && users.length >= 3 && (
             <div className="grid grid-cols-3 gap-3 mb-8">
               {[users[1], users[0], users[2]].map((u, podiumIdx) => {
                 const realIdx = podiumIdx === 0 ? 1 : podiumIdx === 1 ? 0 : 2
@@ -70,15 +86,15 @@ export default function LeaderboardPage() {
           <div className="space-y-2">
             {isLoading
               ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
-              : users.length === 0
+              : filtered.length === 0
               ? (
                 <div className="card text-center py-12">
-                  <p className="text-4xl mb-3">🏆</p>
-                  <p className="text-white font-semibold">No players ranked yet</p>
-                  <p className="text-neutral-500 text-sm mt-1">Play your first game to appear here</p>
+                  <p className="text-4xl mb-3">🔍</p>
+                  <p className="text-white font-semibold">{search.trim() ? 'No player found' : 'No players ranked yet'}</p>
+                  <p className="text-neutral-500 text-sm mt-1">{search.trim() ? 'Try a different name' : 'Play your first game to appear here'}</p>
                 </div>
               )
-              : users.map((u, i) => {
+              : filtered.map((u, i) => {
                   const rank = RANK_CONFIG[u.rankTier]
                   return (
                     <div key={u.id} className={['card flex items-center gap-3 transition-colors hover:border-neutral-700', i < 3 ? 'border-neutral-700' : ''].join(' ')}>

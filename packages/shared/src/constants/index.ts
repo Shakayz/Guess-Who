@@ -12,7 +12,7 @@ export const RANK_CONFIG = {
 
 export const HONOR_TYPES = ['teamplayer', 'sharp_mind', 'good_sport'] as const
 
-export const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'de'] as const
+export const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'de', 'it', 'pt', 'zh'] as const
 
 export const DEFAULT_ROOM_SETTINGS = {
   maxPlayers: 10,

@@ -1,6 +1,6 @@
 // ─── User & Auth ────────────────────────────────────────────────────────────
 
-export type Locale = 'en' | 'fr' | 'ar' | 'es' | 'de'
+export type Locale = 'en' | 'fr' | 'ar' | 'es' | 'it' | 'pt' | 'zh' | 'de'
 
 export interface User {
   id: string
@@ -75,19 +75,14 @@ export const WORD_CATEGORIES = [
   { key: 'food',         label: 'Food',          icon: '🍕' },
   { key: 'animals',      label: 'Animals',        icon: '🐾' },
   { key: 'music',        label: 'Music',          icon: '🎵' },
-  { key: 'nature',       label: 'Nature',         icon: '🌿' },
-  { key: 'drinks',       label: 'Drinks',         icon: '☕' },
   { key: 'places',       label: 'Places',         icon: '📍' },
-  { key: 'transport',    label: 'Transport',      icon: '🚀' },
   { key: 'jobs',         label: 'Jobs',           icon: '💼' },
   { key: 'sports',       label: 'Sports',         icon: '⚽' },
   { key: 'movies',       label: 'Movies',         icon: '🎬' },
-  { key: 'tech',         label: 'Tech',           icon: '💻' },
   { key: 'history',      label: 'History',        icon: '📜' },
   { key: 'mangas',       label: 'Mangas',         icon: '🈶' },
-  { key: 'action',       label: 'Action',         icon: '💥' },
-  { key: 'celebrities',  label: 'Célébrités',     icon: '⭐' },
-  { key: 'mix',          label: 'Mix',            icon: '🎲' },
+  { key: 'celebrities',  label: 'Celebrities',    icon: '⭐' },
+  { key: 'variety',      label: 'Variety',        icon: '🎲' },
 ] as const
 
 export type WordCategory = typeof WORD_CATEGORIES[number]['key']
@@ -108,7 +103,7 @@ export interface RoomSettings {
 // ─── Player ──────────────────────────────────────────────────────────────────
 
 export type PlayerRole = 'villager' | 'imposter' | 'detective' | 'double_agent'
-export type PlayerStatus = 'alive' | 'eliminated' | 'spectating'
+export type PlayerStatus = 'alive' | 'eliminated' | 'spectating' | 'forfeited'
 
 export interface Player {
   id: string
@@ -184,13 +179,17 @@ export interface ServerToClientEvents {
   'room:updated': (room: Room) => void
   'game:started': (data: { round: Round; yourWord: string; yourRole: PlayerRole; yourVillagerWord?: string }) => void
   'detective:result': (data: { targetUserId: string; targetUsername: string; role: PlayerRole }) => void
-  'round:speaking-turn': (data: { playerId: string; timeSeconds: number; speakingOrder: string[] }) => void
+  'round:speaking-turn': (data: { playerId: string | null; timeSeconds: number; speakingOrder: string[] }) => void
   'round:clue-submitted': (clue: Clue) => void
   'round:voting-started': (data: { timeSeconds: number; players: Player[] }) => void
   'round:vote-cast': (data: { voterId: string; hasVoted: boolean }) => void
   'round:ended': (data: { round: Round; nextRound?: Round }) => void
   'round:word-said': (data: { playerId: string; username: string; clueText: string; role: PlayerRole }) => void
-  'game:finished': (data: { winner: 'villagers' | 'imposters'; finalRound: Round; rewards: RewardSummary }) => void
+  'game:finished': (data: { winner: 'villagers' | 'imposters' | 'draw'; finalRound: Round; rewards: RewardSummary }) => void
+  'round:tiebreaker-start': (data: { tiedPlayerIds: string[]; tiedUsernames: string[]; timeSeconds: number }) => void
+  'round:tiebreaker-voting': (data: { tiedPlayerIds: string[]; timeSeconds: number }) => void
+  'game:sync': (data: { phase: 'speaking' | 'voting'; currentSpeakerId: string | null; speakingOrder: string[]; clues: Clue[]; votes: Vote[]; timeRemainingSeconds: number; currentRound: Round | null; tiebreakerActive?: boolean; tiebreakerPlayerIds?: string[]; tiebreakerPhase?: 'clue' | 'vote' }) => void
+  'game:player-forfeited': (data: { userId: string; username: string }) => void
   'rank:updated': (data: { oldTier: RankTier; newTier: RankTier; newLP: number; promoted: boolean }) => void
   'player:joined': (player: Player) => void
   'player:left': (playerId: string) => void
@@ -204,6 +203,8 @@ export interface ClientToServerEvents {
   'room:leave': () => void
   'player:ready': (isReady: boolean) => void
   'game:start': () => void
+  'game:forfeit': () => void
+  'game:leave-eliminated': () => void
   'clue:submit': (text: string) => void
   'clue:flag': (data: { cluePlayerId: string }) => void
   'vote:cast': (targetPlayerId: string) => void

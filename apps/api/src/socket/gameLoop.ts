@@ -1,6 +1,6 @@
 import type { Server } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
-import { getMostVoted, checkWinCondition, computeRankUpdate, LP_REWARDS } from '@imposter/shared'
+import { getMostVoted, getTiedPlayerIds, checkWinCondition, computeRankUpdate, LP_REWARDS } from '@imposter/shared'
 import type { RankTier } from '@imposter/shared'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
@@ -291,10 +291,36 @@ async function _resolveRound(io: IO, roomId: string) {
     currentRound.eliminatedPlayerId = mostVotedId
     currentRound.eliminatedRole = eliminatedRole
   } else {
-    // Tie vote — notify players explicitly so UI can show a "no elimination" message
+    // Tie vote — start tiebreaker clue phase for tied players
+    const tiedPlayerIds = getTiedPlayerIds(currentRound.votes ?? [])
     currentRound.eliminatedPlayerId = null
     currentRound.eliminatedRole = null
-    io.to(`room:${roomId}`).emit('vote:tie' as any, { message: 'Vote tied — no one is eliminated this round' })
+
+    // Persist votes to RoundVote table before tiebreaker
+    const dbRoundForTie = await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
+    if (dbRoundForTie && (currentRound.votes ?? []).length > 0) {
+      await prisma.roundVote.createMany({
+        data: (currentRound.votes as any[]).map((v: any) => ({
+          roundId:  dbRoundForTie.id,
+          voterId:  v.voterId,
+          targetId: v.targetId,
+        })),
+        skipDuplicates: true,
+      }).catch((err: any) => console.error('[tie-votes] persist error:', err))
+    }
+
+    await saveState(roomId, state)
+
+    // Start tiebreaker after a short reveal delay
+    const roomForTie = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
+    const tbSpeaking = roomForTie?.speakingTimeSeconds ?? 30
+    const tbVoting   = roomForTie?.votingTimeSeconds ?? 30
+    const t = setTimeout(async () => {
+      roomTimers.delete(roomId)
+      await startTiebreakerCluePhase(io, roomId, tiedPlayerIds, tbSpeaking, tbVoting)
+    }, 3000)
+    roomTimers.set(roomId, t)
+    return   // Do NOT fall through to round:ended — tiebreaker handles that
   }
 
   // Add word reveal from DB
@@ -385,6 +411,24 @@ async function _resolveRound(io: IO, roomId: string) {
 
     const nextRoundNumber = state.currentRound + 1
     const maxRounds = state.maxRounds ?? 0   // 0 = unlimited
+    const HARD_MAX_ROUNDS = 30               // Absolute cap — ends as a draw
+
+    // ── Hard 30-round cap → draw ─────────────────────────────────────────────
+    if (nextRoundNumber > HARD_MAX_ROUNDS) {
+      state.status = 'finished'
+      await saveState(roomId, state)
+      await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
+      if (game) {
+        await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: 'draw', endedAt: new Date() } }).catch(() => {})
+      }
+      io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
+      const drawRewards = { starCoinsEarned: 20, xpEarned: 60, lpChange: 0, achievements: [] }
+      setTimeout(async () => { try {
+        io.to(`room:${roomId}`).emit('game:finished', { winner: 'draw' as any, finalRound: roundPayload as any, rewards: drawRewards })
+        await resetRoomAfterGame(roomId, state)
+      } catch (err) { console.error('[draw:game:finished] emit error:', err) } }, 3000)
+      return
+    }
 
     // Imposters win if they survive all rounds (only when a round limit is set)
     // Re-check win condition first — all imposters may have been eliminated this final round
@@ -475,6 +519,231 @@ async function _resolveRound(io: IO, roomId: string) {
     setTimeout(async () => { try {
       await startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
     } catch (err) { console.error('[startRound] timeout error:', err) } }, 5000)
+  }
+}
+
+// ─── Tiebreaker phase ─────────────────────────────────────────────────────────
+
+async function startTiebreakerCluePhase(
+  io: IO,
+  roomId: string,
+  tiedPlayerIds: string[],
+  speakingTimeSeconds: number,
+  votingTimeSeconds: number,
+) {
+  const state = await getState(roomId)
+  if (!state) return
+
+  state.tiebreakerActive = true
+  state.tiebreakerPlayerIds = tiedPlayerIds
+  state.tiebreakerPhase = 'clue'
+  state.tiebreakerClues = []
+  state.tiebreakerVotes = []
+  state.status = 'in_progress'
+  state.phaseStartedAt = Date.now()
+  state.phaseDurationSeconds = speakingTimeSeconds
+  state.votingTimeSeconds = votingTimeSeconds
+  await saveState(roomId, state)
+
+  const tiedPlayers = state.players.filter((p: any) => tiedPlayerIds.includes(p.userId))
+  io.to(`room:${roomId}`).emit('round:tiebreaker-start' as any, {
+    tiedPlayerIds,
+    tiedUsernames: tiedPlayers.map((p: any) => p.username),
+    timeSeconds: speakingTimeSeconds,
+  })
+
+  const timer = setTimeout(async () => { try {
+    roomTimers.delete(roomId)
+    await startTiebreakerVoting(io, roomId)
+  } catch (err) { console.error('[tiebreakerClue] timeout error:', err) } }, speakingTimeSeconds * 1000)
+  roomTimers.set(roomId, timer)
+}
+
+async function startTiebreakerVoting(io: IO, roomId: string) {
+  const state = await getState(roomId)
+  if (!state) return
+
+  state.tiebreakerPhase = 'vote'
+  state.status = 'voting'
+  state.phaseStartedAt = Date.now()
+  const votingTimeSeconds = state.votingTimeSeconds ?? 30
+  state.phaseDurationSeconds = votingTimeSeconds
+  await saveState(roomId, state)
+
+  io.to(`room:${roomId}`).emit('round:tiebreaker-voting' as any, {
+    tiedPlayerIds: state.tiebreakerPlayerIds ?? [],
+    timeSeconds: votingTimeSeconds,
+  })
+
+  const timer = setTimeout(async () => { try {
+    roomTimers.delete(roomId)
+    await resolveTiebreaker(io, roomId)
+  } catch (err) { console.error('[tiebreakerVoting] timeout error:', err) } }, votingTimeSeconds * 1000)
+  roomTimers.set(roomId, timer)
+}
+
+async function resolveTiebreaker(io: IO, roomId: string) {
+  const state = await getState(roomId)
+  if (!state) return
+
+  const tiebreakerVotes: any[] = state.tiebreakerVotes ?? []
+  const tiedPlayerIds: string[] = state.tiebreakerPlayerIds ?? []
+
+  // Clear tiebreaker state
+  state.tiebreakerActive = false
+  state.tiebreakerPhase = null
+  state.status = 'in_progress'
+
+  // Find who to eliminate from tiebreaker votes
+  let eliminatedId: string | null = null
+  if (tiebreakerVotes.length > 0) {
+    const tally: Record<string, number> = {}
+    for (const v of tiebreakerVotes) {
+      tally[v.targetId] = (tally[v.targetId] ?? 0) + 1
+    }
+    const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1])
+    if (sorted.length === 1 || sorted[0][1] !== sorted[1][1]) {
+      eliminatedId = sorted[0][0]
+    }
+  }
+
+  const currentRound = state.rounds?.[state.currentRound - 1]
+
+  if (eliminatedId) {
+    const player = state.players.find((p: any) => p.userId === eliminatedId)
+    if (player) {
+      player.status = 'eliminated'
+      if (currentRound) {
+        currentRound.eliminatedPlayerId = eliminatedId
+        currentRound.eliminatedRole = player.role ?? null
+      }
+    }
+    // Persist elimination to DB
+    const dbRound = currentRound
+      ? await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
+      : null
+    if (dbRound) {
+      await prisma.round.update({
+        where: { id: dbRound.id },
+        data: { eliminatedId, eliminatedRole: currentRound?.eliminatedRole ?? null },
+      }).catch(() => {})
+    }
+    const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
+    if (game) {
+      await prisma.gameParticipation.updateMany({
+        where: { gameId: game.id, userId: eliminatedId },
+        data: { survived: false },
+      }).catch(() => {})
+    }
+  }
+
+  await saveState(roomId, state)
+
+  // Check win condition
+  const winner = checkWinCondition(state.players as any)
+  const roundPayload = currentRound ? buildRoundPayload(currentRound) : null
+
+  if (winner) {
+    state.status = 'finished'
+    await saveState(roomId, state)
+    await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
+    const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
+    if (game) {
+      await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: winner, endedAt: new Date() } }).catch(() => {})
+    }
+    if (roundPayload) io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
+    const isRanked = state.gameMode === 'ranked'
+    if (isRanked) {
+      await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, winner))
+    }
+    const lpChange = isRanked ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS) : 0
+    const rewards = { starCoinsEarned: winner === 'villagers' ? 50 : 80, xpEarned: 120, lpChange, achievements: [] }
+    setTimeout(async () => { try {
+      io.to(`room:${roomId}`).emit('game:finished', { winner, finalRound: roundPayload as any, rewards })
+      await resetRoomAfterGame(roomId, state)
+    } catch (err) { console.error('[tiebreaker:game:finished] emit error:', err) } }, 3000)
+  } else {
+    // No winner yet — start next round
+    const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
+    const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
+    if (!room || !game) return
+
+    const nextRoundNumber = state.currentRound + 1
+    const dbRound = currentRound
+      ? await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
+      : null
+
+    const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
+    const nextSpeakingOrder: string[] = alivePlayers.map((p: any) => p.userId)
+    const nextDbRound = await prisma.round.create({
+      data: {
+        gameId: game.id,
+        roundNumber: nextRoundNumber,
+        villagerWord: dbRound?.villagerWord ?? '',
+        imposterWord: dbRound?.imposterWord ?? '',
+      },
+    }).catch(() => null)
+    if (!nextDbRound) return
+
+    state.currentRound = nextRoundNumber
+    state.status = 'in_progress'
+    state.rounds.push({
+      id: nextDbRound.id,
+      roundNumber: nextRoundNumber,
+      votes: [],
+      clues: [],
+      speakingOrder: nextSpeakingOrder,
+    })
+    await saveState(roomId, state)
+
+    const nextRoundPayload = {
+      id: nextDbRound.id, roundNumber: nextRoundNumber, speakingOrder: nextSpeakingOrder,
+      clues: [], votes: [], eliminatedPlayerId: null, eliminatedRole: null, wordReveal: null,
+    }
+    if (roundPayload) {
+      io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any, nextRound: nextRoundPayload as any })
+    }
+    setTimeout(async () => { try {
+      await startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
+    } catch (err) { console.error('[tiebreaker:startRound] error:', err) } }, 5000)
+  }
+}
+
+export async function tryEarlyTiebreakerVoting(io: IO, roomId: string) {
+  const state = await getState(roomId)
+  if (!state || !state.tiebreakerActive || state.tiebreakerPhase !== 'clue') return
+
+  const tiedPlayerIds: string[] = state.tiebreakerPlayerIds ?? []
+  const tiebreakerClues: any[] = state.tiebreakerClues ?? []
+  const submittedIds = new Set(tiebreakerClues.map((c: any) => c.playerId))
+  const allSubmitted = tiedPlayerIds.every((id: string) => submittedIds.has(id))
+
+  if (allSubmitted) {
+    clearRoomTimer(roomId)
+    const t = setTimeout(async () => {
+      roomTimers.delete(roomId)
+      await startTiebreakerVoting(io, roomId)
+    }, 1500)
+    roomTimers.set(roomId, t)
+  }
+}
+
+export async function tryEarlyTiebreakerResolve(io: IO, roomId: string) {
+  const state = await getState(roomId)
+  if (!state || !state.tiebreakerActive || state.tiebreakerPhase !== 'vote') return
+
+  const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
+  const tiebreakerVotes: any[] = state.tiebreakerVotes ?? []
+  const voterIds = new Set(tiebreakerVotes.map((v: any) => v.voterId))
+  const allVoted = alivePlayers.every((p: any) => voterIds.has(p.userId))
+
+  if (allVoted) {
+    clearRoomTimer(roomId)
+    const t = setTimeout(async () => {
+      roomTimers.delete(roomId)
+      await resolveTiebreaker(io, roomId)
+    }, 1500)
+    roomTimers.set(roomId, t)
   }
 }
 

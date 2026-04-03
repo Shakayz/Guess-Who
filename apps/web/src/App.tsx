@@ -1,8 +1,9 @@
 // Cache-bust: 2026-04-03T17
 import React, { Suspense, useEffect } from 'react'
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from './store/auth'
 import { useSocialStore } from './store/social'
+import { useGameStore } from './store/game'
 import { getSocket } from './lib/socket'
 import { api } from './lib/api'
 import { BottomNav } from './components/BottomNav'
@@ -25,6 +26,32 @@ const PlayerProfilePage   = React.lazy(() => import('./pages/PlayerProfilePage')
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
   return token ? <>{children}</> : <Navigate to="/auth" replace />
+}
+
+/**
+ * Redirects the user back to their active game if they try to navigate away
+ * while a game is in progress. Prevents URL tricks / playing two games at once.
+ */
+function ActiveGameGuard() {
+  const room = useGameStore((s) => s.room)
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!room) return
+    const isActiveGame = room.status === 'in_progress' || room.status === 'voting'
+    if (!isActiveGame) return
+    const gameCode = room.code
+    const gamePath = `/game/${gameCode}`
+    const resultsPath = `/results/${gameCode}`
+    const { pathname } = location
+    // Allow staying on game or results pages, nowhere else
+    if (pathname !== gamePath && pathname !== resultsPath) {
+      navigate(gamePath, { replace: true })
+    }
+  }, [room, location.pathname, navigate])
+
+  return null
 }
 
 const Spinner = () => (
@@ -176,6 +203,7 @@ export default function App() {
   return (
     <Suspense fallback={<Spinner />}>
       <GlobalSocketListeners />
+      <ActiveGameGuard />
       <InviteBanner />
       <FriendRequestBanner />
       <BottomNav />

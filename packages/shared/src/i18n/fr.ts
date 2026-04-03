@@ -51,7 +51,7 @@ export default {
     rankedDesc: 'Toutes catégories · affecte les PL',
     lobbyLabel: 'Créer un lobby',
     lobbyDesc: 'Inviter des amis avec un code',
-    rankedModeInfo: 'Les 12 catégories sont utilisées. Les victoires et défaites affectent vos PL et votre rang.',
+    rankedModeInfo: 'Les 11 catégories sont utilisées. Les victoires et défaites affectent vos PL et votre rang.',
     normalGameMode: 'Normal',
     normalGameModeDesc: 'Villageois et imposteurs uniquement',
     specialGameMode: 'Spécial',

@@ -51,7 +51,7 @@ export default {
     rankedDesc: 'جميع الفئات · يؤثر على النقاط',
     lobbyLabel: 'إنشاء غرفة',
     lobbyDesc: 'ادعُ أصدقاءك برمز',
-    rankedModeInfo: 'تُستخدم جميع الـ 12 فئة. الفوز والخسارة يؤثران على نقاطك ورتبتك.',
+    rankedModeInfo: 'تُستخدم جميع الـ 11 فئة. الفوز والخسارة يؤثران على نقاطك ورتبتك.',
     normalGameMode: 'عادي',
     normalGameModeDesc: 'قرويون ومتسللون فقط',
     specialGameMode: 'خاص',

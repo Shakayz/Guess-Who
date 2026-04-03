@@ -131,6 +131,10 @@ export default function GamePage() {
   const [isTie, setIsTie] = useState(false)
   const [totalTime, setTotalTime] = useState(30)
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
+  const [tiebreakerActive, setTiebreakerActive] = useState(false)
+  const [tiebreakerPlayerIds, setTiebreakerPlayerIds] = useState<string[]>([])
+  const [tiebreakerUsernames, setTiebreakerUsernames] = useState<string[]>([])
+  const [tiebreakerPhase, setTiebreakerPhase] = useState<'clue' | 'vote' | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const phaseRef = useRef<Phase>('clues')
@@ -217,10 +221,17 @@ export default function GamePage() {
       setPhase('clues')
     })
 
-    // Full phase sync on reconnect — restores timer, clues, votes and speaking order
-    socket.on('game:sync', ({ phase: syncPhase, currentSpeakerId: speakerId, speakingOrder: order, clues: syncClues, votes: syncVotes, timeRemainingSeconds, currentRound: syncRound }: any) => {
+    // Full phase sync on reconnect — restores timer, clues, votes, speaking order and tiebreaker state
+    socket.on('game:sync', ({ phase: syncPhase, currentSpeakerId: speakerId, speakingOrder: order, clues: syncClues, votes: syncVotes, timeRemainingSeconds, currentRound: syncRound, tiebreakerActive: syncTbActive, tiebreakerPlayerIds: syncTbIds, tiebreakerPhase: syncTbPhase }: any) => {
       setClues(syncClues ?? [])
       if (syncRound) setRound(syncRound)
+
+      // Restore tiebreaker state if active
+      if (syncTbActive) {
+        setTiebreakerActive(true)
+        setTiebreakerPlayerIds(syncTbIds ?? [])
+        setTiebreakerPhase(syncTbPhase ?? 'clue')
+      }
 
       if (syncPhase === 'speaking') {
         phaseRef.current = 'clues'
@@ -291,6 +302,11 @@ export default function GamePage() {
       setPhase('reveal')
       setCurrentSpeakerId(null)
       setAllVotedMsg(false)
+      // Clear tiebreaker state when round ends
+      setTiebreakerActive(false)
+      setTiebreakerPlayerIds([])
+      setTiebreakerUsernames([])
+      setTiebreakerPhase(null)
       if (round) addCompletedRound(round)
       if (nextRound) setRound(nextRound)
       if (round?.wordReveal) setWordReveal(round.wordReveal)
@@ -309,6 +325,29 @@ export default function GamePage() {
         // Check if it was a tie (votes were cast but no majority)
         if (round?.votes?.length > 0) setIsTie(true)
       }
+    })
+
+    socket.on('round:tiebreaker-start' as any, ({ tiedPlayerIds, tiedUsernames, timeSeconds }: any) => {
+      setTiebreakerActive(true)
+      setTiebreakerPlayerIds(tiedPlayerIds ?? [])
+      setTiebreakerUsernames(tiedUsernames ?? [])
+      setTiebreakerPhase('clue')
+      setVotedFor(null)
+      setHasSubmittedClue(false)
+      setClues([])
+      phaseRef.current = 'clues'
+      setPhase('clues')
+      startTimerRef.current(timeSeconds ?? 30)
+    })
+
+    socket.on('round:tiebreaker-voting' as any, ({ tiedPlayerIds, timeSeconds }: any) => {
+      setTiebreakerPlayerIds(tiedPlayerIds ?? [])
+      setTiebreakerPhase('vote')
+      setVoteCount(0)
+      setAllVotedMsg(false)
+      phaseRef.current = 'voting'
+      setPhase('voting')
+      startTimerRef.current(timeSeconds ?? 30)
     })
     socket.on('vote:update' as any, ({ voteCount: vc, totalVoters: tv }: any) => {
       setVoteCount(vc)
@@ -383,6 +422,8 @@ export default function GamePage() {
       socket.off('round:speaking-turn')
       socket.off('round:voting-started')
       socket.off('round:ended')
+      socket.off('round:tiebreaker-start' as any)
+      socket.off('round:tiebreaker-voting' as any)
       socket.off('game:finished')
       socket.off('room:updated')
       socket.off('error')
@@ -562,11 +603,30 @@ export default function GamePage() {
           )}
         </div>
 
+        {/* Tiebreaker announcement banner */}
+        {tiebreakerActive && phase === 'clues' && (
+          <div className="card border-amber-700/50 bg-amber-950/30 animate-slide-up">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xl">⚔️</span>
+              <p className="text-sm font-bold text-amber-400">{t('game.tiebreakerTitle', 'Tie! Extra Clue Round')}</p>
+            </div>
+            <p className="text-xs text-amber-300/80">
+              {t('game.tiebreakerDesc', '{{names}} are tied — they must each give one more clue', { names: tiebreakerUsernames.join(' & ') })}
+            </p>
+          </div>
+        )}
+
         {/* Clue phase: everyone submits clues simultaneously */}
         {phase === 'clues' && !isEliminated && (
           <div className="card">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('game.yourClue')}</p>
-            {hasSubmittedClue ? (
+            {/* In tiebreaker mode: non-tied players just wait */}
+            {tiebreakerActive && !tiebreakerPlayerIds.includes(user?.id ?? '') ? (
+              <div className="flex items-center gap-2 py-2 text-amber-400 text-sm">
+                <span>⏳</span>
+                <span>{t('game.tiebreakerWaiting', 'Waiting for tied players to give their clues...')}</span>
+              </div>
+            ) : hasSubmittedClue ? (
               <div className="flex items-center gap-2 py-2 text-emerald-400 text-sm">
                 <span>✓</span>
                 <span>{t('game.clueSubmitted')}</span>
@@ -597,7 +657,9 @@ export default function GamePage() {
         {phase === 'voting' && (
           <div className="card">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">{t('game.voteOutImposter')}</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                {tiebreakerActive ? t('game.tiebreakerVoting', 'Vote between the tied players only') : t('game.voteOutImposter')}
+              </p>
               {totalVoters > 0 && (
                 <span className={['text-xs font-bold tabular-nums', voteCount === totalVoters ? 'text-emerald-400' : 'text-neutral-400'].join(' ')}>
                   {t('game.voteCount', { count: voteCount, total: totalVoters })}
@@ -631,7 +693,7 @@ export default function GamePage() {
             })()}
             <div className="space-y-2">
               {alivePlayers
-                .filter((p) => p.userId !== user?.id)
+                .filter((p) => p.userId !== user?.id && (!tiebreakerActive || tiebreakerPlayerIds.includes(p.userId)))
                 .map((p) => (
                   <button
                     key={p.id}

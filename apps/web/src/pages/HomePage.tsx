@@ -11,7 +11,7 @@ type HomeMode = 'normal' | 'ranked' | 'lobby'
 type SubGameMode = 'normal' | 'special'
 
 export default function HomePage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
 
   const [selectedMode, setSelectedMode] = useState<HomeMode | null>(null)
@@ -58,7 +58,7 @@ export default function HomePage() {
       setLoading(true)
       try {
         const room = await api.post<{ code: string }>('/rooms', {
-          settings: { categories, isPrivate: true },
+          settings: { categories, isPrivate: true, language: i18n.language.split('-')[0] },
         })
         navigate(`/lobby/${room.code}?mode=${lobbyGameMode}`)
       } catch (err: any) {

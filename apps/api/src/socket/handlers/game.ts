@@ -2,14 +2,16 @@ import type { Server, Socket } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
 import { redis } from '../../config/redis'
 import { prisma } from '../../config/prisma'
-import { tryEarlyResolve, tryEarlyVoting, eliminatePlayerForWord } from '../gameLoop'
+import { tryEarlyResolve, tryEarlyVoting, tryEarlyTiebreakerVoting, tryEarlyTiebreakerResolve, eliminatePlayerForWord } from '../gameLoop'
 
 // Whole-word, case-insensitive match
 function containsWord(text: string, word: string): boolean {
   if (!word) return false
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, ' ').trim()
-  const w = normalize(word).replace(/\s+/g, '\\s+')
-  return new RegExp(`(?:^|\\s)${w}(?:\\s|$)`).test(normalize(text))
+  const escaped = normalize(word)
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')  // escape regex special chars
+    .replace(/\s+/g, '\\s+')
+  return new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`).test(normalize(text))
 }
 
 export function registerGameHandlers(
@@ -33,12 +35,35 @@ export function registerGameHandlers(
     const voter = state.players.find((p: any) => p.userId === userId && p.status === 'alive')
     if (!voter) return
 
+    // ── Cannot vote for yourself ──────────────────────────────────────────────
+    if (targetPlayerId === userId) return
+
+    // ── TIEBREAKER vote path ──────────────────────────────────────────────────
+    if (state.tiebreakerActive && state.tiebreakerPhase === 'vote') {
+      const tiebreakerPlayerIds: string[] = state.tiebreakerPlayerIds ?? []
+      // Target must be one of the tied players
+      if (!tiebreakerPlayerIds.includes(targetPlayerId)) return
+
+      const tiebreakerVotes: any[] = state.tiebreakerVotes ?? []
+      if (tiebreakerVotes.some((v: any) => v.voterId === userId)) return  // already voted
+
+      tiebreakerVotes.push({ voterId: userId, targetId: targetPlayerId, timestamp: new Date().toISOString() })
+      state.tiebreakerVotes = tiebreakerVotes
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+
+      io.to(`room:${roomId}`).emit('round:vote-cast', { voterId: userId, hasVoted: true })
+      const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
+      io.to(`room:${roomId}`).emit('vote:update' as any, {
+        voteCount: tiebreakerVotes.length,
+        totalVoters: alivePlayers.length,
+      })
+      await tryEarlyTiebreakerResolve(io, roomId)
+      return
+    }
+
     // ── Validate target exists and is alive ───────────────────────────────────
     const target = state.players.find((p: any) => p.userId === targetPlayerId && p.status === 'alive')
     if (!target) return
-
-    // ── Cannot vote for yourself ──────────────────────────────────────────────
-    if (targetPlayerId === userId) return
 
     // Record vote (by userId, one vote per player)
     const existingVote = currentRound.votes?.find((v: any) => v.voterId === userId)
@@ -74,6 +99,32 @@ export function registerGameHandlers(
 
     const currentRound = state.rounds?.[state.currentRound - 1]
     if (!currentRound) return
+
+    // ── TIEBREAKER clue path — only tied players can submit ──────────────────
+    if (state.tiebreakerActive && state.tiebreakerPhase === 'clue') {
+      const tiedIds: string[] = state.tiebreakerPlayerIds ?? []
+      if (!tiedIds.includes(userId)) return  // non-tied player cannot submit
+
+      const tiebreakerClues: any[] = state.tiebreakerClues ?? []
+      if (tiebreakerClues.some((c: any) => c.playerId === userId)) return  // already submitted
+
+      const player = state.players.find((p: any) => p.userId === userId && p.status === 'alive')
+      if (!player) return
+
+      const clue = {
+        playerId: userId,
+        text: sanitized,
+        timestamp: new Date().toISOString(),
+        flaggedForWord: false,
+        flagVotes: [],
+      }
+      tiebreakerClues.push(clue)
+      state.tiebreakerClues = tiebreakerClues
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+      io.to(`room:${roomId}`).emit('round:clue-submitted', clue)
+      await tryEarlyTiebreakerVoting(io, roomId)
+      return
+    }
 
     // ── Any alive player who hasn't submitted yet can submit a clue ─────────
     const clues: any[] = currentRound.clues ?? []
