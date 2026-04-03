@@ -606,41 +606,45 @@ async function main() {
   }
   console.log(`Seeded ${COSMETICS.length} cosmetics`)
 
-  // ── Season Pass ───────────────────────────────────────────────────────────────
-  const now = new Date()
-  const seasonStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const seasonEnd   = new Date(now.getFullYear(), now.getMonth() + 3, 0) // end of quarter
+  // ── Season Pass (optional — table may not exist yet) ──────────────────────────
+  try {
+    const now = new Date()
+    const seasonStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const seasonEnd   = new Date(now.getFullYear(), now.getMonth() + 3, 0)
 
-  const existingSeason = await prisma.seasonPass.findFirst({
-    where: { startDate: { lte: now }, endDate: { gte: now } },
-  })
-
-  if (!existingSeason) {
-    await prisma.seasonPass.create({
-      data: {
-        name: 'Season 1 — Shadow Realm',
-        startDate: seasonStart,
-        endDate: seasonEnd,
-        isPremium: false,
-        tiers: {
-          create: [
-            { tierNumber: 1,  xpRequired: 0,    rewardType: 'starCoins', rewardValue: '50',  isPremium: false },
-            { tierNumber: 2,  xpRequired: 200,  rewardType: 'starCoins', rewardValue: '100', isPremium: false },
-            { tierNumber: 3,  xpRequired: 500,  rewardType: 'starCoins', rewardValue: '150', isPremium: false },
-            { tierNumber: 4,  xpRequired: 900,  rewardType: 'goldCoins', rewardValue: '10',  isPremium: true  },
-            { tierNumber: 5,  xpRequired: 1400, rewardType: 'starCoins', rewardValue: '200', isPremium: false },
-            { tierNumber: 6,  xpRequired: 2000, rewardType: 'starCoins', rewardValue: '250', isPremium: false },
-            { tierNumber: 7,  xpRequired: 2700, rewardType: 'goldCoins', rewardValue: '25',  isPremium: true  },
-            { tierNumber: 8,  xpRequired: 3500, rewardType: 'starCoins', rewardValue: '300', isPremium: false },
-            { tierNumber: 9,  xpRequired: 4400, rewardType: 'starCoins', rewardValue: '400', isPremium: false },
-            { tierNumber: 10, xpRequired: 5500, rewardType: 'goldCoins', rewardValue: '50',  isPremium: true  },
-          ],
-        },
-      },
+    const existingSeason = await (prisma as any).seasonPass.findFirst({
+      where: { startDate: { lte: now }, endDate: { gte: now } },
     })
-    console.log('Created Season 1 — Shadow Realm season pass with 10 tiers')
-  } else {
-    console.log('Active season pass already exists, skipping')
+
+    if (!existingSeason) {
+      await (prisma as any).seasonPass.create({
+        data: {
+          name: 'Season 1 — Shadow Realm',
+          startDate: seasonStart,
+          endDate: seasonEnd,
+          isPremium: false,
+          tiers: {
+            create: [
+              { tierNumber: 1,  xpRequired: 0,    rewardType: 'starCoins', rewardValue: '50',  isPremium: false },
+              { tierNumber: 2,  xpRequired: 200,  rewardType: 'starCoins', rewardValue: '100', isPremium: false },
+              { tierNumber: 3,  xpRequired: 500,  rewardType: 'starCoins', rewardValue: '150', isPremium: false },
+              { tierNumber: 4,  xpRequired: 900,  rewardType: 'goldCoins', rewardValue: '10',  isPremium: true  },
+              { tierNumber: 5,  xpRequired: 1400, rewardType: 'starCoins', rewardValue: '200', isPremium: false },
+              { tierNumber: 6,  xpRequired: 2000, rewardType: 'starCoins', rewardValue: '250', isPremium: false },
+              { tierNumber: 7,  xpRequired: 2700, rewardType: 'goldCoins', rewardValue: '25',  isPremium: true  },
+              { tierNumber: 8,  xpRequired: 3500, rewardType: 'starCoins', rewardValue: '300', isPremium: false },
+              { tierNumber: 9,  xpRequired: 4400, rewardType: 'starCoins', rewardValue: '400', isPremium: false },
+              { tierNumber: 10, xpRequired: 5500, rewardType: 'goldCoins', rewardValue: '50',  isPremium: true  },
+            ],
+          },
+        },
+      })
+      console.log('Created Season 1 — Shadow Realm season pass with 10 tiers')
+    } else {
+      console.log('Active season pass already exists, skipping')
+    }
+  } catch {
+    console.log('Skipped season pass seeding (table may not exist)')
   }
 
   console.log(`Seed complete. Total pairs: ${WORD_PAIRS.length}`)
