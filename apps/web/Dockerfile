@@ -4,6 +4,11 @@ RUN npm install -g pnpm turbo
 
 FROM base AS builder
 WORKDIR /app
+
+# Build-time env vars for Vite (baked into the JS bundle at build time)
+ARG VITE_GOOGLE_CLIENT_ID
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
