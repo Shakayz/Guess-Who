@@ -109,7 +109,7 @@ export default function GamePage() {
   const { code } = useParams<{ code: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { room, currentRound, myRole, myWord, myVillagerWord, detectiveRevealUsed, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setRevealedPlayer, setRoom, setRoleAndWord } = useGameStore()
+  const { room, currentRound, myRole, myWord, myVillagerWord, detectiveRevealUsed, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setRevealedPlayer, setRoom, setRoleAndWord, result } = useGameStore()
   const user = useAuthStore((s) => s.user)
   const [clueText, setClueText] = useState('')
   const [clues, setClues] = useState<Clue[]>([])
@@ -185,6 +185,13 @@ export default function GamePage() {
     }
     socket.on('connect', handleConnect)
 
+    // If game:finished was missed while disconnected but the result is already in the store,
+    // navigate to results immediately instead of showing a stale game screen
+    if (result) {
+      navigate(`/results/${code}`)
+      return
+    }
+
     // Re-hydrate word/role if the player reconnects mid-game (e.g. page refresh) and the store is empty
     socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
       if (!myWord || !myRole) {
@@ -194,7 +201,9 @@ export default function GamePage() {
 
     socket.on('round:clue-submitted', (clue) => setClues((c) => [...c, clue as Clue]))
     socket.on('round:speaking-turn', ({ playerId, timeSeconds, speakingOrder: order }: any) => {
-      if (phaseRef.current === 'reveal') {
+      // Clean up previous round state whenever we transition into a new speaking turn
+      // (handles missed round:ended — coming from 'voting' — as well as normal 'reveal' → next round)
+      if (phaseRef.current !== 'speaking') {
         setClues([])
         setHasSubmittedClue(false)
         setVotedFor(null)
