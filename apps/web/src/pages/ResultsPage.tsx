@@ -136,25 +136,34 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
     <div className="rounded-xl border border-neutral-800 overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-neutral-800/40 transition-colors"
+        className="w-full flex flex-col gap-2 px-4 py-3 text-left hover:bg-neutral-800/40 transition-colors"
       >
-        <span className="w-6 h-6 rounded-full bg-brand-900/60 border border-brand-700/50 flex items-center justify-center text-xs font-bold text-brand-400 flex-shrink-0">
-          {round.roundNumber}
-        </span>
-        <div className="flex-1 min-w-0">
-          {eliminated ? (
-            <span className="text-sm text-neutral-300">
-              💀 <span className="font-semibold text-white">{eliminated.username}</span>
-              {' '}
-              <span className="text-neutral-500 text-xs">
-                ({round.eliminatedRole === 'imposter' ? '🎭 Imposter' : round.eliminatedRole === 'double_agent' ? '🕵️ D.Agent' : round.eliminatedRole === 'detective' ? '🔍 Detective' : '👤 Villager'})
+        <div className="flex items-center gap-3 w-full">
+          <span className="w-6 h-6 rounded-full bg-brand-900/60 border border-brand-700/50 flex items-center justify-center text-xs font-bold text-brand-400 flex-shrink-0">
+            {round.roundNumber}
+          </span>
+          <div className="flex-1 min-w-0">
+            {eliminated ? (
+              <span className="text-sm text-neutral-300">
+                💀 <span className="font-semibold text-white">{eliminated.username}</span>
+                {' '}
+                <span className="text-neutral-500 text-xs">
+                  ({round.eliminatedRole === 'imposter' ? '🎭 Imposter' : round.eliminatedRole === 'double_agent' ? '🕵️ D.Agent' : round.eliminatedRole === 'detective' ? '🔍 Detective' : '👤 Villager'})
+                </span>
               </span>
-            </span>
-          ) : (
-            <span className="text-sm text-neutral-500">🤝 No elimination — tie</span>
-          )}
+            ) : (
+              <span className="text-sm text-neutral-500">🤝 No elimination — tie</span>
+            )}
+          </div>
+          <span className="text-neutral-600 text-xs">{round.clues.length} clues {open ? '▲' : '▼'}</span>
         </div>
-        <span className="text-neutral-600 text-xs">{round.clues.length} clues {open ? '▲' : '▼'}</span>
+        {round.wordReveal && (
+          <div className="flex items-center gap-3 ml-9 text-xs">
+            <span className="text-brand-400 font-semibold">{round.wordReveal.villagerWord}</span>
+            <span className="text-neutral-700">vs</span>
+            <span className="text-amber-400 font-semibold">{round.wordReveal.imposterWord}</span>
+          </div>
+        )}
       </button>
 
       {open && (
