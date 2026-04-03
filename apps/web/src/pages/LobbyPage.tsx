@@ -268,6 +268,7 @@ export default function LobbyPage() {
   const [joinToast, setJoinToast] = useState<string | null>(null)
   const [socketError, setSocketError] = useState<string | null>(null)
   const prevPlayerCountRef = useRef(0)
+  const langSyncedRef = useRef(false)
   const [showInvite, setShowInvite] = useState(false)
   const [friends, setFriends] = useState<Friend[]>([])
   const [friendSearch, setFriendSearch] = useState('')
@@ -358,11 +359,12 @@ export default function LobbyPage() {
           maxRounds: r.maxRounds ?? 0,
           language: roomLang,
         }))
-        // Switch UI language to match the room's language
-        if (i18n.language.split('-')[0] !== roomLang) {
+        // Switch UI language to match the room's language (only on first join)
+        if (!langSyncedRef.current && i18n.language.split('-')[0] !== roomLang) {
           i18n.changeLanguage(roomLang)
           document.documentElement.dir = roomLang === 'ar' ? 'rtl' : 'ltr'
         }
+        langSyncedRef.current = true
       }
     })
     socket.on('game:started', ({ round, yourWord, yourRole, yourVillagerWord }) => {

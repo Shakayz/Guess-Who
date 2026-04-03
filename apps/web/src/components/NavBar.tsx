@@ -41,7 +41,8 @@ export function NavBar() {
     return () => document.removeEventListener('mousedown', handler)
   }, [langOpen])
 
-  const currentLang = LANGUAGES.find((l) => l.code === i18n.language) ?? LANGUAGES[0]
+  const baseLang = i18n.language?.split('-')[0] ?? 'en'
+  const currentLang = LANGUAGES.find((l) => l.code === baseLang) ?? LANGUAGES[0]
 
   const handleLangChange = (code: string) => {
     i18n.changeLanguage(code)
@@ -114,7 +115,7 @@ export function NavBar() {
                   onClick={() => handleLangChange(lang.code)}
                   className={[
                     'w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-left',
-                    i18n.language === lang.code
+                    baseLang === lang.code
                       ? 'bg-neutral-800 text-white'
                       : 'text-neutral-400 hover:bg-neutral-800 hover:text-white',
                   ].join(' ')}
