@@ -8,10 +8,10 @@ import { Avatar } from '@imposter/ui'
 import type { Clue } from '@imposter/shared'
 // Overlays removed — they blocked gameplay and caused desync between players
 
-type Phase = 'speaking' | 'voting' | 'reveal'
+type Phase = 'clues' | 'voting' | 'reveal'
 
-const PHASE_STEP_IDS: Phase[] = ['speaking', 'voting', 'reveal']
-const PHASE_ICONS: Record<Phase, string> = { speaking: '💬', voting: '🗳', reveal: '📋' }
+const PHASE_STEP_IDS: Phase[] = ['clues', 'voting', 'reveal']
+const PHASE_ICONS: Record<Phase, string> = { clues: '✏️', voting: '🗳', reveal: '📋' }
 const EMOTES = ['👍', '😮', '🤔', '😂', '😱']
 
 /** SVG circular countdown timer — visually prominent */
@@ -54,7 +54,7 @@ const CircularTimer = memo(({ seconds, total, phase }: { seconds: number; total:
 const PhaseIndicator = memo(({ currentPhase }: { currentPhase: Phase }) => {
   const { t } = useTranslation()
   const PHASE_LABELS: Record<Phase, string> = {
-    speaking: t('game.phaseSpeaking'),
+    clues: t('game.phaseClues', 'Clues'),
     voting: t('game.phaseVoting'),
     reveal: t('game.phaseReveal'),
   }
@@ -117,7 +117,7 @@ export default function GamePage() {
   const [deadChatMessages, setDeadChatMessages] = useState<{ id: string; userId: string; username: string; text: string }[]>([])
   const [isEliminated, setIsEliminated] = useState(false)
   const [floatingEmotes, setFloatingEmotes] = useState<{ id: string; emoji: string; username: string; x: number }[]>([])
-  const [phase, setPhase] = useState<Phase>('speaking')
+  const [phase, setPhase] = useState<Phase>('clues')
   const [votedFor, setVotedFor] = useState<string | null>(null)
   const [eliminated, setEliminated] = useState<{ username: string; role: string } | null>(null)
   const [hasSubmittedClue, setHasSubmittedClue] = useState(false)
@@ -133,7 +133,7 @@ export default function GamePage() {
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
-  const phaseRef = useRef<Phase>('speaking')
+  const phaseRef = useRef<Phase>('clues')
   const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const startTimer = useCallback((seconds: number) => {
@@ -221,8 +221,8 @@ export default function GamePage() {
       setIsEliminated(false)
       setDeadChatMessages([])
       setCurrentSpeakerId(null)
-      phaseRef.current = 'speaking'
-      setPhase('speaking')
+      phaseRef.current = 'clues'
+      setPhase('clues')
     })
 
     // Full phase sync on reconnect — restores timer, clues, votes and speaking order
@@ -231,8 +231,8 @@ export default function GamePage() {
       if (syncRound) setRound(syncRound)
 
       if (syncPhase === 'speaking') {
-        phaseRef.current = 'speaking'
-        setPhase('speaking')
+        phaseRef.current = 'clues'
+        setPhase('clues')
         setCurrentSpeakerId(speakerId ?? null)
         if (order) setSpeakingOrder(order)
         startTimerRef.current(timeRemainingSeconds ?? 30)
@@ -269,7 +269,7 @@ export default function GamePage() {
     socket.on('round:clue-submitted', (clue) => setClues((c) => [...c, clue as Clue]))
     socket.on('round:speaking-turn', ({ playerId, timeSeconds, speakingOrder: order }: any) => {
       // Clean up previous round state when entering a new clue phase
-      if (phaseRef.current !== 'speaking') {
+      if (phaseRef.current !== 'clues') {
         setClues([])
         setHasSubmittedClue(false)
         setVotedFor(null)
@@ -281,8 +281,8 @@ export default function GamePage() {
       }
       setCurrentSpeakerId(null)
       if (order) setSpeakingOrder(order)
-      phaseRef.current = 'speaking'
-      setPhase('speaking')
+      phaseRef.current = 'clues'
+      setPhase('clues')
       startTimerRef.current(timeSeconds)
     })
     socket.on('round:voting-started', ({ timeSeconds, players: vPlayers }: any) => {
@@ -406,7 +406,7 @@ export default function GamePage() {
 
   const submitClue = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!clueText.trim() || hasSubmittedClue || phase !== 'speaking') return
+    if (!clueText.trim() || hasSubmittedClue || phase !== 'clues') return
     getSocket().emit('clue:submit', clueText.trim())
     setClueText('')
     setHasSubmittedClue(true)
@@ -563,8 +563,8 @@ export default function GamePage() {
           )}
         </div>
 
-        {/* Speaking phase: everyone submits clues simultaneously */}
-        {phase === 'speaking' && (
+        {/* Clue phase: everyone submits clues simultaneously */}
+        {phase === 'clues' && (
           <div className="card">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('game.yourClue')}</p>
             {hasSubmittedClue ? (
@@ -658,22 +658,6 @@ export default function GamePage() {
                   </button>
                 ))}
             </div>
-            {/* Speaking order reminder during voting */}
-            {speakingOrder.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-neutral-800">
-                <p className="text-xs text-neutral-600 mb-1.5">{t('game.speakingOrderReminder')}</p>
-                <div className="flex flex-wrap gap-1">
-                  {speakingOrder.map((uid, i) => {
-                    const p = players.find(pl => pl.userId === uid)
-                    return (
-                      <span key={uid} className="text-xs px-2 py-0.5 rounded bg-neutral-800/60 text-neutral-500 border border-neutral-700/30">
-                        {i + 1}. {p ? getDisplayName(p.userId, p.username) : uid.slice(0, 6)}
-                      </span>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -729,30 +713,6 @@ export default function GamePage() {
           <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
             {t('game.cluesTitle', { round: currentRound?.roundNumber ?? 1 })}
           </p>
-          {phase === 'speaking' && speakingOrder.length > 0 && (
-            <div className="mb-3 pb-3 border-b border-neutral-800">
-              <p className="text-xs text-neutral-600 mb-2">{t('game.speakingOrder')}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {speakingOrder.map((uid, i) => {
-                  const p = players.find(pl => pl.userId === uid)
-                  const isCurrent = uid === currentSpeakerId
-                  const isDone = speakingOrder.indexOf(currentSpeakerId ?? '') > i || !currentSpeakerId
-                  return (
-                    <div key={uid} className={[
-                      'flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold border transition-all',
-                      isCurrent ? 'bg-brand-950/60 border-brand-700/50 text-brand-300' :
-                      isDone ? 'bg-neutral-900 border-neutral-800 text-neutral-600 line-through' :
-                      'bg-neutral-800/60 border-neutral-700/40 text-neutral-400',
-                    ].join(' ')}>
-                      <span className="text-neutral-600">{i + 1}.</span>
-                      {p ? getDisplayName(p.userId, p.username) : uid.slice(0,6)}
-                      {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse ml-1" />}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
           {clues.length === 0 ? (
             <p className="text-neutral-600 text-sm italic">{t('game.noClues')}</p>
           ) : (
@@ -818,7 +778,7 @@ export default function GamePage() {
           )}
           <div className="flex flex-wrap gap-1.5">
             {players.map((p) => {
-              const canReveal = myRole === 'detective' && !detectiveRevealUsed && p.userId !== user?.id && p.status === 'alive' && (phase === 'speaking' || phase === 'voting')
+              const canReveal = myRole === 'detective' && !detectiveRevealUsed && p.userId !== user?.id && p.status === 'alive' && (phase === 'clues' || phase === 'voting')
               return (
                 <div
                   key={p.id}

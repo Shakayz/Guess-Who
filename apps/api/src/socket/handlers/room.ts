@@ -387,16 +387,22 @@ export function registerRoomHandlers(
       } as any)
 
       // Step 2 — send each player their private word/role via direct socket
+      // Try both onlineUsers map AND the player's socket.id from state (more reliable)
       for (const playerData of players) {
-        const socketId = onlineUsers.get(playerData.userId)
-        if (!socketId) continue
         const getsImposterWord = playerData.role === 'imposter' || playerData.role === 'double_agent'
-        io.to(socketId).emit('game:started', {
+        const payload = {
           round: roundPayload as any,
           yourWord: getsImposterWord ? wordPair.wordB : wordPair.wordA,
           yourRole: playerData.role,
           yourVillagerWord: playerData.role === 'double_agent' ? wordPair.wordA : undefined,
-        })
+        }
+        // Send via onlineUsers (most up-to-date socket ID)
+        const sid = onlineUsers.get(playerData.userId)
+        if (sid) io.to(sid).emit('game:started', payload)
+        // Also send via the socket.id stored in player state (backup for stale onlineUsers)
+        if (playerData.id && playerData.id !== sid) {
+          io.to(playerData.id).emit('game:started', payload)
+        }
       }
 
       // Start speaking phase after a short delay (give clients time to navigate)

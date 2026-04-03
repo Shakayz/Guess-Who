@@ -112,6 +112,7 @@ export default {
     saidTheWordSubtitle: 'said their word!',
     saidTheWordBadge: 'said the word',
     phaseSpeaking: 'Speaking',
+    phaseClues: 'Clues',
     phaseVoting: 'Voting',
     phaseReveal: 'Reveal',
     gameStartsIn: 'Game starts in',

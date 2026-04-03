@@ -112,6 +112,7 @@ export default {
     saidTheWordSubtitle: 'a dit son mot !',
     saidTheWordBadge: 'a dit le mot',
     phaseSpeaking: 'Parole',
+    phaseClues: 'Indices',
     phaseVoting: 'Vote',
     phaseReveal: 'Révélation',
     gameStartsIn: 'La partie commence dans',
