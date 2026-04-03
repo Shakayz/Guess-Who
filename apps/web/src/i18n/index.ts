@@ -13,6 +13,11 @@ const loadLanguage = async (lng: string) => {
     if (!supported.includes(base)) return
     const mod = await import(`./${base}`)
     i18n.addResourceBundle(base, 'translation', mod.default, true, true)
+    // Re-apply the language now that the bundle is loaded so components re-render.
+    // hasResourceBundle now returns true → no infinite loop.
+    if (i18n.language === base || i18n.language.startsWith(base + '-')) {
+      await i18n.changeLanguage(base)
+    }
   } catch {
     // fallback to English silently
   }

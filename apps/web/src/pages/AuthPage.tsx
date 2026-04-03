@@ -280,45 +280,53 @@ export default function AuthPage() {
         {/* Card */}
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900/70 backdrop-blur-sm p-6 shadow-2xl space-y-4">
 
-          {/* OAuth buttons */}
-          <div className="space-y-2.5">
-            <button
-              type="button"
-              onClick={() => { setError(null); handleGoogle() }}
-              disabled={!!oauthLoading}
-              className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl bg-white hover:bg-neutral-100 active:scale-[0.98] text-neutral-900 font-semibold text-sm transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {oauthLoading === 'google' ? (
-                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-              ) : <GoogleIcon />}
-              Continue with Google
-            </button>
+          {/* OAuth buttons — only shown when providers are configured */}
+          {(import.meta.env.VITE_GOOGLE_CLIENT_ID || import.meta.env.VITE_APPLE_CLIENT_ID) && (
+            <>
+              <div className="space-y-2.5">
+                {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+                  <button
+                    type="button"
+                    onClick={() => { setError(null); handleGoogle() }}
+                    disabled={!!oauthLoading}
+                    className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl bg-white hover:bg-neutral-100 active:scale-[0.98] text-neutral-900 font-semibold text-sm transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {oauthLoading === 'google' ? (
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                    ) : <GoogleIcon />}
+                    {t('auth.continueWithGoogle')}
+                  </button>
+                )}
 
-            <button
-              type="button"
-              onClick={() => { setError(null); handleApple() }}
-              disabled={!!oauthLoading}
-              className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl bg-black hover:bg-neutral-900 active:scale-[0.98] text-white font-semibold text-sm border border-neutral-700 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {oauthLoading === 'apple' ? (
-                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-              ) : <AppleIcon />}
-              Continue with Apple
-            </button>
-          </div>
+                {import.meta.env.VITE_APPLE_CLIENT_ID && (
+                  <button
+                    type="button"
+                    onClick={() => { setError(null); handleApple() }}
+                    disabled={!!oauthLoading}
+                    className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl bg-black hover:bg-neutral-900 active:scale-[0.98] text-white font-semibold text-sm border border-neutral-700 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {oauthLoading === 'apple' ? (
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                    ) : <AppleIcon />}
+                    Continue with Apple
+                  </button>
+                )}
+              </div>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-neutral-800" />
-            <span className="text-neutral-600 text-xs font-medium">or</span>
-            <div className="flex-1 h-px bg-neutral-800" />
-          </div>
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-neutral-800" />
+                <span className="text-neutral-600 text-xs font-medium">{t('common.or')}</span>
+                <div className="flex-1 h-px bg-neutral-800" />
+              </div>
+            </>
+          )}
 
           {/* Mode tabs */}
           <div className="flex rounded-xl bg-neutral-800/80 p-1">
