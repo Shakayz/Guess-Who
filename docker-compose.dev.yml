@@ -86,6 +86,7 @@ services:
       VITE_GOOGLE_CLIENT_ID: 358295814462-f9098rilnci6d8dkdhkofo02l12ukqm5.apps.googleusercontent.com
     ports:
       - "5173:5173"
+      - "5174:5173"
     volumes:
       # Hot-reload: mount source so Vite HMR sees file changes
       - ./apps/web/src:/app/apps/web/src

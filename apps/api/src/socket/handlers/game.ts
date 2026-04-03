@@ -115,10 +115,8 @@ export function registerGameHandlers(
       currentRound.eliminatedRole = player.role
       await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
 
-      // Get username from connected socket
-      const sockets = await io.in(`room:${roomId}`).fetchSockets().catch(() => [] as any[])
-      const username = (sockets.find((s: any) => (s.data?.userId ?? s.userId) === userId) as any)
-        ?.data?.username ?? userId.slice(0, 6)
+      // Get username from the player's room state entry (no fetchSockets needed)
+      const username = player.username ?? (socket as any).username ?? userId.slice(0, 6)
 
       io.to(`room:${roomId}`).emit('round:word-said' as any, {
         playerId: userId,

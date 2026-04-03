@@ -2,6 +2,7 @@ import type { Server, Socket } from 'socket.io'
 import { generateRoomCode } from '@imposter/shared'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
+import { onlineUsers } from '../onlineUsers'
 
 const QUEUE_MIN = 4
 
@@ -76,7 +77,9 @@ export function registerMatchmakingHandlers(
 
       if (!room) {
         for (const p of players) {
-          io.to(p.socketId).emit('matchmaking:error' as any, { message: 'Failed to create room. Please try again.' })
+          // Use onlineUsers for current socketId (queue entry may be stale after reconnect)
+          const sid = onlineUsers.get(p.userId)
+          if (sid) io.to(sid).emit('matchmaking:error' as any, { message: 'Failed to create room. Please try again.' })
         }
         return
       }
@@ -91,7 +94,9 @@ export function registerMatchmakingHandlers(
       }), 'EX', 86400)
 
       for (const player of players) {
-        io.to(player.socketId).emit('matchmaking:found' as any, { roomCode: room.code })
+        // Use onlineUsers map for reliable delivery — queue entry socketId may be stale
+        const sid = onlineUsers.get(player.userId)
+        if (sid) io.to(sid).emit('matchmaking:found' as any, { roomCode: room.code })
       }
     }
   })

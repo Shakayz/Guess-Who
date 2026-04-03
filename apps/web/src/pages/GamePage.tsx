@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation, Trans } from 'react-i18next'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
-import { getSocket } from '../lib/socket'
+import { getSocket, connectSocket } from '../lib/socket'
 import { Avatar } from '@imposter/ui'
 import type { Clue } from '@imposter/shared'
 import { RoleRevealScreen } from '../components/RoleRevealScreen'
@@ -174,13 +174,23 @@ export default function GamePage() {
   }, [isRanked, players, user?.id])
 
   useEffect(() => {
+    connectSocket()
     const socket = getSocket()
 
-    // Re-join the room socket on reconnect (socket loses room membership after disconnect)
+    // Join room immediately on mount (handles page refresh / direct navigation)
+    // and again on every reconnect (socket.io room membership is server-side only)
+    if (code) socket.emit('room:join', { roomCode: code })
     const handleConnect = () => {
       if (code) socket.emit('room:join', { roomCode: code })
     }
     socket.on('connect', handleConnect)
+
+    // Re-hydrate word/role if the player reconnects mid-game (e.g. page refresh) and the store is empty
+    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
+      if (!myWord || !myRole) {
+        setRoleAndWord(yourRole, yourWord, yourVillagerWord)
+      }
+    })
 
     socket.on('round:clue-submitted', (clue) => setClues((c) => [...c, clue as Clue]))
     socket.on('round:speaking-turn', ({ playerId, timeSeconds, speakingOrder: order }: any) => {
@@ -292,6 +302,7 @@ export default function GamePage() {
 
     return () => {
       socket.off('connect', handleConnect)
+      socket.off('game:started')
       socket.off('round:clue-submitted')
       socket.off('round:speaking-turn')
       socket.off('round:voting-started')

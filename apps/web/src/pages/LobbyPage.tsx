@@ -262,6 +262,12 @@ export default function LobbyPage() {
     const socket = getSocket()
     socket.emit('room:join', { roomCode: code })
 
+    // Re-join on reconnect so the player stays in the socket.io room even after a brief disconnect
+    const handleConnect = () => {
+      socket.emit('room:join', { roomCode: code })
+    }
+    socket.on('connect', handleConnect)
+
     const modeParam = searchParams.get('mode')
     if (modeParam === 'normal' || modeParam === 'special') {
       setTimeout(() => {
@@ -309,6 +315,7 @@ export default function LobbyPage() {
     })
 
     return () => {
+      socket.off('connect', handleConnect)
       socket.off('room:updated')
       socket.off('game:started')
       socket.off('error')

@@ -4,6 +4,7 @@ import { getMostVoted, checkWinCondition, computeRankUpdate, LP_REWARDS } from '
 import type { RankTier } from '@imposter/shared'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
+import { onlineUsers } from './onlineUsers'
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents>
 
@@ -63,8 +64,6 @@ async function applyRankedLP(
   })
   const userMap = new Map(users.map((u) => [u.id, u]))
 
-  const sockets = await io.in(`room:${roomId}`).fetchSockets().catch(() => [] as any[])
-
   await Promise.allSettled(
     players.map(async (player: any) => {
       const user = userMap.get(player.userId)
@@ -81,8 +80,8 @@ async function applyRankedLP(
       })
 
       if (tierChanged) {
-        const sock = sockets.find((s: any) => (s.data?.userId ?? s.userId) === player.userId)
-        sock?.emit('rank:updated' as any, { oldTier, newTier, newLP, promoted })
+        const socketId = onlineUsers.get(player.userId)
+        if (socketId) io.to(socketId).emit('rank:updated' as any, { oldTier, newTier, newLP, promoted })
       }
     })
   )
@@ -483,13 +482,7 @@ async function checkAndUnlockAchievements(
       ? await prisma.gameParticipation.findMany({ where: { gameId } })
       : []
 
-    // Online sockets in this room keyed by userId
-    const socketMap = new Map<string, string>() // userId → socketId
-    const sockets = await io.in(`room:${roomId}`).fetchSockets().catch(() => [] as any[])
-    for (const s of sockets) {
-      const uid = (s as any).data?.userId ?? (s as any).userId
-      if (uid) socketMap.set(uid, s.id)
-    }
+    // onlineUsers map (userId → socketId) used for direct delivery below
 
     for (const p of participants) {
       const userId = p.userId
@@ -568,10 +561,8 @@ async function checkAndUnlockAchievements(
         await prisma.userAchievement.create({ data: { userId, achievementId: achId } }).catch(() => {})
         const ach = achievements.find((a) => a.key === key)
         if (ach) {
-          const targetSocket = sockets.find((s: any) => (s.data?.userId ?? s.userId) === userId)
-          if (targetSocket) {
-            targetSocket.emit('achievement:unlocked' as any, { key: ach.key, name: ach.name, icon: ach.icon })
-          }
+          const socketId = onlineUsers.get(userId)
+          if (socketId) io.to(socketId).emit('achievement:unlocked' as any, { key: ach.key, name: ach.name, icon: ach.icon })
         }
       }
     }

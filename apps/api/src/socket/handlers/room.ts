@@ -4,6 +4,7 @@ import { shuffleArray } from '@imposter/shared'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
 import { startRound } from '../gameLoop'
+import { onlineUsers } from '../onlineUsers'
 
 // Default word pairs when no word pack is configured
 const FALLBACK_WORDS = [
@@ -76,6 +77,19 @@ export function registerRoomHandlers(
           // Reconnection: update socket.id for the existing player entry
           alreadyIn.id = socket.id
           await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
+
+          // Re-send word/role if game is already in progress so the player doesn't see ???
+          if (state.status === 'in_progress' || state.status === 'voting') {
+            const getsImposterWord = alreadyIn.role === 'imposter' || alreadyIn.role === 'double_agent'
+            const rounds: any[] = state.rounds ?? []
+            const currentRoundData = rounds.find((r: any) => r.roundNumber === state.currentRound) ?? null
+            socket.emit('game:started', {
+              round: currentRoundData,
+              yourWord: getsImposterWord ? state.imposterWord : state.villagerWord,
+              yourRole: alreadyIn.role,
+              yourVillagerWord: alreadyIn.role === 'double_agent' ? state.villagerWord : undefined,
+            })
+          }
         }
       } finally {
         if (lockAcquired) await redis.del(lockKey)
@@ -211,6 +225,15 @@ export function registerRoomHandlers(
       const room = await prisma.room.findUnique({ where: { id: roomId } })
       if (!room || room.hostId !== userId) return
 
+      // ── Mutex: prevent concurrent game:start calls ───────────────────────────
+      const startLockKey = `room:${roomId}:start-lock`
+      const lockAcquired = (await (redis as any).set(startLockKey, '1', 'PX', 10000, 'NX')) === 'OK'
+      if (!lockAcquired) {
+        socket.emit('error', { code: 'GAME_ALREADY_STARTED', message: 'A game is already in progress' })
+        return
+      }
+
+      try {
       const stateRaw = await redis.get(`room:${roomId}:state`)
       if (!stateRaw) return
       const state = JSON.parse(stateRaw)
@@ -311,19 +334,16 @@ export function registerRoomHandlers(
         clues: [], votes: [], eliminatedPlayerId: null, eliminatedRole: null, wordReveal: null,
       }
 
-      // Emit game:started to each socket individually with their word
-      const sockets = await io.in(`room:${roomId}`).fetchSockets()
-      for (const s of sockets) {
-        const socketUserId = (s as any).userId
-        const playerData = players.find((p: any) => p.userId === socketUserId)
-        if (!playerData) continue
-        // Double agent receives the imposter word as their primary word
+      // Emit game:started to each player directly via their socketId (more reliable than fetchSockets
+      // which only covers sockets currently joined to the socket.io room)
+      for (const playerData of players) {
+        const socketId = onlineUsers.get(playerData.userId)
+        if (!socketId) continue
         const getsImposterWord = playerData.role === 'imposter' || playerData.role === 'double_agent'
-        s.emit('game:started', {
+        io.to(socketId).emit('game:started', {
           round: roundPayload as any,
           yourWord: getsImposterWord ? wordPair.wordB : wordPair.wordA,
           yourRole: playerData.role,
-          // Double agent also needs the villager word to blend in
           yourVillagerWord: playerData.role === 'double_agent' ? wordPair.wordA : undefined,
         })
       }
@@ -332,6 +352,9 @@ export function registerRoomHandlers(
       setTimeout(() => {
         startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
       }, 3000)
+      } finally {
+        await redis.del(startLockKey)
+      }
     } catch (err) {
       console.error('game:start error', err)
       socket.emit('error', { code: 'INTERNAL', message: 'Server error' })

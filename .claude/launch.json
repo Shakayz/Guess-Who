@@ -2,16 +2,28 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "Full Stack (Docker)",
-      "runtimeExecutable": "node",
-      "runtimeArgs": [".claude/proxy-dev.js"],
-      "port": 5174
+      "name": "Full Stack (Docker + proxy)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["run", "--rm", "-p", "5200:5200", "--network", "guess-who-main_default", "alpine/socat", "TCP-LISTEN:5200,fork,reuseaddr", "TCP:imposter-web-dev:5173"],
+      "port": 5200
     },
     {
-      "name": "Verify (Docker already running)",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["-e", "const h=require('http');h.createServer((_,r)=>{r.writeHead(200);r.end('Docker stack running on :5173 and :3001');}).listen(9090,()=>console.log('ready'))"],
-      "port": 9090
+      "name": "Web only (Vite)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "web", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "API only (Fastify)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "api", "dev"],
+      "port": 3001
+    },
+    {
+      "name": "Prisma Studio",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "api", "db:studio"],
+      "port": 5555
     }
   ]
 }

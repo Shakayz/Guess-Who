@@ -9,8 +9,9 @@ import { registerGameHandlers } from './handlers/game'
 import { registerChatHandlers } from './handlers/chat'
 import { registerMatchmakingHandlers } from './handlers/matchmaking'
 
-// Track online users: userId -> socketId
-export const onlineUsers = new Map<string, string>()
+// Track online users: userId -> socketId (shared module)
+import { onlineUsers } from './onlineUsers'
+export { onlineUsers }
 
 // Simple per-socket rate limiter to prevent event spam
 const socketRateLimits = new WeakMap<object, Map<string, number[]>>()
@@ -58,7 +59,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     const userId: string = (socket as any).userId
     console.log(`Socket connected: ${socket.id} (user: ${userId})`)
 
-    // Track online user
+    // Track online user — delete stale entry first to avoid race with old socket
     onlineUsers.set(userId, socket.id)
 
     registerRoomHandlers(io, socket)
