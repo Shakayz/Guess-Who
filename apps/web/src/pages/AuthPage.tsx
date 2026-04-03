@@ -101,29 +101,49 @@ export default function AuthPage() {
   const handleGoogle = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
     if (!clientId) { setError('Google sign-in is not configured (missing VITE_GOOGLE_CLIENT_ID)'); return }
-    if (!window.google) { setError('Google sign-in script is still loading, try again in a moment'); return }
     setError(null)
     setOauthLoading('google')
-    const client = window.google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: 'openid email profile',
-      callback: async (response) => {
-        if (response.error || !response.access_token) {
-          setError('Google sign-in was cancelled or failed')
+
+    const triggerGoogleFlow = () => {
+      const client = window.google!.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'openid email profile',
+        callback: async (response: any) => {
+          if (response.error || !response.access_token) {
+            setError('Google sign-in was cancelled or failed')
+            setOauthLoading(null)
+            return
+          }
+          try {
+            const data = await api.post<any>('/auth/google/verify', { accessToken: response.access_token })
+            handleOAuthResponse(data)
+          } catch (err: any) {
+            setError(err.message ?? 'Google sign-in failed')
+          } finally {
+            setOauthLoading(null)
+          }
+        },
+      })
+      client.requestAccessToken()
+    }
+
+    // If the GSI script isn't loaded yet, poll for up to 5 seconds then trigger
+    if (window.google) {
+      triggerGoogleFlow()
+    } else {
+      let attempts = 0
+      const interval = setInterval(() => {
+        attempts++
+        if (window.google) {
+          clearInterval(interval)
+          triggerGoogleFlow()
+        } else if (attempts >= 50) {
+          clearInterval(interval)
+          setError('Google sign-in could not load. Please refresh the page and try again.')
           setOauthLoading(null)
-          return
         }
-        try {
-          const data = await api.post<any>('/auth/google/verify', { accessToken: response.access_token })
-          handleOAuthResponse(data)
-        } catch (err: any) {
-          setError(err.message ?? 'Google sign-in failed')
-        } finally {
-          setOauthLoading(null)
-        }
-      },
-    })
-    client.requestAccessToken()
+      }, 100)
+    }
   }
 
   // ── Apple ──
