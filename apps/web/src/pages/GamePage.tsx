@@ -396,6 +396,11 @@ export default function GamePage() {
     })
     socket.on('game:finished', (data) => {
       setResult(data)
+      // Mark room as finished so ActiveGameGuard stops blocking
+      const currentRoom = useGameStore.getState().room
+      if (currentRoom) {
+        useGameStore.getState().setRoom({ ...currentRoom, status: 'finished' as any })
+      }
       navigate(`/results/${code}`)
     })
     // Keep room state in sync (player list, status changes)

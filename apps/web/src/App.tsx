@@ -159,6 +159,7 @@ function GlobalSocketListeners() {
       // Only act if the game store still has an active room (not yet reset)
       if (store.room && !store.result) {
         store.setResult(data)
+        store.setRoom({ ...store.room, status: 'finished' as any })
         navigate(`/results/${store.room.code}`)
       }
     }

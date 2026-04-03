@@ -280,6 +280,9 @@ export default function ResultsPage() {
   const isImposter = myRole === 'imposter' || myRole === 'double_agent'
   const isDraw = winner === 'draw'
   const didWin = !isDraw && ((winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter))
+  const gameMode = (room?.settings as any)?.gameMode ?? 'normal'
+  const isRanked = gameMode === 'ranked'
+  const isLobby = room?.settings?.isPrivate ?? false
 
   // Animated counters — must be called before any conditional return (hooks rule)
   const animatedStars = useAnimatedNumber(Math.abs(rewards?.starCoinsEarned ?? 0))
@@ -439,32 +442,36 @@ export default function ResultsPage() {
           {/* Animated Rewards */}
           <div className="card">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('results.rewards')}</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className={['grid gap-3', isRanked ? 'grid-cols-3' : isLobby ? 'grid-cols-1' : 'grid-cols-2'].join(' ')}>
               <div className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50 animate-count-up" style={{ animationDelay: '0.1s' }}>
                 <span className="text-xl">⭐</span>
                 <span className="text-lg font-bold text-white tabular-nums">+{animatedStars}</span>
                 <span className="text-xs text-neutral-500">{t('results.starCoins')}</span>
               </div>
-              <div className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50 animate-count-up" style={{ animationDelay: '0.3s' }}>
-                <span className="text-xl">⚡</span>
-                <span className="text-lg font-bold text-white tabular-nums">+{animatedXP}</span>
-                <span className="text-xs text-neutral-500">{t('results.xp')}</span>
-              </div>
-              <div className={[
-                'flex flex-col items-center gap-1 p-3 rounded-xl border animate-count-up',
-                rewards.lpChange >= 0
-                  ? 'bg-emerald-950/40 border-emerald-800/40'
-                  : 'bg-red-950/40 border-red-800/40',
-              ].join(' ')} style={{ animationDelay: '0.5s' }}>
-                <span className="text-xl">📊</span>
-                <span className={[
-                  'text-lg font-bold tabular-nums',
-                  rewards.lpChange >= 0 ? 'text-emerald-400' : 'text-red-400',
-                ].join(' ')}>
-                  {rewards.lpChange >= 0 ? '+' : '-'}{animatedLP}
-                </span>
-                <span className="text-xs text-neutral-500">{t('results.lp')}</span>
-              </div>
+              {!isLobby && (
+                <div className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50 animate-count-up" style={{ animationDelay: '0.3s' }}>
+                  <span className="text-xl">⚡</span>
+                  <span className="text-lg font-bold text-white tabular-nums">+{animatedXP}</span>
+                  <span className="text-xs text-neutral-500">{t('results.xp')}</span>
+                </div>
+              )}
+              {isRanked && (
+                <div className={[
+                  'flex flex-col items-center gap-1 p-3 rounded-xl border animate-count-up',
+                  (rewards?.lpChange ?? 0) >= 0
+                    ? 'bg-emerald-950/40 border-emerald-800/40'
+                    : 'bg-red-950/40 border-red-800/40',
+                ].join(' ')} style={{ animationDelay: '0.5s' }}>
+                  <span className="text-xl">📊</span>
+                  <span className={[
+                    'text-lg font-bold tabular-nums',
+                    (rewards?.lpChange ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400',
+                  ].join(' ')}>
+                    {(rewards?.lpChange ?? 0) >= 0 ? '+' : '-'}{animatedLP}
+                  </span>
+                  <span className="text-xs text-neutral-500">{t('results.lp')}</span>
+                </div>
+              )}
             </div>
 
             {rewards.achievements.length > 0 && (
