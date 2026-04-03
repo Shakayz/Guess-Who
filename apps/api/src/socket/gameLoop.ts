@@ -510,8 +510,9 @@ async function _resolveRound(io: IO, roomId: string) {
       wordReveal: null,
     }
 
+    // Strip wordReveal from mid-game round:ended — words are only revealed at game end
     io.to(`room:${roomId}`).emit('round:ended', {
-      round: roundPayload as any,
+      round: { ...roundPayload, wordReveal: null } as any,
       nextRound: nextRoundPayload as any,
     })
 
@@ -767,7 +768,8 @@ async function resolveTiebreaker(io: IO, roomId: string) {
       clues: [], votes: [], eliminatedPlayerId: null, eliminatedRole: null, wordReveal: null,
     }
     if (roundPayload) {
-      io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any, nextRound: nextRoundPayload as any })
+      // Strip wordReveal from mid-game round:ended — words are only revealed at game end
+      io.to(`room:${roomId}`).emit('round:ended', { round: { ...roundPayload, wordReveal: null } as any, nextRound: nextRoundPayload as any })
     }
     setTimeout(async () => { try {
       await startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
