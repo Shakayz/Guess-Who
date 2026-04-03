@@ -27,6 +27,8 @@ interface GameState {
   result: GameResult | null
   /** Tracks whether the game result has been acknowledged (player left results page) */
   gameFinished: boolean
+  /** Timestamp of last reset — prevents ActiveGameRestorer from immediately re-populating */
+  lastResetAt: number
   setRoom: (room: Room) => void
   setRound: (round: Round) => void
   addCompletedRound: (round: Round) => void
@@ -53,6 +55,7 @@ export const useGameStore = create<GameState>()(
       messages: [],
       result: null,
       gameFinished: false,
+      lastResetAt: 0,
       setRoom: (room) => set({ room }),
       setRound: (round) => set({ currentRound: round }),
       addCompletedRound: (round) => set((s) => ({
@@ -69,7 +72,7 @@ export const useGameStore = create<GameState>()(
       }),
       setResult: (result) => set({ result, gameFinished: true }),
       setGameFinished: (gameFinished) => set({ gameFinished }),
-      reset: () => set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, detectiveRevealUsed: false, revealedPlayer: null, messages: [], result: null, gameFinished: false }),
+      reset: () => set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, detectiveRevealUsed: false, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() }),
     }),
     {
       name: 'imposter-game',
@@ -85,6 +88,7 @@ export const useGameStore = create<GameState>()(
         detectiveRevealUsed: state.detectiveRevealUsed,
         result: state.result,
         gameFinished: state.gameFinished,
+        lastResetAt: state.lastResetAt,
       }),
     },
   ),

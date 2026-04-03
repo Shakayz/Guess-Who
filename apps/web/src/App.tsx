@@ -76,10 +76,19 @@ function ActiveGameRestorer() {
   useEffect(() => {
     if (!token) return
 
+    // If the user just reset (left a game), don't immediately re-fetch
+    // for 5 seconds to avoid race conditions with server cleanup
+    const { lastResetAt } = useGameStore.getState()
+    if (lastResetAt && Date.now() - lastResetAt < 5000) return
+
     let cancelled = false
     api.get<{ active: boolean; roomCode?: string; room?: any }>('/rooms/active')
       .then((data) => {
         if (cancelled) return
+        // Re-check after async — user might have reset while we were fetching
+        const { lastResetAt: currentReset } = useGameStore.getState()
+        if (currentReset && Date.now() - currentReset < 5000) return
+
         if (data.active && data.room) {
           useGameStore.getState().setRoom(data.room)
         } else {
