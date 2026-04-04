@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { useSocialStore } from '../store/social'
@@ -41,6 +42,7 @@ function InitialsAvatar({ username }: { username: string }) {
 }
 
 function ShareCard() {
+  const { t } = useTranslation()
   const appUrl = window.location.origin
   const [copied, setCopied] = useState(false)
   const canShare = typeof navigator !== 'undefined' && !!navigator.share
@@ -79,9 +81,9 @@ function ShareCard() {
           🎭
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-white font-bold text-sm">Invite friends to play</p>
+          <p className="text-white font-bold text-sm">{t('friends.inviteTitle')}</p>
           <p className="text-neutral-400 text-xs mt-0.5 leading-relaxed">
-            Share the link — anyone can join and play for free.
+            {t('friends.inviteDesc')}
           </p>
           {/* URL row */}
           <div className="flex items-center gap-2 mt-3">
@@ -98,7 +100,7 @@ function ShareCard() {
                   : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:text-white hover:bg-neutral-700',
               ].join(' ')}
             >
-              {copied ? '✓ Copied' : '📋 Copy'}
+              {copied ? t('friends.copied') : `📋 ${t('friends.copy')}`}
             </button>
           </div>
         </div>
@@ -109,13 +111,14 @@ function ShareCard() {
         className="w-full mt-3 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-brand-600/20"
       >
         <span>📤</span>
-        {canShare ? 'Share with friends' : (copied ? '✓ Link copied!' : 'Copy link')}
+        {canShare ? t('friends.shareWithFriends') : (copied ? t('friends.linkCopied') : t('friends.copyLink'))}
       </button>
     </section>
   )
 }
 
 export default function FriendsPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const setActiveDm = useSocialStore((s) => s.setActiveDm)
   const unreadCounts = useSocialStore((s) => s.unreadCounts)
@@ -225,7 +228,7 @@ export default function FriendsPage() {
       <main className="flex-1 p-6">
         <div className="max-w-xl mx-auto space-y-5 animate-slide-up">
 
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">Friends</h1>
+          <h1 className="text-2xl font-extrabold text-white tracking-tight">{t('friends.title')}</h1>
 
           {/* Share the app */}
           <ShareCard />
@@ -234,7 +237,7 @@ export default function FriendsPage() {
           {(loadingRequests || requests.length > 0) && (
             <section className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
-                Pending Requests
+                {t('friends.pendingRequests')}
                 {requests.length > 0 && (
                   <span className="ml-2 bg-brand-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                     {requests.length}
@@ -259,14 +262,14 @@ export default function FriendsPage() {
                           disabled={pendingActions[req.friendshipId]}
                           className="px-3 py-1 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold transition-colors disabled:opacity-50"
                         >
-                          Accept
+                          {t('friends.accept')}
                         </button>
                         <button
                           onClick={() => handleDecline(req.friendshipId)}
                           disabled={pendingActions[req.friendshipId]}
                           className="px-3 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white text-xs font-semibold transition-colors disabled:opacity-50"
                         >
-                          Decline
+                          {t('friends.decline')}
                         </button>
                       </div>
                     </div>
@@ -279,7 +282,7 @@ export default function FriendsPage() {
           {/* Friends List */}
           <section className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
-              Friends
+              {t('friends.title')}
               {friends.length > 0 && (
                 <span className="ml-2 text-neutral-600">({friends.length})</span>
               )}
@@ -293,8 +296,8 @@ export default function FriendsPage() {
             ) : friends.length === 0 ? (
               <div className="flex flex-col items-center py-8 text-center">
                 <span className="text-4xl mb-2">👥</span>
-                <p className="text-white font-semibold text-sm">No friends yet</p>
-                <p className="text-neutral-500 text-xs mt-1">Search for players below to add them</p>
+                <p className="text-white font-semibold text-sm">{t('friends.noFriends')}</p>
+                <p className="text-neutral-500 text-xs mt-1">{t('friends.noFriendsHint')}</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -321,14 +324,14 @@ export default function FriendsPage() {
                           onClick={() => setActiveDm({ friendId: f.user.id, friendUsername: f.user.username })}
                           className="px-3 py-1 rounded-lg bg-brand-600/20 hover:bg-brand-600/40 border border-brand-800/40 text-brand-400 text-xs font-semibold transition-colors"
                         >
-                          {unread > 0 ? `💬 ${unread}` : '💬 Message'}
+                          {unread > 0 ? `💬 ${unread}` : `💬 ${t('friends.message')}`}
                         </button>
                         <button
                           onClick={() => handleUnfriend(f.friendshipId)}
                           disabled={pendingActions[f.friendshipId]}
                           className="px-3 py-1 rounded-lg bg-neutral-800 hover:bg-red-950/60 hover:border-red-800/40 hover:text-red-400 border border-neutral-700 text-neutral-500 text-xs font-semibold transition-colors disabled:opacity-50"
                         >
-                          Unfriend
+                          {t('friends.unfriend')}
                         </button>
                       </div>
                     </div>
@@ -340,10 +343,10 @@ export default function FriendsPage() {
 
           {/* Search */}
           <section className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Find Players</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('friends.findPlayers')}</p>
             <input
               type="text"
-              placeholder="Search by username…"
+              placeholder={t('friends.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-sm placeholder-neutral-500 focus:outline-none focus:border-brand-600 transition-colors"
@@ -366,18 +369,18 @@ export default function FriendsPage() {
                       <InitialsAvatar username={u.username} />
                       <span className="flex-1 text-white font-medium text-sm">{u.username}</span>
                       {alreadyFriend ? (
-                        <span className="text-xs text-emerald-400 font-semibold">Friends ✓</span>
+                        <span className="text-xs text-emerald-400 font-semibold">{t('friends.alreadyFriend')}</span>
                       ) : actionFeedback[u.username] === 'sent' ? (
-                        <span className="text-xs text-emerald-400 font-semibold">Request sent ✓</span>
+                        <span className="text-xs text-emerald-400 font-semibold">{t('friends.requestSent')}</span>
                       ) : actionFeedback[u.username] === 'error' ? (
-                        <span className="text-xs text-red-400 font-semibold">Already sent</span>
+                        <span className="text-xs text-red-400 font-semibold">{t('friends.alreadySent')}</span>
                       ) : (
                         <button
                           onClick={() => handleAddFriend(u.username)}
                           disabled={pendingActions[u.username]}
                           className="px-3 py-1 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold transition-colors disabled:opacity-50"
                         >
-                          {pendingActions[u.username] ? '…' : '+ Add'}
+                          {pendingActions[u.username] ? '…' : t('friends.addFriend')}
                         </button>
                       )}
                     </div>
@@ -387,7 +390,7 @@ export default function FriendsPage() {
             )}
 
             {!searchLoading && searchQuery.trim() && searchResults.length === 0 && (
-              <p className="text-neutral-500 text-sm text-center mt-4">No users found for "{searchQuery}"</p>
+              <p className="text-neutral-500 text-sm text-center mt-4">{t('friends.noResults', { query: searchQuery })}</p>
             )}
           </section>
 

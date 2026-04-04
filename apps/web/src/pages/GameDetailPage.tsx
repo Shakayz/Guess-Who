@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { useAuthStore } from '../store/auth'
@@ -69,7 +70,7 @@ function InitialsAvatar({ username, size = 'sm' }: { username: string; size?: 's
   )
 }
 
-function RoundAccordion({ round, players }: { round: RoundDetail; players: GameDetailPlayer[] }) {
+function RoundAccordion({ round, players, t }: { round: RoundDetail; players: GameDetailPlayer[]; t: (key: string, opts?: any) => string }) {
   const [open, setOpen] = useState(false)
 
   const getUsername = (userId: string) =>
@@ -86,14 +87,14 @@ function RoundAccordion({ round, players }: { round: RoundDetail; players: GameD
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800/40 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <span className="text-brand-400 font-bold text-sm">Round {round.roundNumber}</span>
+          <span className="text-brand-400 font-bold text-sm">{t('gameDetail.round', { number: round.roundNumber })}</span>
           {round.eliminatedId && (
             <span className="text-xs text-neutral-500">
-              · {eliminatedPlayer?.username ?? 'Unknown'} eliminated
+              · {eliminatedPlayer?.username ?? 'Unknown'} {t('gameDetail.eliminated')}
             </span>
           )}
           {!round.eliminatedId && (
-            <span className="text-xs text-neutral-500">· No elimination</span>
+            <span className="text-xs text-neutral-500">· {t('gameDetail.noElimination')}</span>
           )}
         </div>
         <span className="text-neutral-500 text-sm">{open ? '▲' : '▼'}</span>
@@ -105,11 +106,11 @@ function RoundAccordion({ round, players }: { round: RoundDetail; players: GameD
           {/* Words */}
           <div className="grid grid-cols-2 gap-3 pt-4">
             <div className="rounded-xl bg-brand-950/40 border border-brand-800/40 p-3 text-center">
-              <p className="text-xs text-neutral-500 mb-1">Villager Word</p>
+              <p className="text-xs text-neutral-500 mb-1">{t('gameDetail.villagerWord')}</p>
               <p className="text-white font-bold text-lg">{round.villagerWord}</p>
             </div>
             <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
-              <p className="text-xs text-neutral-500 mb-1">Imposter Word</p>
+              <p className="text-xs text-neutral-500 mb-1">{t('gameDetail.imposterWord')}</p>
               <p className="text-amber-300 font-bold text-lg">{round.imposterWord}</p>
             </div>
           </div>
@@ -120,10 +121,10 @@ function RoundAccordion({ round, players }: { round: RoundDetail; players: GameD
               <span className="text-2xl">💀</span>
               <div>
                 <p className="text-white font-semibold text-sm">
-                  {eliminatedPlayer?.username ?? 'Unknown'} was eliminated
+                  {t('gameDetail.wasEliminated', { name: eliminatedPlayer?.username ?? 'Unknown' })}
                 </p>
                 <p className="text-neutral-500 text-xs">
-                  Role: {round.eliminatedRole ?? eliminatedPlayer?.role ?? 'unknown'}
+                  {t('gameDetail.role', { role: round.eliminatedRole ?? eliminatedPlayer?.role ?? 'unknown' })}
                 </p>
               </div>
             </div>
@@ -132,7 +133,7 @@ function RoundAccordion({ round, players }: { round: RoundDetail; players: GameD
           {/* Clues */}
           {round.clues.length > 0 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">Clues</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">{t('gameDetail.clues')}</p>
               <div className="space-y-2">
                 {round.clues.map((clue, i) => (
                   <div key={i} className="flex items-start gap-2">
@@ -150,7 +151,7 @@ function RoundAccordion({ round, players }: { round: RoundDetail; players: GameD
           {/* Votes — with tally */}
           {round.votes.length > 0 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">Votes</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">{t('gameDetail.votes')}</p>
               {/* Tally per target */}
               {(() => {
                 const tally: Record<string, number> = {}
@@ -193,6 +194,7 @@ function RoundAccordion({ round, players }: { round: RoundDetail; players: GameD
 }
 
 export default function GameDetailPage() {
+  const { t } = useTranslation()
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
@@ -257,13 +259,13 @@ export default function GameDetailPage() {
         <NavBar />
         <main className="flex-1 p-6 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-red-400 font-semibold">Failed to load game details</p>
+            <p className="text-red-400 font-semibold">{t('history.loadError')}</p>
             <p className="text-neutral-500 text-sm mt-1">{error}</p>
             <button
               onClick={() => navigate('/history')}
               className="mt-4 px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-sm transition-colors"
             >
-              ← Back to History
+              {t('gameDetail.backToHistory')}
             </button>
           </div>
         </main>
@@ -282,7 +284,7 @@ export default function GameDetailPage() {
             onClick={() => navigate('/history')}
             className="flex items-center gap-1.5 text-sm text-neutral-500 hover:text-white transition-colors"
           >
-            ← Back to History
+            {t('gameDetail.backToHistory')}
           </button>
 
           {/* Header card */}
@@ -303,7 +305,7 @@ export default function GameDetailPage() {
               'text-2xl font-extrabold tracking-tight mb-1',
               didWin ? 'text-emerald-400' : 'text-red-400',
             ].join(' ')}>
-              {didWin ? 'Victory' : 'Defeat'}
+              {didWin ? t('gameDetail.victory') : t('gameDetail.defeat')}
             </h1>
             <p className="text-neutral-400 text-sm">{formatDate(data.startedAt)}</p>
             <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
@@ -313,17 +315,17 @@ export default function GameDetailPage() {
                   ? 'bg-amber-950 text-amber-400 border-amber-800/60'
                   : 'bg-brand-950/60 text-brand-400 border-brand-800/60',
               ].join(' ')}>
-                {data.myRole === 'imposter' ? '🎭 Imposter' : '👤 Villager'}
+                {data.myRole === 'imposter' ? t('gameDetail.imposterRole') : t('gameDetail.villagerRole')}
               </span>
               <span className="text-xs font-semibold px-2.5 py-1 rounded-full border border-neutral-700 text-neutral-400 bg-neutral-800/60">
-                {data.rounds.length} round{data.rounds.length !== 1 ? 's' : ''}
+                {data.rounds.length !== 1 ? t('gameDetail.roundCountPlural', { count: data.rounds.length }) : t('gameDetail.roundCount', { count: data.rounds.length })}
               </span>
               <span className="text-xs font-semibold px-2.5 py-1 rounded-full border border-neutral-700 text-neutral-400 bg-neutral-800/60">
-                {data.participations.length} players
+                {t('gameDetail.playerCount', { count: data.participations.length })}
               </span>
               {data.endedAt && data.startedAt && (
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full border border-neutral-700 text-neutral-400 bg-neutral-800/60">
-                  {Math.round((new Date(data.endedAt).getTime() - new Date(data.startedAt).getTime()) / 60000)} min
+                  {t('gameDetail.min', { count: Math.round((new Date(data.endedAt).getTime() - new Date(data.startedAt).getTime()) / 60000) })}
                 </span>
               )}
             </div>
@@ -332,11 +334,11 @@ export default function GameDetailPage() {
             {data.rounds.length > 0 && data.rounds[0].villagerWord && (
               <div className="grid grid-cols-2 gap-3 mt-4">
                 <div className="rounded-xl bg-brand-950/40 border border-brand-800/40 p-3 text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Villager Word</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">{t('gameDetail.villagerWord')}</p>
                   <p className="text-lg font-extrabold text-white">{data.rounds[0].villagerWord}</p>
                 </div>
                 <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Imposter Word</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">{t('gameDetail.imposterWord')}</p>
                   <p className="text-lg font-extrabold text-amber-400">{data.rounds[0].imposterWord}</p>
                 </div>
               </div>
@@ -345,7 +347,7 @@ export default function GameDetailPage() {
 
           {/* Players grid */}
           <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Players</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('gameDetail.players')}</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {data.participations.map((p) => {
                 const isMe = p.userId === user?.id
@@ -372,7 +374,7 @@ export default function GameDetailPage() {
                             {p.username}
                           </Link>
                         )}
-                        {isMe && <span className="text-[9px] text-brand-400 font-bold">YOU</span>}
+                        {isMe && <span className="text-[9px] text-brand-400 font-bold">{t('gameDetail.you')}</span>}
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="text-base">
@@ -382,7 +384,7 @@ export default function GameDetailPage() {
                           'text-[10px]',
                           p.survived ? 'text-emerald-500' : 'text-neutral-600',
                         ].join(' ')}>
-                          {p.survived ? 'Survived' : 'Elim.'}
+                          {p.survived ? t('gameDetail.survived') : t('gameDetail.elim')}
                         </span>
                       </div>
                     </div>
@@ -394,10 +396,10 @@ export default function GameDetailPage() {
 
           {/* Rounds accordion */}
           <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Rounds</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('gameDetail.rounds')}</p>
             <div className="space-y-2">
               {data.rounds.map((round) => (
-                <RoundAccordion key={round.id} round={round} players={data.participations} />
+                <RoundAccordion key={round.id} round={round} players={data.participations} t={t} />
               ))}
             </div>
           </div>
@@ -405,7 +407,7 @@ export default function GameDetailPage() {
           {/* Game chat replay */}
           {data.chatMessages.length > 0 && (
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">💬 Game Chat</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">💬 {t('gameDetail.gameChat')}</p>
               <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                 {data.chatMessages.map((msg) => {
                   const isMe = msg.userId === user?.id

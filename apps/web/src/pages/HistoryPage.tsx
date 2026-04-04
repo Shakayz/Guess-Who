@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 
@@ -42,6 +43,7 @@ function SkeletonCard() {
 }
 
 export default function HistoryPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [page, setPage] = useState(1)
   const [data, setData] = useState<HistoryResponse | null>(null)
@@ -83,7 +85,7 @@ export default function HistoryPage() {
         <div className="max-w-2xl mx-auto space-y-4 animate-slide-up">
 
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-extrabold text-white tracking-tight">Game History</h1>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">{t('history.title')}</h1>
             {data && (
               <span className="text-sm text-neutral-500">{data.total} game{data.total !== 1 ? 's' : ''}</span>
             )}
@@ -91,7 +93,7 @@ export default function HistoryPage() {
 
           {error && (
             <div className="rounded-2xl border border-red-800/50 bg-red-950/30 p-4 text-red-400 text-sm">
-              Failed to load history: {error}
+              {t('history.loadError')}: {error}
             </div>
           )}
 
@@ -106,8 +108,8 @@ export default function HistoryPage() {
           {!loading && !error && data?.games.length === 0 && (
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-12 flex flex-col items-center text-center">
               <span className="text-5xl mb-3">🎮</span>
-              <p className="text-white font-semibold text-lg">No games yet</p>
-              <p className="text-neutral-500 text-sm mt-1">Play your first game to see your history here</p>
+              <p className="text-white font-semibold text-lg">{t('history.noGames')}</p>
+              <p className="text-neutral-500 text-sm mt-1">{t('history.noGamesHint')}</p>
             </div>
           )}
 
@@ -139,7 +141,7 @@ export default function HistoryPage() {
                               : 'bg-red-950 text-red-400 border-red-800',
                           ].join(' ')}
                         >
-                          {won ? 'Victory' : 'Defeat'}
+                          {won ? t('history.victory') : t('history.defeat')}
                         </span>
                       </div>
 
@@ -152,7 +154,7 @@ export default function HistoryPage() {
                               : 'bg-brand-950/60 text-brand-400 border-brand-800/60',
                           ].join(' ')}
                         >
-                          {game.myRole === 'imposter' ? '🎭 Imposter' : '👤 Villager'}
+                          {game.myRole === 'imposter' ? t('gameDetail.imposterRole') : t('gameDetail.villagerRole')}
                         </span>
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-400 bg-neutral-800/60">
                           ⭐ +{game.starCoinsEarned}
@@ -165,7 +167,7 @@ export default function HistoryPage() {
                               : 'border-neutral-700 text-neutral-500 bg-neutral-800/60',
                           ].join(' ')}
                         >
-                          {game.survived ? '✓ Survived' : '✗ Eliminated'}
+                          {game.survived ? t('history.survived') : t('history.eliminated')}
                         </span>
                       </div>
 
@@ -201,17 +203,17 @@ export default function HistoryPage() {
                     disabled={page === 1}
                     className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    ← Prev
+                    {t('history.prev')}
                   </button>
                   <span className="text-neutral-500 text-sm">
-                    Page {page} of {data.totalPages}
+                    {t('history.pageOf', { page, total: data.totalPages })}
                   </span>
                   <button
                     onClick={() => setPage((p) => Math.min(data.totalPages, p + 1))}
                     disabled={page === data.totalPages}
                     className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    Next →
+                    {t('history.next')}
                   </button>
                 </div>
               )}

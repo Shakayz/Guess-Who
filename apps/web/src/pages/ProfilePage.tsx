@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../store/auth'
 import { NavBar } from '../components/NavBar'
@@ -56,12 +57,13 @@ interface RecentGame {
 }
 
 const HONOR_LABELS = [
-  { key: 'teamplayer', label: 'Team Player', icon: '🤝', field: 'honorTeamplayer' },
-  { key: 'sharp_mind', label: 'Sharp Mind',  icon: '🧠', field: 'honorSharpMind' },
-  { key: 'good_sport', label: 'Good Sport',  icon: '🎖️', field: 'honorGoodSport' },
+  { key: 'teamplayer', labelKey: 'profile.teamPlayer', icon: '🤝', field: 'honorTeamplayer' },
+  { key: 'sharp_mind', labelKey: 'profile.sharpMind',  icon: '🧠', field: 'honorSharpMind' },
+  { key: 'good_sport', labelKey: 'profile.goodSport',  icon: '🎖️', field: 'honorGoodSport' },
 ]
 
 export default function ProfilePage() {
+  const { t } = useTranslation()
   const authUser = useAuthStore((s) => s.user)
   const queryClient = useQueryClient()
   const [editingAvatar, setEditingAvatar] = useState(false)
@@ -108,7 +110,7 @@ export default function ProfilePage() {
       setUsernameError(null)
     },
     onError: () => {
-      setUsernameError('Username already taken or invalid')
+      setUsernameError(t('profile.usernameTaken'))
     },
   })
 
@@ -130,9 +132,9 @@ export default function ProfilePage() {
   const nextRank = nextRankTiers[nextIdx]?.[1]
 
   const stats = [
-    { label: 'Star Coins', value: me ? String(me.starCoins) : '—', icon: '⭐' },
-    { label: 'Honor Points', value: me ? String(me.honorPoints) : '—', icon: '🎖️' },
-    { label: 'Rank Points', value: me ? String(me.rankPoints) : '—', icon: '📊' },
+    { label: t('profile.starCoins'), value: me ? String(me.starCoins) : '—', icon: '⭐' },
+    { label: t('profile.honorPoints'), value: me ? String(me.honorPoints) : '—', icon: '🎖️' },
+    { label: t('profile.rankPoints'), value: me ? String(me.rankPoints) : '—', icon: '📊' },
   ]
 
   const gameStats = profileStats?.stats
@@ -187,12 +189,12 @@ export default function ProfilePage() {
                           <button
                             onClick={() => {
                               if (usernameInput.trim().length >= 2) usernameMutation.mutate(usernameInput.trim())
-                              else setUsernameError('Min 2 characters')
+                              else setUsernameError(t('profile.minChars'))
                             }}
                             disabled={usernameMutation.isPending}
                             className="px-2 py-1 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold transition-colors disabled:opacity-40"
                           >
-                            Save
+                            {t('profile.save')}
                           </button>
                           <button
                             onClick={() => { setEditingUsername(false); setUsernameError(null) }}
@@ -207,7 +209,7 @@ export default function ProfilePage() {
                           <button
                             onClick={() => { setEditingUsername(true); setUsernameInput(me?.username ?? '') }}
                             className="text-neutral-600 hover:text-neutral-400 transition-colors text-sm"
-                            title="Edit username"
+                            title={t('profile.editUsername')}
                           >
                             ✏️
                           </button>
@@ -219,7 +221,7 @@ export default function ProfilePage() {
                     )}
                     <p className="text-neutral-500 text-sm truncate">{me?.email ?? authUser?.email ?? '—'}</p>
                     {me?.createdAt && (
-                      <p className="text-neutral-600 text-xs mt-0.5">Joined {formatDate(me.createdAt)}</p>
+                      <p className="text-neutral-600 text-xs mt-0.5">{t('profile.joinedDate', { date: formatDate(me.createdAt) })}</p>
                     )}
                     <div className="flex items-center gap-2 mt-2">
                       <Badge variant="rank">{rank.icon} {rank.label}</Badge>
@@ -237,7 +239,7 @@ export default function ProfilePage() {
               <div className="mt-4">
                 <div className="flex justify-between text-xs text-neutral-500 mb-1">
                   <span>{rank.label}</span>
-                  <span>{nextRank ? nextRank.label : 'Max Rank'}</span>
+                  <span>{nextRank ? nextRank.label : t('profile.maxRank')}</span>
                 </div>
                 <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
                   <div
@@ -254,7 +256,7 @@ export default function ProfilePage() {
                 <input
                   ref={avatarInputRef}
                   type="url"
-                  placeholder="Paste image URL…"
+                  placeholder={t('profile.pasteImageUrl')}
                   value={avatarInput}
                   onChange={(e) => setAvatarInput(e.target.value)}
                   className="flex-1 px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-sm placeholder-neutral-500 focus:outline-none focus:border-brand-600 transition-colors"
@@ -264,13 +266,13 @@ export default function ProfilePage() {
                   disabled={!avatarInput.trim() || avatarMutation.isPending}
                   className="px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
                 >
-                  Save
+                  {t('profile.save')}
                 </button>
                 <button
                   onClick={() => setEditingAvatar(false)}
                   className="px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 text-sm font-semibold transition-colors"
                 >
-                  Cancel
+                  {t('profile.cancel')}
                 </button>
               </div>
             )}
@@ -294,7 +296,7 @@ export default function ProfilePage() {
           {/* Game statistics */}
           {(gameStats || isLoading) && (
             <div className="card">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Game Statistics</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('profile.gameStats')}</p>
               {isLoading || !gameStats ? (
                 <div className="grid grid-cols-3 gap-3">
                   {Array.from({ length: 6 }).map((_, i) => (
@@ -307,12 +309,12 @@ export default function ProfilePage() {
               ) : (
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { label: 'Games Played', value: gameStats.totalGames, icon: '🎮' },
-                    { label: 'Win Rate', value: `${gameStats.winRate}%`, icon: '🏆' },
-                    { label: 'Wins', value: gameStats.wins, icon: '✅' },
-                    { label: 'As Villager', value: gameStats.asVillager, icon: '🏘️' },
-                    { label: 'As Imposter', value: gameStats.asImposter, icon: '🎭' },
-                    { label: 'Survived', value: gameStats.survived, icon: '💪' },
+                    { label: t('profile.gamesPlayed'), value: gameStats.totalGames, icon: '🎮' },
+                    { label: t('profile.winRate'), value: `${gameStats.winRate}%`, icon: '🏆' },
+                    { label: t('profile.wins'), value: gameStats.wins, icon: '✅' },
+                    { label: t('profile.asVillager'), value: gameStats.asVillager, icon: '🏘️' },
+                    { label: t('profile.asImposter'), value: gameStats.asImposter, icon: '🎭' },
+                    { label: t('profile.survived'), value: gameStats.survived, icon: '💪' },
                   ].map((s) => (
                     <div key={s.label} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60 text-center">
                       <span className="text-xl">{s.icon}</span>
@@ -327,13 +329,13 @@ export default function ProfilePage() {
 
           {/* Honors */}
           <div className="card">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Honor Received</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('profile.honorReceived')}</p>
             {isLoading ? (
               <div className="grid grid-cols-3 gap-3">
                 {HONOR_LABELS.map((h) => (
                   <div key={h.key} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60">
                     <span className="text-2xl">{h.icon}</span>
-                    <p className="text-xs font-semibold text-white">{h.label}</p>
+                    <p className="text-xs font-semibold text-white">{t(h.labelKey)}</p>
                     <div className="h-6 w-8 bg-neutral-700 rounded animate-pulse mt-1" />
                   </div>
                 ))}
@@ -350,7 +352,7 @@ export default function ProfilePage() {
                         : 'bg-neutral-800/60 border-neutral-700/60 opacity-50',
                     ].join(' ')}>
                       <span className="text-2xl">{h.icon}</span>
-                      <p className="text-xs font-semibold text-white">{h.label}</p>
+                      <p className="text-xs font-semibold text-white">{t(h.labelKey)}</p>
                       <p className={['text-lg font-bold', count > 0 ? 'text-brand-300' : 'text-neutral-500'].join(' ')}>
                         {count}
                       </p>
@@ -364,7 +366,7 @@ export default function ProfilePage() {
           {/* Achievements */}
           <div className="card">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
-              Achievements{achievements ? ` (${achievements.filter((a) => a.unlocked).length}/${achievements.length})` : ''}
+              {t('profile.achievements')}{achievements ? ` (${achievements.filter((a) => a.unlocked).length}/${achievements.length})` : ''}
             </p>
             {achievementsLoading ? (
               <div className="grid grid-cols-2 gap-3">
@@ -381,8 +383,8 @@ export default function ProfilePage() {
             ) : !achievements || achievements.length === 0 ? (
               <div className="flex flex-col items-center py-6 text-center">
                 <span className="text-4xl mb-2">🏅</span>
-                <p className="text-white font-semibold text-sm">No achievements yet</p>
-                <p className="text-neutral-500 text-xs mt-1">Play games to unlock achievements</p>
+                <p className="text-white font-semibold text-sm">{t('profile.noAchievements')}</p>
+                <p className="text-neutral-500 text-xs mt-1">{t('profile.playToUnlock')}</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
@@ -417,7 +419,7 @@ export default function ProfilePage() {
           {/* Recent games */}
           {(profileStats?.recentGames?.length ?? 0) > 0 && (
             <div className="card">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Recent Games</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('profile.recentGames')}</p>
               <div className="space-y-2">
                 {profileStats!.recentGames.map((g) => (
                   <Link
@@ -429,11 +431,11 @@ export default function ProfilePage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className={['text-xs font-bold', g.didWin ? 'text-emerald-400' : 'text-red-400'].join(' ')}>
-                          {g.didWin ? 'Victory' : 'Defeat'}
+                          {g.didWin ? t('profile.victory') : t('profile.defeat')}
                         </span>
                         <span className="text-neutral-600">·</span>
                         <span className="text-xs text-neutral-400">
-                          {g.role === 'imposter' ? '🎭 Imposter' : g.role === 'double_agent' ? '🕵️ D.Agent' : g.role === 'detective' ? '🔍 Detective' : '👤 Villager'}
+                          {g.role === 'imposter' ? t('gameDetail.imposterRole') : g.role === 'double_agent' ? '🕵️ D.Agent' : g.role === 'detective' ? '🔍 Detective' : t('gameDetail.villagerRole')}
                         </span>
                         <span className="text-neutral-600">·</span>
                         <span className="text-xs text-neutral-500">{g.rounds}R</span>
@@ -441,7 +443,7 @@ export default function ProfilePage() {
                       <p className="text-xs text-neutral-600 mt-0.5">{formatDate(g.playedAt)}</p>
                     </div>
                     <span className={['text-xs', g.survived ? 'text-emerald-500' : 'text-neutral-600'].join(' ')}>
-                      {g.survived ? 'Survived' : 'Eliminated'}
+                      {g.survived ? t('profile.survived') : t('results.eliminated')}
                     </span>
                   </Link>
                 ))}
