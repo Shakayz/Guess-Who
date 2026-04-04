@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { NavBar } from '../components/NavBar'
-import { WORD_CATEGORIES } from '@imposter/shared'
-import type { WordCategory } from '@imposter/shared'
+import { WORD_CATEGORIES, MATCHMAKING_CONFIG } from '@imposter/shared'
+import type { WordCategory, MatchmakingStatus } from '@imposter/shared'
 import { connectSocket, getSocket } from '../lib/socket'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
@@ -43,7 +43,10 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [matchmaking, setMatchmaking] = useState(false)
-  const [queueSize, setQueueSize] = useState(1)
+  const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({
+    queueSize: 1, needed: MATCHMAKING_CONFIG.IDEAL_PLAYERS, elapsed: 0,
+    maxWait: MATCHMAKING_CONFIG.MAX_WAIT_SECONDS, idealPlayers: MATCHMAKING_CONFIG.IDEAL_PLAYERS,
+  })
 
   const hasCategories = selectedMode === 'normal' || selectedMode === 'lobby'
   const hasSubMode = selectedMode === 'normal' || selectedMode === 'lobby'
@@ -52,7 +55,7 @@ export default function HomePage() {
     if (!matchmaking) return
     connectSocket()
     const sock = getSocket() as any
-    const handleStatus = (d: { queueSize: number; needed: number }) => setQueueSize(d.queueSize)
+    const handleStatus = (d: MatchmakingStatus) => setMatchStatus(d)
     const handleFound = (d: { roomCode: string }) => {
       setMatchmaking(false)
       navigate(`/lobby/${d.roomCode}`)
@@ -91,7 +94,10 @@ export default function HomePage() {
     }
 
     connectSocket()
-    setQueueSize(1)
+    setMatchStatus({
+      queueSize: 1, needed: MATCHMAKING_CONFIG.IDEAL_PLAYERS, elapsed: 0,
+      maxWait: MATCHMAKING_CONFIG.MAX_WAIT_SECONDS, idealPlayers: MATCHMAKING_CONFIG.IDEAL_PLAYERS,
+    })
     setMatchmaking(true)
     // For unranked (selectedMode === 'normal'), use the sub-mode (normal/special)
     const actualGameMode = selectedMode === 'normal' ? unrankedSubMode : selectedMode
@@ -433,31 +439,71 @@ export default function HomePage() {
           )}
 
           {/* Matchmaking waiting UI */}
-          {matchmaking && (
-            <div className="card animate-slide-up space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin flex-shrink-0" />
-                <div>
-                  <p className="text-white font-semibold text-sm">{t('home.findingPlayers')}</p>
-                  <p className="text-neutral-500 text-xs">
-                    {t('home.inQueue', { count: queueSize })}
-                  </p>
+          {matchmaking && (() => {
+            const { queueSize, needed, elapsed, maxWait, idealPlayers } = matchStatus
+            const progressPct = Math.min(100, (queueSize / idealPlayers) * 100)
+            const timePct = Math.min(100, (elapsed / maxWait) * 100)
+            const statusText = elapsed < 15
+              ? t('home.matchmakingFullLobby')
+              : elapsed < 35
+                ? t('home.matchmakingExpanding')
+                : t('home.matchmakingStartingSoon')
+
+            return (
+              <div className="card animate-slide-up space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin flex-shrink-0" />
+                  <div>
+                    <p className="text-white font-semibold text-sm">{statusText}</p>
+                    <p className="text-neutral-500 text-xs">
+                      {t('home.inQueue', { count: queueSize, needed })}
+                    </p>
+                  </div>
                 </div>
+
+                {/* Player slot dots */}
+                <div className="flex items-center justify-center gap-1.5">
+                  {Array.from({ length: idealPlayers }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={[
+                        'w-3 h-3 rounded-full transition-all duration-300',
+                        i < queueSize
+                          ? 'bg-brand-500 scale-110'
+                          : i < needed
+                            ? 'bg-neutral-700 border border-neutral-600'
+                            : 'bg-neutral-800/50',
+                      ].join(' ')}
+                    />
+                  ))}
+                </div>
+
+                {/* Player progress bar */}
+                <div className="w-full bg-neutral-800 rounded-full h-1.5">
+                  <div
+                    className="bg-brand-500 h-1.5 rounded-full transition-all duration-500"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+
+                {/* Time progress bar */}
+                <div className="w-full bg-neutral-800 rounded-full h-1">
+                  <div
+                    className="bg-neutral-600 h-1 rounded-full transition-all duration-1000"
+                    style={{ width: `${timePct}%` }}
+                  />
+                </div>
+                <p className="text-neutral-600 text-[10px] text-center">{elapsed}s / {maxWait}s</p>
+
+                <button
+                  onClick={cancelMatchmaking}
+                  className="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white font-semibold text-sm transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
               </div>
-              <div className="w-full bg-neutral-800 rounded-full h-1.5">
-                <div
-                  className="bg-brand-500 h-1.5 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, (queueSize / 4) * 100)}%` }}
-                />
-              </div>
-              <button
-                onClick={cancelMatchmaking}
-                className="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white font-semibold text-sm transition-colors"
-              >
-                {t('common.cancel')}
-              </button>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Create button */}
           {selectedMode && !matchmaking && (

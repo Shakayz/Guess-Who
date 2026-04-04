@@ -61,7 +61,10 @@ export default {
     createLobby: '🚪 Lobby erstellen',
     creating: 'Raum wird erstellt...',
     findingPlayers: 'Spieler werden gesucht...',
-    inQueue: '{{count}} / 4 Spieler in der Warteschlange',
+    inQueue: '{{count}} / {{needed}} Spieler in der Warteschlange',
+    matchmakingFullLobby: 'Suche nach voller Lobby...',
+    matchmakingExpanding: 'Suche wird erweitert...',
+    matchmakingStartingSoon: 'Startet gleich...',
     howToPlay: 'Spielanleitung',
     rankedMode: 'Gewerteter Modus',
     htp: {

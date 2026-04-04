@@ -62,7 +62,10 @@ export default {
     createLobby: '🚪 Créer un lobby',
     creating: 'Création de la salle...',
     findingPlayers: 'Recherche de joueurs...',
-    inQueue: '{{count}} / 4 joueurs en file',
+    inQueue: '{{count}} / {{needed}} joueurs en file',
+    matchmakingFullLobby: 'Recherche d\'un lobby complet...',
+    matchmakingExpanding: 'Recherche elargie...',
+    matchmakingStartingSoon: 'Demarrage imminent...',
     howToPlay: 'Comment jouer',
     rankedMode: 'Mode classé',
     htp: {

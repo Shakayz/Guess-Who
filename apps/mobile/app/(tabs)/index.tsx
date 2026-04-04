@@ -13,8 +13,8 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
 import { api } from '../../lib/api'
 import { connectSocket, getSocket } from '../../lib/socket'
-import { WORD_CATEGORIES } from '@imposter/shared'
-import type { WordCategory } from '@imposter/shared'
+import { WORD_CATEGORIES, MATCHMAKING_CONFIG } from '@imposter/shared'
+import type { WordCategory, MatchmakingStatus } from '@imposter/shared'
 
 type GameMode = 'normal' | 'ranked' | 'lobby'
 
@@ -42,7 +42,10 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [inQueue, setInQueue] = useState(false)
-  const [queueCount, setQueueCount] = useState(0)
+  const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({
+    queueSize: 1, needed: MATCHMAKING_CONFIG.IDEAL_PLAYERS, elapsed: 0,
+    maxWait: MATCHMAKING_CONFIG.MAX_WAIT_SECONDS, idealPlayers: MATCHMAKING_CONFIG.IDEAL_PLAYERS,
+  })
 
   const hasCategories = selectedMode === 'normal' || selectedMode === 'lobby'
 
@@ -52,7 +55,7 @@ export default function HomeScreen() {
     connectSocket()
     const socket = getSocket()
 
-    const onStatus = (data: any) => setQueueCount(data.queueSize ?? 0)
+    const onStatus = (data: MatchmakingStatus) => setMatchStatus(data)
     const onFound = (data: any) => {
       setInQueue(false)
       setLoading(false)
@@ -310,23 +313,53 @@ export default function HomeScreen() {
           )}
 
           {/* Matchmaking queue */}
-          {inQueue && (
-            <View className="bg-violet-950 border border-violet-800 rounded-2xl p-5 items-center gap-3">
-              <ActivityIndicator color="#8b5cf6" size="large" />
-              <Text className="text-violet-300 font-semibold text-sm">
-                {t('home.findingPlayers')}
-              </Text>
-              <Text className="text-violet-500 text-xs">
-                {t('home.inQueue', { count: queueCount })}
-              </Text>
-              <TouchableOpacity
-                onPress={cancelMatchmaking}
-                className="px-5 py-2 rounded-xl bg-neutral-800 border border-neutral-700 mt-1"
-              >
-                <Text className="text-neutral-300 font-semibold text-sm">{t('common.cancel')}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          {inQueue && (() => {
+            const { queueSize, needed, elapsed, maxWait, idealPlayers } = matchStatus
+            const statusText = elapsed < 15
+              ? t('home.matchmakingFullLobby')
+              : elapsed < 35
+                ? t('home.matchmakingExpanding')
+                : t('home.matchmakingStartingSoon')
+
+            return (
+              <View className="bg-violet-950 border border-violet-800 rounded-2xl p-5 items-center gap-3">
+                <ActivityIndicator color="#8b5cf6" size="large" />
+                <Text className="text-violet-300 font-semibold text-sm">
+                  {statusText}
+                </Text>
+                <Text className="text-violet-500 text-xs">
+                  {t('home.inQueue', { count: queueSize, needed })}
+                </Text>
+
+                {/* Player slot dots */}
+                <View className="flex-row items-center justify-center gap-1">
+                  {Array.from({ length: idealPlayers }).map((_, i) => (
+                    <View
+                      key={i}
+                      className={[
+                        'w-2.5 h-2.5 rounded-full',
+                        i < queueSize
+                          ? 'bg-violet-500'
+                          : i < needed
+                            ? 'bg-neutral-700 border border-neutral-600'
+                            : 'bg-neutral-800',
+                      ].join(' ')}
+                    />
+                  ))}
+                </View>
+
+                {/* Timer */}
+                <Text className="text-neutral-600 text-[10px]">{elapsed}s / {maxWait}s</Text>
+
+                <TouchableOpacity
+                  onPress={cancelMatchmaking}
+                  className="px-5 py-2 rounded-xl bg-neutral-800 border border-neutral-700 mt-1"
+                >
+                  <Text className="text-neutral-300 font-semibold text-sm">{t('common.cancel')}</Text>
+                </TouchableOpacity>
+              </View>
+            )
+          })()}
 
           {/* Error */}
           {error && (

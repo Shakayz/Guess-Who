@@ -7,7 +7,7 @@ import { prisma } from '../config/prisma'
 import { registerRoomHandlers } from './handlers/room'
 import { registerGameHandlers } from './handlers/game'
 import { registerChatHandlers } from './handlers/chat'
-import { registerMatchmakingHandlers } from './handlers/matchmaking'
+import { registerMatchmakingHandlers, cleanupEmptyQueue } from './handlers/matchmaking'
 
 // Track online users: userId -> socketId (shared module)
 import { onlineUsers } from './onlineUsers'
@@ -303,6 +303,10 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
               }
             } catch {}
           }
+        }
+        // Clean up empty matchmaking windows
+        for (const queueKey of queueKeys) {
+          await cleanupEmptyQueue(queueKey)
         }
       } catch {}
       // Remove player from any rooms they were in

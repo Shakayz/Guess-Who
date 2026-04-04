@@ -62,7 +62,10 @@ export default {
     createLobby: '🚪 Create Lobby',
     creating: 'Creating room...',
     findingPlayers: 'Finding players...',
-    inQueue: '{{count}} / 4 players in queue',
+    inQueue: '{{count}} / {{needed}} players in queue',
+    matchmakingFullLobby: 'Looking for a full lobby...',
+    matchmakingExpanding: 'Expanding search...',
+    matchmakingStartingSoon: 'Starting soon...',
     howToPlay: 'How to play',
     rankedMode: 'Ranked mode',
     htp: {

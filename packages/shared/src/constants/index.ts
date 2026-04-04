@@ -53,6 +53,19 @@ export const LP_DECAY = {
   EXEMPT_TIERS: ['wooden'] as string[],
 } as const
 
+export const MATCHMAKING_CONFIG = {
+  IDEAL_PLAYERS: 10,
+  MIN_PLAYERS: 4,
+  MAX_WAIT_SECONDS: 45,
+  TICK_INTERVAL_MS: 1000,
+  THRESHOLDS: [
+    { after:  0, minPlayers: 10 },
+    { after: 15, minPlayers:  8 },
+    { after: 25, minPlayers:  6 },
+    { after: 35, minPlayers:  4 },
+  ],
+} as const
+
 export const LP_REWARDS = {
   // ── Villager team ────────────────────────────────────────────────────────────
   VILLAGER_WIN:            18,

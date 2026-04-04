@@ -213,6 +213,16 @@ export interface ClientToServerEvents {
   'detective:reveal': (data: { targetUserId: string }) => void
 }
 
+// ─── Matchmaking ─────────────────────────────────────────────────────────────
+
+export interface MatchmakingStatus {
+  queueSize: number
+  needed: number
+  elapsed: number
+  maxWait: number
+  idealPlayers: number
+}
+
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
 export interface ChatMessage {
