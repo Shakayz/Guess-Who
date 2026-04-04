@@ -16,15 +16,15 @@ interface Friend {
   user: { id: string; username: string; avatarUrl: string | null }
 }
 
-const LANGUAGE_OPTIONS: { value: Locale; flag: string; label: string }[] = [
-  { value: 'en', flag: '🇬🇧', label: 'English' },
-  { value: 'fr', flag: '🇫🇷', label: 'Français' },
-  { value: 'es', flag: '🇪🇸', label: 'Español' },
-  { value: 'pt', flag: '🇧🇷', label: 'Português' },
-  { value: 'ar', flag: '🇸🇦', label: 'العربية' },
-  { value: 'it', flag: '🇮🇹', label: 'Italiano' },
-  { value: 'zh', flag: '🇨🇳', label: '中文' },
-  { value: 'de', flag: '🇩🇪', label: 'Deutsch' },
+const LANGUAGE_OPTIONS: { value: Locale; country: string; label: string }[] = [
+  { value: 'en', country: 'gb', label: 'English' },
+  { value: 'fr', country: 'fr', label: 'Français' },
+  { value: 'es', country: 'es', label: 'Español' },
+  { value: 'pt', country: 'br', label: 'Português' },
+  { value: 'ar', country: 'sa', label: 'العربية' },
+  { value: 'it', country: 'it', label: 'Italiano' },
+  { value: 'zh', country: 'cn', label: '中文' },
+  { value: 'de', country: 'de', label: 'Deutsch' },
 ]
 
 interface Settings {
@@ -219,7 +219,7 @@ function SettingsPanel({
                   : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
               ].join(' ')}
             >
-              <span className="text-base leading-none">{lang.flag}</span>
+              <img src={`https://flagcdn.com/w20/${lang.country}.png`} alt="" className="w-5 h-3.5 object-cover rounded-sm" />
               <span className="truncate w-full text-center text-[10px]">{lang.label}</span>
             </button>
           ))}

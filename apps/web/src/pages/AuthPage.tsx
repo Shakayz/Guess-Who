@@ -5,14 +5,14 @@ import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
 
 const LANGUAGES = [
-  { code: 'en', label: 'English', flag: '🇬🇧' },
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'ar', label: 'العربية', flag: '🇸🇦' },
-  { code: 'es', label: 'Español', flag: '🇪🇸' },
-  { code: 'it', label: 'Italiano', flag: '🇮🇹' },
-  { code: 'pt', label: 'Português', flag: '🇧🇷' },
-  { code: 'zh', label: '中文', flag: '🇨🇳' },
-  { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { code: 'en', label: 'English', country: 'gb' },
+  { code: 'fr', label: 'Français', country: 'fr' },
+  { code: 'ar', label: 'العربية', country: 'sa' },
+  { code: 'es', label: 'Español', country: 'es' },
+  { code: 'it', label: 'Italiano', country: 'it' },
+  { code: 'pt', label: 'Português', country: 'br' },
+  { code: 'zh', label: '中文', country: 'cn' },
+  { code: 'de', label: 'Deutsch', country: 'de' },
 ]
 
 type Mode = 'signin' | 'signup'
@@ -265,7 +265,7 @@ export default function AuthPage() {
                   : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white',
               ].join(' ')}
             >
-              <span>{lang.flag}</span>
+              <img src={`https://flagcdn.com/w20/${lang.country}.png`} alt="" className="w-4 h-3 object-cover rounded-sm" />
               <span>{lang.label}</span>
             </button>
           ))}

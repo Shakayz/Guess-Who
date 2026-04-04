@@ -9,14 +9,14 @@ import { api } from '../lib/api'
 const NAV_PATHS = ['/', '/leaderboard', '/history', '/friends'] as const
 
 const LANGUAGES = [
-  { code: 'en', label: 'English', flag: '🇬🇧' },
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'ar', label: 'العربية', flag: '🇸🇦' },
-  { code: 'es', label: 'Español', flag: '🇪🇸' },
-  { code: 'it', label: 'Italiano', flag: '🇮🇹' },
-  { code: 'pt', label: 'Português', flag: '🇧🇷' },
-  { code: 'zh', label: '中文', flag: '🇨🇳' },
-  { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { code: 'en', label: 'English', country: 'gb' },
+  { code: 'fr', label: 'Français', country: 'fr' },
+  { code: 'ar', label: 'العربية', country: 'sa' },
+  { code: 'es', label: 'Español', country: 'es' },
+  { code: 'it', label: 'Italiano', country: 'it' },
+  { code: 'pt', label: 'Português', country: 'br' },
+  { code: 'zh', label: '中文', country: 'cn' },
+  { code: 'de', label: 'Deutsch', country: 'de' },
 ]
 
 export function NavBar() {
@@ -103,7 +103,7 @@ export function NavBar() {
             onClick={() => setLangOpen((o) => !o)}
             className="flex items-center gap-1 px-2.5 py-1.5 text-sm text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-all"
           >
-            <span className="text-base">{currentLang.flag}</span>
+            <img src={`https://flagcdn.com/w20/${currentLang.country}.png`} alt="" className="w-5 h-3.5 object-cover rounded-sm" />
             <span className="text-[10px] text-neutral-600">▾</span>
           </button>
           {langOpen && (
@@ -119,7 +119,7 @@ export function NavBar() {
                       : 'text-neutral-400 hover:bg-neutral-800 hover:text-white',
                   ].join(' ')}
                 >
-                  <span>{lang.flag}</span>
+                  <img src={`https://flagcdn.com/w20/${lang.country}.png`} alt="" className="w-5 h-3.5 object-cover rounded-sm" />
                   <span>{lang.label}</span>
                   {i18n.language === lang.code && <span className="ml-auto text-brand-400 text-xs">✓</span>}
                 </button>
