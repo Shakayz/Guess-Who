@@ -101,10 +101,9 @@ export function NavBar() {
         <div ref={langRef} className="relative">
           <button
             onClick={() => setLangOpen((o) => !o)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-all"
+            className="flex items-center gap-1 px-2.5 py-1.5 text-sm text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-all"
           >
-            <span>{currentLang.flag}</span>
-            <span className="hidden sm:inline text-xs font-medium">{currentLang.code.toUpperCase()}</span>
+            <span className="text-base">{currentLang.flag}</span>
             <span className="text-[10px] text-neutral-600">▾</span>
           </button>
           {langOpen && (
