@@ -194,7 +194,7 @@ function SettingsPanel({
                 ].join(' ')}
               >
                 <span>{cat.icon}</span>
-                <span className="truncate">{cat.label}</span>
+                <span className="truncate">{t(`home.cat.${cat.key}`, cat.label)}</span>
               </button>
             )
           })}
