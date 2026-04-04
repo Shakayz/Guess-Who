@@ -30,7 +30,7 @@ function SkeletonRow() {
 }
 
 export default function LeaderboardPage() {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const locale = i18n.language?.split('-')[0] ?? 'en'
   const [search, setSearch] = React.useState('')
   const { data: users = [], isLoading } = useQuery<LeaderboardUser[]>({
@@ -51,8 +51,8 @@ export default function LeaderboardPage() {
 
           {/* Header */}
           <div className="mb-6">
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">Leaderboard</h1>
-            <p className="text-neutral-500 text-sm mt-1">Top players this season</p>
+            <h1 className="text-3xl font-extrabold text-white tracking-tight">{t('leaderboard.title')}</h1>
+            <p className="text-neutral-500 text-sm mt-1">{t('leaderboard.subtitle')}</p>
           </div>
 
           {/* Search */}
@@ -60,7 +60,7 @@ export default function LeaderboardPage() {
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">🔍</span>
             <input
               className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-brand-600 transition-colors"
-              placeholder="Search player..."
+              placeholder={t('leaderboard.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -93,8 +93,8 @@ export default function LeaderboardPage() {
               ? (
                 <div className="card text-center py-12">
                   <p className="text-4xl mb-3">🔍</p>
-                  <p className="text-white font-semibold">{search.trim() ? 'No player found' : 'No players ranked yet'}</p>
-                  <p className="text-neutral-500 text-sm mt-1">{search.trim() ? 'Try a different name' : 'Play your first game to appear here'}</p>
+                  <p className="text-white font-semibold">{search.trim() ? t('leaderboard.noPlayerFound') : t('leaderboard.noPlayersYet')}</p>
+                  <p className="text-neutral-500 text-sm mt-1">{search.trim() ? t('leaderboard.tryDifferentName') : t('leaderboard.playToAppear')}</p>
                 </div>
               )
               : filtered.map((u, i) => {

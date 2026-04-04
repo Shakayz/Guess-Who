@@ -535,7 +535,7 @@ export default function LobbyPage() {
                   {settings.gameMode === 'special' ? `✨ ${t('lobby.special')}` : `🎮 ${t('lobby.normal')}`}
                 </span>
                 <span>·</span>
-                <span>{activeCats} cats</span>
+                <span>{activeCats} {t('lobby.catsShort')}</span>
                 <span>{showSettings ? '▴' : '▾'}</span>
               </div>
             </button>
@@ -604,11 +604,11 @@ export default function LobbyPage() {
               <span>{settings.gameMode === 'special' ? '✨' : '🎮'}</span>
               <span>{settings.gameMode === 'special' ? t('lobby.special') : t('lobby.normal')}</span>
               <span>·</span>
-              <span>{settings.maxPlayers} max</span>
+              <span>{settings.maxPlayers} {t('lobby.max')}</span>
               <span>·</span>
               <span>{settings.imposterCount} {t('lobby.imposters').toLowerCase()}</span>
               <span>·</span>
-              <span>{settings.maxRounds === 0 ? '∞ rounds' : `${settings.maxRounds} rounds`}</span>
+              <span>{settings.maxRounds === 0 ? t('lobby.roundsInfinity') : t('lobby.roundsCount', { count: settings.maxRounds })}</span>
               {settings.gameMode === 'special' && settings.enableDetective && (
                 <><span>·</span><span>{t('lobby.detective')}</span></>
               )}

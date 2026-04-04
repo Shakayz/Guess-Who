@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { getSocket } from '../lib/socket'
 import { useAuthStore } from '../store/auth'
@@ -27,6 +28,7 @@ interface DmReceiveEvent {
 }
 
 export function DmChatPanel({ friend, onClose }: DmChatPanelProps) {
+  const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
   const clearUnread = useSocialStore((s) => s.clearUnread)
   const [messages, setMessages] = useState<DmMessage[]>([])
@@ -126,7 +128,7 @@ export function DmChatPanel({ friend, onClose }: DmChatPanelProps) {
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <span className="text-3xl mb-1">💬</span>
-            <p className="text-neutral-500 text-xs">Say hello to {friend.username}!</p>
+            <p className="text-neutral-500 text-xs">{t('dm.sayHello', { name: friend.username })}</p>
           </div>
         ) : (
           messages.map((msg) => {
@@ -160,7 +162,7 @@ export function DmChatPanel({ friend, onClose }: DmChatPanelProps) {
       <div className="flex items-center gap-2 px-3 py-2.5 border-t border-neutral-800">
         <input
           type="text"
-          placeholder="Type a message…"
+          placeholder={t('dm.placeholder')}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}

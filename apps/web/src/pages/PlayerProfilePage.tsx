@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { RANK_CONFIG } from '@imposter/shared'
@@ -72,6 +73,7 @@ function InitialsAvatar({ username, size = 'md' }: { username: string; size?: 's
 export default function PlayerProfilePage() {
   const { userId } = useParams<{ userId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [profile, setProfile] = useState<PlayerProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -111,13 +113,13 @@ export default function PlayerProfilePage() {
         <NavBar />
         <main className="flex-1 p-6 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-red-400 font-semibold">Failed to load profile</p>
+            <p className="text-red-400 font-semibold">{t('playerProfile.loadError')}</p>
             <p className="text-neutral-500 text-sm mt-1">{error}</p>
             <button
               onClick={() => navigate(-1)}
               className="mt-4 px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-sm transition-colors"
             >
-              ← Go Back
+              {t('playerProfile.back')}
             </button>
           </div>
         </main>
@@ -137,7 +139,7 @@ export default function PlayerProfilePage() {
             onClick={() => navigate(-1)}
             className="flex items-center gap-1.5 text-sm text-neutral-500 hover:text-white transition-colors"
           >
-            ← Back
+            {t('playerProfile.back')}
           </button>
 
           {/* Profile header */}
@@ -162,33 +164,33 @@ export default function PlayerProfilePage() {
 
           {/* Stats */}
           <div className="card">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Stats</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('playerProfile.stats')}</p>
             <div className="grid grid-cols-3 gap-3">
               <div className="flex flex-col items-center gap-0.5 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50">
                 <span className="text-xl font-bold text-white">{profile.stats.totalGames}</span>
-                <span className="text-xs text-neutral-500">Games</span>
+                <span className="text-xs text-neutral-500">{t('playerProfile.games')}</span>
               </div>
               <div className="flex flex-col items-center gap-0.5 p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/40">
                 <span className="text-xl font-bold text-emerald-400">{profile.stats.wins}</span>
-                <span className="text-xs text-neutral-500">Wins</span>
+                <span className="text-xs text-neutral-500">{t('playerProfile.wins')}</span>
               </div>
               <div className="flex flex-col items-center gap-0.5 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50">
                 <span className="text-xl font-bold text-white">{profile.stats.winRate}%</span>
-                <span className="text-xs text-neutral-500">Win Rate</span>
+                <span className="text-xs text-neutral-500">{t('playerProfile.winRate')}</span>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3 mt-3">
               <div className="flex flex-col items-center gap-0.5 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50">
                 <span className="text-xl font-bold text-brand-400">{profile.stats.asVillager}</span>
-                <span className="text-xs text-neutral-500">As Villager</span>
+                <span className="text-xs text-neutral-500">{t('playerProfile.asVillager')}</span>
               </div>
               <div className="flex flex-col items-center gap-0.5 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50">
                 <span className="text-xl font-bold text-amber-400">{profile.stats.asImposter}</span>
-                <span className="text-xs text-neutral-500">As Imposter</span>
+                <span className="text-xs text-neutral-500">{t('playerProfile.asImposter')}</span>
               </div>
               <div className="flex flex-col items-center gap-0.5 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50">
                 <span className="text-xl font-bold text-white">{profile.stats.survived}</span>
-                <span className="text-xs text-neutral-500">Survived</span>
+                <span className="text-xs text-neutral-500">{t('playerProfile.survived')}</span>
               </div>
             </div>
           </div>
@@ -196,7 +198,7 @@ export default function PlayerProfilePage() {
           {/* Honors received */}
           {profile.honors.length > 0 && (
             <div className="card">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Honors Received</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('playerProfile.honorsReceived')}</p>
               <div className="flex flex-wrap gap-2">
                 {profile.honors.map((h) => (
                   <div
@@ -215,7 +217,7 @@ export default function PlayerProfilePage() {
           {/* Recent games */}
           {profile.recentGames.length > 0 && (
             <div className="card">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">Recent Games</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('playerProfile.recentGames')}</p>
               <div className="space-y-2">
                 {profile.recentGames.map((g) => (
                   <Link
@@ -230,11 +232,11 @@ export default function PlayerProfilePage() {
                           'text-xs font-bold',
                           g.didWin ? 'text-emerald-400' : 'text-red-400',
                         ].join(' ')}>
-                          {g.didWin ? 'Victory' : 'Defeat'}
+                          {g.didWin ? t('playerProfile.victory') : t('playerProfile.defeat')}
                         </span>
                         <span className="text-neutral-600">·</span>
                         <span className="text-xs text-neutral-400">
-                          {g.role === 'imposter' ? '🎭 Imposter' : '👤 Villager'}
+                          {g.role === 'imposter' ? t('gameDetail.imposterRole') : t('gameDetail.villagerRole')}
                         </span>
                         <span className="text-neutral-600">·</span>
                         <span className="text-xs text-neutral-500">{g.rounds}R</span>
@@ -245,7 +247,7 @@ export default function PlayerProfilePage() {
                       'text-xs',
                       g.survived ? 'text-emerald-500' : 'text-neutral-600',
                     ].join(' ')}>
-                      {g.survived ? 'Survived' : 'Eliminated'}
+                      {g.survived ? t('playerProfile.survived') : t('playerProfile.eliminated')}
                     </span>
                   </Link>
                 ))}
@@ -255,7 +257,7 @@ export default function PlayerProfilePage() {
 
           {profile.recentGames.length === 0 && (
             <div className="card text-center py-8">
-              <p className="text-neutral-500 text-sm">No games played yet</p>
+              <p className="text-neutral-500 text-sm">{t('playerProfile.noGames')}</p>
             </div>
           )}
 

@@ -1,17 +1,19 @@
 import React from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 const TABS = [
-  { path: '/',            icon: '🎮', label: 'Play' },
-  { path: '/leaderboard', icon: '🏆', label: 'Ranking' },
-  { path: '/history',     icon: '📜', label: 'History' },
-  { path: '/friends',     icon: '👥', label: 'Friends' },
-  { path: '/profile',     icon: '👤', label: 'Profile' },
+  { path: '/',            icon: '🎮', labelKey: 'nav.play' },
+  { path: '/leaderboard', icon: '🏆', labelKey: 'nav.leaderboard' },
+  { path: '/history',     icon: '📜', labelKey: 'nav.history' },
+  { path: '/friends',     icon: '👥', labelKey: 'nav.friends' },
+  { path: '/profile',     icon: '👤', labelKey: 'nav.profile' },
 ]
 
 export function BottomNav() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { t } = useTranslation()
 
   // Hide on game/lobby/results/auth pages
   const hiddenPaths = ['/game/', '/lobby/', '/results/', '/auth']
@@ -38,7 +40,7 @@ export function BottomNav() {
               <span className={['text-lg transition-transform', isActive ? 'scale-110' : ''].join(' ')}>
                 {tab.icon}
               </span>
-              <span className="text-[10px] font-semibold leading-none">{tab.label}</span>
+              <span className="text-[10px] font-semibold leading-none">{t(tab.labelKey)}</span>
               {isActive && (
                 <span className="absolute -top-px left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-brand-500" />
               )}
