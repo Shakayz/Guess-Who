@@ -15,6 +15,139 @@ const FALLBACK_WORDS = [
   { wordA: 'Coffee',  wordB: 'Tea'    },
 ]
 
+/** Start a game for a room — used by both game:start handler and matchmaking auto-start */
+async function startGameForRoom(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+  roomId: string,
+) {
+  const startLockKey = `room:${roomId}:start-lock`
+  const lockAcquired = (await (redis as any).set(startLockKey, '1', 'PX', 10000, 'NX')) === 'OK'
+  if (!lockAcquired) return
+
+  try {
+    const room = await prisma.room.findUnique({ where: { id: roomId } })
+    if (!room) return
+
+    const stateRaw = await redis.get(`room:${roomId}:state`)
+    if (!stateRaw) return
+    const state = JSON.parse(stateRaw)
+
+    if (state.status === 'in_progress' || state.status === 'voting') return
+    if (state.players.length < 4) return
+
+    // Assign roles
+    const players: any[] = shuffleArray([...state.players])
+    const imposterCount = Math.min(room.imposterCount, Math.floor(players.length / 3))
+    const enableDetective   = state.enableDetective   ?? false
+    const enableDoubleAgent = state.enableDoubleAgent ?? false
+
+    let roleIdx = 0
+    players.forEach((p) => {
+      if (roleIdx < imposterCount) {
+        p.role = 'imposter'
+      } else if (enableDoubleAgent && roleIdx === imposterCount) {
+        p.role = 'double_agent'
+      } else if (enableDetective && roleIdx === imposterCount + (enableDoubleAgent ? 1 : 0)) {
+        p.role = 'detective'
+        p.detectiveRevealUsed = false
+      } else {
+        p.role = 'villager'
+      }
+      roleIdx++
+    })
+
+    // Pick words
+    const selectedCategories: string[] = state.categories ?? []
+    let wordPair = FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)]
+    try {
+      const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
+      const roomLocale: string = (room as any).language ?? 'en'
+      const pack = room.wordPackId && room.wordPackId !== 'default'
+        ? await prisma.wordPack.findUnique({
+            where: { id: room.wordPackId },
+            include: { pairs: { where: { ...categoryFilter, locale: roomLocale } } },
+          })
+        : await prisma.wordPack.findFirst({
+            where: { isPremium: false, isApproved: true, locale: roomLocale, authorId: null },
+            include: { pairs: { where: categoryFilter } },
+          })
+      if (pack && pack.pairs.length > 0) {
+        const pair = pack.pairs[Math.floor(Math.random() * pack.pairs.length)]
+        wordPair = { wordA: pair.wordA, wordB: pair.wordB }
+      }
+    } catch { /* use fallback */ }
+
+    const { game, round } = await prisma.$transaction(async (tx) => {
+      const game = await tx.game.create({ data: { roomId } })
+      const round = await tx.round.create({
+        data: { gameId: game.id, roundNumber: 1, villagerWord: wordPair.wordA, imposterWord: wordPair.wordB },
+      })
+      await tx.gameParticipation.createMany({
+        data: players.map((p: any) => ({
+          gameId: game.id, userId: p.userId, role: p.role, survived: true,
+        })),
+        skipDuplicates: true,
+      })
+      return { game, round }
+    })
+
+    state.players = players
+    state.status = 'in_progress'
+    state.gameId = game.id
+    state.currentRound = 1
+    state.villagerWord = wordPair.wordA
+    state.imposterWord = wordPair.wordB
+    state.rounds = [{ id: round.id, roundNumber: 1, votes: [], clues: [],
+      speakingOrder: players.map((p: any) => p.userId) }]
+    await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+    await prisma.room.update({ where: { id: roomId }, data: { status: 'in_progress' } })
+
+    const roundPayload = {
+      id: round.id, roundNumber: 1,
+      speakingOrder: players.map((p: any) => p.userId),
+      clues: [], votes: [], eliminatedPlayerId: null, eliminatedRole: null, wordReveal: null,
+    }
+
+    io.to(`room:${roomId}`).emit('room:updated', {
+      id: room.id, code: room.code, hostId: room.hostId,
+      status: 'in_progress', players: state.players,
+      currentRound: 1, maxRounds: state.maxRounds ?? 0,
+      createdAt: room.createdAt.toISOString(),
+      settings: {
+        maxPlayers: room.maxPlayers, minPlayers: 4, imposterCount: room.imposterCount,
+        speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
+        wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
+        gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
+        enableDetective: state.enableDetective ?? false, enableDoubleAgent: state.enableDoubleAgent ?? false,
+      },
+    } as any)
+
+    for (const playerData of players) {
+      const getsImposterWord = playerData.role === 'imposter' || playerData.role === 'double_agent'
+      const payload = {
+        round: roundPayload as any,
+        yourWord: getsImposterWord ? wordPair.wordB : wordPair.wordA,
+        yourRole: playerData.role,
+        yourVillagerWord: playerData.role === 'double_agent' ? wordPair.wordA : undefined,
+      }
+      const sid = onlineUsers.get(playerData.userId)
+      if (sid) io.to(sid).emit('game:started', payload)
+      if (playerData.id && playerData.id !== sid) {
+        io.to(playerData.id).emit('game:started', payload)
+      }
+    }
+
+    setTimeout(() => {
+      startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
+    }, 3000)
+  } finally {
+    await redis.del(startLockKey)
+  }
+}
+
+/** Exported for matchmaking auto-start */
+export { startGameForRoom as autoStartMatchmadeGame }
+
 export function registerRoomHandlers(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
   socket: Socket<ClientToServerEvents, ServerToClientEvents>,
@@ -171,9 +304,27 @@ export function registerRoomHandlers(
           categories: state.categories ?? [],
           enableDetective: state.enableDetective ?? false,
           enableDoubleAgent: state.enableDoubleAgent ?? false,
+          isMatchmade: state.isMatchmade ?? false,
         },
       }
       io.to(`room:${room.id}`).emit('room:updated', roomPayload as any)
+
+      // ── Auto-start matchmade games when all expected players have joined ──
+      if (
+        state.isMatchmade &&
+        state.status === 'waiting' &&
+        state.expectedPlayers &&
+        state.players.length >= state.expectedPlayers
+      ) {
+        // Trigger game start after a short delay for clients to render
+        setTimeout(async () => {
+          try {
+            await autoStartMatchmadeGame(io, room.id)
+          } catch (err) {
+            console.error('matchmaking auto-start error:', err)
+          }
+        }, 2000)
+      }
     } catch (err) {
       console.error('room:join error', err)
       socket.emit('error', { code: 'INTERNAL', message: 'Server error' })
@@ -230,6 +381,7 @@ export function registerRoomHandlers(
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         enableDetective: state.enableDetective ?? false,
         enableDoubleAgent: state.enableDoubleAgent ?? false,
+        isMatchmade: state.isMatchmade ?? false,
       },
     }
     io.to(`room:${roomId}`).emit('room:updated', roomPayload as any)
@@ -266,6 +418,7 @@ export function registerRoomHandlers(
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         enableDetective: state.enableDetective ?? false,
         enableDoubleAgent: state.enableDoubleAgent ?? false,
+        isMatchmade: state.isMatchmade ?? false,
       },
     }
     io.to(`room:${roomId}`).emit('room:updated', roomPayload as any)
@@ -280,171 +433,7 @@ export function registerRoomHandlers(
       const room = await prisma.room.findUnique({ where: { id: roomId } })
       if (!room || room.hostId !== userId) return
 
-      // ── Mutex: prevent concurrent game:start calls ───────────────────────────
-      const startLockKey = `room:${roomId}:start-lock`
-      const lockAcquired = (await (redis as any).set(startLockKey, '1', 'PX', 10000, 'NX')) === 'OK'
-      if (!lockAcquired) {
-        socket.emit('error', { code: 'GAME_ALREADY_STARTED', message: 'A game is already in progress' })
-        return
-      }
-
-      try {
-      const stateRaw = await redis.get(`room:${roomId}:state`)
-      if (!stateRaw) return
-      const state = JSON.parse(stateRaw)
-
-      // ── Guard: prevent double-start ──────────────────────────────────────────
-      if (state.status === 'in_progress' || state.status === 'voting') {
-        socket.emit('error', { code: 'GAME_ALREADY_STARTED', message: 'A game is already in progress' })
-        return
-      }
-
-      if (state.players.length < 4) {
-        socket.emit('error', { code: 'NOT_ENOUGH_PLAYERS', message: 'Need at least 4 players' })
-        return
-      }
-
-      // ── Guard: all players must be ready ─────────────────────────────────────
-      const notReady = state.players.filter((p: any) => !p.isReady)
-      if (notReady.length > 0) {
-        socket.emit('error', { code: 'PLAYERS_NOT_READY', message: 'All players must be ready' })
-        return
-      }
-
-      // Assign roles
-      const players: any[] = shuffleArray([...state.players])
-      const imposterCount = Math.min(room.imposterCount, Math.floor(players.length / 3))
-      const enableDetective   = state.enableDetective   ?? false
-      const enableDoubleAgent = state.enableDoubleAgent ?? false
-
-      let roleIdx = 0
-      players.forEach((p) => {
-        if (roleIdx < imposterCount) {
-          p.role = 'imposter'
-        } else if (enableDoubleAgent && roleIdx === imposterCount) {
-          p.role = 'double_agent'  // wins with imposters, receives imposter word
-        } else if (enableDetective && roleIdx === imposterCount + (enableDoubleAgent ? 1 : 0)) {
-          p.role = 'detective'
-          p.detectiveRevealUsed = false
-        } else {
-          p.role = 'villager'
-        }
-        roleIdx++
-      })
-
-      // Pick words — respect room.wordPackId + filter by selected categories
-      const selectedCategories: string[] = state.categories ?? []
-      let wordPair = FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)]
-      try {
-        const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
-
-        // Prefer the room's configured word pack; fall back to the locale-matched system pack
-        const roomLocale: string = (room as any).language ?? 'en'
-        const pack = room.wordPackId && room.wordPackId !== 'default'
-          ? await prisma.wordPack.findUnique({
-              where: { id: room.wordPackId },
-              include: { pairs: { where: { ...categoryFilter, locale: roomLocale } } },
-            })
-          : await prisma.wordPack.findFirst({
-              where: { isPremium: false, isApproved: true, locale: roomLocale, authorId: null },
-              include: { pairs: { where: categoryFilter } },
-            })
-
-        if (pack && pack.pairs.length > 0) {
-          const pair = pack.pairs[Math.floor(Math.random() * pack.pairs.length)]
-          wordPair = { wordA: pair.wordA, wordB: pair.wordB }
-        }
-      } catch { /* use fallback */ }
-
-      // Create DB records in a single transaction for consistency
-      const { game, round } = await prisma.$transaction(async (tx) => {
-        const game = await tx.game.create({ data: { roomId } })
-        const round = await tx.round.create({
-          data: { gameId: game.id, roundNumber: 1, villagerWord: wordPair.wordA, imposterWord: wordPair.wordB },
-        })
-        await tx.gameParticipation.createMany({
-          data: players.map((p: any) => ({
-            gameId: game.id,
-            userId: p.userId,
-            role: p.role,
-            survived: true,
-          })),
-          skipDuplicates: true,
-        })
-        return { game, round }
-      })
-
-      // Update state.players with the shuffled+role-assigned players
-      state.players = players
-      state.status = 'in_progress'
-      state.gameId = game.id
-      state.currentRound = 1
-      state.villagerWord = wordPair.wordA
-      state.imposterWord = wordPair.wordB
-      state.rounds = [{ id: round.id, roundNumber: 1, votes: [], clues: [],
-        speakingOrder: players.map((p: any) => p.userId) }]
-      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
-      await prisma.room.update({ where: { id: roomId }, data: { status: 'in_progress' } })
-
-      const roundPayload = {
-        id: round.id, roundNumber: 1,
-        speakingOrder: players.map((p: any) => p.userId),
-        clues: [], votes: [], eliminatedPlayerId: null, eliminatedRole: null, wordReveal: null,
-      }
-
-      // Step 1 — broadcast room status change to the whole room so ALL lobby clients navigate
-      // (fallback in case individual game:started delivery fails for any player)
-      io.to(`room:${roomId}`).emit('room:updated', {
-        id: room.id,
-        code: room.code,
-        hostId: room.hostId,
-        status: 'in_progress',
-        players: state.players,
-        currentRound: 1,
-        maxRounds: state.maxRounds ?? 0,
-        createdAt: room.createdAt.toISOString(),
-        settings: {
-          maxPlayers: room.maxPlayers,
-          minPlayers: 4,
-          imposterCount: room.imposterCount,
-          speakingTimeSeconds: room.speakingTimeSeconds,
-          votingTimeSeconds: room.votingTimeSeconds,
-          wordPackId: room.wordPackId,
-          isPrivate: room.isPrivate,
-          language: room.language as any,
-          gameMode: state.gameMode ?? 'normal',
-          categories: state.categories ?? [],
-          enableDetective: state.enableDetective ?? false,
-          enableDoubleAgent: state.enableDoubleAgent ?? false,
-        },
-      } as any)
-
-      // Step 2 — send each player their private word/role via direct socket
-      // Try both onlineUsers map AND the player's socket.id from state (more reliable)
-      for (const playerData of players) {
-        const getsImposterWord = playerData.role === 'imposter' || playerData.role === 'double_agent'
-        const payload = {
-          round: roundPayload as any,
-          yourWord: getsImposterWord ? wordPair.wordB : wordPair.wordA,
-          yourRole: playerData.role,
-          yourVillagerWord: playerData.role === 'double_agent' ? wordPair.wordA : undefined,
-        }
-        // Send via onlineUsers (most up-to-date socket ID)
-        const sid = onlineUsers.get(playerData.userId)
-        if (sid) io.to(sid).emit('game:started', payload)
-        // Also send via the socket.id stored in player state (backup for stale onlineUsers)
-        if (playerData.id && playerData.id !== sid) {
-          io.to(playerData.id).emit('game:started', payload)
-        }
-      }
-
-      // Start speaking phase after a short delay (give clients time to navigate)
-      setTimeout(() => {
-        startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
-      }, 3000)
-      } finally {
-        await redis.del(startLockKey)
-      }
+      await startGameForRoom(io, roomId)
     } catch (err) {
       console.error('game:start error', err)
       socket.emit('error', { code: 'INTERNAL', message: 'Server error' })

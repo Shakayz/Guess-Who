@@ -442,7 +442,8 @@ export default function LobbyPage() {
     setInvitedIds((prev) => new Set([...prev, friendId]))
   }
 
-  const isHost = room?.hostId === user?.id
+  const isMatchmade = (room?.settings as any)?.isMatchmade ?? false
+  const isHost = !isMatchmade && room?.hostId === user?.id
   const players = room?.players ?? []
   const allReady = players.length >= 2 && players.every((p) => p.isReady || p.userId === room?.hostId)
   const minPlayers = 4
@@ -655,7 +656,12 @@ export default function LobbyPage() {
             >
               {t('lobby.leave')}
             </button>
-            {!isHost ? (
+            {isMatchmade ? (
+              <div className="flex-1 py-3 rounded-xl bg-brand-950/60 border border-brand-700/40 text-brand-400 font-semibold text-center flex items-center justify-center gap-2">
+                <div className="w-4 h-4 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
+                {t('lobby.autoStarting', 'Game starting automatically...')}
+              </div>
+            ) : !isHost ? (
               <button
                 onClick={toggleReady}
                 className={[
