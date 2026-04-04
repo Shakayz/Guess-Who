@@ -34,6 +34,8 @@ async function startGameForRoom(
 
     if (state.status === 'in_progress' || state.status === 'voting') return
     if (state.players.length < 4) return
+    // All players must be ready (matchmade rooms auto-ready everyone)
+    if (state.players.some((p: any) => !p.isReady)) return
 
     // Assign roles
     const players: any[] = shuffleArray([...state.players])
