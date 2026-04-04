@@ -1,5 +1,6 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { Avatar, Badge } from '@imposter/ui'
@@ -29,10 +30,12 @@ function SkeletonRow() {
 }
 
 export default function LeaderboardPage() {
+  const { i18n } = useTranslation()
+  const locale = i18n.language?.split('-')[0] ?? 'en'
   const [search, setSearch] = React.useState('')
   const { data: users = [], isLoading } = useQuery<LeaderboardUser[]>({
-    queryKey: ['leaderboard'],
-    queryFn: () => api.get('/users/leaderboard'),
+    queryKey: ['leaderboard', locale],
+    queryFn: () => api.get(`/users/leaderboard?locale=${locale}`),
     retry: false,
   })
 

@@ -645,6 +645,236 @@ const AR: PairData[] = [
   { wordA: 'يسار',           wordB: 'يمين',              difficulty: 'easy',   category: 'variety',     locale: 'ar' },
 ]
 
+// ─── Italian ──────────────────────────────────────────────────────────────────
+const IT: PairData[] = [
+  // mangas (universal names)
+  { wordA: 'Naruto',         wordB: 'Sasuke',            difficulty: 'easy',   category: 'mangas',      locale: 'it' },
+  { wordA: 'Goku',           wordB: 'Vegeta',            difficulty: 'easy',   category: 'mangas',      locale: 'it' },
+  { wordA: 'Luffy',          wordB: 'Zoro',              difficulty: 'easy',   category: 'mangas',      locale: 'it' },
+  { wordA: 'Ichigo',         wordB: 'Rukia',             difficulty: 'medium', category: 'mangas',      locale: 'it' },
+  { wordA: 'Eren',           wordB: 'Levi',              difficulty: 'medium', category: 'mangas',      locale: 'it' },
+  { wordA: 'Deku',           wordB: 'Bakugo',            difficulty: 'easy',   category: 'mangas',      locale: 'it' },
+  { wordA: 'Gojo',           wordB: 'Sukuna',            difficulty: 'medium', category: 'mangas',      locale: 'it' },
+  { wordA: 'Tanjiro',        wordB: 'Nezuko',            difficulty: 'easy',   category: 'mangas',      locale: 'it' },
+  { wordA: 'Killua',         wordB: 'Gon',               difficulty: 'easy',   category: 'mangas',      locale: 'it' },
+  { wordA: 'Edward Elric',   wordB: 'Roy Mustang',       difficulty: 'medium', category: 'mangas',      locale: 'it' },
+  // celebrities (universal)
+  { wordA: 'Ronaldo',        wordB: 'Messi',             difficulty: 'easy',   category: 'celebrities', locale: 'it' },
+  { wordA: 'Beyoncé',        wordB: 'Rihanna',           difficulty: 'easy',   category: 'celebrities', locale: 'it' },
+  { wordA: 'Michael Jackson',wordB: 'Prince',            difficulty: 'medium', category: 'celebrities', locale: 'it' },
+  { wordA: 'Taylor Swift',   wordB: 'Ariana Grande',     difficulty: 'easy',   category: 'celebrities', locale: 'it' },
+  { wordA: 'LeBron James',   wordB: 'Kobe Bryant',       difficulty: 'medium', category: 'celebrities', locale: 'it' },
+  { wordA: 'Elon Musk',      wordB: 'Jeff Bezos',        difficulty: 'medium', category: 'celebrities', locale: 'it' },
+  { wordA: 'Drake',          wordB: 'Kanye West',        difficulty: 'easy',   category: 'celebrities', locale: 'it' },
+  { wordA: 'Brad Pitt',      wordB: 'Leonardo DiCaprio', difficulty: 'medium', category: 'celebrities', locale: 'it' },
+  { wordA: 'Serena Williams',wordB: 'Venus Williams',    difficulty: 'easy',   category: 'celebrities', locale: 'it' },
+  { wordA: 'Roger Federer',  wordB: 'Rafael Nadal',      difficulty: 'medium', category: 'celebrities', locale: 'it' },
+  // movies
+  { wordA: 'Commedia',       wordB: 'Dramma',            difficulty: 'easy',   category: 'movies',      locale: 'it' },
+  { wordA: 'Thriller',       wordB: 'Horror',            difficulty: 'easy',   category: 'movies',      locale: 'it' },
+  { wordA: 'Azione',         wordB: 'Avventura',         difficulty: 'easy',   category: 'movies',      locale: 'it' },
+  { wordA: 'Fantascienza',   wordB: 'Fantasy',           difficulty: 'medium', category: 'movies',      locale: 'it' },
+  { wordA: 'Animazione',     wordB: 'Cartone',           difficulty: 'easy',   category: 'movies',      locale: 'it' },
+  // animals
+  { wordA: 'Gatto',          wordB: 'Cane',              difficulty: 'easy',   category: 'animals',     locale: 'it' },
+  { wordA: 'Leone',          wordB: 'Tigre',             difficulty: 'easy',   category: 'animals',     locale: 'it' },
+  { wordA: 'Aquila',         wordB: 'Falco',             difficulty: 'medium', category: 'animals',     locale: 'it' },
+  { wordA: 'Delfino',        wordB: 'Squalo',            difficulty: 'easy',   category: 'animals',     locale: 'it' },
+  { wordA: 'Cavallo',        wordB: 'Zebra',             difficulty: 'easy',   category: 'animals',     locale: 'it' },
+  // sports
+  { wordA: 'Calcio',         wordB: 'Basket',            difficulty: 'easy',   category: 'sports',      locale: 'it' },
+  { wordA: 'Tennis',         wordB: 'Pallavolo',         difficulty: 'easy',   category: 'sports',      locale: 'it' },
+  { wordA: 'Nuoto',          wordB: 'Atletica',          difficulty: 'medium', category: 'sports',      locale: 'it' },
+  { wordA: 'Ciclismo',       wordB: 'Maratona',          difficulty: 'medium', category: 'sports',      locale: 'it' },
+  { wordA: 'Boxe',           wordB: 'Karate',            difficulty: 'easy',   category: 'sports',      locale: 'it' },
+  // food
+  { wordA: 'Pizza',          wordB: 'Pasta',             difficulty: 'easy',   category: 'food',        locale: 'it' },
+  { wordA: 'Gelato',         wordB: 'Torta',             difficulty: 'easy',   category: 'food',        locale: 'it' },
+  { wordA: 'Risotto',        wordB: 'Lasagna',           difficulty: 'easy',   category: 'food',        locale: 'it' },
+  { wordA: 'Caffè',          wordB: 'Tè',               difficulty: 'easy',   category: 'food',        locale: 'it' },
+  { wordA: 'Pane',           wordB: 'Formaggio',         difficulty: 'easy',   category: 'food',        locale: 'it' },
+  // music
+  { wordA: 'Chitarra',       wordB: 'Pianoforte',        difficulty: 'easy',   category: 'music',       locale: 'it' },
+  { wordA: 'Rock',           wordB: 'Pop',               difficulty: 'easy',   category: 'music',       locale: 'it' },
+  { wordA: 'Opera',          wordB: 'Jazz',              difficulty: 'medium', category: 'music',       locale: 'it' },
+  { wordA: 'Violino',        wordB: 'Flauto',            difficulty: 'medium', category: 'music',       locale: 'it' },
+  { wordA: 'Batteria',       wordB: 'Basso',             difficulty: 'medium', category: 'music',       locale: 'it' },
+  // jobs
+  { wordA: 'Medico',         wordB: 'Infermiere',        difficulty: 'easy',   category: 'jobs',        locale: 'it' },
+  { wordA: 'Avvocato',       wordB: 'Giudice',           difficulty: 'easy',   category: 'jobs',        locale: 'it' },
+  { wordA: 'Insegnante',     wordB: 'Professore',        difficulty: 'easy',   category: 'jobs',        locale: 'it' },
+  { wordA: 'Cuoco',          wordB: 'Cameriere',         difficulty: 'easy',   category: 'jobs',        locale: 'it' },
+  { wordA: 'Pompiere',       wordB: 'Poliziotto',        difficulty: 'easy',   category: 'jobs',        locale: 'it' },
+  // places
+  { wordA: 'Roma',           wordB: 'Milano',            difficulty: 'easy',   category: 'places',      locale: 'it' },
+  { wordA: 'Montagna',       wordB: 'Mare',              difficulty: 'easy',   category: 'places',      locale: 'it' },
+  { wordA: 'Museo',          wordB: 'Teatro',            difficulty: 'medium', category: 'places',      locale: 'it' },
+  { wordA: 'Aeroporto',      wordB: 'Stazione',          difficulty: 'easy',   category: 'places',      locale: 'it' },
+  { wordA: 'Parco',          wordB: 'Giardino',          difficulty: 'easy',   category: 'places',      locale: 'it' },
+  // history
+  { wordA: 'Giulio Cesare',  wordB: 'Augusto',           difficulty: 'medium', category: 'history',     locale: 'it' },
+  { wordA: 'Leonardo da Vinci', wordB: 'Michelangelo',   difficulty: 'easy',   category: 'history',     locale: 'it' },
+  { wordA: 'Napoleone',      wordB: 'Garibaldi',         difficulty: 'medium', category: 'history',     locale: 'it' },
+  { wordA: 'Colosseo',       wordB: 'Pantheon',          difficulty: 'easy',   category: 'history',     locale: 'it' },
+  { wordA: 'Rinascimento',   wordB: 'Medioevo',          difficulty: 'hard',   category: 'history',     locale: 'it' },
+  // variety
+  { wordA: 'Sole',           wordB: 'Luna',              difficulty: 'easy',   category: 'variety',     locale: 'it' },
+  { wordA: 'Estate',         wordB: 'Inverno',           difficulty: 'easy',   category: 'variety',     locale: 'it' },
+  { wordA: 'Giorno',         wordB: 'Notte',             difficulty: 'easy',   category: 'variety',     locale: 'it' },
+  { wordA: 'Fuoco',          wordB: 'Acqua',             difficulty: 'easy',   category: 'variety',     locale: 'it' },
+  { wordA: 'Grande',         wordB: 'Piccolo',           difficulty: 'easy',   category: 'variety',     locale: 'it' },
+]
+
+// ─── Portuguese ───────────────────────────────────────────────────────────────
+const PT: PairData[] = [
+  // mangas (universal)
+  { wordA: 'Naruto',         wordB: 'Sasuke',            difficulty: 'easy',   category: 'mangas',      locale: 'pt' },
+  { wordA: 'Goku',           wordB: 'Vegeta',            difficulty: 'easy',   category: 'mangas',      locale: 'pt' },
+  { wordA: 'Luffy',          wordB: 'Zoro',              difficulty: 'easy',   category: 'mangas',      locale: 'pt' },
+  { wordA: 'Ichigo',         wordB: 'Rukia',             difficulty: 'medium', category: 'mangas',      locale: 'pt' },
+  { wordA: 'Eren',           wordB: 'Levi',              difficulty: 'medium', category: 'mangas',      locale: 'pt' },
+  { wordA: 'Deku',           wordB: 'Bakugo',            difficulty: 'easy',   category: 'mangas',      locale: 'pt' },
+  { wordA: 'Gojo',           wordB: 'Sukuna',            difficulty: 'medium', category: 'mangas',      locale: 'pt' },
+  { wordA: 'Tanjiro',        wordB: 'Nezuko',            difficulty: 'easy',   category: 'mangas',      locale: 'pt' },
+  { wordA: 'Killua',         wordB: 'Gon',               difficulty: 'easy',   category: 'mangas',      locale: 'pt' },
+  { wordA: 'Edward Elric',   wordB: 'Roy Mustang',       difficulty: 'medium', category: 'mangas',      locale: 'pt' },
+  // celebrities (universal)
+  { wordA: 'Ronaldo',        wordB: 'Messi',             difficulty: 'easy',   category: 'celebrities', locale: 'pt' },
+  { wordA: 'Beyoncé',        wordB: 'Rihanna',           difficulty: 'easy',   category: 'celebrities', locale: 'pt' },
+  { wordA: 'Neymar',         wordB: 'Mbappé',            difficulty: 'easy',   category: 'celebrities', locale: 'pt' },
+  { wordA: 'Taylor Swift',   wordB: 'Ariana Grande',     difficulty: 'easy',   category: 'celebrities', locale: 'pt' },
+  { wordA: 'LeBron James',   wordB: 'Kobe Bryant',       difficulty: 'medium', category: 'celebrities', locale: 'pt' },
+  // movies
+  { wordA: 'Comédia',        wordB: 'Drama',             difficulty: 'easy',   category: 'movies',      locale: 'pt' },
+  { wordA: 'Ação',           wordB: 'Aventura',          difficulty: 'easy',   category: 'movies',      locale: 'pt' },
+  { wordA: 'Terror',         wordB: 'Suspense',          difficulty: 'easy',   category: 'movies',      locale: 'pt' },
+  { wordA: 'Animação',       wordB: 'Desenho',           difficulty: 'easy',   category: 'movies',      locale: 'pt' },
+  { wordA: 'Ficção',         wordB: 'Fantasia',          difficulty: 'medium', category: 'movies',      locale: 'pt' },
+  // animals
+  { wordA: 'Gato',           wordB: 'Cachorro',          difficulty: 'easy',   category: 'animals',     locale: 'pt' },
+  { wordA: 'Leão',           wordB: 'Tigre',             difficulty: 'easy',   category: 'animals',     locale: 'pt' },
+  { wordA: 'Águia',          wordB: 'Falcão',            difficulty: 'medium', category: 'animals',     locale: 'pt' },
+  { wordA: 'Golfinho',       wordB: 'Tubarão',           difficulty: 'easy',   category: 'animals',     locale: 'pt' },
+  { wordA: 'Cavalo',         wordB: 'Zebra',             difficulty: 'easy',   category: 'animals',     locale: 'pt' },
+  // sports
+  { wordA: 'Futebol',        wordB: 'Basquete',          difficulty: 'easy',   category: 'sports',      locale: 'pt' },
+  { wordA: 'Tênis',          wordB: 'Vôlei',             difficulty: 'easy',   category: 'sports',      locale: 'pt' },
+  { wordA: 'Natação',        wordB: 'Atletismo',         difficulty: 'medium', category: 'sports',      locale: 'pt' },
+  { wordA: 'Surfe',          wordB: 'Skate',             difficulty: 'easy',   category: 'sports',      locale: 'pt' },
+  { wordA: 'Boxe',           wordB: 'Judô',              difficulty: 'easy',   category: 'sports',      locale: 'pt' },
+  // food
+  { wordA: 'Arroz',          wordB: 'Feijão',            difficulty: 'easy',   category: 'food',        locale: 'pt' },
+  { wordA: 'Café',           wordB: 'Chá',               difficulty: 'easy',   category: 'food',        locale: 'pt' },
+  { wordA: 'Pão',            wordB: 'Queijo',            difficulty: 'easy',   category: 'food',        locale: 'pt' },
+  { wordA: 'Bolo',           wordB: 'Sorvete',           difficulty: 'easy',   category: 'food',        locale: 'pt' },
+  { wordA: 'Churrasco',      wordB: 'Feijoada',          difficulty: 'easy',   category: 'food',        locale: 'pt' },
+  // music
+  { wordA: 'Guitarra',       wordB: 'Piano',             difficulty: 'easy',   category: 'music',       locale: 'pt' },
+  { wordA: 'Samba',          wordB: 'Forró',             difficulty: 'easy',   category: 'music',       locale: 'pt' },
+  { wordA: 'Rock',           wordB: 'Pop',               difficulty: 'easy',   category: 'music',       locale: 'pt' },
+  { wordA: 'Violão',         wordB: 'Cavaquinho',        difficulty: 'medium', category: 'music',       locale: 'pt' },
+  { wordA: 'Bateria',        wordB: 'Baixo',             difficulty: 'medium', category: 'music',       locale: 'pt' },
+  // jobs
+  { wordA: 'Médico',         wordB: 'Enfermeiro',        difficulty: 'easy',   category: 'jobs',        locale: 'pt' },
+  { wordA: 'Advogado',       wordB: 'Juiz',              difficulty: 'easy',   category: 'jobs',        locale: 'pt' },
+  { wordA: 'Professor',      wordB: 'Diretor',           difficulty: 'easy',   category: 'jobs',        locale: 'pt' },
+  { wordA: 'Cozinheiro',     wordB: 'Garçom',            difficulty: 'easy',   category: 'jobs',        locale: 'pt' },
+  { wordA: 'Bombeiro',       wordB: 'Policial',          difficulty: 'easy',   category: 'jobs',        locale: 'pt' },
+  // places
+  { wordA: 'Praia',          wordB: 'Montanha',          difficulty: 'easy',   category: 'places',      locale: 'pt' },
+  { wordA: 'São Paulo',      wordB: 'Rio de Janeiro',    difficulty: 'easy',   category: 'places',      locale: 'pt' },
+  { wordA: 'Museu',          wordB: 'Teatro',            difficulty: 'medium', category: 'places',      locale: 'pt' },
+  { wordA: 'Aeroporto',      wordB: 'Rodoviária',        difficulty: 'easy',   category: 'places',      locale: 'pt' },
+  { wordA: 'Parque',         wordB: 'Jardim',            difficulty: 'easy',   category: 'places',      locale: 'pt' },
+  // history
+  { wordA: 'Pedro I',        wordB: 'Pedro II',          difficulty: 'medium', category: 'history',     locale: 'pt' },
+  { wordA: 'Tiradentes',     wordB: 'Zumbi',             difficulty: 'hard',   category: 'history',     locale: 'pt' },
+  { wordA: 'Descobrimento',  wordB: 'Independência',     difficulty: 'medium', category: 'history',     locale: 'pt' },
+  { wordA: 'Império',        wordB: 'República',         difficulty: 'medium', category: 'history',     locale: 'pt' },
+  { wordA: 'Caravela',       wordB: 'Navio',             difficulty: 'easy',   category: 'history',     locale: 'pt' },
+  // variety
+  { wordA: 'Sol',            wordB: 'Lua',               difficulty: 'easy',   category: 'variety',     locale: 'pt' },
+  { wordA: 'Verão',          wordB: 'Inverno',           difficulty: 'easy',   category: 'variety',     locale: 'pt' },
+  { wordA: 'Dia',            wordB: 'Noite',             difficulty: 'easy',   category: 'variety',     locale: 'pt' },
+  { wordA: 'Fogo',           wordB: 'Água',              difficulty: 'easy',   category: 'variety',     locale: 'pt' },
+  { wordA: 'Grande',         wordB: 'Pequeno',           difficulty: 'easy',   category: 'variety',     locale: 'pt' },
+]
+
+// ─── Chinese ──────────────────────────────────────────────────────────────────
+const ZH: PairData[] = [
+  // mangas (universal names)
+  { wordA: 'Naruto',         wordB: 'Sasuke',            difficulty: 'easy',   category: 'mangas',      locale: 'zh' },
+  { wordA: 'Goku',           wordB: 'Vegeta',            difficulty: 'easy',   category: 'mangas',      locale: 'zh' },
+  { wordA: 'Luffy',          wordB: 'Zoro',              difficulty: 'easy',   category: 'mangas',      locale: 'zh' },
+  { wordA: 'Ichigo',         wordB: 'Rukia',             difficulty: 'medium', category: 'mangas',      locale: 'zh' },
+  { wordA: 'Eren',           wordB: 'Levi',              difficulty: 'medium', category: 'mangas',      locale: 'zh' },
+  { wordA: 'Deku',           wordB: 'Bakugo',            difficulty: 'easy',   category: 'mangas',      locale: 'zh' },
+  { wordA: 'Gojo',           wordB: 'Sukuna',            difficulty: 'medium', category: 'mangas',      locale: 'zh' },
+  { wordA: 'Tanjiro',        wordB: 'Nezuko',            difficulty: 'easy',   category: 'mangas',      locale: 'zh' },
+  { wordA: 'Killua',         wordB: 'Gon',               difficulty: 'easy',   category: 'mangas',      locale: 'zh' },
+  { wordA: 'Edward Elric',   wordB: 'Roy Mustang',       difficulty: 'medium', category: 'mangas',      locale: 'zh' },
+  // celebrities (universal)
+  { wordA: 'Ronaldo',        wordB: 'Messi',             difficulty: 'easy',   category: 'celebrities', locale: 'zh' },
+  { wordA: 'Beyoncé',        wordB: 'Rihanna',           difficulty: 'easy',   category: 'celebrities', locale: 'zh' },
+  { wordA: 'Taylor Swift',   wordB: 'Ariana Grande',     difficulty: 'easy',   category: 'celebrities', locale: 'zh' },
+  { wordA: 'LeBron James',   wordB: 'Kobe Bryant',       difficulty: 'medium', category: 'celebrities', locale: 'zh' },
+  { wordA: 'Elon Musk',      wordB: 'Jeff Bezos',        difficulty: 'medium', category: 'celebrities', locale: 'zh' },
+  // movies
+  { wordA: '喜剧',           wordB: '悲剧',              difficulty: 'easy',   category: 'movies',      locale: 'zh' },
+  { wordA: '动作片',         wordB: '冒险片',            difficulty: 'easy',   category: 'movies',      locale: 'zh' },
+  { wordA: '恐怖片',         wordB: '悬疑片',            difficulty: 'easy',   category: 'movies',      locale: 'zh' },
+  { wordA: '科幻',           wordB: '奇幻',              difficulty: 'medium', category: 'movies',      locale: 'zh' },
+  { wordA: '动画',           wordB: '纪录片',            difficulty: 'medium', category: 'movies',      locale: 'zh' },
+  // animals
+  { wordA: '猫',             wordB: '狗',                difficulty: 'easy',   category: 'animals',     locale: 'zh' },
+  { wordA: '狮子',           wordB: '老虎',              difficulty: 'easy',   category: 'animals',     locale: 'zh' },
+  { wordA: '鹰',             wordB: '隼',                difficulty: 'medium', category: 'animals',     locale: 'zh' },
+  { wordA: '海豚',           wordB: '鲨鱼',              difficulty: 'easy',   category: 'animals',     locale: 'zh' },
+  { wordA: '马',             wordB: '驴',                difficulty: 'easy',   category: 'animals',     locale: 'zh' },
+  // sports
+  { wordA: '足球',           wordB: '篮球',              difficulty: 'easy',   category: 'sports',      locale: 'zh' },
+  { wordA: '网球',           wordB: '排球',              difficulty: 'easy',   category: 'sports',      locale: 'zh' },
+  { wordA: '游泳',           wordB: '跑步',              difficulty: 'easy',   category: 'sports',      locale: 'zh' },
+  { wordA: '乒乓球',         wordB: '羽毛球',            difficulty: 'easy',   category: 'sports',      locale: 'zh' },
+  { wordA: '武术',           wordB: '柔道',              difficulty: 'medium', category: 'sports',      locale: 'zh' },
+  // food
+  { wordA: '米饭',           wordB: '面条',              difficulty: 'easy',   category: 'food',        locale: 'zh' },
+  { wordA: '茶',             wordB: '咖啡',              difficulty: 'easy',   category: 'food',        locale: 'zh' },
+  { wordA: '饺子',           wordB: '包子',              difficulty: 'easy',   category: 'food',        locale: 'zh' },
+  { wordA: '火锅',           wordB: '烧烤',              difficulty: 'easy',   category: 'food',        locale: 'zh' },
+  { wordA: '豆腐',           wordB: '鸡蛋',              difficulty: 'easy',   category: 'food',        locale: 'zh' },
+  // music
+  { wordA: '钢琴',           wordB: '吉他',              difficulty: 'easy',   category: 'music',       locale: 'zh' },
+  { wordA: '摇滚',           wordB: '流行',              difficulty: 'easy',   category: 'music',       locale: 'zh' },
+  { wordA: '二胡',           wordB: '古筝',              difficulty: 'medium', category: 'music',       locale: 'zh' },
+  { wordA: '交响乐',         wordB: '爵士乐',            difficulty: 'hard',   category: 'music',       locale: 'zh' },
+  { wordA: '鼓',             wordB: '笛子',              difficulty: 'medium', category: 'music',       locale: 'zh' },
+  // jobs
+  { wordA: '医生',           wordB: '护士',              difficulty: 'easy',   category: 'jobs',        locale: 'zh' },
+  { wordA: '律师',           wordB: '法官',              difficulty: 'easy',   category: 'jobs',        locale: 'zh' },
+  { wordA: '老师',           wordB: '教授',              difficulty: 'easy',   category: 'jobs',        locale: 'zh' },
+  { wordA: '厨师',           wordB: '服务员',            difficulty: 'easy',   category: 'jobs',        locale: 'zh' },
+  { wordA: '消防员',         wordB: '警察',              difficulty: 'easy',   category: 'jobs',        locale: 'zh' },
+  // places
+  { wordA: '北京',           wordB: '上海',              difficulty: 'easy',   category: 'places',      locale: 'zh' },
+  { wordA: '长城',           wordB: '故宫',              difficulty: 'easy',   category: 'places',      locale: 'zh' },
+  { wordA: '山',             wordB: '海',                difficulty: 'easy',   category: 'places',      locale: 'zh' },
+  { wordA: '机场',           wordB: '火车站',            difficulty: 'easy',   category: 'places',      locale: 'zh' },
+  { wordA: '公园',           wordB: '花园',              difficulty: 'easy',   category: 'places',      locale: 'zh' },
+  // history
+  { wordA: '秦始皇',         wordB: '汉武帝',            difficulty: 'medium', category: 'history',     locale: 'zh' },
+  { wordA: '孔子',           wordB: '老子',              difficulty: 'medium', category: 'history',     locale: 'zh' },
+  { wordA: '唐朝',           wordB: '宋朝',              difficulty: 'medium', category: 'history',     locale: 'zh' },
+  { wordA: '长征',           wordB: '革命',              difficulty: 'hard',   category: 'history',     locale: 'zh' },
+  { wordA: '丝绸之路',       wordB: '大运河',            difficulty: 'hard',   category: 'history',     locale: 'zh' },
+  // variety
+  { wordA: '太阳',           wordB: '月亮',              difficulty: 'easy',   category: 'variety',     locale: 'zh' },
+  { wordA: '夏天',           wordB: '冬天',              difficulty: 'easy',   category: 'variety',     locale: 'zh' },
+  { wordA: '白天',           wordB: '黑夜',              difficulty: 'easy',   category: 'variety',     locale: 'zh' },
+  { wordA: '火',             wordB: '水',                difficulty: 'easy',   category: 'variety',     locale: 'zh' },
+  { wordA: '大',             wordB: '小',                difficulty: 'easy',   category: 'variety',     locale: 'zh' },
+]
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Pack definitions — one per locale
 // ─────────────────────────────────────────────────────────────────────────────
@@ -654,6 +884,9 @@ const LANGUAGE_PACKS = [
   { locale: 'es', name: 'General',   description: 'Pack de palabras general (Español) — 10 pares por categoría',                   pairs: ES },
   { locale: 'de', name: 'Allgemein', description: 'Allgemeines Wortpaket (Deutsch) — 10 Paare pro Kategorie',                      pairs: DE },
   { locale: 'ar', name: 'عام',       description: 'حزمة الكلمات العامة (العربية) — 10 أزواج لكل فئة',                             pairs: AR },
+  { locale: 'it', name: 'Generale',  description: 'Pacchetto di parole generale (Italiano)',                                       pairs: IT },
+  { locale: 'pt', name: 'Geral',     description: 'Pacote de palavras geral (Português)',                                          pairs: PT },
+  { locale: 'zh', name: '通用',      description: '通用词包 (中文)',                                                                 pairs: ZH },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────

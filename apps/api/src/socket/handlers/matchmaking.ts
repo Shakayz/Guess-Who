@@ -7,6 +7,25 @@ import { onlineUsers } from '../onlineUsers'
 
 const { IDEAL_PLAYERS, MIN_PLAYERS, MAX_WAIT_SECONDS, TICK_INTERVAL_MS, THRESHOLDS } = MATCHMAKING_CONFIG
 
+// ── Ranked matchmaking config (LoL-inspired LP window widening) ───────────────
+const RANKED_PLAYERS = 10
+const RANKED_TICK_MS = 2000
+const RANKED_LP_THRESHOLDS = [
+  { after:  0, lpRange:  50 },   // 0-15s: ±50 LP
+  { after: 15, lpRange: 100 },   // 15-30s: ±100 LP
+  { after: 30, lpRange: 200 },   // 30-45s: ±200 LP
+  { after: 45, lpRange: 400 },   // 45-60s: ±400 LP
+  { after: 60, lpRange: Infinity }, // 60s+: match anyone
+]
+
+function getRankedLPRange(elapsedSeconds: number): number {
+  let range = 50
+  for (const t of RANKED_LP_THRESHOLDS) {
+    if (elapsedSeconds >= t.after) range = t.lpRange
+  }
+  return range
+}
+
 // ── Per-queue matchmaking windows ──────────────────────────────────────────────
 
 interface MatchmakingWindow {
@@ -180,12 +199,142 @@ async function tickMatchmakingQueue(io: Server<any, any>, queueKey: string, wind
   }
 }
 
-function startMatchmakingWindow(io: Server<any, any>, queueKey: string) {
+/**
+ * Ranked matchmaking tick — LP-based skill matching (LoL-inspired).
+ * Sorts queue by LP, uses sliding window to find 10 players within LP range.
+ * LP range widens over time for each player based on their wait time.
+ */
+async function tickRankedQueue(io: Server<any, any>, queueKey: string, window: MatchmakingWindow) {
+  const lockKey = `${queueKey}:lock`
+  const acquired = await (redis as any).set(lockKey, '1', 'PX', 3000, 'NX')
+  if (acquired !== 'OK') return
+
+  try {
+    const rawEntries = await redis.lrange(queueKey, 0, -1)
+    if (rawEntries.length === 0) {
+      stopMatchmakingWindow(queueKey)
+      return
+    }
+
+    // Parse and filter to online players only
+    const players = rawEntries
+      .map((e) => { try { return JSON.parse(e) } catch { return null } })
+      .filter((p: any) => p && onlineUsers.has(p.userId))
+
+    // Broadcast status to all waiting players
+    const now = Date.now()
+    for (const p of players) {
+      const elapsed = Math.floor((now - (p.joinedAt ?? window.startedAt)) / 1000)
+      const sid = onlineUsers.get(p.userId)
+      if (sid) {
+        io.to(sid).emit('matchmaking:status' as any, {
+          queueSize: players.length,
+          needed: RANKED_PLAYERS,
+          elapsed,
+          maxWait: 90,
+          idealPlayers: RANKED_PLAYERS,
+        } satisfies MatchmakingStatus)
+      }
+    }
+
+    if (players.length < RANKED_PLAYERS) return // not enough yet
+
+    // Sort by LP for sliding window
+    players.sort((a: any, b: any) => (a.rankPoints ?? 0) - (b.rankPoints ?? 0))
+
+    // Find the best group of 10 using sliding window
+    // The LP range allowed is determined by the LONGEST-waiting player in any candidate group
+    for (let i = 0; i <= players.length - RANKED_PLAYERS; i++) {
+      const group = players.slice(i, i + RANKED_PLAYERS)
+      const minLP = group[0].rankPoints ?? 0
+      const maxLP = group[RANKED_PLAYERS - 1].rankPoints ?? 0
+      const lpSpread = maxLP - minLP
+
+      // Use the widest LP window among the group (longest waiter gets priority)
+      const widestRange = Math.max(
+        ...group.map((p: any) => {
+          const elapsed = Math.floor((now - (p.joinedAt ?? now)) / 1000)
+          return getRankedLPRange(elapsed)
+        })
+      )
+
+      if (lpSpread <= widestRange * 2) {
+        // Valid match! Remove these players from queue and create match
+        for (const p of group) {
+          const raw = rawEntries.find((e) => {
+            try { return JSON.parse(e).userId === p.userId } catch { return false }
+          })
+          if (raw) await redis.lrem(queueKey, 1, raw)
+        }
+        await executeRankedMatch(io, queueKey, group)
+
+        const remaining = await redis.llen(queueKey)
+        if (remaining === 0) stopMatchmakingWindow(queueKey)
+        else window.startedAt = Date.now()
+        return
+      }
+    }
+  } finally {
+    await redis.del(lockKey)
+  }
+}
+
+/** Create a ranked match room for the given 10 players */
+async function executeRankedMatch(io: Server<any, any>, queueKey: string, players: any[]) {
+  const parts = queueKey.split(':')
+  const locale = parts[2] ?? 'en'
+  const hostPlayer = players[0]
+  const imposterCount = computeImposterCount(players.length)
+
+  const room = await prisma.room.create({
+    data: {
+      code: generateRoomCode(),
+      hostId: hostPlayer.userId,
+      maxPlayers: RANKED_PLAYERS,
+      imposterCount,
+      speakingTimeSeconds: 30,
+      votingTimeSeconds: 30,
+      isPrivate: false,
+      language: locale,
+    },
+  }).catch(() => null)
+
+  if (!room) {
+    for (const p of players) {
+      const sid = onlineUsers.get(p.userId)
+      if (sid) io.to(sid).emit('matchmaking:error' as any, { message: 'Failed to create room.' })
+    }
+    return
+  }
+
+  await redis.set(`room:${room.id}:state`, JSON.stringify({
+    status: 'waiting',
+    gameMode: 'ranked',
+    categories: [], // ranked uses ALL categories
+    players: [],
+    currentRound: 0,
+    maxRounds: 0, // unlimited rounds for ranked
+    isMatchmade: true,
+    expectedPlayers: players.length,
+  }), 'EX', 21600)
+
+  for (const player of players) {
+    const sid = onlineUsers.get(player.userId)
+    if (sid) io.to(sid).emit('matchmaking:found' as any, { roomCode: room.code })
+  }
+}
+
+function startMatchmakingWindow(io: Server<any, any>, queueKey: string, ranked = false) {
   if (activeWindows.has(queueKey)) return
+
+  const tickMs = ranked ? RANKED_TICK_MS : TICK_INTERVAL_MS
+  const tickFn = ranked
+    ? () => tickRankedQueue(io, queueKey, window)
+    : () => tickMatchmakingQueue(io, queueKey, window)
 
   const window: MatchmakingWindow = {
     startedAt: Date.now(),
-    interval: setInterval(() => tickMatchmakingQueue(io, queueKey, window), TICK_INTERVAL_MS),
+    interval: setInterval(tickFn, tickMs),
   }
   activeWindows.set(queueKey, window)
 }
@@ -231,25 +380,27 @@ export function registerMatchmakingHandlers(
       } catch {}
     }
 
+    // Fetch rank points for ranked queue
+    const userFull = await prisma.user.findUnique({ where: { id: userId }, select: { rankPoints: true } })
+    const rankPoints = userFull?.rankPoints ?? 0
+
     // Add to queue
-    const entry = JSON.stringify({ userId, socketId: socket.id, categories: data?.categories ?? [], locale })
+    const entry = JSON.stringify({ userId, socketId: socket.id, categories: data?.categories ?? [], locale, rankPoints, joinedAt: Date.now() })
     await redis.rpush(queueKey, entry)
     await redis.expire(queueKey, 300) // 5-min TTL
 
-    // ── Ranked mode: use instant-match at 4 players (legacy behavior) ──
+    // ── Ranked mode: LP-based skill matching with widening window ──
     if (gameMode === 'ranked') {
+      startMatchmakingWindow(io, queueKey, true)
+
       const queueLength = await redis.llen(queueKey)
       socket.emit('matchmaking:status' as any, {
         queueSize: queueLength,
-        needed: MIN_PLAYERS,
+        needed: RANKED_PLAYERS,
         elapsed: 0,
-        maxWait: 0,
-        idealPlayers: MIN_PLAYERS,
+        maxWait: 90,
+        idealPlayers: RANKED_PLAYERS,
       } satisfies MatchmakingStatus)
-
-      if (queueLength >= MIN_PLAYERS) {
-        await executeMatch(io, queueKey, MIN_PLAYERS)
-      }
       return
     }
 

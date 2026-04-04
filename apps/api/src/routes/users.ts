@@ -44,12 +44,15 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send({ success: true })
   })
 
-  fastify.get('/leaderboard', async (_req, reply) => {
-    const cacheKey = 'leaderboard:top100'
+  fastify.get('/leaderboard', async (req, reply) => {
+    const { locale } = req.query as { locale?: string }
+    const lang = (locale ?? 'en').split('-')[0]
+    const cacheKey = `leaderboard:top100:${lang}`
     const cached = await redis.get(cacheKey)
     if (cached) return reply.send(JSON.parse(cached))
 
     const users = await prisma.user.findMany({
+      where: { locale: lang },
       select: { id: true, username: true, avatarUrl: true, rankTier: true, rankPoints: true },
       orderBy: { rankPoints: 'desc' },
       take: 100,
