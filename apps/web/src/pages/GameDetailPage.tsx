@@ -327,6 +327,20 @@ export default function GameDetailPage() {
                 </span>
               )}
             </div>
+
+            {/* Word reveal */}
+            {data.rounds.length > 0 && data.rounds[0].villagerWord && (
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="rounded-xl bg-brand-950/40 border border-brand-800/40 p-3 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Villager Word</p>
+                  <p className="text-lg font-extrabold text-white">{data.rounds[0].villagerWord}</p>
+                </div>
+                <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Imposter Word</p>
+                  <p className="text-lg font-extrabold text-amber-400">{data.rounds[0].imposterWord}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Players grid */}
