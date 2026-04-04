@@ -95,6 +95,8 @@ export function registerMatchmakingHandlers(
         players: [],
         currentRound: 0,
         maxRounds: 5,
+        isMatchmade: true,
+        expectedPlayers: players.length,
       }), 'EX', 21600)
 
       for (const player of players) {

@@ -93,6 +93,7 @@ export function registerRoomHandlers(
             await socket.leave(`room:${room.id}`)
             return
           }
+          const isMatchmade = state.isMatchmade ?? false
           state.players.push({
             id: socket.id,
             userId,
@@ -101,7 +102,7 @@ export function registerRoomHandlers(
             role: undefined,
             status: 'alive',
             isHost: room.hostId === userId,
-            isReady: room.hostId === userId, // host auto-ready
+            isReady: room.hostId === userId || isMatchmade, // auto-ready in matchmade rooms
             honorGiven: false,
           })
           await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 21600)
@@ -337,14 +338,15 @@ export function registerRoomHandlers(
       try {
         const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
 
-        // Prefer the room's configured word pack; fall back to any non-premium pack
+        // Prefer the room's configured word pack; fall back to the locale-matched system pack
+        const roomLocale: string = (room as any).language ?? 'en'
         const pack = room.wordPackId && room.wordPackId !== 'default'
           ? await prisma.wordPack.findUnique({
               where: { id: room.wordPackId },
-              include: { pairs: { where: categoryFilter } },
+              include: { pairs: { where: { ...categoryFilter, locale: roomLocale } } },
             })
           : await prisma.wordPack.findFirst({
-              where: { isPremium: false },
+              where: { isPremium: false, isApproved: true, locale: roomLocale, authorId: null },
               include: { pairs: { where: categoryFilter } },
             })
 
