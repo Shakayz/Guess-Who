@@ -77,6 +77,11 @@ async function startGameForRoom(
       }
     } catch { /* use fallback */ }
 
+    // Randomly swap which word goes to villagers vs imposters
+    if (Math.random() < 0.5) {
+      wordPair = { wordA: wordPair.wordB, wordB: wordPair.wordA }
+    }
+
     const { game, round } = await prisma.$transaction(async (tx) => {
       const game = await tx.game.create({ data: { roomId } })
       const round = await tx.round.create({
@@ -188,6 +193,11 @@ export function registerRoomHandlers(
         const result = await (redis as any).set(lockKey, '1', 'PX', 5000, 'NX')
         if (result === 'OK') { lockAcquired = true; break }
         await new Promise((r) => setTimeout(r, 25))
+      }
+      if (!lockAcquired) {
+        socket.emit('error', { code: 'ROOM_BUSY', message: 'Room is busy, please try again' })
+        await socket.leave(`room:${room.id}`)
+        return
       }
 
       let state: any
@@ -319,6 +329,11 @@ export function registerRoomHandlers(
         // Trigger game start after a short delay for clients to render
         setTimeout(async () => {
           try {
+            // Re-check state to avoid starting if status changed
+            const freshRaw = await redis.get(`room:${room.id}:state`)
+            if (!freshRaw) return
+            const freshState = JSON.parse(freshRaw)
+            if (freshState.status !== 'waiting') return
             await autoStartMatchmadeGame(io, room.id)
           } catch (err) {
             console.error('matchmaking auto-start error:', err)
