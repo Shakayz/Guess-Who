@@ -253,7 +253,7 @@ async function tickRankedQueue(io: Server<any, any>, queueKey: string, window: M
       // Use the widest LP window among the group (longest waiter gets priority)
       const widestRange = Math.max(
         ...group.map((p: any) => {
-          const elapsed = Math.floor((now - (p.joinedAt ?? now)) / 1000)
+          const elapsed = Math.floor((now - (p.joinedAt ?? window.startedAt)) / 1000)
           return getRankedLPRange(elapsed)
         })
       )
