@@ -132,7 +132,7 @@ export default {
     ghostOnly: 'Only eliminated players',
     ghostDesc: 'You are a ghost now...',
     ghostPlaceholder: 'Ghost whisper...',
-    chatDisabled: 'Chat is disabled during gameplay to prevent cheating. React with emotes instead!',
+    chatDisabled: 'Chat is disabled during the game.',
     react: 'React',
     leaveGame: 'Leave Game',
     quitForfeit: 'Quit & Forfeit',

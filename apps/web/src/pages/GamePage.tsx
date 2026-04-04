@@ -1090,12 +1090,7 @@ export default function GamePage() {
         ) : (
           <div className="flex-1 flex flex-col justify-end p-3 gap-3">
             {/* Chat disabled notice */}
-            <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-neutral-900/60 border border-neutral-800">
-              <span className="text-neutral-600 text-sm shrink-0">🔇</span>
-              <p className="text-xs text-neutral-600 leading-relaxed">
-                {t('game.chatDisabled')}
-              </p>
-            </div>
+            <p className="text-xs text-neutral-600 text-center">{t('game.chatDisabled')}</p>
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600 mb-2">{t('game.react')}</p>
               <div className="flex gap-2 flex-wrap">

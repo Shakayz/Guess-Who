@@ -132,7 +132,7 @@ export default {
     ghostOnly: 'Joueurs éliminés uniquement',
     ghostDesc: 'Vous êtes un fantôme maintenant...',
     ghostPlaceholder: 'Murmure de fantôme...',
-    chatDisabled: 'Le chat est désactivé pendant la partie pour éviter la triche. Réagissez avec des émotes !',
+    chatDisabled: 'Le chat est désactivé pendant la partie.',
     react: 'Réagir',
     yourTurn: 'À vous de parler !',
     yourTurnHint: 'Donnez votre indice ci-dessous',

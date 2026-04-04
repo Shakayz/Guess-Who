@@ -132,7 +132,7 @@ export default {
     ghostOnly: 'Solo jugadores eliminados',
     ghostDesc: 'Ahora eres un fantasma...',
     ghostPlaceholder: 'Susurro de fantasma...',
-    chatDisabled: 'El chat está desactivado durante la partida para evitar trampas. ¡Reacciona con emotes!',
+    chatDisabled: 'El chat está desactivado durante la partida.',
     react: 'Reaccionar',
     leaveGame: 'Salir',
     quitForfeit: 'Salir y Rendirse',

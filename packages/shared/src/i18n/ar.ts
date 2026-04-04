@@ -132,7 +132,7 @@ export default {
     ghostOnly: 'اللاعبون المقصيون فقط',
     ghostDesc: 'أنت شبح الآن...',
     ghostPlaceholder: 'همس الشبح...',
-    chatDisabled: 'الدردشة معطّلة أثناء اللعب لمنع الغش. تفاعل بالرموز التعبيرية!',
+    chatDisabled: 'الدردشة معطّلة أثناء اللعب.',
     react: 'تفاعل',
     yourTurn: 'دورك في الكلام!',
     yourTurnHint: 'أعطِ تلميحك أدناه',
