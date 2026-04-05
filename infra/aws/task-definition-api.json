@@ -1,0 +1,54 @@
+{
+  "family": "imposter-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "${EXECUTION_ROLE_ARN}",
+  "taskRoleArn": "${TASK_ROLE_ARN}",
+  "containerDefinitions": [
+    {
+      "name": "api",
+      "image": "ghcr.io/shakayz/guess-who/api:${IMAGE_TAG}",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3001,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "PORT", "value": "3001" },
+        { "name": "DATABASE_URL", "value": "${DATABASE_URL}" },
+        { "name": "REDIS_URL", "value": "${REDIS_URL}" },
+        { "name": "JWT_SECRET", "value": "${JWT_SECRET}" },
+        { "name": "ALLOWED_ORIGINS", "value": "${ALLOWED_ORIGINS}" },
+        { "name": "APP_URL", "value": "${APP_URL}" },
+        { "name": "GOOGLE_CLIENT_ID", "value": "${GOOGLE_CLIENT_ID}" },
+        { "name": "GOOGLE_CLIENT_SECRET", "value": "${GOOGLE_CLIENT_SECRET}" },
+        { "name": "APPLE_CLIENT_ID", "value": "${APPLE_CLIENT_ID}" },
+        { "name": "APPLE_TEAM_ID", "value": "${APPLE_TEAM_ID}" },
+        { "name": "APPLE_KEY_ID", "value": "${APPLE_KEY_ID}" },
+        { "name": "APPLE_PRIVATE_KEY", "value": "${APPLE_PRIVATE_KEY}" },
+        { "name": "STRIPE_SECRET_KEY", "value": "${STRIPE_SECRET_KEY}" },
+        { "name": "STRIPE_WEBHOOK_SECRET", "value": "${STRIPE_WEBHOOK_SECRET}" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/${ENVIRONMENT}/imposter-api",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "api"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -qO- http://localhost:3001/health || exit 1"],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 30
+      }
+    }
+  ]
+}

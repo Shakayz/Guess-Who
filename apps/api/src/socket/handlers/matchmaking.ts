@@ -39,7 +39,7 @@ interface MatchmakingWindow {
 const activeWindows = new Map<string, MatchmakingWindow>()
 
 function getCurrentThreshold(elapsedSeconds: number): number {
-  let minPlayers = IDEAL_PLAYERS
+  let minPlayers: number = IDEAL_PLAYERS
   for (const t of THRESHOLDS) {
     if (elapsedSeconds >= t.after) minPlayers = t.minPlayers
   }

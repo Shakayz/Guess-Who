@@ -361,7 +361,7 @@ export function registerRoomHandlers(
             if (!freshRaw) return
             const freshState = JSON.parse(freshRaw)
             if (freshState.status !== 'waiting') return
-            await autoStartMatchmadeGame(io, room.id)
+            await startGameForRoom(io, room.id)
           } catch (err) {
             log.error({ err, roomId: room.id }, 'matchmaking auto-start error')
           }

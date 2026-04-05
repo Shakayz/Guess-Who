@@ -150,8 +150,8 @@ export const achievementRoutes: FastifyPluginAsync = async (fastify) => {
   for (const a of DEFAULT_ACHIEVEMENTS) {
     await prisma.achievement.upsert({
       where:  { key: a.key },
-      update: { name: a.name, description: a.description, icon: a.icon, category: a.category, difficulty: a.difficulty, xpReward: a.xpReward, coinReward: a.coinReward, isSecret: a.isSecret ?? false },
-      create: { key: a.key, name: a.name, description: a.description, icon: a.icon, category: a.category, difficulty: a.difficulty, xpReward: a.xpReward, coinReward: a.coinReward, isSecret: a.isSecret ?? false },
+      update: { name: a.name, description: a.description, icon: a.icon, category: a.category, difficulty: a.difficulty, xpReward: a.xpReward, coinReward: a.coinReward, isSecret: (a as any).isSecret ?? false },
+      create: { key: a.key, name: a.name, description: a.description, icon: a.icon, category: a.category, difficulty: a.difficulty, xpReward: a.xpReward, coinReward: a.coinReward, isSecret: (a as any).isSecret ?? false },
     }).catch(() => {})
   }
 

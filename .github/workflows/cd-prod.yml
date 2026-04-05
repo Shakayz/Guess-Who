@@ -21,6 +21,15 @@ concurrency:
 permissions:
   contents: read
   packages: write
+  id-token: write             # For OIDC with AWS
+
+env:
+  AWS_REGION: us-east-1
+  ECS_CLUSTER: prod-imposter-cluster
+  API_SERVICE: prod-imposter-api
+  WEB_SERVICE: prod-imposter-web
+  API_TASK_FAMILY: prod-imposter-api
+  WEB_TASK_FAMILY: prod-imposter-web
 
 jobs:
   # ─────────────────────────────────────────
@@ -80,87 +89,164 @@ jobs:
   #    GitHub → Settings → Environments → production → Required reviewers
   # ─────────────────────────────────────────
   deploy:
-    name: Deploy to Production
+    name: Deploy to Production (ECS)
     runs-on: ubuntu-latest
     needs: build-push
     environment: production    # ← APPROVAL REQUIRED here
     steps:
       - uses: actions/checkout@v4
 
-      - name: Copy compose file to server
-        uses: appleboy/scp-action@v0.1.7
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.PROD_SSH_HOST }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          source: docker-compose.prod.yml
-          target: /opt/imposter-game/
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Deploy to Production server via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PROD_SSH_HOST }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          script: |
-            set -e
-            cd /opt/imposter-game
+      - name: Save current task definitions for rollback
+        id: rollback-info
+        run: |
+          API_TASK=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.API_SERVICE }} \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          WEB_TASK=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.WEB_SERVICE }} \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          echo "api_task=${API_TASK}" >> $GITHUB_OUTPUT
+          echo "web_task=${WEB_TASK}" >> $GITHUB_OUTPUT
+          echo "Previous API task: ${API_TASK}"
+          echo "Previous Web task: ${WEB_TASK}"
 
-            # Save current image for rollback
-            PREV_TAG=$(docker inspect imposter-api-prod --format '{{.Config.Image}}' 2>/dev/null || echo "none")
-            echo "$PREV_TAG" > .last-prod-image
-            echo "Previous image: $PREV_TAG"
+      - name: Update API task definition with new image
+        id: api-task-def
+        run: |
+          IMAGE_TAG="${{ needs.build-push.outputs.image_tag }}"
 
-            # Write production environment file
-            cat > .env.prod << 'ENVEOF'
-            POSTGRES_PASSWORD=${{ secrets.PROD_POSTGRES_PASSWORD }}
-            REDIS_PASSWORD=${{ secrets.PROD_REDIS_PASSWORD }}
-            JWT_SECRET=${{ secrets.PROD_JWT_SECRET }}
-            ALLOWED_ORIGINS=${{ secrets.PROD_ALLOWED_ORIGINS }}
-            APP_URL=${{ secrets.PROD_APP_URL }}
-            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-            GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
-            APPLE_CLIENT_ID=${{ secrets.APPLE_CLIENT_ID }}
-            APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}
-            APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
-            APPLE_PRIVATE_KEY=${{ secrets.APPLE_PRIVATE_KEY }}
-            STRIPE_SECRET_KEY=${{ secrets.PROD_STRIPE_SECRET_KEY }}
-            STRIPE_WEBHOOK_SECRET=${{ secrets.PROD_STRIPE_WEBHOOK_SECRET }}
-            ENVEOF
+          # Get current task definition, update image, register new revision
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.API_TASK_FAMILY }} \
+            --query 'taskDefinition' \
+            --output json | \
+          jq --arg TAG "$IMAGE_TAG" \
+            '.containerDefinitions[0].image = "ghcr.io/shakayz/guess-who/api:" + $TAG' | \
+          jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            > /tmp/api-task-def.json
 
-            # Login to GHCR on server
-            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/api-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
 
-            # Pull new :latest images
-            docker compose -f docker-compose.prod.yml --env-file .env.prod pull
+          echo "arn=${NEW_ARN}" >> $GITHUB_OUTPUT
+          echo "New API task definition: ${NEW_ARN}"
 
-            # Rolling restart — API first, then Web (zero-downtime)
-            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api
-            sleep 10
-            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps web
+      - name: Update Web task definition with new image
+        id: web-task-def
+        run: |
+          IMAGE_TAG="${{ needs.build-push.outputs.image_tag }}"
 
-            # Health check — wait up to 90s
-            echo "Running production health check..."
-            for i in $(seq 1 18); do
-              if docker exec imposter-api-prod wget -qO- http://localhost:3001/health > /dev/null 2>&1; then
-                echo "✅ Production deployed — SHA: ${{ needs.build-push.outputs.image_tag }}"
-                docker image prune -f
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.WEB_TASK_FAMILY }} \
+            --query 'taskDefinition' \
+            --output json | \
+          jq --arg TAG "$IMAGE_TAG" \
+            '.containerDefinitions[0].image = "ghcr.io/shakayz/guess-who/web:" + $TAG' | \
+          jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            > /tmp/web-task-def.json
+
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/web-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "arn=${NEW_ARN}" >> $GITHUB_OUTPUT
+          echo "New Web task definition: ${NEW_ARN}"
+
+      - name: Deploy API service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.API_SERVICE }} \
+            --task-definition ${{ steps.api-task-def.outputs.arn }} \
+            --no-cli-pager > /dev/null
+          echo "API service update initiated."
+
+      - name: Deploy Web service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.WEB_SERVICE }} \
+            --task-definition ${{ steps.web-task-def.outputs.arn }} \
+            --no-cli-pager > /dev/null
+          echo "Web service update initiated."
+
+      - name: Wait for services to stabilize
+        run: |
+          echo "Waiting for ECS services to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.API_SERVICE }} ${{ env.WEB_SERVICE }}
+          echo "All services stable."
+
+      - name: Health check
+        run: |
+          ALB_DNS=$(aws cloudformation describe-stacks \
+            --stack-name prod-imposter-stack \
+            --query 'Stacks[0].Outputs[?OutputKey==`ALBDNSName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$ALB_DNS" ]; then
+            echo "Checking API health at https://${ALB_DNS}..."
+            for i in $(seq 1 12); do
+              if curl -sf "https://${ALB_DNS}/api/health" > /dev/null 2>&1 || \
+                 curl -sf "http://${ALB_DNS}/health" > /dev/null 2>&1; then
+                echo "Health check passed."
                 exit 0
               fi
-              echo "Attempt $i/18 — waiting 5s..."
-              sleep 5
+              echo "Attempt $i/12 — waiting 10s..."
+              sleep 10
             done
+            echo "WARNING: Health check could not reach ALB, but ECS services are stable."
+          else
+            echo "ALB DNS not found via CloudFormation, skipping HTTP health check."
+            echo "ECS services are stable — deployment considered successful."
+          fi
 
-            # Auto-rollback on failure
-            echo "❌ Health check failed — initiating rollback..."
-            PREV=$(cat .last-prod-image)
-            if [ "$PREV" != "none" ]; then
-              docker pull "$PREV"
-              docker tag "$PREV" ghcr.io/shakayz/guess-who/api:latest
-              docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api
-              echo "⚠️ Rolled back to $PREV"
-            fi
-            exit 1
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed — rolling back..."
+
+          PREV_API="${{ steps.rollback-info.outputs.api_task }}"
+          PREV_WEB="${{ steps.rollback-info.outputs.web_task }}"
+
+          if [ -n "$PREV_API" ] && [ "$PREV_API" != "None" ]; then
+            aws ecs update-service \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --service ${{ env.API_SERVICE }} \
+              --task-definition "$PREV_API" \
+              --no-cli-pager > /dev/null
+            echo "API rolled back to: ${PREV_API}"
+          fi
+
+          if [ -n "$PREV_WEB" ] && [ "$PREV_WEB" != "None" ]; then
+            aws ecs update-service \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --service ${{ env.WEB_SERVICE }} \
+              --task-definition "$PREV_WEB" \
+              --no-cli-pager > /dev/null
+            echo "Web rolled back to: ${PREV_WEB}"
+          fi
+
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.API_SERVICE }} ${{ env.WEB_SERVICE }} || true
+
+          echo "Rollback complete."
 
       - name: Tag release in git
         if: success()

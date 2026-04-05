@@ -1,0 +1,803 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Guess-Who (Imposter Game) — Full AWS infrastructure.
+  VPC, RDS PostgreSQL 16, ElastiCache Redis 7, ECS Fargate (API + Web),
+  ALB with WebSocket/sticky-session support, S3, CloudWatch.
+
+# ═══════════════════════════════════════════════════════════════
+# Parameters
+# ═══════════════════════════════════════════════════════════════
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, staging, prod]
+    Default: prod
+    Description: Deployment environment
+
+  DomainName:
+    Type: String
+    Description: Primary domain name (e.g. imposter-game.com)
+
+  ACMCertificateArn:
+    Type: String
+    Description: ARN of the ACM certificate for HTTPS
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 12
+    Description: Master password for RDS PostgreSQL
+
+  RedisAuthToken:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    Description: Auth token for ElastiCache Redis
+
+  JWTSecret:
+    Type: String
+    NoEcho: true
+    Description: JWT signing secret for the API
+
+  APIImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag for the API service
+
+  WebImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag for the Web service
+
+# ═══════════════════════════════════════════════════════════════
+# Conditions
+# ═══════════════════════════════════════════════════════════════
+Conditions:
+  IsProd: !Equals [!Ref Environment, prod]
+
+# ═══════════════════════════════════════════════════════════════
+# Resources
+# ═══════════════════════════════════════════════════════════════
+Resources:
+
+  # ─────────────────────────────────────────────────────────────
+  # VPC & Networking
+  # ─────────────────────────────────────────────────────────────
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-imposter-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-imposter-igw
+
+  IGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # --- Public Subnets ---
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-public-a
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-public-b
+
+  # --- Private Subnets ---
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.10.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-private-a
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.11.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-private-b
+
+  # --- NAT Gateway ---
+  NATElasticIP:
+    Type: AWS::EC2::EIP
+    DependsOn: IGWAttachment
+    Properties:
+      Domain: vpc
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATElasticIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-imposter-nat
+
+  # --- Route Tables ---
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-public-rt
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IGWAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-private-rt
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+
+  PrivateSubnetARouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetBRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  # ─────────────────────────────────────────────────────────────
+  # Security Groups
+  # ─────────────────────────────────────────────────────────────
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP/HTTPS to ALB
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-alb-sg
+
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from ALB to ECS tasks
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3001
+          ToPort: 3001
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-ecs-sg
+
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow PostgreSQL from ECS tasks
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-rds-sg
+
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow Redis from ECS tasks
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-redis-sg
+
+  # ─────────────────────────────────────────────────────────────
+  # RDS — PostgreSQL 16
+  # ─────────────────────────────────────────────────────────────
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets for RDS
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub ${Environment}-imposter-db
+      Engine: postgres
+      EngineVersion: '16'
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      MaxAllocatedStorage: 100
+      StorageType: gp3
+      DBName: imposter_game
+      MasterUsername: postgres
+      MasterUserPassword: !Ref DBPassword
+      MultiAZ: !If [IsProd, true, false]
+      PubliclyAccessible: false
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: 03:00-04:00
+      PreferredMaintenanceWindow: sun:04:30-sun:05:30
+      DeletionProtection: !If [IsProd, true, false]
+      StorageEncrypted: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ─────────────────────────────────────────────────────────────
+  # ElastiCache — Redis 7
+  # ─────────────────────────────────────────────────────────────
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Private subnets for ElastiCache
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+
+  RedisCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      ClusterName: !Sub ${Environment}-imposter-redis
+      Engine: redis
+      EngineVersion: '7.0'
+      CacheNodeType: cache.t3.micro
+      NumCacheNodes: 1
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref RedisSecurityGroup
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ─────────────────────────────────────────────────────────────
+  # S3 — Static assets / uploads
+  # ─────────────────────────────────────────────────────────────
+  AssetsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub ${Environment}-imposter-assets-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ─────────────────────────────────────────────────────────────
+  # CloudWatch Log Groups
+  # ─────────────────────────────────────────────────────────────
+  APILogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${Environment}/imposter-api
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  WebLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${Environment}/imposter-web
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  # ─────────────────────────────────────────────────────────────
+  # IAM — ECS Task Execution Role & Task Role
+  # ─────────────────────────────────────────────────────────────
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${Environment}-imposter-ecs-execution
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: GHCRPullAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${Environment}-imposter-ecs-task
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt AssetsBucket.Arn
+                  - !Sub ${AssetsBucket.Arn}/*
+
+  # ─────────────────────────────────────────────────────────────
+  # ALB — Application Load Balancer
+  # ─────────────────────────────────────────────────────────────
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${Environment}-imposter-alb
+      Scheme: internet-facing
+      Type: application
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --- Target Groups ---
+  APITargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${Environment}-imposter-api-tg
+      Port: 3001
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      # Sticky sessions — required for Socket.IO WebSocket transport
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: 'true'
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: '86400'
+        - Key: deregistration_delay.timeout_seconds
+          Value: '60'
+
+  WebTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${Environment}-imposter-web-tg
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      TargetType: ip
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+
+  # --- Listeners ---
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: '443'
+            StatusCode: HTTP_301
+
+  HTTPSListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref ACMCertificateArn
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WebTargetGroup
+
+  # --- Listener Rules: route /api/* and /socket.io/* to API ---
+  APIListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPSListener
+      Priority: 10
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /api/*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref APITargetGroup
+
+  SocketIOListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPSListener
+      Priority: 20
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /socket.io/*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref APITargetGroup
+
+  # ─────────────────────────────────────────────────────────────
+  # ECS — Cluster, Task Definitions, Services, Auto Scaling
+  # ─────────────────────────────────────────────────────────────
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${Environment}-imposter-cluster
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  # --- API Task Definition ---
+  APITaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${Environment}-imposter-api
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: api
+          Image: !Sub ghcr.io/shakayz/guess-who/api:${APIImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3001
+              Protocol: tcp
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: PORT
+              Value: '3001'
+            - Name: DATABASE_URL
+              Value: !Sub
+                - postgresql://postgres:${DBPassword}@${DBHost}:5432/imposter_game
+                - DBHost: !GetAtt RDSInstance.Endpoint.Address
+            - Name: REDIS_URL
+              Value: !Sub
+                - redis://${RedisHost}:6379
+                - RedisHost: !GetAtt RedisCluster.RedisEndpoint.Address
+            - Name: JWT_SECRET
+              Value: !Ref JWTSecret
+            - Name: ALLOWED_ORIGINS
+              Value: !Sub https://${DomainName}
+            - Name: APP_URL
+              Value: !Sub https://${DomainName}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref APILogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: api
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - wget -qO- http://localhost:3001/health || exit 1
+            Interval: 30
+            Timeout: 10
+            Retries: 3
+            StartPeriod: 30
+
+  # --- Web Task Definition ---
+  WebTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${Environment}-imposter-web
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: web
+          Image: !Sub ghcr.io/shakayz/guess-who/web:${WebImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref WebLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: web
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost/ || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 10
+
+  # --- API Service ---
+  APIService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - APIListenerRule
+      - SocketIOListenerRule
+    Properties:
+      ServiceName: !Sub ${Environment}-imposter-api
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref APITaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnetA
+            - !Ref PrivateSubnetB
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+      LoadBalancers:
+        - ContainerName: api
+          ContainerPort: 3001
+          TargetGroupArn: !Ref APITargetGroup
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      HealthCheckGracePeriodSeconds: 60
+
+  # --- Web Service ---
+  WebService:
+    Type: AWS::ECS::Service
+    DependsOn: HTTPSListener
+    Properties:
+      ServiceName: !Sub ${Environment}-imposter-web
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref WebTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnetA
+            - !Ref PrivateSubnetB
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+      LoadBalancers:
+        - ContainerName: web
+          ContainerPort: 80
+          TargetGroupArn: !Ref WebTargetGroup
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      HealthCheckGracePeriodSeconds: 30
+
+  # --- Auto Scaling ---
+  APIAutoScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: 10
+      MinCapacity: 2
+      ResourceId: !Sub service/${ECSCluster}/${APIService.Name}
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+
+  APIAutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${Environment}-api-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref APIAutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 70.0
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  WebAutoScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: 6
+      MinCapacity: 2
+      ResourceId: !Sub service/${ECSCluster}/${WebService.Name}
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+
+  WebAutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${Environment}-web-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref WebAutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 70.0
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+# ═══════════════════════════════════════════════════════════════
+# Outputs
+# ═══════════════════════════════════════════════════════════════
+Outputs:
+  ALBDNSName:
+    Description: DNS name of the Application Load Balancer
+    Value: !GetAtt ALB.DNSName
+    Export:
+      Name: !Sub ${Environment}-imposter-alb-dns
+
+  ALBHostedZoneId:
+    Description: Hosted zone ID of the ALB (for Route 53 alias records)
+    Value: !GetAtt ALB.CanonicalHostedZoneID
+
+  RDSEndpoint:
+    Description: RDS PostgreSQL endpoint
+    Value: !GetAtt RDSInstance.Endpoint.Address
+    Export:
+      Name: !Sub ${Environment}-imposter-rds-endpoint
+
+  RedisEndpoint:
+    Description: ElastiCache Redis endpoint
+    Value: !GetAtt RedisCluster.RedisEndpoint.Address
+    Export:
+      Name: !Sub ${Environment}-imposter-redis-endpoint
+
+  ECSClusterName:
+    Description: ECS Cluster name
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub ${Environment}-imposter-ecs-cluster
+
+  ECSAPIServiceName:
+    Description: ECS API Service name
+    Value: !GetAtt APIService.Name
+
+  ECSWebServiceName:
+    Description: ECS Web Service name
+    Value: !GetAtt WebService.Name
+
+  S3BucketName:
+    Description: S3 bucket for static assets
+    Value: !Ref AssetsBucket
+    Export:
+      Name: !Sub ${Environment}-imposter-s3-bucket
+
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${Environment}-imposter-vpc-id
