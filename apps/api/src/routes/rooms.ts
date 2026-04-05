@@ -6,7 +6,7 @@ import { generateRoomCode } from '@imposter/shared'
 
 const createRoomSchema = z.object({
   settings: z.object({
-    maxPlayers:           z.number().min(4).max(20).default(10),
+    maxPlayers:           z.number().min(3).max(20).default(10),
     imposterCount:        z.number().min(1).max(4).default(2),
     speakingTimeSeconds:  z.number().min(10).max(120).default(30),
     votingTimeSeconds:    z.number().min(15).max(120).default(30),
@@ -66,7 +66,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
         createdAt: room.createdAt.toISOString(),
         settings: {
           maxPlayers: room.maxPlayers,
-          minPlayers: 4,
+          minPlayers: 3,
           imposterCount: room.imposterCount,
           speakingTimeSeconds: room.speakingTimeSeconds,
           votingTimeSeconds: room.votingTimeSeconds,

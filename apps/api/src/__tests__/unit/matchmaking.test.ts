@@ -446,7 +446,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
       .mockResolvedValueOnce({ id: 'user-arsmall', locale: 'ar' })
       .mockResolvedValueOnce({ id: 'user-arsmall', rankPoints: 0 })
 
-    // Only 2 players — not enough for MIN_PLAYERS (4)
+    // Only 2 players — not enough for MIN_PLAYERS (3)
     const entries = [
       JSON.stringify({ userId: 'user-arsmall', socketId: 'sock-ar', locale: 'ar', rankPoints: 0, joinedAt: Date.now() }),
       JSON.stringify({ userId: 'user-arsmall2', socketId: 'sock-ar2', locale: 'ar', rankPoints: 0, joinedAt: Date.now() }),
@@ -461,11 +461,11 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
     // Advance past MAX_WAIT_SECONDS (45s) to trigger the "reset timer" branch
     await vi.advanceTimersByTimeAsync(60000)
 
-    // Should not have created a room (only 2 players < MIN_PLAYERS 4)
+    // Should not have created a room (only 2 players < MIN_PLAYERS 3)
     expect(mockPrisma.room.create).not.toHaveBeenCalled()
   })
 
-  it('forces match at max wait time when MIN_PLAYERS (4) met [locale:es-force]', async () => {
+  it('forces match at max wait time when MIN_PLAYERS (3) met [locale:es-force]', async () => {
     const io = makeIo()
     const socket = makeSocket('user-es1')
     mockPrisma.user.findUnique

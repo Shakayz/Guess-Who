@@ -229,7 +229,7 @@ function SettingsPanel({
 
       {/* Numeric settings */}
       <div className="space-y-3 pt-1 border-t border-neutral-800">
-        <NumStepper label={t('lobby.maxPlayers')}   value={settings.maxPlayers}           min={4}  max={20} onChange={(v) => onChange({ ...settings, maxPlayers: v })} />
+        <NumStepper label={t('lobby.maxPlayers')}   value={settings.maxPlayers}           min={3}  max={20} onChange={(v) => onChange({ ...settings, maxPlayers: v })} />
         <NumStepper label={t('lobby.imposters')}    value={settings.imposterCount}        min={1}  max={4}  onChange={(v) => onChange({ ...settings, imposterCount: v })} />
         <NumStepper
           label={t('lobby.rounds')}
@@ -446,7 +446,7 @@ export default function LobbyPage() {
   const isHost = !isMatchmade && room?.hostId === user?.id
   const players = room?.players ?? []
   const allReady = players.length >= 2 && players.every((p) => p.isReady || p.userId === room?.hostId)
-  const minPlayers = 4
+  const minPlayers = 3
   const activeCats = settings.categories.length > 0
     ? settings.categories.length
     : WORD_CATEGORIES.length

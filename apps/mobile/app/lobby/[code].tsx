@@ -250,7 +250,7 @@ function SettingsPanel({
         <NumStepper
           label="Max Players"
           value={settings.maxPlayers}
-          min={4}
+          min={3}
           max={20}
           onChange={(v) => onChange({ ...settings, maxPlayers: v })}
         />

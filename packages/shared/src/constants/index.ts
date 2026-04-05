@@ -16,7 +16,7 @@ export const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'de', 'it', 'pt', 'zh'
 
 export const DEFAULT_ROOM_SETTINGS = {
   maxPlayers: 10,
-  minPlayers: 4,
+  minPlayers: 3,
   imposterCount: 2,
   speakingTimeSeconds: 30,
   votingTimeSeconds: 30,
@@ -55,14 +55,15 @@ export const LP_DECAY = {
 
 export const MATCHMAKING_CONFIG = {
   IDEAL_PLAYERS: 10,
-  MIN_PLAYERS: 4,
+  MIN_PLAYERS: 3,
+  RANKED_PLAYERS: 10,
   MAX_WAIT_SECONDS: 45,
   TICK_INTERVAL_MS: 1000,
   THRESHOLDS: [
     { after:  0, minPlayers: 10 },
     { after: 15, minPlayers:  8 },
-    { after: 25, minPlayers:  6 },
-    { after: 35, minPlayers:  4 },
+    { after: 25, minPlayers:  5 },
+    { after: 35, minPlayers:  3 },
   ],
 } as const
 

@@ -184,8 +184,8 @@ describe('DEFAULT_ROOM_SETTINGS', () => {
     expect(DEFAULT_ROOM_SETTINGS.maxPlayers).toBe(10)
   })
 
-  it('has minPlayers of 4', () => {
-    expect(DEFAULT_ROOM_SETTINGS.minPlayers).toBe(4)
+  it('has minPlayers of 3', () => {
+    expect(DEFAULT_ROOM_SETTINGS.minPlayers).toBe(3)
   })
 
   it('minPlayers is less than maxPlayers', () => {

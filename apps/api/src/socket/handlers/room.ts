@@ -33,7 +33,7 @@ async function startGameForRoom(
     const state = JSON.parse(stateRaw)
 
     if (state.status === 'in_progress' || state.status === 'voting') return
-    if (state.players.length < 4) return
+    if (state.players.length < 3) return
     // All players must be ready (matchmade rooms auto-ready everyone)
     if (state.players.some((p: any) => !p.isReady)) return
 
@@ -121,7 +121,7 @@ async function startGameForRoom(
       currentRound: 1, maxRounds: state.maxRounds ?? 0,
       createdAt: room.createdAt.toISOString(),
       settings: {
-        maxPlayers: room.maxPlayers, minPlayers: 4, imposterCount: room.imposterCount,
+        maxPlayers: room.maxPlayers, minPlayers: 3, imposterCount: room.imposterCount,
         speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
         wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
@@ -305,7 +305,7 @@ export function registerRoomHandlers(
         createdAt: room.createdAt.toISOString(),
         settings: {
           maxPlayers: room.maxPlayers,
-          minPlayers: 4,
+          minPlayers: 3,
           imposterCount: room.imposterCount,
           speakingTimeSeconds: room.speakingTimeSeconds,
           votingTimeSeconds: room.votingTimeSeconds,
@@ -392,7 +392,7 @@ export function registerRoomHandlers(
       maxRounds: state.maxRounds ?? 0,
       createdAt: updatedRoom.createdAt.toISOString(),
       settings: {
-        maxPlayers: updatedRoom.maxPlayers, minPlayers: 4, imposterCount: updatedRoom.imposterCount,
+        maxPlayers: updatedRoom.maxPlayers, minPlayers: 3, imposterCount: updatedRoom.imposterCount,
         speakingTimeSeconds: updatedRoom.speakingTimeSeconds, votingTimeSeconds: updatedRoom.votingTimeSeconds,
         wordPackId: updatedRoom.wordPackId, isPrivate: updatedRoom.isPrivate, language: updatedRoom.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
@@ -429,7 +429,7 @@ export function registerRoomHandlers(
       maxRounds: state.maxRounds ?? 0,
       createdAt: room.createdAt.toISOString(),
       settings: {
-        maxPlayers: room.maxPlayers, minPlayers: 4, imposterCount: room.imposterCount,
+        maxPlayers: room.maxPlayers, minPlayers: 3, imposterCount: room.imposterCount,
         speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
         wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
