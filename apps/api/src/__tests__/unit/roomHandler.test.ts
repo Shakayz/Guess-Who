@@ -1019,6 +1019,52 @@ describe('game:start — specific wordPack lookup by ID (lines 68-71)', () => {
   })
 })
 
+// ─── Coverage gap: room.ts line 51 — double_agent role assignment ────────────
+
+describe('game:start — double_agent role assigned (line 51)', () => {
+  it('assigns double_agent role when enableDoubleAgent is true', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    const gameState = {
+      ...waitingState,
+      enableDoubleAgent: true,
+      enableDetective: false,
+      players: [
+        { userId: 'host-1', username: 'Host', role: undefined, status: 'alive', isHost: true, isReady: true, honorGiven: false },
+        { userId: 'p2', username: 'P2', role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p3', username: 'P3', role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p4', username: 'P4', role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p5', username: 'P5', role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+      ],
+    }
+
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+
+    mockPrisma.wordPack.findFirst.mockResolvedValue(null)
+    mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+      fn({
+        game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
+        round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
+        gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+      })
+    )
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+    await vi.advanceTimersByTimeAsync(3100)
+
+    expect(io.to).toHaveBeenCalledWith('room:room-1')
+    vi.useRealTimers()
+  })
+})
+
 // ─── Coverage gap: room.ts lines 83-85 — word swap (Math.random < 0.5) ───────
 
 describe('game:start — word swap branch (line 83-85)', () => {

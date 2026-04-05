@@ -1312,6 +1312,255 @@ describe('checkAndUnlockAchievements — error catch path', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Coverage gap: lines 178-179 — startRound speaking timer fires startVoting
+// When speaking time expires in startRound, startVoting is called.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('startRound — speaking timer fires startVoting (lines 178-179)', () => {
+  it('calls startVoting when speaking time expires', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // speakingTimeSeconds = 1 so timer fires quickly
+    const state = makeState({ status: 'in_progress', votingTimeSeconds: 30 })
+    const votingState = { ...state, status: 'voting' }
+
+    // startRound calls getState, then startVoting calls getState again
+    mockRedis.get
+      .mockResolvedValueOnce(JSON.stringify(state))        // startRound getState
+      .mockResolvedValue(JSON.stringify(state))            // startVoting getState
+    mockRedis.set.mockResolvedValue('OK')
+
+    await startRound(io, 'room-1', 1, 30) // speakingTimeSeconds = 1
+
+    // The speaking timer fires after 1000ms → startVoting → round:voting-started
+    await vi.advanceTimersByTimeAsync(2000)
+
+    const calls = emitFn.mock.calls.map((c: any[]) => c[0])
+    expect(calls).toContain('round:voting-started')
+
+    vi.useRealTimers()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coverage gap: lines 209-229 — startVoting function
+// startVoting is called when all clues are submitted (via tryEarlyVoting timer).
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('startVoting — called when all clues submitted (lines 209-229)', () => {
+  it('emits round:voting-started and fires resolveRound timer (lines 225-226)', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // All 4 players have submitted clues; votingTimeSeconds = 1 so timer fires quickly
+    const state = makeState({
+      status: 'in_progress',
+      rounds: [{
+        id: 'round-1', roundNumber: 1,
+        clues: [
+          { playerId: 'u1', text: 'a' },
+          { playerId: 'u2', text: 'b' },
+          { playerId: 'u3', text: 'c' },
+          { playerId: 'u4', text: 'd' },
+        ],
+        votes: [],
+        speakingOrder: ['u1', 'u2', 'u3', 'u4'],
+      }],
+      votingTimeSeconds: 1, // short so timer fires quickly
+    })
+
+    // Return the voting state for all getState calls so resolveRound can proceed
+    const votingState = { ...state, status: 'voting' }
+    mockRedis.get
+      .mockResolvedValueOnce(JSON.stringify(state))       // tryEarlyVoting
+      .mockResolvedValueOnce(JSON.stringify(votingState)) // startVoting
+      .mockResolvedValue(JSON.stringify(votingState))     // _resolveRound and later
+    ;(mockRedis as any).set.mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+
+    // resolveRound mocks
+    mockPrisma.round.findUnique.mockResolvedValue({ id: 'round-1', villagerWord: 'Apple', imposterWord: 'Pear' })
+    mockPrisma.roundVote.createMany.mockResolvedValue({})
+    mockPrisma.round.update.mockResolvedValue({})
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.game.update.mockResolvedValue({})
+    mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+    mockPrisma.achievement.findMany.mockResolvedValue([])
+    mockPrisma.gameParticipation.findMany.mockResolvedValue([])
+    mockPrisma.room.update.mockResolvedValue({})
+
+    await tryEarlyVoting(io, 'room-1')
+
+    // 1500ms (tryEarlyVoting delay) + voting fires → round:voting-started
+    await vi.advanceTimersByTimeAsync(2000)
+    const calls1 = emitFn.mock.calls.map((c: any[]) => c[0])
+    expect(calls1).toContain('round:voting-started')
+
+    // Advance past votingTimeSeconds * 1000 = 1000ms to trigger resolveRound (lines 225-226)
+    await vi.advanceTimersByTimeAsync(2000)
+
+    // resolveRound should have been called (Redis set was called for the resolving lock)
+    expect(mockRedis.set).toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
+
+  it('emits GAME_STATE_LOST when state is null in startVoting (lines 212-214)', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // All clues submitted
+    const state = makeState({
+      status: 'in_progress',
+      rounds: [{
+        id: 'round-1', roundNumber: 1,
+        clues: [
+          { playerId: 'u1', text: 'a' },
+          { playerId: 'u2', text: 'b' },
+          { playerId: 'u3', text: 'c' },
+          { playerId: 'u4', text: 'd' },
+        ],
+        votes: [],
+        speakingOrder: ['u1', 'u2', 'u3', 'u4'],
+      }],
+      votingTimeSeconds: 30,
+    })
+
+    // First get (tryEarlyVoting): returns state
+    // Second get (startVoting): returns null → GAME_STATE_LOST fires
+    mockRedis.get
+      .mockResolvedValueOnce(JSON.stringify(state))
+      .mockResolvedValue(null)
+    mockRedis.set.mockResolvedValue('OK')
+
+    await tryEarlyVoting(io, 'room-1')
+    await vi.advanceTimersByTimeAsync(3000)
+
+    const errorCalls = emitFn.mock.calls.filter((c: any[]) => c[0] === 'error')
+    expect(errorCalls.length).toBeGreaterThan(0)
+    expect(errorCalls[0][1]).toMatchObject({ code: 'GAME_STATE_LOST' })
+
+    vi.useRealTimers()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coverage gap: lines 274-276 — _resolveRound emits GAME_STATE_LOST when state is null
+// When getState returns null inside _resolveRound, the error path fires.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('_resolveRound — GAME_STATE_LOST when state is null (lines 274-276)', () => {
+  it('emits GAME_STATE_LOST error when state is missing inside _resolveRound', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // All players voted → tryEarlyResolve schedules resolution timer
+    const state = makeState({
+      status: 'voting',
+      rounds: [{
+        id: 'round-1', roundNumber: 1,
+        votes: [
+          { voterId: 'u1', targetId: 'u4' },
+          { voterId: 'u2', targetId: 'u4' },
+          { voterId: 'u3', targetId: 'u4' },
+          { voterId: 'u4', targetId: 'u1' },
+        ],
+        clues: [],
+        speakingOrder: ['u1', 'u2', 'u3', 'u4'],
+      }],
+    })
+
+    // First get: tryEarlyResolve reads state (non-null)
+    // After that, all gets return null → _resolveRound's getState returns null → lines 274-276
+    mockRedis.get
+      .mockResolvedValueOnce(JSON.stringify(state)) // tryEarlyResolve getState
+      .mockResolvedValue(null)                       // _resolveRound getState → null
+    ;(mockRedis as any).set.mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK') // resolveKey lock acquired
+      return Promise.resolve('OK')
+    })
+
+    await tryEarlyResolve(io, 'room-1')
+    // Advance past 1500ms (vote:all-cast delay) to trigger resolveRound
+    await vi.advanceTimersByTimeAsync(3000)
+
+    // GAME_STATE_LOST should be emitted (lines 274-275)
+    const errorCalls = emitFn.mock.calls.filter((c: any[]) => c[0] === 'error')
+    expect(errorCalls.length).toBeGreaterThan(0)
+    expect(errorCalls[0][1]).toMatchObject({ code: 'GAME_STATE_LOST' })
+
+    vi.useRealTimers()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coverage gap: line 330 — ': null' when dbRound is null in resolveRound
+// When round.findUnique returns null, wordReveal is set to null.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('resolveRound — null wordReveal when dbRound not found (line 330)', () => {
+  it('sets wordReveal to null when round.findUnique returns null', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // Imposter voted out → villagers win; but round.findUnique returns null → line 330 fires
+    const state = makeState({
+      status: 'voting',
+      rounds: [{
+        id: 'round-1', roundNumber: 1,
+        votes: [
+          { voterId: 'u1', targetId: 'u4' },
+          { voterId: 'u2', targetId: 'u4' },
+          { voterId: 'u3', targetId: 'u4' },
+          { voterId: 'u4', targetId: 'u1' },
+        ],
+        clues: [],
+        speakingOrder: ['u1', 'u2', 'u3', 'u4'],
+      }],
+    })
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    ;(mockRedis as any).set.mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+
+    // findUnique returns null → dbRound is null → line 330 ': null' branch fires
+    mockPrisma.round.findUnique.mockResolvedValue(null)
+    mockPrisma.roundVote.createMany.mockResolvedValue({})
+    mockPrisma.round.update.mockResolvedValue({})
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.game.update.mockResolvedValue({})
+    mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+    mockPrisma.achievement.findMany.mockResolvedValue([])
+    mockPrisma.gameParticipation.findMany.mockResolvedValue([])
+    mockPrisma.room.update.mockResolvedValue({})
+
+    await tryEarlyResolve(io, 'room-1')
+    await vi.advanceTimersByTimeAsync(5000)
+
+    // round:ended should still be emitted (wordReveal = null in payload)
+    const calls = emitFn.mock.calls.map((c: any[]) => c[0])
+    expect(calls).toContain('vote:all-cast')
+
+    vi.useRealTimers()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Coverage gap: lines 382-383 — applyRankedLP when villagers win via regular vote
 // In resolveRound (winner path, ranked mode), LP is applied for ranked games.
 // ─────────────────────────────────────────────────────────────────────────────
