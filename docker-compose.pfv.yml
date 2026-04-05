@@ -88,6 +88,12 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks: [pfv_net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   postgres_pfv_data:

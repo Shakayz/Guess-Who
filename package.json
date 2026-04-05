@@ -10,7 +10,11 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "docker:dev": "docker compose -f docker-compose.dev.yml up --build",
+    "docker:prod": "docker compose -f docker-compose.prod.yml up -d",
+    "docker:pfv": "docker compose -f docker-compose.pfv.yml up -d",
+    "docker:down": "docker compose down"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.0",
