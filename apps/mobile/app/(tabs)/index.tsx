@@ -145,11 +145,16 @@ export default function HomeScreen() {
           {/* Header */}
           <View className="flex-row items-center justify-between pt-4 pb-2" style={{ paddingHorizontal: px + 8 }}>
             <View className="flex-row items-center gap-2">
-              <Text style={{ fontSize: 18 * fontScale }}>🎭</Text>
-              <Text className="text-white font-bold tracking-tight" style={{ fontSize: 18 * fontScale }}>Imposter</Text>
+              <View className="w-8 h-8 rounded-xl bg-violet-700/80 items-center justify-center">
+                <Text style={{ fontSize: 16 * fontScale }}>🎭</Text>
+              </View>
+              <Text className="text-white font-extrabold tracking-tight" style={{ fontSize: 18 * fontScale }}>Imposter</Text>
             </View>
             {user && (
-              <Text className="text-neutral-400" style={{ fontSize: 14 * fontScale }}>@{user.username}</Text>
+              <View className="flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-900 border border-neutral-800">
+                <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <Text className="text-neutral-400" style={{ fontSize: 13 * fontScale }}>@{user.username}</Text>
+              </View>
             )}
           </View>
 
@@ -197,7 +202,7 @@ export default function HomeScreen() {
                         setError(null)
                       }}
                       className={[
-                        'items-center gap-1 rounded-2xl border',
+                        'items-center gap-1.5 rounded-2xl border overflow-hidden',
                         active
                           ? activeStyle
                           : 'border-neutral-800 bg-neutral-900',
@@ -205,8 +210,27 @@ export default function HomeScreen() {
                       style={{ flex: 1, padding: isTablet ? 16 : 12 }}
                       activeOpacity={0.8}
                     >
-                      <Text style={{ fontSize: isTablet ? 32 : 24 }}>{mode.icon}</Text>
-                      <Text className={['font-bold', active ? activeText : 'text-neutral-400'].join(' ')} style={{ fontSize: 12 * fontScale }}>
+                      {/* Active top accent bar */}
+                      {active && (
+                        <View
+                          className={[
+                            'absolute top-0 left-0 right-0 h-0.5',
+                            mode.id === 'ranked' ? 'bg-amber-500' : 'bg-violet-500',
+                          ].join(' ')}
+                        />
+                      )}
+                      <View
+                        className={[
+                          'rounded-xl items-center justify-center mb-0.5',
+                          active
+                            ? mode.id === 'ranked' ? 'bg-amber-900/40' : 'bg-violet-900/40'
+                            : 'bg-neutral-800',
+                        ].join(' ')}
+                        style={{ width: isTablet ? 52 : 44, height: isTablet ? 52 : 44 }}
+                      >
+                        <Text style={{ fontSize: isTablet ? 28 : 22 }}>{mode.icon}</Text>
+                      </View>
+                      <Text className={['font-bold', active ? activeText : 'text-neutral-300'].join(' ')} style={{ fontSize: 12 * fontScale }}>
                         {mode.label}
                       </Text>
                       <Text className={['text-center leading-tight', active ? 'text-neutral-400' : 'text-neutral-600'].join(' ')} style={{ fontSize: 10 * fontScale }}>
@@ -245,20 +269,20 @@ export default function HomeScreen() {
                         key={cat.key}
                         onPress={() => toggleCategory(cat.key as WordCategory)}
                         className={[
-                          'flex-row items-center gap-1 rounded-lg border',
+                          'flex-row items-center gap-1.5 rounded-xl border',
                           selected
-                            ? 'bg-violet-950/60 border-violet-700/50'
+                            ? 'bg-violet-950/70 border-violet-600/60'
                             : isAll
-                              ? 'bg-neutral-800/60 border-neutral-700/40'
+                              ? 'bg-neutral-800/70 border-neutral-700/50'
                               : 'bg-neutral-900/60 border-neutral-800/60',
                         ].join(' ')}
-                        style={{ paddingHorizontal: isTablet ? 12 : 10, paddingVertical: isTablet ? 8 : 6 }}
+                        style={{ paddingHorizontal: isTablet ? 12 : 10, paddingVertical: isTablet ? 8 : 7 }}
                         activeOpacity={0.75}
                       >
-                        <Text style={{ fontSize: 12 * fontScale }}>{cat.icon}</Text>
+                        <Text style={{ fontSize: 13 * fontScale }}>{cat.icon}</Text>
                         <Text className={[
-                          'font-medium',
-                          selected ? 'text-violet-300' : isAll ? 'text-neutral-400' : 'text-neutral-600',
+                          'font-semibold',
+                          selected ? 'text-violet-200' : isAll ? 'text-neutral-400' : 'text-neutral-600',
                         ].join(' ')} style={{ fontSize: 12 * fontScale }}>
                           {cat.label}
                         </Text>
@@ -298,8 +322,8 @@ export default function HomeScreen() {
                 onPress={selectedMode === 'lobby' ? handleCreate : handleMatchmaking}
                 disabled={loading}
                 className={[
-                  'rounded-2xl items-center',
-                  loading ? 'opacity-50' : '',
+                  'rounded-2xl items-center overflow-hidden',
+                  loading ? 'opacity-60' : '',
                   selectedMode === 'ranked'
                     ? 'bg-amber-600'
                     : 'bg-violet-600',
@@ -307,10 +331,15 @@ export default function HomeScreen() {
                 style={{ paddingVertical: isTablet ? 18 : 16 }}
                 activeOpacity={0.8}
               >
+                {/* Subtle shine overlay */}
+                <View
+                  className="absolute top-0 left-0 right-0 h-1/2 rounded-t-2xl"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
+                />
                 {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text className="text-white font-bold" style={{ fontSize: 18 * fontScale }}>
+                  <Text className="text-white font-extrabold tracking-wide" style={{ fontSize: 17 * fontScale }}>
                     {selectedMode === 'normal' && t('home.findGame')}
                     {selectedMode === 'ranked' && t('home.findRanked')}
                     {selectedMode === 'lobby' && t('home.createLobby')}
@@ -422,12 +451,19 @@ export default function HomeScreen() {
               {HOW_TO_PLAY.map((step) => (
                 <View
                   key={step.title}
-                  className="bg-neutral-900 border border-neutral-800 rounded-2xl items-center"
+                  className="bg-neutral-900 border border-neutral-800 rounded-2xl items-center overflow-hidden"
                   style={{ width: gridItemWidth, padding: isTablet ? 20 : 16 }}
                 >
-                  <Text style={{ fontSize: isTablet ? 36 : 30, marginBottom: 8 }}>{step.icon}</Text>
-                  <Text className="font-semibold text-white mb-1 text-center" style={{ fontSize: 14 * fontScale }}>{step.title}</Text>
-                  <Text className="text-neutral-500 text-center leading-relaxed" style={{ fontSize: 12 * fontScale }}>{step.desc}</Text>
+                  {/* Top accent bar */}
+                  <View className="absolute top-0 left-0 right-0 h-0.5 bg-violet-800/60" />
+                  <View
+                    className="rounded-2xl bg-neutral-800 items-center justify-center mb-3"
+                    style={{ width: isTablet ? 56 : 48, height: isTablet ? 56 : 48 }}
+                  >
+                    <Text style={{ fontSize: isTablet ? 28 : 24 }}>{step.icon}</Text>
+                  </View>
+                  <Text className="font-bold text-white mb-1 text-center" style={{ fontSize: 14 * fontScale }}>{step.title}</Text>
+                  <Text className="text-neutral-500 text-center leading-relaxed" style={{ fontSize: 11 * fontScale }}>{step.desc}</Text>
                 </View>
               ))}
             </View>

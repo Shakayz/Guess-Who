@@ -482,31 +482,38 @@ export default function LobbyScreen() {
         <View style={contentStyle}>
         {/* Header */}
         <View className="items-center mb-2">
-          <Text className="font-semibold uppercase tracking-widest text-neutral-500 mb-1" style={{ fontSize: 12 * fontScale }}>Room</Text>
-          <Text className="font-extrabold text-white" style={{ fontSize: (isTablet ? 28 : 24) }}>Waiting for players</Text>
+          <View className="flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/40 mb-2">
+            <View className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <Text className="text-emerald-400 font-semibold" style={{ fontSize: 11 * fontScale }}>Waiting for players</Text>
+          </View>
+          <Text className="font-extrabold text-white" style={{ fontSize: (isTablet ? 28 : 24) }}>Lobby</Text>
           <Text className="text-neutral-500 mt-1" style={{ fontSize: 14 * fontScale }}>Share the code below to invite friends</Text>
         </View>
 
         {/* Room code + share */}
         <TouchableOpacity
           onPress={copyRoomCode}
-          className="bg-neutral-900 border border-neutral-800 rounded-2xl items-center"
+          className="bg-neutral-900 border border-violet-900/50 rounded-2xl items-center overflow-hidden"
           style={{ padding: isTablet ? 24 : 20 }}
         >
-          <Text className="font-semibold uppercase tracking-widest text-neutral-500 mb-2" style={{ fontSize: 12 * fontScale }}>Room Code</Text>
-          <Text className="font-black font-mono text-white tracking-[0.2em]" style={{ fontSize: (isTablet ? 48 : 36) }}>{code}</Text>
-          <Text className="text-neutral-600 mt-2" style={{ fontSize: 12 * fontScale }}>
-            {codeCopied ? '✓ Copied!' : 'Tap to copy'}
-          </Text>
+          {/* Top accent */}
+          <View className="absolute top-0 left-0 right-0 h-0.5 bg-violet-600/60" />
+          <Text className="font-semibold uppercase tracking-widest text-neutral-500 mb-2" style={{ fontSize: 11 * fontScale }}>Room Code</Text>
+          <Text className="font-black font-mono text-white tracking-[0.25em]" style={{ fontSize: (isTablet ? 52 : 40) }}>{code}</Text>
+          <View className="flex-row items-center gap-1.5 mt-2">
+            <Text className={['font-semibold', codeCopied ? 'text-emerald-400' : 'text-neutral-600'].join(' ')} style={{ fontSize: 12 * fontScale }}>
+              {codeCopied ? '✓ Copied!' : 'Tap to copy'}
+            </Text>
+          </View>
         </TouchableOpacity>
 
         {/* Share button */}
         <TouchableOpacity
           onPress={shareRoomCode}
-          className="flex-row items-center justify-center gap-2 py-3 rounded-xl bg-violet-950 border border-violet-800"
+          className="flex-row items-center justify-center gap-2 py-3.5 rounded-xl bg-violet-950 border border-violet-800/60"
           activeOpacity={0.8}
         >
-          <Text className="text-violet-300 font-semibold text-sm">📤 Share Room Code</Text>
+          <Text className="text-violet-300 font-semibold" style={{ fontSize: 14 * fontScale }}>📤 Share Room Code</Text>
         </TouchableOpacity>
 
         {/* Player list */}
@@ -537,14 +544,28 @@ export default function LobbyScreen() {
                 <View
                   key={p.id}
                   className={[
-                    'flex-row items-center gap-3 px-3 py-2.5 rounded-xl border',
+                    'flex-row items-center gap-3 px-3 py-3 rounded-xl border',
                     p.userId === user?.id
-                      ? 'border-violet-800 bg-violet-950/30'
-                      : 'border-neutral-800 bg-neutral-800/30',
+                      ? 'border-violet-800/60 bg-violet-950/30'
+                      : 'border-neutral-800 bg-neutral-800/20',
                   ].join(' ')}
                 >
+                  {/* Alive indicator */}
+                  <View
+                    className={[
+                      'w-1.5 h-1.5 rounded-full absolute left-0 top-1/2',
+                      p.isReady || p.isHost ? 'bg-emerald-400' : 'bg-neutral-700',
+                    ].join(' ')}
+                    style={{ marginLeft: -1, transform: [{ translateY: -3 }] }}
+                  />
                   {/* Avatar placeholder */}
-                  <View className="w-8 h-8 rounded-full bg-violet-700 items-center justify-center">
+                  <View
+                    className={[
+                      'rounded-full items-center justify-center',
+                      p.isHost ? 'bg-amber-700' : p.userId === user?.id ? 'bg-violet-700' : 'bg-neutral-700',
+                    ].join(' ')}
+                    style={{ width: 34, height: 34 }}
+                  >
                     <Text className="text-white text-sm font-bold">
                       {p.username.charAt(0).toUpperCase()}
                     </Text>
@@ -553,26 +574,32 @@ export default function LobbyScreen() {
                     <View className="flex-row items-center gap-1.5">
                       <Text className="text-white font-semibold text-sm">{p.username}</Text>
                       {p.isHost && (
-                        <Text className="text-xs text-amber-400 font-bold">HOST</Text>
+                        <View className="px-1.5 py-0.5 rounded bg-amber-900/60 border border-amber-700/40">
+                          <Text className="text-[10px] text-amber-400 font-bold">HOST</Text>
+                        </View>
                       )}
                       {p.userId === user?.id && !p.isHost && (
-                        <Text className="text-xs text-violet-400 font-bold">YOU</Text>
+                        <View className="px-1.5 py-0.5 rounded bg-violet-900/60 border border-violet-700/40">
+                          <Text className="text-[10px] text-violet-400 font-bold">YOU</Text>
+                        </View>
                       )}
                     </View>
                   </View>
                   <View
                     className={[
-                      'px-2 py-0.5 rounded-full',
-                      p.isReady || p.isHost ? 'bg-emerald-900' : 'bg-neutral-800',
+                      'flex-row items-center gap-1 px-2.5 py-1 rounded-full border',
+                      p.isReady || p.isHost
+                        ? 'bg-emerald-950/60 border-emerald-800/40'
+                        : 'bg-neutral-800/60 border-neutral-700/40',
                     ].join(' ')}
                   >
                     <Text
                       className={[
-                        'text-xs font-semibold',
+                        'text-[10px] font-bold',
                         p.isReady || p.isHost ? 'text-emerald-400' : 'text-neutral-500',
                       ].join(' ')}
                     >
-                      {p.isReady || p.isHost ? 'Ready' : 'Not Ready'}
+                      {p.isReady || p.isHost ? '✓ Ready' : 'Not Ready'}
                     </Text>
                   </View>
                 </View>

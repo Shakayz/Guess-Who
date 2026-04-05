@@ -22,22 +22,24 @@ const CircularTimer = memo(({ seconds, total, phase }: { seconds: number; total:
   const offset = circumference * (1 - pct)
   const urgent = seconds <= 10 && seconds > 0
   const color = phase === 'voting' ? '#f59e0b' : '#8b5cf6'
+  const colorGlow = phase === 'voting' ? 'rgba(245,158,11,0.5)' : 'rgba(139,92,246,0.5)'
   const urgentColor = '#ef4444'
+  const urgentGlow = 'rgba(239,68,68,0.6)'
 
   return (
     <div className="relative flex items-center justify-center w-14 h-14 shrink-0">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 52 52" width="56" height="56">
-        <circle cx="26" cy="26" r={radius} fill="none" stroke="#262626" strokeWidth="3" />
+        <circle cx="26" cy="26" r={radius} fill="none" stroke="#262626" strokeWidth="4" />
         <circle
           cx="26" cy="26" r={radius}
           fill="none"
           stroke={urgent ? urgentColor : color}
-          strokeWidth="3"
+          strokeWidth="4"
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           className="transition-all duration-1000 ease-linear"
-          style={{ filter: urgent ? 'drop-shadow(0 0 4px rgba(239,68,68,0.5))' : undefined }}
+          style={{ filter: `drop-shadow(0 0 6px ${urgent ? urgentGlow : colorGlow})` }}
         />
       </svg>
       <span className={[
@@ -104,11 +106,180 @@ const CountdownBar = memo(({ seconds, total, color }: { seconds: number; total: 
   )
 })
 
+/** Modal that shows a player's full clue history across all completed rounds */
+const PlayerClueHistoryModal = memo(({
+  playerId,
+  onClose,
+  players,
+  completedRounds,
+  currentRound,
+  result,
+  getDisplayName,
+}: {
+  playerId: string
+  onClose: () => void
+  players: import('@imposter/shared').Player[]
+  completedRounds: import('@imposter/shared').Round[]
+  currentRound: import('@imposter/shared').Round | null
+  result: { winner: string } | null
+  getDisplayName: (id: string, name: string) => string
+}) => {
+  const { t } = useTranslation()
+  const player = players.find((p) => p.userId === playerId)
+  if (!player) return null
+
+  const gameOver = !!result || player.status === 'eliminated' || player.status === 'forfeited'
+
+  // Collect all rounds in order (completed + current if clues exist)
+  const allRounds: import('@imposter/shared').Round[] = [
+    ...completedRounds,
+    ...(currentRound && currentRound.clues.some((c) => c.playerId === playerId) ? [currentRound] : []),
+  ]
+
+  const ROLE_CONFIG: Record<string, { icon: string; color: string; label: string }> = {
+    villager:     { icon: '🏘️', color: 'text-emerald-400', label: t('game.roleVillager', 'Villager') },
+    imposter:     { icon: '🔪', color: 'text-red-400',     label: t('game.roleImposter', 'Imposter') },
+    detective:    { icon: '🔍', color: 'text-blue-400',    label: t('game.roleDetective', 'Detective') },
+    double_agent: { icon: '🎭', color: 'text-orange-400',  label: t('game.roleDoubleAgent', 'Double Agent') },
+  }
+  const roleInfo = player.role ? ROLE_CONFIG[player.role] : null
+
+  // Close on backdrop click
+  const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose()
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes slide-in-right { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .player-history-panel { animation: slide-in-right 0.25s cubic-bezier(0.16,1,0.3,1) both; }
+      `}</style>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end"
+        onClick={handleBackdrop}
+      >
+        {/* Panel */}
+        <div
+          className="player-history-panel relative w-full max-w-sm h-full bg-neutral-900 border-l border-neutral-700 flex flex-col overflow-hidden"
+          data-testid="player-history-panel"
+        >
+          {/* Header */}
+          <div className="flex items-center gap-3 px-4 py-4 border-b border-neutral-800 shrink-0">
+            <Avatar username={player.username} size="sm" />
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-white truncate">{getDisplayName(player.userId, player.username)}</p>
+              {gameOver && roleInfo && (
+                <p className={['text-xs font-semibold flex items-center gap-1 mt-0.5', roleInfo.color].join(' ')}>
+                  <span>{roleInfo.icon}</span>
+                  <span>{roleInfo.label}</span>
+                </p>
+              )}
+              {(player.status === 'eliminated' || player.status === 'forfeited') && (
+                <p className="text-xs text-red-400 font-semibold mt-0.5">
+                  {player.status === 'forfeited' ? '🏳 Forfeited' : '💀 Eliminated'}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white transition-colors"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Timeline */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-1">
+              {t('game.clueHistory', 'Clue History')}
+            </p>
+
+            {allRounds.length === 0 && (
+              <p className="text-sm text-neutral-600 italic">{t('game.noClueHistory', 'No clues yet.')}</p>
+            )}
+
+            {allRounds.map((round) => {
+              const clue = round.clues.find((c) => c.playerId === playerId)
+              const wasElimThisRound = round.eliminatedPlayerId === playerId
+              const isCurrent = currentRound?.id === round.id
+
+              return (
+                <div
+                  key={round.id}
+                  className={[
+                    'rounded-xl border px-3 py-2.5',
+                    clue?.flaggedForWord
+                      ? 'border-amber-700/50 bg-amber-950/20'
+                      : wasElimThisRound
+                      ? 'border-red-800/40 bg-red-950/20'
+                      : 'border-neutral-800 bg-neutral-800/30',
+                  ].join(' ')}
+                >
+                  {/* Round header */}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                      {t('game.roundNumber', { number: round.roundNumber })}
+                      {isCurrent && (
+                        <span className="ml-1.5 text-brand-400">{t('game.currentRoundBadge', '(current)')}</span>
+                      )}
+                    </span>
+                    {clue?.flaggedForWord && (
+                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                        ⚠ {t('game.saidTheWordBadge', 'Said the word')}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Clue bubble or eliminated notice */}
+                  {clue ? (
+                    <div className={[
+                      'rounded-lg px-3 py-2 text-sm text-white leading-snug',
+                      clue.flaggedForWord
+                        ? 'bg-amber-950/40 border border-amber-700/40'
+                        : 'bg-neutral-700/40',
+                    ].join(' ')}>
+                      {clue.text}
+                    </div>
+                  ) : wasElimThisRound ? (
+                    <p className="text-xs text-red-400 font-semibold flex items-center gap-1">
+                      <span>💀</span>
+                      <span>{t('game.eliminatedThisRound', 'Eliminated this round')}</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-neutral-600 italic">
+                      {t('game.noClueThisRound', 'No clue this round')}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+
+            {/* Eliminated / forfeited summary at bottom */}
+            {(player.status === 'eliminated' || player.status === 'forfeited') && (
+              <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 flex items-center gap-2">
+                <span className="text-red-400">{player.status === 'forfeited' ? '🏳' : '💀'}</span>
+                <span className="text-xs text-red-300 font-semibold">
+                  {player.status === 'forfeited'
+                    ? t('game.playerForfeited', 'Player forfeited the game')
+                    : t('game.playerEliminated', 'Player was eliminated')}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+})
+
 export default function GamePage() {
   const { code } = useParams<{ code: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { room, currentRound, myRole, myWord, myVillagerWord, detectiveRevealUsed, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
+  const { room, currentRound, completedRounds, myRole, myWord, myVillagerWord, detectiveRevealUsed, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
   const user = useAuthStore((s) => s.user)
   const [clueText, setClueText] = useState('')
   const [clues, setClues] = useState<Clue[]>([])
@@ -132,6 +303,7 @@ export default function GamePage() {
   const [totalTime, setTotalTime] = useState(30)
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
   const [showRoleCard, setShowRoleCard] = useState(!!myRole)
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null)
   const [tiebreakerActive, setTiebreakerActive] = useState(false)
   const [tiebreakerPlayerIds, setTiebreakerPlayerIds] = useState<string[]>([])
   const [tiebreakerUsernames, setTiebreakerUsernames] = useState<string[]>([])
@@ -530,6 +702,18 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* ── Player clue history modal ── */}
+      {selectedPlayerId && (
+        <PlayerClueHistoryModal
+          playerId={selectedPlayerId}
+          onClose={() => setSelectedPlayerId(null)}
+          players={players}
+          completedRounds={completedRounds}
+          currentRound={currentRound}
+          result={result}
+          getDisplayName={getDisplayName}
+        />
+      )}
 
       {/* ── Role reveal overlay ── */}
       {showRoleCard && myRole && (
@@ -1007,13 +1191,18 @@ export default function GamePage() {
               return (
                 <div
                   key={p.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedPlayerId(p.userId)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedPlayerId(p.userId) }}
+                  title={`View ${getDisplayName(p.userId, p.username)}'s clue history`}
                   className={[
-                    'flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold transition-all duration-500',
+                    'flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer select-none',
                     p.status === 'alive'
-                      ? 'bg-neutral-800 text-white'
+                      ? 'bg-neutral-800 text-white hover:bg-neutral-700 hover:ring-1 hover:ring-neutral-600'
                       : p.status === 'forfeited'
-                      ? 'bg-orange-950/30 text-neutral-600 line-through border border-orange-900/20'
-                      : 'bg-red-950/30 text-neutral-600 line-through border border-red-900/20',
+                      ? 'bg-orange-950/30 text-neutral-600 line-through border border-orange-900/20 hover:bg-orange-950/50'
+                      : 'bg-red-950/30 text-neutral-600 line-through border border-red-900/20 hover:bg-red-950/50',
                   ].join(' ')}
                 >
                   <span className={[
