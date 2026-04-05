@@ -1,4 +1,4 @@
-import type { WordCategory } from '@imposter/shared'
+import type { WordCategory } from './types'
 
 /**
  * Word pairs for offline / pass-and-play mode.

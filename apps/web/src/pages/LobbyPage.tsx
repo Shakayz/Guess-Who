@@ -38,8 +38,8 @@ interface Settings {
   votingTimeSeconds: number
   gameMode: GameMode
   categories: WordCategory[]
-  enableDetective: boolean
-  enableDoubleAgent: boolean
+  detectiveCount: number
+  doubleAgentCount: number
   maxRounds: number
   language: Locale
 }
@@ -87,8 +87,8 @@ function SettingsPanel({
     onChange({
       ...settings,
       gameMode: mode,
-      enableDetective: mode === 'normal' ? false : settings.enableDetective,
-      enableDoubleAgent: mode === 'normal' ? false : settings.enableDoubleAgent,
+      detectiveCount: mode === 'normal' ? 0 : settings.detectiveCount,
+      doubleAgentCount: mode === 'normal' ? 0 : settings.doubleAgentCount,
     })
   }
 
@@ -130,38 +130,60 @@ function SettingsPanel({
 
       {/* Special roles */}
       {settings.gameMode === 'special' && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <p className="text-xs text-neutral-500">{t('lobby.specialRoles')}</p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => onChange({ ...settings, enableDetective: !settings.enableDetective })}
-              className={[
-                'flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all border',
-                settings.enableDetective
-                  ? 'bg-sky-950/60 border-sky-700/50 text-sky-400'
-                  : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-              ].join(' ')}
-            >
-              {t('lobby.detective')}
-            </button>
-            <button
-              onClick={() => onChange({ ...settings, enableDoubleAgent: !settings.enableDoubleAgent })}
-              className={[
-                'flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all border',
-                settings.enableDoubleAgent
-                  ? 'bg-rose-950/60 border-rose-700/50 text-rose-400'
-                  : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-              ].join(' ')}
-            >
-              {t('lobby.doubleAgent')}
-            </button>
+
+          {/* Detective count */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+              {t('lobby.detectiveCount')}
+            </p>
+            <div className="flex gap-1.5">
+              {[0, 1, 2, 3].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => onChange({ ...settings, detectiveCount: n })}
+                  className={[
+                    'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                    settings.detectiveCount === n
+                      ? 'bg-sky-950/60 border-sky-700/50 text-sky-400'
+                      : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                  ].join(' ')}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            {settings.detectiveCount > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.detectiveDesc')}</p>
+            )}
           </div>
-          {settings.enableDetective && (
-            <p className="text-[10px] text-neutral-600">{t('lobby.detectiveDesc')}</p>
-          )}
-          {settings.enableDoubleAgent && (
-            <p className="text-[10px] text-neutral-600">{t('lobby.doubleAgentDesc')}</p>
-          )}
+
+          {/* Double Agent count */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+              {t('lobby.doubleAgentCount')}
+            </p>
+            <div className="flex gap-1.5">
+              {[0, 1, 2].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => onChange({ ...settings, doubleAgentCount: n })}
+                  className={[
+                    'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                    settings.doubleAgentCount === n
+                      ? 'bg-amber-950/60 border-amber-700/50 text-amber-400'
+                      : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                  ].join(' ')}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            {settings.doubleAgentCount > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.doubleAgentDesc')}</p>
+            )}
+          </div>
         </div>
       )}
 
@@ -284,8 +306,8 @@ export default function LobbyPage() {
     votingTimeSeconds: 30,
     gameMode: 'normal',
     categories: [],
-    enableDetective: false,
-    enableDoubleAgent: false,
+    detectiveCount: 0,
+    doubleAgentCount: 0,
     maxRounds: 0,
     language: (i18n.language.split('-')[0] as Locale) || 'en',
   })
@@ -296,8 +318,8 @@ export default function LobbyPage() {
     getSocket().emit('room:settings' as any, {
       gameMode: s.gameMode,
       categories: s.categories,
-      enableDetective: s.enableDetective,
-      enableDoubleAgent: s.enableDoubleAgent,
+      detectiveCount: s.detectiveCount,
+      doubleAgentCount: s.doubleAgentCount,
       maxRounds: s.maxRounds,
       maxPlayers: s.maxPlayers,
       imposterCount: s.imposterCount,
@@ -363,8 +385,8 @@ export default function LobbyPage() {
           votingTimeSeconds: r.settings.votingTimeSeconds,
           gameMode: (r.settings as any).gameMode ?? 'normal',
           categories: serverCats,
-          enableDetective: (r.settings as any).enableDetective ?? false,
-          enableDoubleAgent: (r.settings as any).enableDoubleAgent ?? false,
+          detectiveCount: (r.settings as any).detectiveCount ?? ((r.settings as any).enableDetective ? 1 : 0),
+          doubleAgentCount: (r.settings as any).doubleAgentCount ?? ((r.settings as any).enableDoubleAgent ? 1 : 0),
           maxRounds: r.maxRounds ?? 0,
           language: roomLang,
         }))
@@ -628,11 +650,11 @@ export default function LobbyPage() {
               <span>{settings.imposterCount} {t('lobby.imposters').toLowerCase()}</span>
               <span>·</span>
               <span>{settings.maxRounds === 0 ? t('lobby.roundsInfinity') : t('lobby.roundsCount', { count: settings.maxRounds })}</span>
-              {settings.gameMode === 'special' && settings.enableDetective && (
-                <><span>·</span><span>{t('lobby.detective')}</span></>
+              {settings.gameMode === 'special' && settings.detectiveCount > 0 && (
+                <><span>·</span><span>{settings.detectiveCount} {t('lobby.detectiveCount').toLowerCase()}</span></>
               )}
-              {settings.gameMode === 'special' && settings.enableDoubleAgent && (
-                <><span>·</span><span>{t('lobby.doubleAgent')}</span></>
+              {settings.gameMode === 'special' && settings.doubleAgentCount > 0 && (
+                <><span>·</span><span>{settings.doubleAgentCount} {t('lobby.doubleAgentCount').toLowerCase()}</span></>
               )}
               {settings.categories.length > 0 && (
                 <><span>·</span><span>{settings.categories.length} {t('lobby.categories').toLowerCase()}</span></>

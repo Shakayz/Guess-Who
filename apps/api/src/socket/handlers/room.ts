@@ -44,16 +44,16 @@ async function startGameForRoom(
     // Assign roles
     const players: any[] = shuffleArray([...state.players])
     const imposterCount = Math.min(room.imposterCount, Math.floor(players.length / 3))
-    const enableDetective   = state.enableDetective   ?? false
-    const enableDoubleAgent = state.enableDoubleAgent ?? false
+    const detectiveCount   = Math.max(0, state.detectiveCount   ?? (state.enableDetective   ? 1 : 0))
+    const doubleAgentCount = Math.max(0, state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0))
 
     let roleIdx = 0
     players.forEach((p) => {
       if (roleIdx < imposterCount) {
         p.role = 'imposter'
-      } else if (enableDoubleAgent && roleIdx === imposterCount) {
+      } else if (roleIdx < imposterCount + doubleAgentCount) {
         p.role = 'double_agent'
-      } else if (enableDetective && roleIdx === imposterCount + (enableDoubleAgent ? 1 : 0)) {
+      } else if (roleIdx < imposterCount + doubleAgentCount + detectiveCount) {
         p.role = 'detective'
         p.detectiveRevealUsed = false
       } else {
@@ -129,7 +129,7 @@ async function startGameForRoom(
         speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
         wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
-        enableDetective: state.enableDetective ?? false, enableDoubleAgent: state.enableDoubleAgent ?? false,
+        detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0), doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
       },
     } as any)
 
@@ -339,8 +339,8 @@ export function registerRoomHandlers(
           language: room.language as any,
           gameMode: state.gameMode ?? 'normal',
           categories: state.categories ?? [],
-          enableDetective: state.enableDetective ?? false,
-          enableDoubleAgent: state.enableDoubleAgent ?? false,
+          detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
+          doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
           isMatchmade: state.isMatchmade ?? false,
         },
       }
@@ -391,11 +391,11 @@ export function registerRoomHandlers(
 
     // Special roles only allowed in 'special' mode — force-disable in normal mode
     if (state.gameMode === 'normal') {
-      state.enableDetective   = false
-      state.enableDoubleAgent = false
+      state.detectiveCount   = 0
+      state.doubleAgentCount = 0
     } else {
-      if (newSettings.enableDetective   !== undefined) state.enableDetective   = newSettings.enableDetective
-      if (newSettings.enableDoubleAgent !== undefined) state.enableDoubleAgent = newSettings.enableDoubleAgent
+      if (newSettings.detectiveCount   !== undefined) state.detectiveCount   = Math.max(0, Math.min(3, newSettings.detectiveCount))
+      if (newSettings.doubleAgentCount !== undefined) state.doubleAgentCount = Math.max(0, Math.min(2, newSettings.doubleAgentCount))
     }
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
@@ -422,8 +422,8 @@ export function registerRoomHandlers(
         speakingTimeSeconds: updatedRoom.speakingTimeSeconds, votingTimeSeconds: updatedRoom.votingTimeSeconds,
         wordPackId: updatedRoom.wordPackId, isPrivate: updatedRoom.isPrivate, language: updatedRoom.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
-        enableDetective: state.enableDetective ?? false,
-        enableDoubleAgent: state.enableDoubleAgent ?? false,
+        detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
+        doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
         isMatchmade: state.isMatchmade ?? false,
       },
     }
@@ -459,8 +459,8 @@ export function registerRoomHandlers(
         speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
         wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
-        enableDetective: state.enableDetective ?? false,
-        enableDoubleAgent: state.enableDoubleAgent ?? false,
+        detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
+        doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
         isMatchmade: state.isMatchmade ?? false,
       },
     }

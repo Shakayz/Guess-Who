@@ -31,8 +31,8 @@ function buildResetState(state: any): any {
     gameMode:          state.gameMode,
     categories:        state.categories ?? [],
     maxRounds:         state.maxRounds ?? 0,
-    enableDetective:   state.enableDetective ?? false,
-    enableDoubleAgent: state.enableDoubleAgent ?? false,
+    detectiveCount:    state.detectiveCount   ?? (state.enableDetective ? 1 : 0),
+    doubleAgentCount:  state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
     // Clear the player list — players rejoin via room:join when they
     // navigate back to the lobby. Keeping old players here causes
     // "ghost players" from the previous game to appear in the lobby.

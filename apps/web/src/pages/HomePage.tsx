@@ -185,7 +185,7 @@ export default function HomePage() {
               {t('home.tagline')}
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white leading-tight tracking-tight mb-2">
-              Play the <span className="text-brand-500">Imposter</span> Game
+              {t('home.heroTitle1')} <span className="text-brand-500">{t('home.heroTitle2')}</span> {t('home.heroTitle3')}
             </h1>
             <p className="text-neutral-400 text-base md:text-lg">{t('home.subtitle')}</p>
           </div>

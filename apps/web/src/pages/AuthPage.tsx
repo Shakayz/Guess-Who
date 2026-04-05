@@ -452,6 +452,19 @@ export default function AuthPage() {
             {mode === 'signin' ? t('auth.signUp') : t('auth.signIn')}
           </button>
         </p>
+
+        {/* Offline mode shortcut */}
+        <div className="mt-4 text-center">
+          <button
+            type="button"
+            onClick={() => navigate('/offline')}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-neutral-800/80 hover:bg-neutral-700/80 border border-neutral-700/50 text-neutral-300 hover:text-white text-sm font-semibold transition-all active:scale-[0.97]"
+          >
+            <span>📱</span>
+            {t('offline.playOffline')}
+            <span className="text-neutral-500 text-[10px]">— {t('offline.playOfflineDesc')}</span>
+          </button>
+        </div>
       </div>
     </div>
   )
