@@ -85,4 +85,42 @@ describe('socket', () => {
     getSocket()
     expect(mockIo).toHaveBeenCalledTimes(1)
   })
+
+  it('updateSocketAuth does nothing when socket is null (not yet initialised)', async () => {
+    // Do NOT call getSocket() — singleton is null
+    const { updateSocketAuth } = await import('../lib/socket')
+    // Should not throw
+    expect(() => updateSocketAuth()).not.toThrow()
+    expect(mockConnect).not.toHaveBeenCalled()
+  })
+
+  it('updateSocketAuth updates auth token on existing socket', async () => {
+    const { getSocket, updateSocketAuth } = await import('../lib/socket')
+    // Initialise the socket first
+    getSocket()
+    mockSocketInstance.connected = true
+    updateSocketAuth()
+    expect(mockSocketInstance.auth).toEqual({ token: 'mock-token' })
+  })
+
+  it('updateSocketAuth reconnects socket when disconnected', async () => {
+    const { getSocket, updateSocketAuth } = await import('../lib/socket')
+    getSocket()
+    mockSocketInstance.connected = false
+    updateSocketAuth()
+    expect(mockConnect).toHaveBeenCalledTimes(1)
+  })
+
+  it('connectSocket does not call connect() when already connected', async () => {
+    const { connectSocket } = await import('../lib/socket')
+    mockSocketInstance.connected = true
+    connectSocket()
+    expect(mockConnect).not.toHaveBeenCalled()
+  })
+
+  it('disconnectSocket is safe to call when socket is already null', async () => {
+    const { disconnectSocket } = await import('../lib/socket')
+    // Socket was never initialised — should not throw
+    expect(() => disconnectSocket()).not.toThrow()
+  })
 })
