@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
+  Link: ({ children, to, ...props }: any) => React.createElement('a', { href: to, ...props }, children),
 }))
 
 const mockChangeLanguage = vi.fn()
