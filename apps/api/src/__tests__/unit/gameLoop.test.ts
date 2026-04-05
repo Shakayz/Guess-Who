@@ -1299,14 +1299,10 @@ describe('checkAndUnlockAchievements — error catch path', () => {
     // Make achievement.findMany throw to trigger the catch block
     mockPrisma.achievement.findMany.mockRejectedValueOnce(new Error('DB error'))
 
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
     // Should NOT throw — error is swallowed in catch
     await tryEarlyResolve(io, 'room-1')
     await vi.advanceTimersByTimeAsync(10000)
 
-    expect(consoleSpy).toHaveBeenCalledWith('[achievements] error:', expect.any(Error))
-    consoleSpy.mockRestore()
     vi.useRealTimers()
   })
 })

@@ -1,9 +1,12 @@
 import type { Server, Socket } from 'socket.io'
 import { generateRoomCode, MATCHMAKING_CONFIG } from '@imposter/shared'
 import type { MatchmakingStatus } from '@imposter/shared'
+import pino from 'pino'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
 import { onlineUsers } from '../onlineUsers'
+
+const log = pino({ name: 'socket:matchmaking' })
 
 const { IDEAL_PLAYERS, MIN_PLAYERS, MAX_WAIT_SECONDS, TICK_INTERVAL_MS, THRESHOLDS } = MATCHMAKING_CONFIG
 
@@ -88,6 +91,7 @@ async function executeMatch(io: Server<any, any>, queueKey: string, count: numbe
 
   if (players.length < MIN_PLAYERS) {
     // Not enough valid players — push all entries back
+    log.warn({ queueKey, requested: count, online: players.length }, 'match execute aborted: not enough online players')
     for (const e of entries.reverse()) await redis.lpush(queueKey, e)
     return
   }
@@ -114,6 +118,7 @@ async function executeMatch(io: Server<any, any>, queueKey: string, count: numbe
   }).catch(() => null)
 
   if (!room) {
+    log.error({ queueKey, playerCount: players.length }, 'match execute failed: room creation error')
     // Room creation failed — notify all players
     for (const p of players) {
       const sid = onlineUsers.get(p.userId)
@@ -123,6 +128,8 @@ async function executeMatch(io: Server<any, any>, queueKey: string, count: numbe
     for (const e of entries.reverse()) await redis.lpush(queueKey, e)
     return
   }
+
+  log.info({ queueKey, roomId: room.id, roomCode: room.code, playerCount: players.length }, 'match found')
 
   const matchedCategories: string[] = hostPlayer.categories ?? []
 
@@ -300,12 +307,15 @@ async function executeRankedMatch(io: Server<any, any>, queueKey: string, player
   }).catch(() => null)
 
   if (!room) {
+    log.error({ queueKey, playerCount: players.length }, 'ranked match failed: room creation error')
     for (const p of players) {
       const sid = onlineUsers.get(p.userId)
       if (sid) io.to(sid).emit('matchmaking:error' as any, { message: 'Failed to create room.' })
     }
     return
   }
+
+  log.info({ queueKey, roomId: room.id, roomCode: room.code, playerCount: players.length }, 'ranked match found')
 
   await redis.set(`room:${room.id}:state`, JSON.stringify({
     status: 'waiting',
@@ -368,6 +378,7 @@ export function registerMatchmakingHandlers(
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
     const locale = user?.locale ?? 'en'
     const queueKey = `matchmaking:${gameMode}:${locale}`
+    log.info({ userId, gameMode, locale, queueKey }, 'matchmaking:join')
 
     // Remove stale entry if any (in case of reconnect)
     const current = await redis.lrange(queueKey, 0, -1)
@@ -426,6 +437,7 @@ export function registerMatchmakingHandlers(
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
     const locale = user?.locale ?? 'en'
     const queueKey = `matchmaking:${gameMode}:${locale}`
+    log.info({ userId, gameMode, locale, queueKey }, 'matchmaking:leave')
     const current = await redis.lrange(queueKey, 0, -1)
     for (const entry of current) {
       try {

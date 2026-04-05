@@ -1,8 +1,12 @@
 import { useAuthStore } from '../store/auth'
+import { createLogger } from './logger'
 
+const log = createLogger('api')
 const BASE_URL = '/api'
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const method = options.method ?? 'GET'
+  log.debug(`${method} ${path}`)
   const token = useAuthStore.getState().token
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -25,6 +29,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     const error = Object.assign(new Error(err.error ?? `HTTP ${res.status}`), { status: res.status, data: err })
+    log.error(`${method} ${path} failed`, { status: res.status, error: error.message })
     throw error
   }
   // Handle 204 No Content

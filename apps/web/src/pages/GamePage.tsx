@@ -6,7 +6,10 @@ import { useAuthStore } from '../store/auth'
 import { getSocket, connectSocket } from '../lib/socket'
 import { Avatar } from '@imposter/ui'
 import type { Clue } from '@imposter/shared'
+import { createLogger } from '../lib/logger'
 // Overlays removed — they blocked gameplay and caused desync between players
+
+const log = createLogger('game-page')
 
 type Phase = 'clues' | 'voting' | 'reveal'
 
@@ -391,6 +394,7 @@ export default function GamePage() {
 
     // On game start, reset ALL UI state and set new role/word
     socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
+      log.info('game started', { role: yourRole })
       setRoleAndWord(yourRole, yourWord, yourVillagerWord)
       setShowRoleCard(true)
       // Clear all per-round UI state from any previous game
@@ -478,6 +482,7 @@ export default function GamePage() {
       startTimerRef.current(timeSeconds)
     })
     socket.on('round:voting-started', ({ timeSeconds, players: vPlayers }: any) => {
+      log.info('phase: voting', { timeSeconds, playerCount: vPlayers?.length })
       phaseRef.current = 'voting'
       setPhase('voting')
       setCurrentSpeakerId(null)
@@ -487,6 +492,7 @@ export default function GamePage() {
       startTimerRef.current(timeSeconds ?? 30)
     })
     socket.on('round:ended', ({ round, nextRound }: any) => {
+      log.info('phase: reveal', { roundNumber: round?.roundNumber, eliminatedId: round?.eliminatedPlayerId })
       phaseRef.current = 'reveal'
       setPhase('reveal')
       setCurrentSpeakerId(null)
@@ -572,6 +578,7 @@ export default function GamePage() {
       }
     })
     socket.on('game:finished', (data) => {
+      log.info('game finished', { winner: (data as any)?.winner })
       setResult(data)
       // Mark room as finished so ActiveGameGuard stops blocking
       const currentRoom = useGameStore.getState().room
@@ -589,7 +596,7 @@ export default function GamePage() {
       }
     })
     socket.on('error', (err: any) => {
-      console.error('[game] socket error:', err?.code, err?.message)
+      log.error('socket error', { code: err?.code, message: err?.message })
     })
     socket.on('chat:message', addMessage)
     socket.on('emote:receive' as any, ({ username, emoji }: { username: string; emoji: string }) => {
@@ -641,6 +648,7 @@ export default function GamePage() {
   const submitClue = (e: React.FormEvent) => {
     e.preventDefault()
     if (!clueText.trim() || hasSubmittedClue || phase !== 'clues' || isEliminated) return
+    log.info('clue submitted')
     getSocket().emit('clue:submit', clueText.trim())
     setClueText('')
     setHasSubmittedClue(true)
@@ -652,6 +660,7 @@ export default function GamePage() {
     if (votedFor || phase !== 'voting') return
     // Tied players cannot vote during tiebreaker
     if (iAmTiedPlayer) return
+    log.info('vote cast', { targetId: playerId })
     setVotedFor(playerId)
     getSocket().emit('vote:cast', playerId)
   }

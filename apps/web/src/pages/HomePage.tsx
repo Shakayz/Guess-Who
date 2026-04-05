@@ -8,6 +8,9 @@ import type { WordCategory, MatchmakingStatus } from '@imposter/shared'
 import { connectSocket, getSocket } from '../lib/socket'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
+import { createLogger } from '../lib/logger'
+
+const log = createLogger('home')
 
 type HomeMode = 'normal' | 'ranked' | 'lobby' | 'offline'
 type SubGameMode = 'normal' | 'special'
@@ -81,12 +84,15 @@ export default function HomePage() {
 
     if (selectedMode === 'lobby') {
       setLoading(true)
+      log.info('creating private lobby', { categories, language: i18n.language })
       try {
         const room = await api.post<{ code: string }>('/rooms', {
           settings: { categories, isPrivate: true, language: i18n.language.split('-')[0] },
         })
+        log.info('lobby created', { code: room.code })
         navigate(`/lobby/${room.code}?mode=${lobbyGameMode}`)
       } catch (err: any) {
+        log.error('lobby creation failed', { error: err.message })
         setError(err.message)
       } finally {
         setLoading(false)
@@ -102,10 +108,12 @@ export default function HomePage() {
     setMatchmaking(true)
     // For unranked (selectedMode === 'normal'), use the sub-mode (normal/special)
     const actualGameMode = selectedMode === 'normal' ? unrankedSubMode : selectedMode
+    log.info('joining matchmaking', { mode: actualGameMode, categories })
     getSocket().emit('matchmaking:join' as any, { gameMode: actualGameMode, categories })
   }
 
   const cancelMatchmaking = () => {
+    log.info('leaving matchmaking')
     setMatchmaking(false)
     getSocket().emit('matchmaking:leave' as any, { gameMode: selectedMode })
   }

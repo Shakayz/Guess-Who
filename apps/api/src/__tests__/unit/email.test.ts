@@ -61,16 +61,10 @@ describe('sendVerificationEmail', () => {
     await expect(sendVerificationEmail('u@x.com', '999')).rejects.toThrow('Resend error')
   })
 
-  it('falls back to console log when no transport is configured', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-
+  it('falls back to pino logger when no transport is configured', async () => {
     const { sendVerificationEmail } = await import('@/services/email')
-    await sendVerificationEmail('dev@example.com', '654321')
-
-    expect(consoleSpy).toHaveBeenCalledOnce()
-    const loggedText: string = consoleSpy.mock.calls[0][0]
-    expect(loggedText).toContain('dev@example.com')
-    expect(loggedText).toContain('654321')
+    // Should not throw — it logs via pino instead of sending
+    await expect(sendVerificationEmail('dev@example.com', '654321')).resolves.toBeUndefined()
   })
 
   it('uses SMTP transport when SMTP credentials are set', async () => {

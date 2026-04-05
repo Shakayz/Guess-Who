@@ -15,6 +15,9 @@ import { api } from '../lib/api'
 import { getSocket } from '../lib/socket'
 import { useAuthStore } from '../store/auth'
 import { useSocialStore } from '../store/social'
+import { createLogger } from '../lib/logger'
+
+const log = createLogger('dm-chat')
 
 interface DmMessage {
   id: string
@@ -58,7 +61,7 @@ export default function DmChatModal({
         setMessages(data)
       })
       .catch((err) => {
-        console.error('[DmChat] Failed to load messages:', err.message)
+        log.error('failed to load messages', { error: err.message })
       })
       .finally(() => {
         setLoading(false)

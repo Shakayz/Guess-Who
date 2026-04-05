@@ -1,5 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { createLogger } from '../lib/logger'
+
+const log = createLogger('auth')
 
 interface AuthState {
   token: string | null
@@ -13,8 +16,14 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       token: null,
       user: null,
-      setAuth: (token, user) => set({ token, user }),
-      clearAuth: () => set({ token: null, user: null }),
+      setAuth: (token, user) => {
+        log.info('login', { userId: user?.id, username: user?.username })
+        set({ token, user })
+      },
+      clearAuth: () => {
+        log.info('logout')
+        set({ token: null, user: null })
+      },
     }),
     { name: 'imposter-auth' },
   ),

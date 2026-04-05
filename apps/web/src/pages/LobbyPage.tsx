@@ -10,6 +10,9 @@ import { RoomCodeDisplay, PlayerCard } from '@imposter/ui'
 import { NavBar } from '../components/NavBar'
 import { WORD_CATEGORIES } from '@imposter/shared'
 import type { Room, GameMode, WordCategory } from '@imposter/shared'
+import { createLogger } from '../lib/logger'
+
+const log = createLogger('lobby')
 
 interface Friend {
   friendshipId: string
@@ -307,12 +310,14 @@ export default function LobbyPage() {
 
   useEffect(() => {
     if (!code) return
+    log.info('joining room', { code })
     connectSocket()
     const socket = getSocket()
     socket.emit('room:join', { roomCode: code })
 
     // Re-join on reconnect so the player stays in the socket.io room even after a brief disconnect
     const handleConnect = () => {
+      log.info('reconnected, re-joining room', { code })
       socket.emit('room:join', { roomCode: code })
     }
     socket.on('connect', handleConnect)
@@ -327,9 +332,11 @@ export default function LobbyPage() {
     socket.on('room:updated', (r) => {
       // If the game already started (e.g. we missed game:started), navigate immediately
       if ((r as any).status === 'in_progress' || (r as any).status === 'voting') {
+        log.info('room already in progress, navigating to game', { code })
         navigate(`/game/${code}`)
         return
       }
+      log.debug('room updated', { players: r.players?.length, status: (r as any).status })
       setRoom(r as Room)
       if (r.players && r.players.length > prevPlayerCountRef.current) {
         const newPlayer = r.players[r.players.length - 1]
@@ -368,6 +375,7 @@ export default function LobbyPage() {
       }
     })
     socket.on('game:started', ({ round, yourWord, yourRole, yourVillagerWord }) => {
+      log.info('game started', { role: yourRole, roundId: (round as any)?.id })
       setRoleAndWord(yourRole, yourWord, yourVillagerWord)
       setRound(round as any)
       navigate(`/game/${code}`)
@@ -376,6 +384,7 @@ export default function LobbyPage() {
       const msg = (err as any).code === 'LANGUAGE_MISMATCH'
         ? t('room.languageMismatch')
         : err.message
+      log.warn('socket error', { code: (err as any).code, message: err.message })
       setSocketError(msg)
       setTimeout(() => setSocketError(null), 4000)
     })
@@ -657,7 +666,7 @@ export default function LobbyPage() {
           {/* Actions */}
           <div className="flex gap-3">
             <button
-              onClick={() => { getSocket().emit('room:leave'); navigate('/') }}
+              onClick={() => { log.info('leaving room', { code }); getSocket().emit('room:leave'); navigate('/') }}
               className="px-4 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold text-sm transition-colors"
             >
               {t('lobby.leave')}

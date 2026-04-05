@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
+import { createLogger } from '../lib/logger'
+
+const log = createLogger('auth-page')
 
 const LANGUAGES = [
   { code: 'en', label: 'English', country: 'gb' },
@@ -104,6 +107,7 @@ export default function AuthPage() {
   const handleGoogle = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
     if (!clientId) { setError('Google sign-in is not available yet. Please use email & password.'); return }
+    log.info('google oauth attempt')
     setError(null)
     setOauthLoading('google')
 
@@ -152,6 +156,7 @@ export default function AuthPage() {
   // ── Apple ──
   const handleApple = () => {
     if (!window.AppleID) { setError('Apple Sign-In is not available in this browser'); return }
+    log.info('apple oauth attempt')
     setOauthLoading('apple')
     window.AppleID.auth.signIn()
       .then(async (res: any) => {
@@ -170,6 +175,7 @@ export default function AuthPage() {
     e.preventDefault()
     setError(null)
     setLoading(true)
+    log.info('auth attempt', { mode, identifier: mode === 'signin' ? form.identifier : form.username })
     try {
       const data = await api.post<{ token: string; user: any }>(
         mode === 'signin' ? '/auth/signin' : '/auth/signup',
@@ -177,9 +183,11 @@ export default function AuthPage() {
           ? { username: form.username, email: form.email, password: form.password, locale: i18n.language }
           : { identifier: form.identifier, password: form.password },
       )
+      log.info('auth success', { userId: data.user?.id, mode })
       setAuth(data.token, data.user)
       window.location.replace('/')
     } catch (err: any) {
+      log.warn('auth failed', { mode, error: err.message })
       setError(err.message)
     } finally {
       setLoading(false)

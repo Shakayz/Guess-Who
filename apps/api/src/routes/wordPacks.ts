@@ -57,6 +57,7 @@ export const wordPacksRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/', { onRequest: [fastify.authenticate] }, async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
     const body = createPackSchema.parse(req.body)
+    req.log.info({ userId, name: body.name, pairCount: body.pairs.length, isPublic: body.isPublic }, 'creating word pack')
 
     const pack = await prisma.wordPack.create({
       data: {
@@ -78,6 +79,7 @@ export const wordPacksRoutes: FastifyPluginAsync = async (fastify) => {
       include: { pairs: true },
     })
 
+    req.log.info({ userId, packId: pack.id, name: pack.name }, 'word pack created')
     return reply.status(201).send(pack)
   })
 
@@ -85,10 +87,15 @@ export const wordPacksRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete('/:id', { onRequest: [fastify.authenticate] }, async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
     const { id } = req.params as { id: string }
+    req.log.info({ userId, packId: id }, 'word pack delete attempt')
     const pack = await prisma.wordPack.findUnique({ where: { id } })
     if (!pack) return reply.status(404).send({ error: 'Pack not found' })
-    if (pack.authorId !== userId) return reply.status(403).send({ error: 'Forbidden' })
+    if (pack.authorId !== userId) {
+      req.log.warn({ userId, packId: id }, 'word pack delete forbidden')
+      return reply.status(403).send({ error: 'Forbidden' })
+    }
     await prisma.wordPack.delete({ where: { id } })
+    req.log.info({ userId, packId: id }, 'word pack deleted')
     return reply.send({ success: true })
   })
 }

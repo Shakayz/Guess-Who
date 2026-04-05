@@ -24,6 +24,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
   // ── Check if the player is currently in an active game ──────────────────────
   fastify.get('/active', async (req, reply) => {
     const payload = req.user as { sub: string }
+    req.log.info({ userId: payload.sub }, 'checking active game')
 
     // Find a game the user participates in that hasn't ended yet
     const participation = await prisma.gameParticipation.findFirst({
@@ -85,6 +86,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/', async (req, reply) => {
     const { settings } = createRoomSchema.parse(req.body)
     const payload = req.user as { sub: string }
+    req.log.info({ userId: payload.sub, gameMode: settings?.gameMode, isPrivate: settings?.isPrivate }, 'creating room')
     const host = await prisma.user.findUnique({ where: { id: payload.sub }, select: { locale: true } })
     const code = generateRoomCode()
     const room = await prisma.room.create({
@@ -106,13 +108,18 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
       categories: settings?.categories ?? [],
       gameMode: settings?.gameMode ?? 'normal',
     }), 'EX', 21600)
+    req.log.info({ userId: payload.sub, roomId: room.id, roomCode: room.code }, 'room created')
     return reply.status(201).send(room)
   })
 
   fastify.get('/:code', async (req, reply) => {
     const { code } = req.params as { code: string }
+    req.log.info({ roomCode: code }, 'fetching room')
     const room = await prisma.room.findUnique({ where: { code }, include: { host: { select: { id: true, username: true } } } })
-    if (!room) return reply.status(404).send({ error: 'Room not found' })
+    if (!room) {
+      req.log.warn({ roomCode: code }, 'room not found')
+      return reply.status(404).send({ error: 'Room not found' })
+    }
     return reply.send(room)
   })
 }

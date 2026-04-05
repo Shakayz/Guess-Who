@@ -7,6 +7,7 @@ export const seasonPassRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/season-pass/current — current active season pass + user progress
   fastify.get('/current', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
+    req.log.info({ userId }, 'fetching season pass')
     const now = new Date()
 
     const season = await prisma.seasonPass.findFirst({
@@ -43,12 +44,16 @@ export const seasonPassRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/claim/:tierId', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
     const { tierId } = req.params as { tierId: string }
+    req.log.info({ userId, tierId }, 'season pass tier claim attempt')
 
     const tier = await prisma.seasonTier.findUnique({
       where: { id: tierId },
       include: { seasonPass: true },
     })
-    if (!tier) return reply.status(404).send({ error: 'Tier not found' })
+    if (!tier) {
+      req.log.warn({ userId, tierId }, 'season pass tier not found')
+      return reply.status(404).send({ error: 'Tier not found' })
+    }
 
     // Check season is active
     const now = new Date()
@@ -86,6 +91,7 @@ export const seasonPassRoutes: FastifyPluginAsync = async (fastify) => {
       }
     })
 
+    req.log.info({ userId, tierId, rewardType: tier.rewardType }, 'season pass tier claimed')
     return reply.send({ success: true, rewardType: tier.rewardType, rewardValue: tier.rewardValue })
   })
 }

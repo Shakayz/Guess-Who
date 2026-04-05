@@ -6,6 +6,7 @@ export const messagesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/:friendId', { preHandler: [fastify.authenticate] }, async (req, reply) => {
     const userId = req.user.sub
     const { friendId } = req.params as { friendId: string }
+    req.log.info({ userId, friendId }, 'fetching messages')
 
     const messages = await prisma.directMessage.findMany({
       where: {

@@ -54,6 +54,8 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
     const body = req.body as { idToken?: string; accessToken?: string; userInfo?: any }
     if (!env.GOOGLE_CLIENT_ID) return reply.status(503).send({ error: 'Google auth not configured' })
 
+    req.log.info('google oauth verify attempt')
+
     try {
       let googleId: string
       let email: string | undefined
@@ -99,15 +101,17 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       if (isNewUser) {
+        req.log.info({ userId: user.id }, 'google oauth: new user, needs username setup')
         const setupToken = fastify.jwt.sign({ sub: user.id, setup: true }, { expiresIn: '10m' })
         const suggestedUsername = name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || 'user'
         return reply.send({ needsUsername: true, setupToken, suggestedUsername, user: { id: user.id, email: user.email } })
       }
 
+      req.log.info({ userId: user.id, username: user.username }, 'google oauth verify successful')
       const token = issueToken(fastify, user)
       return reply.send({ token, user: { id: user.id, username: user.username, email: user.email } })
     } catch (err: any) {
-      fastify.log.error(err, 'Google verify error')
+      req.log.error({ err }, 'google oauth verify error')
       return reply.status(401).send({ error: 'Google authentication failed' })
     }
   })
@@ -117,6 +121,8 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/apple/verify', async (req, reply) => {
     const { identityToken, name } = req.body as { identityToken?: string; name?: string }
     if (!identityToken) return reply.status(400).send({ error: 'Missing identityToken' })
+
+    req.log.info('apple oauth verify attempt')
 
     let verifiedPayload = await verifyAppleToken(identityToken)
     if (!verifiedPayload) {
@@ -151,11 +157,13 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     if (isNewUser) {
+      req.log.info({ userId: user.id }, 'apple oauth: new user, needs username setup')
       const setupToken = fastify.jwt.sign({ sub: user.id, setup: true }, { expiresIn: '10m' })
       const suggestedUsername = displayName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || 'user'
       return reply.send({ needsUsername: true, setupToken, suggestedUsername, user: { id: user.id, email: user.email } })
     }
 
+    req.log.info({ userId: user.id, username: user.username }, 'apple oauth verify successful')
     const token = issueToken(fastify, user)
     return reply.send({ token, user: { id: user.id, username: user.username, email: user.email } })
   })
@@ -173,13 +181,17 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       payload = fastify.jwt.verify(setupToken) as any
     } catch {
+      req.log.warn('setup-username: invalid or expired setup token')
       return reply.status(401).send({ error: 'Invalid or expired setup token' })
     }
 
     if (!payload.setup) return reply.status(401).send({ error: 'Invalid setup token' })
 
+    req.log.info({ userId: payload.sub, username }, 'setup-username attempt')
+
     const existing = await prisma.user.findUnique({ where: { username } })
     if (existing && existing.id !== payload.sub) {
+      req.log.warn({ username }, 'setup-username failed: username already taken')
       return reply.status(409).send({ error: 'Username already taken' })
     }
 
@@ -188,6 +200,7 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
       data: { username },
     })
 
+    req.log.info({ userId: user.id, username: user.username }, 'setup-username successful')
     const token = issueToken(fastify, user)
     return reply.send({ token, user: { id: user.id, username: user.username, email: user.email } })
   })

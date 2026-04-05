@@ -20,6 +20,9 @@ import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
 import i18n from '../i18n'
 import { useResponsive } from '../lib/responsive'
+import { createLogger } from '../lib/logger'
+
+const log = createLogger('auth-screen')
 
 WebBrowser.maybeCompleteAuthSession()
 
@@ -99,6 +102,7 @@ export default function AuthScreen() {
   const handleGoogleToken = async (accessToken: string) => {
     setError(null)
     setLoading(true)
+    log.info('google oauth token received, verifying')
     try {
       const data = await api.post<GoogleVerifyResponse>(
         '/auth/google/verify',
@@ -107,16 +111,19 @@ export default function AuthScreen() {
 
       if (data.setupToken) {
         // New user -- need to pick a username
+        log.info('google oauth: username setup required')
         setSetupToken(data.setupToken)
         setLoading(false)
         return
       }
 
       if (data.token && data.user) {
+        log.info('google oauth success', { userId: data.user.id })
         setAuth(data.token, data.user)
         router.replace('/')
       }
     } catch (err: any) {
+      log.warn('google oauth failed', { error: err.message })
       setError(err.message ?? 'Google sign-in failed')
     } finally {
       setLoading(false)
@@ -181,14 +188,17 @@ export default function AuthScreen() {
   const handleSubmit = async () => {
     setError(null)
     setLoading(true)
+    log.info('auth attempt', { mode })
     try {
       const data = await api.post<{ token: string; user: { id: string; username: string; email: string } }>(
         mode === 'signin' ? '/auth/signin' : '/auth/signup',
         form,
       )
+      log.info('auth success', { userId: data.user?.id, mode })
       setAuth(data.token, data.user)
       router.replace('/')
     } catch (err: any) {
+      log.warn('auth failed', { mode, error: err.message })
       setError(err.message)
     } finally {
       setLoading(false)
@@ -200,6 +210,7 @@ export default function AuthScreen() {
   const handleApple = async () => {
     setError(null)
     setLoading(true)
+    log.info('apple oauth attempt')
     try {
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [

@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { Room, Round, ChatMessage, RewardSummary } from '@imposter/shared'
+import { createLogger } from '../lib/logger'
+
+const log = createLogger('game')
 
 interface GameResult {
   winner: 'villagers' | 'imposters' | 'draw'
@@ -56,12 +59,21 @@ export const useGameStore = create<GameState>()(
       result: null,
       gameFinished: false,
       lastResetAt: 0,
-      setRoom: (room) => set({ room }),
-      setRound: (round) => set({ currentRound: round }),
+      setRoom: (room) => {
+        log.info('room set', { code: room.code, status: room.status })
+        set({ room })
+      },
+      setRound: (round) => {
+        log.info('round set', { roundNumber: round.roundNumber, id: round.id })
+        set({ currentRound: round })
+      },
       addCompletedRound: (round) => set((s) => ({
         completedRounds: [...s.completedRounds, round].slice(-20),
       })),
-      setRoleAndWord: (myRole, myWord, villagerWord) => set({ myRole, myWord, myVillagerWord: villagerWord ?? null }),
+      setRoleAndWord: (myRole, myWord, villagerWord) => {
+        log.info('role and word set', { role: myRole })
+        set({ myRole, myWord, myVillagerWord: villagerWord ?? null })
+      },
       setDetectiveRevealUsed: () => set({ detectiveRevealUsed: true }),
       setRevealedPlayer: (revealedPlayer) => set({ revealedPlayer }),
       addMessage: (msg) => set((s) => {
@@ -70,9 +82,15 @@ export const useGameStore = create<GameState>()(
           : [...s.messages, msg]
         return { messages: msgs }
       }),
-      setResult: (result) => set({ result, gameFinished: true }),
+      setResult: (result) => {
+        log.info('game result set', { winner: result.winner })
+        set({ result, gameFinished: true })
+      },
       setGameFinished: (gameFinished) => set({ gameFinished }),
-      reset: () => set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, detectiveRevealUsed: false, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() }),
+      reset: () => {
+        log.info('game state reset')
+        set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, detectiveRevealUsed: false, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() })
+      },
     }),
     {
       name: 'imposter-game',

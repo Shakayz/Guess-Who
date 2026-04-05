@@ -1,5 +1,8 @@
 import type { Server, Socket } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
+import pino from 'pino'
+
+const log = pino({ name: 'socket:chat' })
 
 /** Strip HTML tags and trim whitespace to prevent XSS via stored/reflected content */
 function sanitizeText(input: unknown, maxLen: number): string | null {
@@ -21,6 +24,7 @@ export function registerChatHandlers(
     if (!roomId) return
     const sanitized = sanitizeText(text, 200)
     if (!sanitized) return
+    log.info({ userId: (socket as any).userId, roomId, textLength: sanitized.length }, 'chat:send')
 
     const message = {
       id: `${Date.now()}-${socket.id}`,

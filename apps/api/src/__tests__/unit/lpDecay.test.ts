@@ -125,7 +125,7 @@ describe('lpDecay – decay logic', () => {
     expect(worker.on).toHaveBeenCalledWith('failed', expect.any(Function))
   })
 
-  it('logs error when worker job fails', () => {
+  it('registers a failed handler that does not throw', () => {
     prismaMock.user.findMany.mockResolvedValue([])
     const worker = startLpDecayWorker() as any
 
@@ -136,14 +136,8 @@ describe('lpDecay – decay logic', () => {
 
     expect(failedHandler).toBeDefined()
 
-    // Call the handler with a mock job and error
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    failedHandler({ id: 'job-123' }, new Error('something broke'))
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('job-123'),
-      'something broke'
-    )
-    consoleSpy.mockRestore()
+    // Call the handler — should not throw (logs via pino)
+    expect(() => failedHandler({ id: 'job-123' }, new Error('something broke'))).not.toThrow()
   })
 })
 

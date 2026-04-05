@@ -27,12 +27,20 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: message })
     }
 
+    req.log.info({ username: body.username }, 'signup attempt')
+
     try {
       const existingEmail = await prisma.user.findUnique({ where: { email: body.email } })
-      if (existingEmail) return reply.status(409).send({ error: 'Email already in use' })
+      if (existingEmail) {
+        req.log.warn({ username: body.username }, 'signup failed: email already in use')
+        return reply.status(409).send({ error: 'Email already in use' })
+      }
 
       const existingUsername = await prisma.user.findUnique({ where: { username: body.username } })
-      if (existingUsername) return reply.status(409).send({ error: 'Username already taken' })
+      if (existingUsername) {
+        req.log.warn({ username: body.username }, 'signup failed: username already taken')
+        return reply.status(409).send({ error: 'Username already taken' })
+      }
 
       const hashed = await bcrypt.hash(body.password, 12)
       const user = await prisma.user.create({
@@ -45,6 +53,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         },
       })
 
+      req.log.info({ userId: user.id, username: user.username }, 'signup successful')
       const token = fastify.jwt.sign({ sub: user.id, username: user.username }, { expiresIn: '30d' })
       return reply.send({ token, user: { id: user.id, username: user.username, email: user.email } })
     } catch (err: any) {
@@ -52,7 +61,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         const field = err?.meta?.target?.[0] ?? ''
         return reply.status(409).send({ error: field === 'email' ? 'Email already in use' : 'Username already taken' })
       }
-      fastify.log.error(err, 'signup error')
+      req.log.error({ err }, 'signup error')
       return reply.status(500).send({ error: 'Could not create account. Please try again.' })
     }
   })
@@ -66,21 +75,28 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: message })
     }
 
+    req.log.info('signin attempt')
+
     try {
       const isEmail = body.identifier.includes('@')
       const user = isEmail
         ? await prisma.user.findUnique({ where: { email: body.identifier } })
         : await prisma.user.findUnique({ where: { username: body.identifier } })
       if (!user || !user.passwordHash) {
+        req.log.warn('signin failed: invalid credentials')
         return reply.status(401).send({ error: 'Invalid credentials' })
       }
       const valid = await bcrypt.compare(body.password, user.passwordHash)
-      if (!valid) return reply.status(401).send({ error: 'Invalid credentials' })
+      if (!valid) {
+        req.log.warn({ userId: user.id }, 'signin failed: wrong password')
+        return reply.status(401).send({ error: 'Invalid credentials' })
+      }
 
+      req.log.info({ userId: user.id, username: user.username }, 'signin successful')
       const token = fastify.jwt.sign({ sub: user.id, username: user.username }, { expiresIn: '30d' })
       return reply.send({ token, user: { id: user.id, username: user.username } })
     } catch (err: any) {
-      fastify.log.error(err, 'signin error')
+      req.log.error({ err }, 'signin error')
       return reply.status(500).send({ error: 'Could not sign in. Please try again.' })
     }
   })

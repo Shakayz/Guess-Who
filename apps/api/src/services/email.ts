@@ -1,4 +1,7 @@
+import pino from 'pino'
 import { env } from '../config/env'
+
+const logger = pino({ name: 'email-service' })
 
 const EMAIL_HTML = (code: string) => `
 <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
@@ -16,6 +19,7 @@ const EMAIL_HTML = (code: string) => `
 export async function sendVerificationEmail(to: string, code: string): Promise<void> {
   // 1. Resend (preferred — no extra package, just fetch)
   if (env.RESEND_API_KEY) {
+    logger.info({ to }, 'sending verification email via Resend')
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -38,6 +42,7 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
 
   // 2. SMTP via nodemailer (dynamic import — only if package installed)
   if (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS) {
+    logger.info({ to }, 'sending verification email via SMTP')
     const nodemailer = await import('nodemailer')
     const transport = nodemailer.createTransport({
       host: env.SMTP_HOST,
@@ -54,6 +59,6 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
     return
   }
 
-  // 3. Dev fallback — log to console
-  console.log(`\n📧 [EMAIL VERIFICATION]\nTo: ${to}\nCode: ${code}\n`)
+  // 3. Dev fallback
+  logger.info({ to, code }, 'verification email (dev fallback)')
 }

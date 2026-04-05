@@ -1,5 +1,8 @@
 import { create } from 'zustand'
 import type { Room, Round, ChatMessage, RewardSummary } from '@imposter/shared'
+import { createLogger } from '../lib/logger'
+
+const log = createLogger('game')
 
 interface GameResult {
   winner: 'villagers' | 'imposters'
@@ -40,18 +43,30 @@ export const useGameStore = create<GameState>((set) => ({
   revealedPlayer: null,
   messages: [],
   result: null,
-  setRoom: (room) => set({ room }),
-  setRound: (round) => set({ currentRound: round }),
+  setRoom: (room) => {
+    log.info('room set', { code: room.code, status: room.status })
+    set({ room })
+  },
+  setRound: (round) => {
+    log.info('round set', { roundNumber: round.roundNumber, id: round.id })
+    set({ currentRound: round })
+  },
   addCompletedRound: (round) =>
     set((s) => ({ completedRounds: [...s.completedRounds.slice(-19), round] })),
-  setRoleAndWord: (myRole, myWord, myVillagerWord) =>
-    set({ myRole, myWord, myVillagerWord: myVillagerWord ?? null }),
+  setRoleAndWord: (myRole, myWord, myVillagerWord) => {
+    log.info('role and word set', { role: myRole })
+    set({ myRole, myWord, myVillagerWord: myVillagerWord ?? null })
+  },
   setDetectiveRevealUsed: () => set({ detectiveRevealUsed: true }),
   setRevealedPlayer: (revealedPlayer) => set({ revealedPlayer }),
   addMessage: (msg) =>
     set((s) => ({ messages: [...s.messages.slice(-99), msg] })),
-  setResult: (result) => set({ result }),
-  reset: () =>
+  setResult: (result) => {
+    log.info('game result set', { winner: result.winner })
+    set({ result })
+  },
+  reset: () => {
+    log.info('game state reset')
     set({
       room: null,
       currentRound: null,
@@ -63,5 +78,6 @@ export const useGameStore = create<GameState>((set) => ({
       revealedPlayer: null,
       messages: [],
       result: null,
-    }),
+    })
+  },
 }))

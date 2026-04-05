@@ -49,8 +49,13 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     const { username } = req.body as { username?: string }
     if (!username) return reply.status(400).send({ error: 'username required' })
 
+    req.log.info({ userId, targetUsername: username }, 'friend request attempt')
+
     const target = await prisma.user.findUnique({ where: { username } })
-    if (!target) return reply.status(404).send({ error: 'User not found' })
+    if (!target) {
+      req.log.warn({ userId, targetUsername: username }, 'friend request failed: user not found')
+      return reply.status(404).send({ error: 'User not found' })
+    }
     if (target.id === userId) return reply.status(400).send({ error: 'Cannot add yourself' })
 
     // Check existing
@@ -71,6 +76,8 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
       data: { requesterId: userId, addresseeId: target.id, status: 'pending' },
     })
 
+    req.log.info({ userId, targetUserId: target.id, friendshipId: friendship.id }, 'friend request sent')
+
     // Real-time notification via socket if target is online
     const targetSocketId = (fastify as any).onlineUsers?.get(target.id)
     if (targetSocketId) {
@@ -88,10 +95,12 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put('/:id/accept', { preHandler: [fastify.authenticate] }, async (req, reply) => {
     const userId = req.user.sub
     const { id } = req.params as { id: string }
+    req.log.info({ userId, friendshipId: id }, 'friend accept attempt')
     const f = await prisma.friendship.findUnique({ where: { id } })
     if (!f || f.addresseeId !== userId) return reply.status(404).send({ error: 'Not found' })
     if (f.status !== 'pending') return reply.status(400).send({ error: 'Not pending' })
     const updated = await prisma.friendship.update({ where: { id }, data: { status: 'accepted' } })
+    req.log.info({ userId, friendshipId: id, requesterId: f.requesterId }, 'friend request accepted')
 
     // Notify requester
     const requesterSocketId = (fastify as any).onlineUsers?.get(f.requesterId)
@@ -108,11 +117,13 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete('/:id', { preHandler: [fastify.authenticate] }, async (req, reply) => {
     const userId = req.user.sub
     const { id } = req.params as { id: string }
+    req.log.info({ userId, friendshipId: id }, 'friend delete/decline attempt')
     const f = await prisma.friendship.findUnique({ where: { id } })
     if (!f || (f.requesterId !== userId && f.addresseeId !== userId)) {
       return reply.status(404).send({ error: 'Not found' })
     }
     await prisma.friendship.delete({ where: { id } })
+    req.log.info({ userId, friendshipId: id }, 'friendship deleted')
     return reply.send({ success: true })
   })
 }

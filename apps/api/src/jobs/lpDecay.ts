@@ -1,7 +1,10 @@
 import { Queue, Worker } from 'bullmq'
 import Redis from 'ioredis'
+import pino from 'pino'
 import { prisma } from '../config/prisma'
 import { env } from '../config/env'
+
+const logger = pino({ name: 'lp-decay' })
 
 // BullMQ requires maxRetriesPerRequest: null
 const bullRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })
@@ -54,17 +57,17 @@ export function startLpDecayWorker() {
               data:  { rankPoints: newLp, ...(tierChanged ? { rankTier: newTier } : {}) },
             })
           })
-        ).catch((err) => console.error(`[LP Decay] Batch ${i} error:`, err))
+        ).catch((err) => logger.error({ err, batch: i }, 'batch decay error'))
         decayed += batch.length
       }
 
-      console.log(`[LP Decay] Applied decay to ${decayed} inactive players`)
+      logger.info({ decayed }, 'applied decay to inactive players')
     },
     { connection: bullRedis as any, concurrency: 1 },
   )
 
   worker.on('failed', (job, err) => {
-    console.error(`[LP Decay] Job ${job?.id} failed:`, err.message)
+    logger.error({ jobId: job?.id, err: err.message }, 'job failed')
   })
 
   return worker
@@ -86,5 +89,5 @@ export async function scheduleLpDecayJob() {
     { repeat: { pattern: '0 0 * * *' } },
   )
 
-  console.log('[LP Decay] Daily decay job scheduled (0 0 * * *)')
+  logger.info('daily decay job scheduled (0 0 * * *)')
 }

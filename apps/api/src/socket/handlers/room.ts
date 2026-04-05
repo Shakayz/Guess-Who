@@ -1,10 +1,13 @@
 import type { Server, Socket } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
 import { shuffleArray } from '@imposter/shared'
+import pino from 'pino'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
 import { startRound, forfeitPlayer } from '../gameLoop'
 import { onlineUsers } from '../onlineUsers'
+
+const log = pino({ name: 'socket:room' })
 
 // Default word pairs when no word pack is configured
 const FALLBACK_WORDS = [
@@ -163,9 +166,11 @@ export function registerRoomHandlers(
   const username: string = (socket as any).username
 
   socket.on('room:join', async ({ roomCode }) => {
+    log.info({ userId, roomCode }, 'room:join attempt')
     try {
       const room = await prisma.room.findUnique({ where: { code: roomCode } })
       if (!room) {
+        log.warn({ userId, roomCode }, 'room:join failed: room not found')
         socket.emit('error', { code: 'ROOM_NOT_FOUND', message: 'Room not found' })
         return
       }
@@ -338,12 +343,12 @@ export function registerRoomHandlers(
             if (freshState.status !== 'waiting') return
             await autoStartMatchmadeGame(io, room.id)
           } catch (err) {
-            console.error('matchmaking auto-start error:', err)
+            log.error({ err, roomId: room.id }, 'matchmaking auto-start error')
           }
         }, 2000)
       }
     } catch (err) {
-      console.error('room:join error', err)
+      log.error({ err, userId, roomCode }, 'room:join error')
       socket.emit('error', { code: 'INTERNAL', message: 'Server error' })
     }
   })
@@ -354,6 +359,7 @@ export function registerRoomHandlers(
     const roomId = roomKey.split(':')[1]
     const room = await prisma.room.findUnique({ where: { id: roomId } })
     if (!room || room.hostId !== userId) return
+    log.info({ userId, roomId, roomCode: room.code }, 'room:settings updated by host')
 
     const stateRaw = await redis.get(`room:${roomId}:state`)
     if (!stateRaw) return
@@ -450,9 +456,10 @@ export function registerRoomHandlers(
       const room = await prisma.room.findUnique({ where: { id: roomId } })
       if (!room || room.hostId !== userId) return
 
+      log.info({ userId, roomId, roomCode: room.code }, 'game:start requested by host')
       await startGameForRoom(io, roomId)
     } catch (err) {
-      console.error('game:start error', err)
+      log.error({ err, userId }, 'game:start error')
       socket.emit('error', { code: 'INTERNAL', message: 'Server error' })
     }
   })
@@ -487,7 +494,7 @@ export function registerRoomHandlers(
         role: target.role,
       })
     } catch (err) {
-      console.error('detective:reveal error', err)
+      log.error({ err, userId }, 'detective:reveal error')
     }
   })
 
@@ -501,7 +508,7 @@ export function registerRoomHandlers(
       // Leave the socket room so the player stops receiving game events
       await socket.leave(roomKey)
     } catch (err) {
-      console.error('game:forfeit error', err)
+      log.error({ err, userId }, 'game:forfeit error')
     }
   })
 
@@ -525,11 +532,12 @@ export function registerRoomHandlers(
         await socket.leave(roomKey)
       }
     } catch (err) {
-      console.error('game:leave-eliminated error', err)
+      log.error({ err, userId }, 'game:leave-eliminated error')
     }
   })
 
   socket.on('room:leave', async () => {
+    log.info({ userId }, 'room:leave')
     const roomKeys = [...socket.rooms].filter((r) => r.startsWith('room:'))
     for (const roomKey of roomKeys) {
       const roomId = roomKey.split(':')[1]

@@ -16,6 +16,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.patch('/me', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
     const body = patchMeSchema.parse(req.body)
+    req.log.info({ userId, fields: Object.keys(body) }, 'profile update')
     const updated = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -31,6 +32,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /api/users/me/avatar — upload profile picture as base64 data URL
   fastify.post('/me/avatar', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
+    req.log.info({ userId }, 'avatar upload attempt')
 
     const data = await req.file()
     if (!data) return reply.status(400).send({ error: 'No file uploaded' })
@@ -59,6 +61,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       select: { id: true, username: true, avatarUrl: true, locale: true },
     })
 
+    req.log.info({ userId, mimetype: data.mimetype, bytes: buffer.byteLength }, 'avatar uploaded')
     return reply.send(updated)
   })
 
@@ -113,6 +116,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     const userId = req.user.sub
     const { q } = req.query as { q?: string }
     if (!q || q.length < 2) return reply.send({ users: [] })
+    req.log.info({ userId, queryLength: q?.length }, 'user search')
     const users = await prisma.user.findMany({
       where: {
         username: { contains: q, mode: 'insensitive' },

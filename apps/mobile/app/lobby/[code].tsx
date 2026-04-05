@@ -20,6 +20,9 @@ import { api } from '../../lib/api'
 import { WORD_CATEGORIES } from '@imposter/shared'
 import type { Room, GameMode, WordCategory } from '@imposter/shared'
 import { useResponsive } from '../../lib/responsive'
+import { createLogger } from '../../lib/logger'
+
+const log = createLogger('lobby-screen')
 
 // ─── NumStepper ──────────────────────────────────────────────────────────────
 
@@ -382,8 +385,8 @@ export default function LobbyScreen() {
     try {
       const data = await api.get<{ friends: Friend[] }>('/friends')
       setFriends(data.friends ?? [])
-    } catch (err) {
-      console.error('[lobby] failed to fetch friends:', err)
+    } catch (err: any) {
+      log.warn('failed to fetch friends', { error: err?.message })
       setFriends([])
     } finally {
       setFriendsLoading(false)
@@ -403,11 +406,13 @@ export default function LobbyScreen() {
 
   useEffect(() => {
     if (!code) return
+    log.info('joining room', { code })
     connectSocket()
     const socket = getSocket()
     socket.emit('room:join', { roomCode: code })
 
     socket.on('room:updated', (r) => {
+      log.debug('room updated', { players: r.players?.length, status: (r as any).status })
       setRoom(r as Room)
       if (r.settings) {
         setSettings((prev) => ({
@@ -426,6 +431,7 @@ export default function LobbyScreen() {
     })
 
     socket.on('game:started', ({ round, yourWord, yourRole }) => {
+      log.info('game started', { role: yourRole, roundId: (round as any)?.id })
       setRoleAndWord(yourRole, yourWord)
       setRound(round as any)
       router.replace(`/game/${code}`)
@@ -433,13 +439,13 @@ export default function LobbyScreen() {
 
     // Matchmaking events
     socket.on('matchmaking:found' as any, (data: any) => {
-      console.log('[lobby] matchmaking found:', data)
+      log.info('matchmaking found', { roomCode: data?.roomCode })
     })
     socket.on('matchmaking:cancelled' as any, () => {
-      console.log('[lobby] matchmaking cancelled')
+      log.info('matchmaking cancelled')
     })
 
-    socket.on('error', (err) => console.error('[socket error]', err))
+    socket.on('error', (err) => log.error('socket error', { message: (err as any)?.message }))
 
     return () => {
       socket.off('room:updated')

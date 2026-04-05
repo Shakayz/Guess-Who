@@ -1,8 +1,13 @@
 import { useAuthStore } from '../store/auth'
+import { createLogger } from './logger'
 
 const BASE_URL = 'http://localhost:3001/api'
 
+const log = createLogger('api')
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const method = options.method ?? 'GET'
+  log.debug(`${method} ${path}`)
   const token = useAuthStore.getState().token
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
@@ -14,12 +19,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error((err as any).error ?? `HTTP ${res.status}`)
+    const message = (err as any).error ?? `HTTP ${res.status}`
+    log.error(`${method} ${path} failed`, { status: res.status, message })
+    throw new Error(message)
   }
+  log.debug(`${method} ${path} success`, { status: res.status })
   return res.json() as Promise<T>
 }
 
 async function upload<T>(path: string, uri: string): Promise<T> {
+  log.debug('POST (upload)', { path, uri })
   const token = useAuthStore.getState().token
   const formData = new FormData()
   const filename = uri.split('/').pop() ?? 'avatar.jpg'
@@ -35,8 +44,11 @@ async function upload<T>(path: string, uri: string): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error((err as any).error ?? `HTTP ${res.status}`)
+    const message = (err as any).error ?? `HTTP ${res.status}`
+    log.error('Upload failed', { path, status: res.status, message })
+    throw new Error(message)
   }
+  log.debug('Upload success', { path, status: res.status })
   return res.json() as Promise<T>
 }
 

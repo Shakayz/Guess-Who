@@ -7,6 +7,9 @@ import { useGameStore } from './store/game'
 import { getSocket } from './lib/socket'
 import { api } from './lib/api'
 import { BottomNav } from './components/BottomNav'
+import { createLogger } from './lib/logger'
+
+const log = createLogger('app')
 
 const HomePage        = React.lazy(() => import('./pages/HomePage'))
 const LobbyPage       = React.lazy(() => import('./pages/LobbyPage'))
@@ -58,6 +61,7 @@ function ActiveGameGuard() {
     const { pathname } = location
 
     if (pathname !== gamePath && pathname !== resultsPath) {
+      log.info('redirecting to active game', { code: gameCode, from: pathname })
       navigate(gamePath, { replace: true })
     }
   }, [room, location.pathname, navigate, user])
@@ -91,11 +95,13 @@ function ActiveGameRestorer() {
         if (currentReset && Date.now() - currentReset < 5000) return
 
         if (data.active && data.room) {
+          log.info('active game detected', { code: data.room.code, status: data.room.status })
           useGameStore.getState().setRoom(data.room)
         } else {
           // No active game on server — clear any stale client state
           const store = useGameStore.getState()
           if (store.room) {
+            log.info('clearing stale game state')
             store.reset()
           }
         }

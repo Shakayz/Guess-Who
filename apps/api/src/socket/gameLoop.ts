@@ -2,9 +2,12 @@ import type { Server } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
 import { getMostVoted, getTiedPlayerIds, checkWinCondition, computeRankUpdate, LP_REWARDS } from '@imposter/shared'
 import type { RankTier } from '@imposter/shared'
+import pino from 'pino'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
 import { onlineUsers } from './onlineUsers'
+
+const logger = pino({ name: 'game-loop' })
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents>
 
@@ -140,6 +143,7 @@ export async function startRound(
   speakingTimeSeconds: number,
   votingTimeSeconds: number,
 ) {
+  logger.info({ roomId }, 'starting round')
   clearRoomTimer(roomId)
   await startCluePhase(io, roomId, speakingTimeSeconds, votingTimeSeconds)
 }
@@ -177,7 +181,7 @@ async function startCluePhase(
   const timer = setTimeout(async () => { try {
     roomTimers.delete(roomId)
     await startVoting(io, roomId, votingTimeSeconds)
-  } catch (err) { console.error('[cluePhase] timeout error:', err) } }, speakingTimeSeconds * 1000)
+  } catch (err) { logger.error('[cluePhase] timeout error:', err) } }, speakingTimeSeconds * 1000)
   roomTimers.set(roomId, timer)
 }
 
@@ -224,7 +228,7 @@ async function startVoting(io: IO, roomId: string, votingTimeSeconds: number) {
   const timer = setTimeout(async () => { try {
     roomTimers.delete(roomId)
     await resolveRound(io, roomId)
-  } catch (err) { console.error('[resolveRound] timeout error:', err) } }, votingTimeSeconds * 1000)
+  } catch (err) { logger.error('[resolveRound] timeout error:', err) } }, votingTimeSeconds * 1000)
   roomTimers.set(roomId, timer)
 }
 
@@ -278,6 +282,8 @@ async function _resolveRound(io: IO, roomId: string) {
   const currentRound = state.rounds?.[state.currentRound - 1]
   if (!currentRound) return
 
+  logger.info({ roomId, round: state.currentRound }, 'resolving round')
+
   // Find most-voted player (by userId)
   const mostVotedId = getMostVoted(currentRound.votes ?? [])
   let eliminatedRole: string | null = null
@@ -306,7 +312,7 @@ async function _resolveRound(io: IO, roomId: string) {
           targetId: v.targetId,
         })),
         skipDuplicates: true,
-      }).catch((err: any) => console.error('[tie-votes] persist error:', err))
+      }).catch((err: any) => logger.error('[tie-votes] persist error:', err))
     }
 
     await saveState(roomId, state)
@@ -338,7 +344,7 @@ async function _resolveRound(io: IO, roomId: string) {
         targetId: v.targetId,
       })),
       skipDuplicates: true,
-    }).catch((err: any) => console.error('[votes] persist error:', err))
+    }).catch((err: any) => logger.error('[votes] persist error:', err))
   }
 
   // Update DB round with elimination and mark participation as not survived
@@ -362,6 +368,7 @@ async function _resolveRound(io: IO, roomId: string) {
   const winner = checkWinCondition(state.players as any)
 
   if (winner) {
+    logger.info({ roomId, winner, round: state.currentRound }, 'game finished')
     state.status = 'finished'
     await saveState(roomId, state)
     await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
@@ -397,7 +404,7 @@ async function _resolveRound(io: IO, roomId: string) {
         rewards,
       })
       await resetRoomAfterGame(roomId, state)
-    } catch (err) { console.error('[game:finished] emit error:', err) } }, 3000)
+    } catch (err) { logger.error('[game:finished] emit error:', err) } }, 3000)
   } else {
     // Start next round
     const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
@@ -426,7 +433,7 @@ async function _resolveRound(io: IO, roomId: string) {
       setTimeout(async () => { try {
         io.to(`room:${roomId}`).emit('game:finished', { winner: 'draw' as any, finalRound: roundPayload as any, rewards: drawRewards })
         await resetRoomAfterGame(roomId, state)
-      } catch (err) { console.error('[draw:game:finished] emit error:', err) } }, 3000)
+      } catch (err) { logger.error('[draw:game:finished] emit error:', err) } }, 3000)
       return
     }
 
@@ -453,7 +460,7 @@ async function _resolveRound(io: IO, roomId: string) {
         setTimeout(async () => { try {
           io.to(`room:${roomId}`).emit('game:finished', { winner: finalWinner, finalRound: roundPayload as any, rewards: { starCoinsEarned: 50, xpEarned: 120, lpChange: lpChangeFinal, achievements: [] } })
           await resetRoomAfterGame(roomId, state)
-        } catch (err) { console.error('[game:finished] emit error:', err) } }, 3000)
+        } catch (err) { logger.error('[game:finished] emit error:', err) } }, 3000)
         return
       }
 
@@ -472,7 +479,7 @@ async function _resolveRound(io: IO, roomId: string) {
       setTimeout(async () => { try {
         io.to(`room:${roomId}`).emit('game:finished', { winner: 'imposters', finalRound: roundPayload as any, rewards })
         await resetRoomAfterGame(roomId, state)
-      } catch (err) { console.error('[game:finished] emit error:', err) } }, 3000)
+      } catch (err) { logger.error('[game:finished] emit error:', err) } }, 3000)
       return
     }
     const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
@@ -519,7 +526,7 @@ async function _resolveRound(io: IO, roomId: string) {
     // Start next round after 5s reveal
     setTimeout(async () => { try {
       await startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
-    } catch (err) { console.error('[startRound] timeout error:', err) } }, 5000)
+    } catch (err) { logger.error('[startRound] timeout error:', err) } }, 5000)
   }
 }
 
@@ -556,7 +563,7 @@ async function startTiebreakerCluePhase(
   const timer = setTimeout(async () => { try {
     roomTimers.delete(roomId)
     await startTiebreakerVoting(io, roomId)
-  } catch (err) { console.error('[tiebreakerClue] timeout error:', err) } }, speakingTimeSeconds * 1000)
+  } catch (err) { logger.error('[tiebreakerClue] timeout error:', err) } }, speakingTimeSeconds * 1000)
   roomTimers.set(roomId, timer)
 }
 
@@ -596,7 +603,7 @@ async function startTiebreakerVoting(io: IO, roomId: string) {
   const timer = setTimeout(async () => { try {
     roomTimers.delete(roomId)
     await resolveTiebreaker(io, roomId)
-  } catch (err) { console.error('[tiebreakerVoting] timeout error:', err) } }, votingTimeSeconds * 1000)
+  } catch (err) { logger.error('[tiebreakerVoting] timeout error:', err) } }, votingTimeSeconds * 1000)
   roomTimers.set(roomId, timer)
 }
 
@@ -646,7 +653,7 @@ async function resolveRoundNoElimination(io: IO, roomId: string, state: any) {
   }
   setTimeout(async () => { try {
     await startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
-  } catch (err) { console.error('[tiebreaker:noVoters:startRound] error:', err) } }, 5000)
+  } catch (err) { logger.error('[tiebreaker:noVoters:startRound] error:', err) } }, 5000)
 }
 
 async function resolveTiebreaker(io: IO, roomId: string) {
@@ -728,7 +735,7 @@ async function resolveTiebreaker(io: IO, roomId: string) {
     setTimeout(async () => { try {
       io.to(`room:${roomId}`).emit('game:finished', { winner, finalRound: roundPayload as any, rewards })
       await resetRoomAfterGame(roomId, state)
-    } catch (err) { console.error('[tiebreaker:game:finished] emit error:', err) } }, 3000)
+    } catch (err) { logger.error('[tiebreaker:game:finished] emit error:', err) } }, 3000)
   } else {
     // No winner yet — start next round
     const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
@@ -773,7 +780,7 @@ async function resolveTiebreaker(io: IO, roomId: string) {
     }
     setTimeout(async () => { try {
       await startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
-    } catch (err) { console.error('[tiebreaker:startRound] error:', err) } }, 5000)
+    } catch (err) { logger.error('[tiebreaker:startRound] error:', err) } }, 5000)
   }
 }
 
@@ -850,7 +857,7 @@ export async function eliminatePlayerForWord(
       setTimeout(async () => { try {
         io.to(`room:${roomId}`).emit('game:finished', { winner, finalRound: roundPayload as any, rewards })
         await resetRoomAfterGame(roomId, state)
-      } catch (err) { console.error('[word-said:finished] error:', err) } }, 3000)
+      } catch (err) { logger.error('[word-said:finished] error:', err) } }, 3000)
       return
     }
   }
@@ -859,7 +866,7 @@ export async function eliminatePlayerForWord(
   // have submitted clues and move to voting early if so.
   setTimeout(async () => { try {
     await tryEarlyVoting(io, roomId)
-  } catch (err) { console.error('[word-said] tryEarlyVoting error:', err) } }, 3000)
+  } catch (err) { logger.error('[word-said] tryEarlyVoting error:', err) } }, 3000)
 }
 
 // ─── Forfeit player ───────────────────────────────────────────────────────────
@@ -960,7 +967,7 @@ async function _forfeitEndGame(
       rewards,
     })
     await resetRoomAfterGame(roomId, state)
-  } catch (err) { console.error('[forfeit:game:finished] emit error:', err) } }, 3000)
+  } catch (err) { logger.error('[forfeit:game:finished] emit error:', err) } }, 3000)
 }
 
 // ─── Achievement auto-triggers ────────────────────────────────────────────────
@@ -1065,6 +1072,6 @@ async function checkAndUnlockAchievements(
       }
     }
   } catch (err) {
-    console.error('[achievements] error:', err)
+    logger.error('[achievements] error:', err)
   }
 }

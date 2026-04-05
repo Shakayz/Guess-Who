@@ -158,6 +158,7 @@ export const achievementRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/achievements — all achievements + user unlock status
   fastify.get('/', { onRequest: [fastify.authenticate] }, async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
+    req.log.info({ userId }, 'fetching achievements')
 
     const [achievements, userAchievements] = await Promise.all([
       prisma.achievement.findMany({ orderBy: [{ difficulty: 'asc' }, { category: 'asc' }, { createdAt: 'asc' }] }),
@@ -192,6 +193,7 @@ export const achievementRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/achievements/stats — summary stats
   fastify.get('/stats', { onRequest: [fastify.authenticate] }, async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
+    req.log.info({ userId }, 'fetching achievement stats')
 
     const [total, unlocked] = await Promise.all([
       prisma.achievement.count(),

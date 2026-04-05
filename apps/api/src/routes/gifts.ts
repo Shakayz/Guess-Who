@@ -33,9 +33,14 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'Must provide coinAmount or cosmeticId' })
     }
 
+    req.log.info({ senderId, receiverUsername: body.receiverUsername, coinAmount: body.coinAmount, cosmeticId: body.cosmeticId }, 'gift send attempt')
+
     // Resolve receiver
     const receiver = await prisma.user.findUnique({ where: { username: body.receiverUsername } })
-    if (!receiver) return reply.status(404).send({ error: 'User not found' })
+    if (!receiver) {
+      req.log.warn({ senderId, receiverUsername: body.receiverUsername }, 'gift failed: receiver not found')
+      return reply.status(404).send({ error: 'User not found' })
+    }
     if (receiver.id === senderId) return reply.status(400).send({ error: 'Cannot gift yourself' })
 
     // Verify friendship
@@ -74,6 +79,8 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
       })
     })
 
+    req.log.info({ senderId, receiverId: receiver.id, giftId: gift.id, coinAmount: body.coinAmount, cosmeticId: body.cosmeticId }, 'gift sent')
+
     // Notify receiver if online
     const io = (fastify as any).io
     const receiverSocketId = onlineUsers.get(receiver.id)
@@ -94,9 +101,13 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/:id/claim', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
     const { id } = req.params as { id: string }
+    req.log.info({ userId, giftId: id }, 'gift claim attempt')
 
     const gift = await prisma.gift.findUnique({ where: { id } })
-    if (!gift) return reply.status(404).send({ error: 'Gift not found' })
+    if (!gift) {
+      req.log.warn({ userId, giftId: id }, 'gift not found')
+      return reply.status(404).send({ error: 'Gift not found' })
+    }
     if (gift.receiverId !== userId) return reply.status(403).send({ error: 'Forbidden' })
 
     // ── Atomic claim: use updateMany with claimed:false filter to prevent double-claim
@@ -125,6 +136,7 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
       throw err
     })
 
+    req.log.info({ userId, giftId: id }, 'gift claimed')
     return reply.send({ success: true })
   })
 }

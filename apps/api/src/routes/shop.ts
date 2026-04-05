@@ -20,8 +20,12 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/cosmetics/:id/purchase', { onRequest: [fastify.authenticate] }, async (req, reply) => {
     const { id } = req.params as { id: string }
     const payload = req.user as { sub: string }
+    req.log.info({ userId: payload.sub, cosmeticId: id }, 'cosmetic purchase attempt')
     const cosmetic = await prisma.cosmetic.findUnique({ where: { id } })
-    if (!cosmetic) return reply.status(404).send({ error: 'Cosmetic not found' })
+    if (!cosmetic) {
+      req.log.warn({ userId: payload.sub, cosmeticId: id }, 'cosmetic not found')
+      return reply.status(404).send({ error: 'Cosmetic not found' })
+    }
     const user = await prisma.user.findUnique({ where: { id: payload.sub } })
     if (!user) return reply.status(404).send({ error: 'User not found' })
 
@@ -31,7 +35,10 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const balance = user.starCoins
-    if (balance < cosmetic.price) return reply.status(400).send({ error: 'Insufficient funds' })
+    if (balance < cosmetic.price) {
+      req.log.warn({ userId: payload.sub, cosmeticId: id, balance, price: cosmetic.price }, 'purchase failed: insufficient funds')
+      return reply.status(400).send({ error: 'Insufficient funds' })
+    }
 
     await prisma.$transaction([
       prisma.userCosmetic.create({ data: { userId: payload.sub, cosmeticId: id } }),
@@ -40,6 +47,7 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
         data: { starCoins: { decrement: cosmetic.price } },
       }),
     ])
+    req.log.info({ userId: payload.sub, cosmeticId: id, price: cosmetic.price }, 'cosmetic purchased')
     return reply.send({ success: true })
   })
 

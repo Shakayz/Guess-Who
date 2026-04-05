@@ -1,6 +1,7 @@
 import type { Server } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
 import jwt from 'jsonwebtoken'
+import pino from 'pino'
 import { env } from '../config/env'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
@@ -8,6 +9,8 @@ import { registerRoomHandlers } from './handlers/room'
 import { registerGameHandlers } from './handlers/game'
 import { registerChatHandlers } from './handlers/chat'
 import { registerMatchmakingHandlers, cleanupEmptyQueue } from './handlers/matchmaking'
+
+const log = pino({ name: 'socket' })
 
 // Track online users: userId -> socketId (shared module)
 import { onlineUsers } from './onlineUsers'
@@ -42,7 +45,10 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
   // Auth middleware — verify JWT from handshake
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token as string | undefined
-    if (!token) return next(new Error('Missing token'))
+    if (!token) {
+      log.warn({ socketId: socket.id }, 'socket auth failed: missing token')
+      return next(new Error('Missing token'))
+    }
     try {
       const payload = jwt.verify(token, env.JWT_SECRET) as { sub: string; username: string }
       ;(socket as any).userId = payload.sub
@@ -51,13 +57,14 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       socket.data.username = payload.username
       next()
     } catch {
+      log.warn({ socketId: socket.id }, 'socket auth failed: invalid token')
       next(new Error('Invalid token'))
     }
   })
 
   io.on('connection', async (socket) => {
     const userId: string = (socket as any).userId
-    console.log(`Socket connected: ${socket.id} (user: ${userId})`)
+    log.info({ socketId: socket.id, userId }, 'socket connected')
 
     // Track online user — delete stale entry first to avoid race with old socket
     onlineUsers.set(userId, socket.id)
@@ -73,6 +80,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       if (!socket.data.userId) return
       if (!data.text?.trim() || !data.toUserId) return
       try {
+        log.info({ senderId: socket.data.userId, toUserId: data.toUserId }, 'dm:send')
         const msg = await prisma.directMessage.create({
           data: {
             senderId: socket.data.userId,
@@ -183,7 +191,11 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
       if (!roomKey) return
       const allowed = ['👍', '😮', '🤔', '😂', '😱']
-      if (!allowed.includes(data.emoji)) return
+      if (!allowed.includes(data.emoji)) {
+        log.warn({ userId: socket.data.userId, emoji: data.emoji }, 'emote:send rejected: invalid emoji')
+        return
+      }
+      log.info({ userId: socket.data.userId, emoji: data.emoji, room: roomKey }, 'emote:send')
       io.to(roomKey).emit('emote:receive' as any, {
         userId: socket.data.userId,
         username: socket.data.username,
@@ -196,6 +208,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       if (!socket.data.userId || !data.targetUserId) return
       const roomCode = socket.data.roomCode
       if (!roomCode) return
+      log.info({ userId: socket.data.userId, targetUserId: data.targetUserId, roomCode }, 'detective:reveal attempt')
       try {
         const room = await prisma.room.findUnique({ where: { code: roomCode } }).catch(() => null)
         if (!room) return
@@ -220,12 +233,15 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         detective.detectiveRevealUsed = true
         await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
 
+        log.info({ userId: socket.data.userId, targetUserId: data.targetUserId, role: target.role }, 'detective:reveal result sent')
         socket.emit('detective:reveal-result' as any, {
           targetUserId: data.targetUserId,
           targetUsername: target.username,
           role: target.role,
         })
-      } catch {}
+      } catch (err) {
+        log.error({ err, userId: socket.data.userId }, 'detective:reveal error')
+      }
     })
 
     // Honor: give an honor to a player after a game (once per target per game)
@@ -234,6 +250,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       if (data.targetUserId === userId) return
       const VALID_HONOR_TYPES = ['teamplayer', 'sharp_mind', 'good_sport']
       if (!VALID_HONOR_TYPES.includes(data.honorType)) return
+      log.info({ userId, targetUserId: data.targetUserId, honorType: data.honorType, gameId: data.gameId }, 'honor:give')
       try {
         // ── One honor per sender → target per game ────────────────────────────
         if (data.gameId) {
@@ -265,7 +282,9 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
             honorType: data.honorType,
           })
         }
-      } catch {}
+      } catch (err) {
+        log.error({ err, userId }, 'honor:give error')
+      }
     })
 
     // Game chat: fetch history for the current game room
@@ -287,7 +306,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     })
 
     socket.on('disconnect', async () => {
-      console.log(`Socket disconnected: ${socket.id}`)
+      log.info({ socketId: socket.id, userId }, 'socket disconnected')
       // Remove from online users map
       onlineUsers.delete(userId)
       // Remove player from any matchmaking queues

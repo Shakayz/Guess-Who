@@ -11,6 +11,7 @@ const mockSocketInstance = {
   connect: mockConnect,
   disconnect: mockDisconnect,
   removeAllListeners: mockRemoveAllListeners,
+  on: vi.fn(),
 }
 
 const mockIo = vi.fn(() => mockSocketInstance)

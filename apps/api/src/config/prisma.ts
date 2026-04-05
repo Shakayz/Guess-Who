@@ -1,7 +1,14 @@
 import { PrismaClient } from '@prisma/client'
+import pino from 'pino'
+
+const log = pino({ name: 'prisma' })
 
 declare global {
   var __prisma: PrismaClient | undefined
+}
+
+if (!global.__prisma) {
+  log.info('initializing prisma client')
 }
 
 export const prisma = global.__prisma ?? new PrismaClient()

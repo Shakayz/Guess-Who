@@ -12,7 +12,7 @@ vi.mock('path', async (importOriginal) => {
 
 // Mock buildApp so it doesn't spin up a real server
 const mockListen = vi.fn().mockResolvedValue(undefined)
-const mockLog = { error: vi.fn() }
+const mockLog = { error: vi.fn(), info: vi.fn() }
 const mockApp = {
   listen: mockListen,
   log: mockLog,

@@ -9,6 +9,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
     const { page = '1', limit = '10' } = req.query as { page?: string; limit?: string }
     const p = Math.max(1, parseInt(page))
     const l = Math.min(50, Math.max(1, parseInt(limit)))
+    req.log.info({ userId, page: p, limit: l }, 'fetching game history')
     const skip = (p - 1) * l
 
     const [total, participations] = await Promise.all([
@@ -69,12 +70,16 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/:gameId', { preHandler: [fastify.authenticate] }, async (req, reply) => {
     const userId = req.user.sub
     const { gameId } = req.params as { gameId: string }
+    req.log.info({ userId, gameId }, 'fetching game detail')
 
     // Verify user participated
     const participation = await prisma.gameParticipation.findUnique({
       where: { gameId_userId: { gameId, userId } },
     })
-    if (!participation) return reply.status(404).send({ error: 'Game not found' })
+    if (!participation) {
+      req.log.warn({ userId, gameId }, 'game detail not found or unauthorized')
+      return reply.status(404).send({ error: 'Game not found' })
+    }
 
     const game = await prisma.game.findUnique({
       where: { id: gameId },

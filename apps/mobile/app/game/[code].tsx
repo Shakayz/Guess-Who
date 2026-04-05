@@ -20,6 +20,9 @@ import RoleRevealScreen from '../../components/RoleRevealScreen'
 import EliminationOverlay from '../../components/EliminationOverlay'
 import type { Clue } from '@imposter/shared'
 import { useResponsive } from '../../lib/responsive'
+import { createLogger } from '../../lib/logger'
+
+const log = createLogger('game-screen')
 
 type Phase = 'speaking' | 'voting' | 'reveal'
 
@@ -354,6 +357,7 @@ export default function GameScreen() {
 
     // game:started — reset all state for new game
     socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
+      log.info('game started', { role: yourRole })
       setRoleAndWord(yourRole, yourWord, yourVillagerWord)
       setClues([])
       setHasSubmittedClue(false)
@@ -440,6 +444,7 @@ export default function GameScreen() {
 
     // Voting started
     socket.on('round:voting-started', ({ timeSeconds, players: vPlayers }: any) => {
+      log.info('phase: voting', { timeSeconds, playerCount: vPlayers?.length })
       phaseRef.current = 'voting'
       setPhase('voting')
       setVoteCount(0)
@@ -450,6 +455,7 @@ export default function GameScreen() {
 
     // Round ended
     socket.on('round:ended', ({ round, nextRound }: any) => {
+      log.info('phase: reveal', { roundNumber: round?.roundNumber, eliminatedId: round?.eliminatedPlayerId })
       phaseRef.current = 'reveal'
       setPhase('reveal')
       setAllVotedMsg(false)
@@ -523,6 +529,7 @@ export default function GameScreen() {
 
     // Game finished
     socket.on('game:finished', (data) => {
+      log.info('game finished', { winner: (data as any)?.winner })
       setResult(data)
       router.replace(`/results/${code}`)
     })
@@ -557,7 +564,7 @@ export default function GameScreen() {
 
     // Error
     socket.on('error', (err: any) => {
-      console.error('[game] socket error:', err?.code, err?.message)
+      log.error('socket error', { code: err?.code, message: err?.message })
     })
 
     return () => {
@@ -602,6 +609,7 @@ export default function GameScreen() {
 
   const submitClue = () => {
     if (!clueText.trim() || hasSubmittedClue || phase !== 'speaking' || isEliminated) return
+    log.info('clue submitted')
     getSocket().emit('clue:submit', clueText.trim())
     setClueText('')
     setHasSubmittedClue(true)
@@ -609,6 +617,7 @@ export default function GameScreen() {
 
   const vote = (playerId: string) => {
     if (votedFor || phase !== 'voting') return
+    log.info('vote cast', { targetId: playerId })
     setVotedFor(playerId)
     getSocket().emit('vote:cast', playerId)
   }

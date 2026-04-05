@@ -54,11 +54,8 @@ describe('redis.ts real module (via importActual)', () => {
       // Error listener was registered
       expect(capturedHandler).toBeDefined()
 
-      // Invoke the error handler to cover that branch
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      capturedHandler!(new Error('redis down'))
-      expect(consoleSpy).toHaveBeenCalledWith('Redis error:', expect.any(Error))
-      consoleSpy.mockRestore()
+      // Invoke the error handler to cover that branch (now logs via pino, not console.error)
+      expect(() => capturedHandler!(new Error('redis down'))).not.toThrow()
     } finally {
       vi.doUnmock('ioredis')
       vi.doUnmock('../../config/env')

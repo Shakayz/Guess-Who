@@ -1,8 +1,11 @@
 import type { Server, Socket } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
+import pino from 'pino'
 import { redis } from '../../config/redis'
 import { prisma } from '../../config/prisma'
 import { tryEarlyResolve, tryEarlyVoting, tryEarlyTiebreakerVoting, tryEarlyTiebreakerResolve, eliminatePlayerForWord } from '../gameLoop'
+
+const log = pino({ name: 'socket:game' })
 
 // Whole-word, case-insensitive match
 function containsWord(text: string, word: string): boolean {
@@ -23,6 +26,7 @@ export function registerGameHandlers(
   socket.on('vote:cast', async (targetPlayerId) => {
     const roomId = [...socket.rooms].find((r) => r.startsWith('room:'))?.split(':')[1]
     if (!roomId) return
+    log.info({ userId, roomId, targetPlayerId }, 'vote:cast')
 
     const stateRaw = await redis.get(`room:${roomId}:state`)
     if (!stateRaw) return
@@ -95,6 +99,7 @@ export function registerGameHandlers(
     if (typeof text !== 'string') return
     const sanitized = text.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/gi, '').trim().slice(0, 300)
     if (!sanitized) return
+    log.info({ userId, roomId, textLength: sanitized.length }, 'clue:submit')
 
     const stateRaw = await redis.get(`room:${roomId}:state`)
     if (!stateRaw) return
@@ -154,6 +159,7 @@ export function registerGameHandlers(
     const saidWord = forbidden.some((w) => containsWord(sanitized, w))
 
     if (saidWord) {
+      log.warn({ userId, roomId, role: player.role }, 'clue:submit flagged: player said the word')
       clue.flaggedForWord = true
       player.status = 'eliminated'
       currentRound.eliminationReason = 'said_word'

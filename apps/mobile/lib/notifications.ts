@@ -6,8 +6,11 @@ import * as Notifications from 'expo-notifications'
 import * as Device from 'expo-device'
 import { Platform } from 'react-native'
 import { useAuthStore } from '../store/auth'
+import { createLogger } from './logger'
 
 const API_URL = 'http://localhost:3001/api'
+
+const log = createLogger('notifications')
 
 // Configure how notifications appear while the app is in the foreground
 Notifications.setNotificationHandler({
@@ -20,25 +23,28 @@ Notifications.setNotificationHandler({
 
 export async function registerForPushNotifications(): Promise<string | null> {
   if (!Device.isDevice) {
-    console.log('[Push] Push notifications only work on physical devices')
+    log.warn('Push notifications only work on physical devices')
     return null
   }
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync()
+  log.debug('Current notification permission status', { status: existingStatus })
   let finalStatus = existingStatus
 
   if (existingStatus !== 'granted') {
+    log.info('Requesting notification permissions')
     const { status } = await Notifications.requestPermissionsAsync()
     finalStatus = status
   }
 
   if (finalStatus !== 'granted') {
-    console.log('[Push] Push notification permission denied')
+    log.warn('Push notification permission denied', { status: finalStatus })
     return null
   }
 
   // Android channel
   if (Platform.OS === 'android') {
+    log.debug('Setting up Android notification channel')
     await Notifications.setNotificationChannelAsync('default', {
       name: 'default',
       importance: Notifications.AndroidImportance.MAX,
@@ -48,11 +54,12 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 
   const token = (await Notifications.getExpoPushTokenAsync()).data
-  console.log('[Push] Expo push token:', token)
+  log.info('Expo push token obtained', { token })
 
   // Register token with backend
   const authToken = useAuthStore.getState().token
   if (authToken) {
+    log.debug('Registering push token with backend')
     await fetch(`${API_URL}/users/me/push-token`, {
       method: 'POST',
       headers: {
@@ -60,7 +67,10 @@ export async function registerForPushNotifications(): Promise<string | null> {
         Authorization: `Bearer ${authToken}`,
       },
       body: JSON.stringify({ token }),
-    }).catch((err) => console.error('[Push] Failed to register token:', err))
+    }).catch((err) => log.error('Failed to register push token with backend', { message: err?.message }))
+    log.info('Push token registered with backend')
+  } else {
+    log.warn('No auth token available — skipping backend push token registration')
   }
 
   return token
@@ -68,9 +78,13 @@ export async function registerForPushNotifications(): Promise<string | null> {
 
 export async function unregisterPushNotifications(): Promise<void> {
   const authToken = useAuthStore.getState().token
-  if (!authToken) return
+  if (!authToken) {
+    log.warn('No auth token available — skipping push token unregistration')
+    return
+  }
+  log.info('Unregistering push token from backend')
   await fetch(`${API_URL}/users/me/push-token`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${authToken}` },
-  }).catch(() => {})
+  }).catch((err) => log.error('Failed to unregister push token', { message: err?.message }))
 }
