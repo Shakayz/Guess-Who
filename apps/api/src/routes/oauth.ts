@@ -6,24 +6,6 @@ import { env } from '../config/env'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function generateUsername(base: string): string {
-  const cleaned = base.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || 'user'
-  const suffix = Math.floor(Math.random() * 9000 + 1000)
-  return `${cleaned}${suffix}`
-}
-
-async function uniqueUsername(base: string): Promise<string> {
-  let username = generateUsername(base)
-  let attempts = 0
-  while (attempts < 10) {
-    const existing = await prisma.user.findUnique({ where: { username } })
-    if (!existing) return username
-    username = generateUsername(base)
-    attempts++
-  }
-  return `user${Date.now().toString(36)}`
-}
-
 function issueToken(fastify: any, user: { id: string; username: string }) {
   return fastify.jwt.sign({ sub: user.id, username: user.username })
 }
