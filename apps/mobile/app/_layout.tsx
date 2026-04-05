@@ -144,6 +144,7 @@ export default function RootLayout() {
         >
           <Stack.Screen name="auth" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="offline" options={{ title: 'Offline Mode', headerBackTitle: 'Back' }} />
           <Stack.Screen name="lobby/[code]" options={{ title: 'Lobby', headerBackTitle: 'Leave' }} />
           <Stack.Screen name="game/[code]" options={{ title: 'Game', headerShown: false }} />
           <Stack.Screen name="results/[code]" options={{ title: 'Results' }} />

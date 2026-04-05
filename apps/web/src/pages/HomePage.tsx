@@ -9,7 +9,7 @@ import { connectSocket, getSocket } from '../lib/socket'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
 
-type HomeMode = 'normal' | 'ranked' | 'lobby'
+type HomeMode = 'normal' | 'ranked' | 'lobby' | 'offline'
 type SubGameMode = 'normal' | 'special'
 
 export default function HomePage() {
@@ -50,6 +50,7 @@ export default function HomePage() {
 
   const hasCategories = selectedMode === 'normal' || selectedMode === 'lobby'
   const hasSubMode = selectedMode === 'normal' || selectedMode === 'lobby'
+  // 'offline' mode navigates directly to /offline, so it never reaches the create button
 
   useEffect(() => {
     if (!matchmaking) return
@@ -142,6 +143,15 @@ export default function HomePage() {
       color: 'border-violet-700/60 bg-violet-950/50 text-violet-400 shadow-md shadow-violet-950/50 ring-1 ring-violet-600/20',
       inactive: 'border-neutral-800 hover:border-violet-800/50 hover:-translate-y-0.5 hover:shadow-md hover:shadow-neutral-950/60',
       shadow: 'shadow-violet-950/50',
+    },
+    {
+      id: 'offline',
+      icon: '📱',
+      labelKey: 'home.offlineLabel',
+      descKey: 'home.offlineDesc',
+      color: 'border-teal-700/60 bg-teal-950/50 text-teal-400 shadow-md shadow-teal-950/50 ring-1 ring-teal-600/20',
+      inactive: 'border-neutral-800 hover:border-teal-800/50 hover:-translate-y-0.5 hover:shadow-md hover:shadow-neutral-950/60',
+      shadow: 'shadow-teal-950/50',
     },
   ]
 
@@ -310,13 +320,14 @@ export default function HomePage() {
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
               {t('home.chooseMode')}
             </p>
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {MODES.map((mode) => {
                 const active = selectedMode === mode.id
                 return (
                   <button
                     key={mode.id}
                     onClick={() => {
+                      if (mode.id === 'offline') { navigate('/offline'); return }
                       setSelectedMode(active ? null : mode.id)
                       setCategories([])
                       setError(null)

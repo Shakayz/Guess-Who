@@ -20,6 +20,7 @@ const HistoryPage     = React.lazy(() => import('./pages/HistoryPage'))
 const GameDetailPage  = React.lazy(() => import('./pages/GameDetailPage'))
 const FriendsPage         = React.lazy(() => import('./pages/FriendsPage'))
 const PlayerProfilePage   = React.lazy(() => import('./pages/PlayerProfilePage'))
+const OfflinePage         = React.lazy(() => import('./pages/OfflinePage'))
 // const SeasonPassPage      = React.lazy(() => import('./pages/SeasonPassPage'))  // TODO: re-enable when premium is ready
 // const WordPacksPage       = React.lazy(() => import('./pages/WordPacksPage'))  // TODO: re-enable when premium is ready
 
@@ -287,6 +288,7 @@ export default function App() {
       <BottomNav />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/offline" element={<OfflinePage />} />
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
         <Route path="/lobby/:code" element={<ProtectedRoute><LobbyPage /></ProtectedRoute>} />
         <Route path="/game/:code" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />

@@ -419,6 +419,32 @@ export default function HomeScreen() {
               </View>
             )}
 
+            {/* Offline / Pass & Play */}
+            <TouchableOpacity
+              onPress={() => router.push('/offline')}
+              className="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden flex-row items-center gap-4"
+              style={{ padding: isTablet ? 18 : 14 }}
+              activeOpacity={0.8}
+            >
+              {/* Left accent bar */}
+              <View className="absolute left-0 top-0 bottom-0 w-0.5 bg-violet-700/60" />
+              <View
+                className="rounded-xl bg-neutral-800 border border-neutral-700 items-center justify-center"
+                style={{ width: isTablet ? 52 : 44, height: isTablet ? 52 : 44 }}
+              >
+                <Text style={{ fontSize: isTablet ? 26 : 22 }}>🎭</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-white font-bold" style={{ fontSize: 15 * fontScale }}>
+                  Offline Mode
+                </Text>
+                <Text className="text-neutral-500 mt-0.5" style={{ fontSize: 12 * fontScale }}>
+                  Pass & Play — no internet needed
+                </Text>
+              </View>
+              <Text className="text-neutral-600" style={{ fontSize: 18 }}>›</Text>
+            </TouchableOpacity>
+
             {/* Divider */}
             <View className="flex-row items-center gap-3">
               <View className="flex-1 h-px bg-neutral-800" />
