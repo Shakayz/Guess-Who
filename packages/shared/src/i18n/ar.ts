@@ -21,6 +21,7 @@ export default {
     history: 'السجل',
     friends: 'الأصدقاء',
     signOut: 'تسجيل الخروج',
+    settings: 'الإعدادات',
   },
   auth: {
     signIn: 'تسجيل الدخول',

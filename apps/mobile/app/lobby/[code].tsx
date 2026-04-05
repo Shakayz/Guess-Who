@@ -21,6 +21,8 @@ import { WORD_CATEGORIES } from '@imposter/shared'
 import type { Room, GameMode, WordCategory } from '@imposter/shared'
 import { useResponsive } from '../../lib/responsive'
 import { createLogger } from '../../lib/logger'
+import { SoundManager } from '../../lib/sounds'
+import { HapticManager } from '../../lib/haptics'
 
 const log = createLogger('lobby-screen')
 
@@ -339,6 +341,7 @@ export default function LobbyScreen() {
 
   const handleSettingsChange = (s: Settings) => {
     setSettings(s)
+    HapticManager.selection()
     getSocket().emit('room:settings' as any, {
       gameMode: s.gameMode,
       categories: s.categories,
@@ -432,6 +435,7 @@ export default function LobbyScreen() {
 
     socket.on('game:started', ({ round, yourWord, yourRole }) => {
       log.info('game started', { role: yourRole, roundId: (round as any)?.id })
+      SoundManager.play('game_start')
       setRoleAndWord(yourRole, yourWord)
       setRound(round as any)
       router.replace(`/game/${code}`)
@@ -459,6 +463,8 @@ export default function LobbyScreen() {
   // ─── Actions ───────────────────────────────────────────────────────────
 
   const toggleReady = () => {
+    SoundManager.play('click')
+    HapticManager.light()
     getSocket().emit('player:ready', !isReady)
     setIsReady((r) => !r)
   }

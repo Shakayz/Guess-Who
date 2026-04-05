@@ -7,6 +7,7 @@ import { getSocket, connectSocket } from '../lib/socket'
 import { Avatar } from '@imposter/ui'
 import type { Clue } from '@imposter/shared'
 import { createLogger } from '../lib/logger'
+import { SoundManager } from '../lib/sounds'
 // Overlays removed — they blocked gameplay and caused desync between players
 
 const log = createLogger('game-page')
@@ -395,6 +396,7 @@ export default function GamePage() {
     // On game start, reset ALL UI state and set new role/word
     socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
       log.info('game started', { role: yourRole })
+      SoundManager.play('game_start')
       setRoleAndWord(yourRole, yourWord, yourVillagerWord)
       setShowRoleCard(true)
       // Clear all per-round UI state from any previous game
@@ -466,6 +468,7 @@ export default function GamePage() {
     socket.on('round:speaking-turn', ({ playerId, timeSeconds, speakingOrder: order }: any) => {
       // Clean up previous round state when entering a new clue phase
       if (phaseRef.current !== 'clues') {
+        SoundManager.play('round_start')
         setClues([])
         setHasSubmittedClue(false)
         setVotedFor(null)
@@ -493,6 +496,7 @@ export default function GamePage() {
     })
     socket.on('round:ended', ({ round, nextRound }: any) => {
       log.info('phase: reveal', { roundNumber: round?.roundNumber, eliminatedId: round?.eliminatedPlayerId })
+      SoundManager.play('reveal')
       phaseRef.current = 'reveal'
       setPhase('reveal')
       setCurrentSpeakerId(null)
@@ -506,6 +510,7 @@ export default function GamePage() {
       if (nextRound) setRound(nextRound)
       if (round?.wordReveal) setWordReveal(round.wordReveal)
       if (round?.eliminatedPlayerId) {
+        SoundManager.play('elimination')
         const elim = players.find((p: any) => p.userId === round.eliminatedPlayerId)
         const elimRole = round.eliminatedRole ?? (elim as any)?.role ?? 'villager'
         const elimName = getDisplayNameRef.current(round.eliminatedPlayerId, elim?.username ?? round.eliminatedPlayerId)
@@ -579,6 +584,7 @@ export default function GamePage() {
     })
     socket.on('game:finished', (data) => {
       log.info('game finished', { winner: (data as any)?.winner })
+      SoundManager.play('game_end')
       setResult(data)
       // Mark room as finished so ActiveGameGuard stops blocking
       const currentRoom = useGameStore.getState().room
@@ -598,7 +604,10 @@ export default function GamePage() {
     socket.on('error', (err: any) => {
       log.error('socket error', { code: err?.code, message: err?.message })
     })
-    socket.on('chat:message', addMessage)
+    socket.on('chat:message', (msg: any) => {
+      if (msg?.userId !== user?.id) SoundManager.play('chat_message')
+      addMessage(msg)
+    })
     socket.on('emote:receive' as any, ({ username, emoji }: { username: string; emoji: string }) => {
       const id = `${Date.now()}_${Math.random()}`
       const x = 10 + Math.random() * 80
@@ -661,6 +670,7 @@ export default function GamePage() {
     // Tied players cannot vote during tiebreaker
     if (iAmTiedPlayer) return
     log.info('vote cast', { targetId: playerId })
+    SoundManager.play('vote')
     setVotedFor(playerId)
     getSocket().emit('vote:cast', playerId)
   }
@@ -698,6 +708,16 @@ export default function GamePage() {
     // arrives. They'll be redirected to results when the game ends.
     navigate('/')
   }
+
+  // Timer tick sounds during countdown
+  useEffect(() => {
+    if (timeLeft <= 0) return
+    if (timeLeft <= 3) {
+      SoundManager.play('timer_warning')
+    } else if (timeLeft <= 5) {
+      SoundManager.play('timer_tick')
+    }
+  }, [timeLeft])
 
   // Auto-dismiss role card after 5 seconds
   useEffect(() => {

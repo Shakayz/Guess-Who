@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
+import bcrypt from 'bcryptjs'
 
 const patchMeSchema = z.object({
   avatarUrl: z.string().url().optional().nullable(),
@@ -94,6 +95,29 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send({ success: true })
   })
 
+  // PUT /api/users/me/password — change password
+  fastify.put('/me/password', async (req, reply) => {
+    const userId = (req.user as { sub: string }).sub
+    const { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user?.passwordHash) return reply.status(400).send({ error: 'OAuth accounts cannot change password' })
+
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash)
+    if (!valid) return reply.status(401).send({ error: 'Current password is incorrect' })
+
+    const hashed = await bcrypt.hash(newPassword, 12)
+    await prisma.user.update({ where: { id: userId }, data: { passwordHash: hashed } })
+    return reply.send({ success: true })
+  })
+
+  // DELETE /api/users/me — delete own account
+  fastify.delete('/me', async (req, reply) => {
+    const userId = (req.user as { sub: string }).sub
+    await prisma.user.delete({ where: { id: userId } })
+    return reply.send({ success: true })
+  })
+
   fastify.get('/leaderboard', async (req, reply) => {
     const { locale } = req.query as { locale?: string }
     const lang = (locale ?? 'en').split('-')[0]
@@ -140,6 +164,65 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
     return reply.send(user)
+  })
+
+  // POST /api/users/:userId/block — block a player
+  fastify.post('/:userId/block', { onRequest: [fastify.authenticate] }, async (req, reply) => {
+    const blockerId = (req.user as { sub: string }).sub
+    const { userId } = req.params as { userId: string }
+    if (blockerId === userId) return reply.status(400).send({ error: 'Cannot block yourself' })
+
+    await prisma.block.upsert({
+      where: { blockerId_blockedId: { blockerId, blockedId: userId } },
+      update: {},
+      create: { blockerId, blockedId: userId },
+    })
+
+    // Also remove any existing friendship
+    await prisma.friendship.deleteMany({
+      where: {
+        OR: [
+          { requesterId: blockerId, addresseeId: userId },
+          { requesterId: userId, addresseeId: blockerId },
+        ],
+      },
+    })
+
+    return reply.send({ success: true })
+  })
+
+  // DELETE /api/users/:userId/block — unblock a player
+  fastify.delete('/:userId/block', { onRequest: [fastify.authenticate] }, async (req, reply) => {
+    const blockerId = (req.user as { sub: string }).sub
+    const { userId } = req.params as { userId: string }
+    await prisma.block.deleteMany({ where: { blockerId, blockedId: userId } })
+    return reply.send({ success: true })
+  })
+
+  // GET /api/users/blocked — get list of blocked users
+  fastify.get('/blocked', { onRequest: [fastify.authenticate] }, async (req, reply) => {
+    const userId = (req.user as { sub: string }).sub
+    const blocks = await prisma.block.findMany({
+      where: { blockerId: userId },
+      include: { blocked: { select: { id: true, username: true, avatarUrl: true } } },
+    })
+    return reply.send(blocks.map((b) => b.blocked))
+  })
+
+  // POST /api/users/:userId/report — report a player
+  fastify.post('/:userId/report', { onRequest: [fastify.authenticate] }, async (req, reply) => {
+    const reporterId = (req.user as { sub: string }).sub
+    const { userId } = req.params as { userId: string }
+    const { reason, details } = req.body as { reason: string; details?: string }
+
+    const VALID_REASONS = ['cheating', 'harassment', 'hate_speech', 'inappropriate_name', 'spam', 'other']
+    if (!VALID_REASONS.includes(reason)) return reply.status(400).send({ error: 'Invalid reason' })
+
+    await prisma.report.create({
+      data: { reporterId, reportedId: userId, reason, details: details?.slice(0, 500) },
+    })
+
+    return reply.send({ success: true })
   })
 
   // GET /api/users/:id/profile — public profile with stats

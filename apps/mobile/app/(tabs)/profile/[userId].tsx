@@ -6,6 +6,9 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Modal,
+  TextInput,
+  Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -14,6 +17,15 @@ import { api } from '../../../lib/api'
 import { RANK_CONFIG } from '@imposter/shared'
 import type { RankTier } from '@imposter/shared'
 import { useResponsive } from '../../../lib/responsive'
+
+const REPORT_REASONS = [
+  { value: 'cheating', label: '🚫 Cheating' },
+  { value: 'harassment', label: '😡 Harassment' },
+  { value: 'hate_speech', label: '🔞 Hate Speech' },
+  { value: 'inappropriate_name', label: '🏷️ Inappropriate Name' },
+  { value: 'spam', label: '📢 Spam' },
+  { value: 'other', label: '❓ Other' },
+]
 
 interface PlayerProfile {
   id: string
@@ -36,6 +48,13 @@ export default function PlayerProfileScreen() {
   const [error, setError] = useState<string | null>(null)
   const [friendRequested, setFriendRequested] = useState(false)
   const [sendingRequest, setSendingRequest] = useState(false)
+  const [blocked, setBlocked] = useState(false)
+  const [blockLoading, setBlockLoading] = useState(false)
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [reportReason, setReportReason] = useState('')
+  const [reportDetails, setReportDetails] = useState('')
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportDone, setReportDone] = useState(false)
 
   const fetchProfile = useCallback(async () => {
     if (!userId) return
@@ -65,6 +84,48 @@ export default function PlayerProfileScreen() {
       setError(err.message)
     } finally {
       setSendingRequest(false)
+    }
+  }
+
+  const handleBlock = async () => {
+    if (!userId || blocked) return
+    Alert.alert(
+      'Block Player',
+      `Block ${profile?.username}? They won't be able to join your rooms or send you messages.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            setBlockLoading(true)
+            try {
+              await api.post(`/users/${userId}/block`, {})
+              setBlocked(true)
+            } catch (err: any) {
+              setError(err.message)
+            } finally {
+              setBlockLoading(false)
+            }
+          },
+        },
+      ]
+    )
+  }
+
+  const handleReport = async () => {
+    if (!userId || !reportReason) return
+    setReportLoading(true)
+    try {
+      await api.post(`/users/${userId}/report`, {
+        reason: reportReason,
+        details: reportDetails.trim() || undefined,
+      })
+      setReportDone(true)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setReportLoading(false)
     }
   }
 
@@ -193,6 +254,35 @@ export default function PlayerProfileScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Block / Report actions */}
+        <View className="mt-3 flex-row gap-2" style={{ marginHorizontal: px }}>
+          <TouchableOpacity
+            onPress={() => { setShowReportModal(true); setReportDone(false); setReportReason(''); setReportDetails('') }}
+            className="flex-1 py-3 rounded-2xl border border-neutral-700 bg-neutral-800 items-center"
+            activeOpacity={0.8}
+          >
+            <Text className="text-neutral-400 font-semibold text-sm">🚨 Report</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleBlock}
+            disabled={blocked || blockLoading}
+            className={[
+              'flex-1 py-3 rounded-2xl border items-center',
+              blocked ? 'border-emerald-800/50 bg-emerald-950/30' : 'border-red-900/50 bg-red-950/30',
+              (blocked || blockLoading) ? 'opacity-60' : '',
+            ].join(' ')}
+            activeOpacity={0.8}
+          >
+            {blockLoading ? (
+              <ActivityIndicator size="small" color="#f87171" />
+            ) : (
+              <Text className={blocked ? 'text-emerald-400 font-semibold text-sm' : 'text-red-400 font-semibold text-sm'}>
+                {blocked ? '✅ Blocked' : '🚫 Block'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
         {/* Error */}
         {error && (
           <View className="mt-4 flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800" style={{ marginHorizontal: px }}>
@@ -201,6 +291,109 @@ export default function PlayerProfileScreen() {
         )}
         </View>
       </ScrollView>
+
+      {/* Report Modal */}
+      <Modal
+        visible={showReportModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowReportModal(false)}
+      >
+        <View className="flex-1 justify-end bg-black/60">
+          <View className="bg-neutral-950 border border-neutral-800 rounded-t-3xl px-5 pt-5 pb-8">
+            {/* Handle bar */}
+            <View className="w-10 h-1 rounded-full bg-neutral-700 self-center mb-4" />
+
+            {reportDone ? (
+              <View className="items-center py-6 gap-3">
+                <Text style={{ fontSize: 48 }}>✅</Text>
+                <Text className="text-white font-bold text-lg">Report Submitted</Text>
+                <Text className="text-neutral-400 text-sm text-center">
+                  Thank you. We'll review this report and take appropriate action.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowReportModal(false)}
+                  className="mt-2 px-8 py-3 rounded-2xl bg-violet-600"
+                  activeOpacity={0.8}
+                >
+                  <Text className="text-white font-bold">Done</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <View className="flex-row items-center justify-between mb-4">
+                  <Text className="text-white font-bold text-lg">Report {profile?.username}</Text>
+                  <TouchableOpacity onPress={() => setShowReportModal(false)}>
+                    <Text className="text-neutral-400 text-2xl">×</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">
+                  Reason *
+                </Text>
+                <View className="flex-row flex-wrap gap-2 mb-4">
+                  {REPORT_REASONS.map((r) => (
+                    <TouchableOpacity
+                      key={r.value}
+                      onPress={() => setReportReason(r.value)}
+                      className={[
+                        'px-3 py-2 rounded-xl border',
+                        reportReason === r.value
+                          ? 'border-red-700/60 bg-red-950/50'
+                          : 'border-neutral-700 bg-neutral-800',
+                      ].join(' ')}
+                      activeOpacity={0.75}
+                    >
+                      <Text className={reportReason === r.value ? 'text-red-300 text-sm font-medium' : 'text-neutral-400 text-sm'}>
+                        {r.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">
+                  Details (optional)
+                </Text>
+                <TextInput
+                  value={reportDetails}
+                  onChangeText={(v) => setReportDetails(v.slice(0, 500))}
+                  placeholder="Describe what happened..."
+                  placeholderTextColor="#525252"
+                  multiline
+                  numberOfLines={3}
+                  className="bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm mb-4"
+                  style={{ height: 80, textAlignVertical: 'top' }}
+                />
+
+                <View className="flex-row gap-2">
+                  <TouchableOpacity
+                    onPress={() => setShowReportModal(false)}
+                    className="flex-1 py-3.5 rounded-2xl border border-neutral-700 bg-neutral-800 items-center"
+                    activeOpacity={0.8}
+                  >
+                    <Text className="text-neutral-400 font-semibold">Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleReport}
+                    disabled={!reportReason || reportLoading}
+                    className={[
+                      'flex-1 py-3.5 rounded-2xl items-center',
+                      !reportReason || reportLoading ? 'bg-red-900/50 opacity-50' : 'bg-red-700',
+                    ].join(' ')}
+                    activeOpacity={0.8}
+                  >
+                    {reportLoading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text className="text-white font-bold">Submit Report</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }

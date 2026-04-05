@@ -8,6 +8,7 @@ const TABS = [
   { path: '/history',     icon: '📜', labelKey: 'nav.history' },
   { path: '/friends',     icon: '👥', labelKey: 'nav.friends' },
   { path: '/profile',     icon: '👤', labelKey: 'nav.profile' },
+  { path: '/settings',    icon: '⚙️', labelKey: 'nav.settings' },
 ]
 
 export function BottomNav() {

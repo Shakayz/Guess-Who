@@ -22,6 +22,7 @@ export default {
     friends: 'Amici',
     signOut: 'Disconnetti',
     profile: 'Profilo',
+    settings: 'Impostazioni',
   },
   auth: {
     signIn: 'Accedi',

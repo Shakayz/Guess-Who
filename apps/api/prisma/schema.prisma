@@ -44,6 +44,10 @@ model User {
   receivedGifts          Gift[]          @relation("GiftReceiver")
   seasonPassClaims       SeasonPassClaim[]
   purchases              Purchase[]
+  blocksGiven            Block[]         @relation("blocker")
+  blocksReceived         Block[]         @relation("blocked")
+  reportsMade            Report[]        @relation("reporter")
+  reportsReceived        Report[]        @relation("reported")
 
   @@index([rankPoints(sort: Desc)])
   @@map("users")
@@ -370,6 +374,35 @@ model Gift {
   receiver User @relation("GiftReceiver", fields: [receiverId], references: [id])
 
   @@map("gifts")
+}
+
+// ─── Block & Report ───────────────────────────────────────────────────────────
+
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  blocker   User     @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@map("blocks")
+}
+
+model Report {
+  id         String   @id @default(cuid())
+  reporterId String
+  reportedId String
+  reason     String   @db.VarChar(50)
+  details    String?
+  status     String   @default("pending") @db.VarChar(20)
+  reporter   User     @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported   User     @relation("reported", fields: [reportedId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([reportedId, status])
+  @@map("reports")
 }
 
 // ─── Purchases ────────────────────────────────────────────────────────────────

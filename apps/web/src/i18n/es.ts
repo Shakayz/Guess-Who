@@ -22,6 +22,7 @@ export default {
     friends: 'Amigos',
     signOut: 'Cerrar sesión',
     profile: 'Perfil',
+    settings: 'Ajustes',
   },
   auth: {
     signIn: 'Iniciar sesión',

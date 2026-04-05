@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { NavBar } from '../components/NavBar'
@@ -9,6 +9,7 @@ import { connectSocket, getSocket } from '../lib/socket'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
 import { createLogger } from '../lib/logger'
+import { SoundManager } from '../lib/sounds'
 
 const log = createLogger('home')
 
@@ -335,6 +336,7 @@ export default function HomePage() {
                   <button
                     key={mode.id}
                     onClick={() => {
+                      SoundManager.play('click')
                       if (mode.id === 'offline') { navigate('/offline'); return }
                       setSelectedMode(active ? null : mode.id)
                       setCategories([])
@@ -567,14 +569,14 @@ export default function HomePage() {
 
         </div>
 
-        {/* How to play button */}
-        <button
-          onClick={() => setShowHowToPlay(true)}
+        {/* How to play link */}
+        <Link
+          to="/how-to-play"
           className="mt-10 text-xs font-semibold uppercase tracking-widest text-neutral-600 hover:text-neutral-400 transition-colors flex items-center gap-1.5"
         >
           <span className="w-4 h-4 rounded-full border border-neutral-700 flex items-center justify-center text-[10px] font-bold">?</span>
           {t('home.howToPlay')}
-        </button>
+        </Link>
 
         {/* How to play modal */}
         {showHowToPlay && (

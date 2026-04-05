@@ -507,6 +507,19 @@ export default function HomeScreen() {
                 </View>
               ))}
             </View>
+
+            {/* Full tutorial link */}
+            <TouchableOpacity
+              onPress={() => router.push('/how-to-play')}
+              className="mt-4 flex-row items-center justify-center gap-2 py-3 rounded-2xl border border-neutral-800 bg-neutral-900/50"
+              activeOpacity={0.75}
+            >
+              <Text style={{ fontSize: 16 }}>📖</Text>
+              <Text className="text-neutral-400 font-semibold" style={{ fontSize: 13 * fontScale }}>
+                Full Tutorial
+              </Text>
+              <Text className="text-neutral-600" style={{ fontSize: 14 }}>›</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>

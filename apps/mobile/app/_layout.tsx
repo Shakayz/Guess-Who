@@ -7,6 +7,8 @@ import { useAuthStore } from '../store/auth'
 import { useSocialStore } from '../store/social'
 import { connectSocket, getSocket } from '../lib/socket'
 import { registerForPushNotifications } from '../lib/notifications'
+import { ErrorBoundary } from '../components/ErrorBoundary'
+import { ConnectionStatus } from '../components/ConnectionStatus'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -128,10 +130,11 @@ function FriendRequestBanner() {
 
 export default function RootLayout() {
   return (
-    <>
+    <ErrorBoundary>
       <StatusBar style="light" />
       <AuthGuard>
         <GlobalSocketListeners />
+        <ConnectionStatus />
         <InviteBanner />
         <FriendRequestBanner />
         <Stack
@@ -145,11 +148,12 @@ export default function RootLayout() {
           <Stack.Screen name="auth" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="offline" options={{ title: 'Offline Mode', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="how-to-play" options={{ title: 'How to Play', headerBackTitle: 'Back' }} />
           <Stack.Screen name="lobby/[code]" options={{ title: 'Lobby', headerBackTitle: 'Leave' }} />
           <Stack.Screen name="game/[code]" options={{ title: 'Game', headerShown: false }} />
           <Stack.Screen name="results/[code]" options={{ title: 'Results' }} />
         </Stack>
       </AuthGuard>
-    </>
+    </ErrorBoundary>
   )
 }

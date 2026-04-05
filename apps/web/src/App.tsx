@@ -7,6 +7,7 @@ import { useGameStore } from './store/game'
 import { getSocket } from './lib/socket'
 import { api } from './lib/api'
 import { BottomNav } from './components/BottomNav'
+import { ConnectionStatus } from './components/ConnectionStatus'
 import { createLogger } from './lib/logger'
 
 const log = createLogger('app')
@@ -24,6 +25,10 @@ const GameDetailPage  = React.lazy(() => import('./pages/GameDetailPage'))
 const FriendsPage         = React.lazy(() => import('./pages/FriendsPage'))
 const PlayerProfilePage   = React.lazy(() => import('./pages/PlayerProfilePage'))
 const OfflinePage         = React.lazy(() => import('./pages/OfflinePage'))
+const HowToPlayPage       = React.lazy(() => import('./pages/HowToPlayPage'))
+const SettingsPage        = React.lazy(() => import('./pages/SettingsPage'))
+const TermsPage           = React.lazy(() => import('./pages/TermsPage'))
+const PrivacyPage         = React.lazy(() => import('./pages/PrivacyPage'))
 // const SeasonPassPage      = React.lazy(() => import('./pages/SeasonPassPage'))  // TODO: re-enable when premium is ready
 // const WordPacksPage       = React.lazy(() => import('./pages/WordPacksPage'))  // TODO: re-enable when premium is ready
 
@@ -283,18 +288,26 @@ function InviteBanner() {
   )
 }
 
+function AuthenticatedConnectionStatus() {
+  const token = useAuthStore((s) => s.token)
+  if (!token) return null
+  return <ConnectionStatus />
+}
+
 export default function App() {
   return (
     <Suspense fallback={<Spinner />}>
       <ActiveGameRestorer />
       <GlobalSocketListeners />
       <ActiveGameGuard />
+      <AuthenticatedConnectionStatus />
       <InviteBanner />
       <FriendRequestBanner />
       <BottomNav />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/offline" element={<OfflinePage />} />
+        <Route path="/how-to-play" element={<HowToPlayPage />} />
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
         <Route path="/lobby/:code" element={<ProtectedRoute><LobbyPage /></ProtectedRoute>} />
         <Route path="/game/:code" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
@@ -306,6 +319,9 @@ export default function App() {
         <Route path="/history/:gameId" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />
         <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
         <Route path="/player/:userId" element={<ProtectedRoute><PlayerProfilePage /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         {/* <Route path="/season-pass" element={<ProtectedRoute><SeasonPassPage /></ProtectedRoute>} /> */}
         {/* <Route path="/word-packs" element={<ProtectedRoute><WordPacksPage /></ProtectedRoute>} /> */}
         <Route path="*" element={<Navigate to="/" replace />} />

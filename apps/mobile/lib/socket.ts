@@ -3,7 +3,7 @@ import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/share
 import { useAuthStore } from '../store/auth'
 import { createLogger } from './logger'
 
-const SOCKET_URL = 'http://localhost:3001'
+const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL || 'http://localhost:3001'
 
 const log = createLogger('socket')
 

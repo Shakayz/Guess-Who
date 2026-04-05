@@ -21,6 +21,7 @@ export default {
     history: 'History',
     friends: 'Friends',
     signOut: 'Sign out',
+    settings: 'Settings',
   },
   auth: {
     signIn: 'Sign In',

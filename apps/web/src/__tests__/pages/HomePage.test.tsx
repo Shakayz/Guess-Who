@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
+  Link: ({ children, to, ...props }: any) => React.createElement('a', { href: to, ...props }, children),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -152,11 +153,10 @@ describe('HomePage', () => {
     expect(mockNavigate).not.toHaveBeenCalled()
   })
 
-  it('shows how to play modal on button click', () => {
+  it('shows how to play link that navigates to /how-to-play', () => {
     render(<HomePage />)
-    const howToPlayBtn = screen.getByText('home.howToPlay')
-    fireEvent.click(howToPlayBtn)
-    expect(screen.getByText('home.htp.objective')).toBeInTheDocument()
+    const howToPlayLink = screen.getByText('home.howToPlay')
+    expect(howToPlayLink.closest('a')).toHaveAttribute('href', '/how-to-play')
   })
 
   it('closes how to play modal when close button is clicked', () => {

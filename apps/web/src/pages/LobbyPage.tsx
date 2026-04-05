@@ -11,6 +11,7 @@ import { NavBar } from '../components/NavBar'
 import { WORD_CATEGORIES } from '@imposter/shared'
 import type { Room, GameMode, WordCategory } from '@imposter/shared'
 import { createLogger } from '../lib/logger'
+import { SoundManager } from '../lib/sounds'
 
 const log = createLogger('lobby')
 
@@ -341,6 +342,7 @@ export default function LobbyPage() {
       if (r.players && r.players.length > prevPlayerCountRef.current) {
         const newPlayer = r.players[r.players.length - 1]
         if (newPlayer && newPlayer.userId !== user?.id) {
+          SoundManager.play('notification')
           setJoinToast(t('lobby.joinedRoom', { name: newPlayer.username }))
           setTimeout(() => setJoinToast(null), 2500)
         }
@@ -376,6 +378,7 @@ export default function LobbyPage() {
     })
     socket.on('game:started', ({ round, yourWord, yourRole, yourVillagerWord }) => {
       log.info('game started', { role: yourRole, roundId: (round as any)?.id })
+      SoundManager.play('game_start')
       setRoleAndWord(yourRole, yourWord, yourVillagerWord)
       setRound(round as any)
       navigate(`/game/${code}`)
@@ -398,6 +401,7 @@ export default function LobbyPage() {
   }, [code])
 
   const toggleReady = () => {
+    SoundManager.play('click')
     getSocket().emit('player:ready', !isReady)
     setIsReady((r) => !r)
   }

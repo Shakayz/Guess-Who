@@ -488,8 +488,22 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* Settings */}
+        <View style={{ marginHorizontal: px, marginTop: 16 }}>
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/profile/settings')}
+            className="rounded-2xl items-center border border-neutral-800 bg-neutral-900 flex-row justify-center gap-2"
+            style={{ paddingVertical: isTablet ? 18 : 16 }}
+          >
+            <Text style={{ fontSize: 18 }}>⚙️</Text>
+            <Text className="text-white font-semibold" style={{ fontSize: 15 * fontScale }}>
+              {t('nav.settings', 'Settings')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Sign Out */}
-        <View className="mt-4" style={{ marginHorizontal: px }}>
+        <View className="mt-3" style={{ marginHorizontal: px }}>
           <TouchableOpacity
             onPress={handleSignOut}
             className="rounded-2xl items-center border border-red-900 bg-red-950/40"

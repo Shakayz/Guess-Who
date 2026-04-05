@@ -15,20 +15,51 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.imposter.game",
-      "requireFullScreen": false
+      "requireFullScreen": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take a photo for your profile picture",
+        "NSPhotoLibraryUsageDescription": "Choose a profile picture from your gallery",
+        "NSPhotoLibraryAddOnlyUsageDescription": "Save images to your gallery"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#09090b"
       },
-      "package": "com.imposter.game"
+      "package": "com.imposter.game",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
+      ]
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#7c3aed"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Imposter Game to access your photos for profile pictures",
+          "cameraPermission": "Allow Imposter Game to use the camera for profile pictures"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
     }
   }
 }

@@ -22,6 +22,7 @@ export default {
     friends: '朋友',
     signOut: '退出登录',
     profile: '个人资料',
+    settings: '设置',
   },
   auth: {
     signIn: '登录',

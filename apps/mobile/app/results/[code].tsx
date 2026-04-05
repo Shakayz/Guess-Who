@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import { RANK_CONFIG } from '@imposter/shared'
 import type { HonorType } from '@imposter/shared'
 import { useTranslation } from 'react-i18next'
 import { useResponsive } from '../../lib/responsive'
+import { HapticManager } from '../../lib/haptics'
+import { SoundManager } from '../../lib/sounds'
 
 const HONOR_OPTIONS: { type: HonorType; label: string; icon: string }[] = [
   { type: 'teamplayer', label: 'Team Player', icon: '🤝' },
@@ -43,6 +45,15 @@ export default function ResultsScreen() {
   const players = room?.players?.length ? room.players : MOCK_PLAYERS
   const isImposter = myRole === 'imposter' || myRole === 'double_agent'
   const didWin = (winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter)
+
+  useEffect(() => {
+    SoundManager.play(didWin ? 'success' : 'error')
+    if (didWin) {
+      HapticManager.success()
+    } else {
+      HapticManager.error()
+    }
+  }, [])
 
   const handleHonor = (targetUserId: string, honorType: HonorType) => {
     setHonorGiven((prev) => ({ ...prev, [targetUserId]: honorType }))

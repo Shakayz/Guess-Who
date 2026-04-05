@@ -1,7 +1,7 @@
 import { useAuthStore } from '../store/auth'
 import { createLogger } from './logger'
 
-const BASE_URL = 'http://localhost:3001/api'
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api'
 
 const log = createLogger('api')
 

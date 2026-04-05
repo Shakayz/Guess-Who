@@ -8,7 +8,7 @@ import { Platform } from 'react-native'
 import { useAuthStore } from '../store/auth'
 import { createLogger } from './logger'
 
-const API_URL = 'http://localhost:3001/api'
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api'
 
 const log = createLogger('notifications')
 

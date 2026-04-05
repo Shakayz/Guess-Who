@@ -5,6 +5,7 @@ import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { RANK_CONFIG } from '@imposter/shared'
 import type { RankTier } from '@imposter/shared'
+import { ReportModal } from '../components/ReportModal'
 
 interface PlayerStats {
   totalGames: number
@@ -77,6 +78,9 @@ export default function PlayerProfilePage() {
   const [profile, setProfile] = useState<PlayerProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showReport, setShowReport] = useState(false)
+  const [blocked, setBlocked] = useState(false)
+  const [blockLoading, setBlockLoading] = useState(false)
 
   useEffect(() => {
     if (!userId) return
@@ -89,6 +93,19 @@ export default function PlayerProfilePage() {
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+
+  const handleBlock = async () => {
+    if (!userId || blocked) return
+    setBlockLoading(true)
+    try {
+      await api.post(`/users/${userId}/block`, {})
+      setBlocked(true)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setBlockLoading(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -160,7 +177,33 @@ export default function PlayerProfilePage() {
                 <span className="text-xs text-neutral-500">Joined {formatDate(profile.createdAt)}</span>
               </div>
             </div>
+            {/* Block / Report actions */}
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <button
+                onClick={() => setShowReport(true)}
+                className="px-3 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-red-950/40 hover:border-red-800/50 text-neutral-400 hover:text-red-400 text-xs font-semibold transition-colors"
+                title="Report player"
+              >
+                🚨 Report
+              </button>
+              <button
+                onClick={handleBlock}
+                disabled={blocked || blockLoading}
+                className="px-3 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={blocked ? 'Player blocked' : 'Block player'}
+              >
+                {blocked ? '✅ Blocked' : blockLoading ? '...' : '🚫 Block'}
+              </button>
+            </div>
           </div>
+
+          {showReport && profile && (
+            <ReportModal
+              targetUserId={profile.id}
+              targetUsername={profile.username}
+              onClose={() => setShowReport(false)}
+            />
+          )}
 
           {/* Stats */}
           <div className="card">

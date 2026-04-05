@@ -8,6 +8,8 @@ import { Avatar, Badge } from '@imposter/ui'
 import { RANK_CONFIG } from '@imposter/shared'
 import type { RankTier, Round } from '@imposter/shared'
 import { getSocket } from '../lib/socket'
+import { SoundManager } from '../lib/sounds'
+import { PlayerActionMenu } from '../components/PlayerActionMenu'
 
 /** Full-screen cinematic intro overlay that auto-dismisses */
 const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: () => void }) => {
@@ -298,6 +300,12 @@ export default function ResultsPage() {
   const animatedXP = useAnimatedNumber(Math.abs(rewards?.xpEarned ?? 0))
   const animatedLP = useAnimatedNumber(Math.abs(rewards?.lpChange ?? 0))
 
+  // Play outcome sound on mount
+  useEffect(() => {
+    SoundManager.play(didWin ? 'success' : 'error')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     const sock = getSocket() as any
 
@@ -564,6 +572,19 @@ export default function ResultsPage() {
                       ].join(' ')}>
                         {survived ? t('results.survived') : t('results.eliminated')}
                       </span>
+                    )}
+                    {!isMe && (
+                      <PlayerActionMenu targetUserId={p.userId} targetUsername={p.username}>
+                        {(openMenu) => (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openMenu() }}
+                            className="w-6 h-6 flex items-center justify-center rounded-lg text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800 transition-colors text-xs"
+                            title="More options"
+                          >
+                            ⋯
+                          </button>
+                        )}
+                      </PlayerActionMenu>
                     )}
                   </div>
                 )

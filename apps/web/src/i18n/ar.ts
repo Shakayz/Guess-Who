@@ -22,6 +22,7 @@ export default {
     friends: 'الأصدقاء',
     signOut: 'تسجيل الخروج',
     profile: 'الملف الشخصي',
+    settings: 'الإعدادات',
   },
   auth: {
     signIn: 'تسجيل الدخول',

@@ -21,6 +21,8 @@ import EliminationOverlay from '../../components/EliminationOverlay'
 import type { Clue } from '@imposter/shared'
 import { useResponsive } from '../../lib/responsive'
 import { createLogger } from '../../lib/logger'
+import { HapticManager } from '../../lib/haptics'
+import { SoundManager } from '../../lib/sounds'
 
 const log = createLogger('game-screen')
 
@@ -326,6 +328,16 @@ export default function GameScreen() {
   const players = room?.players ?? []
   const alivePlayers = players.filter((p) => p.status === 'alive')
 
+  // ─── Timer tick sounds ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (timeLeft <= 0) return
+    if (timeLeft <= 3) {
+      SoundManager.play('timer_warning')
+    } else if (timeLeft <= 5) {
+      SoundManager.play('timer_tick')
+    }
+  }, [timeLeft])
+
   // ─── Role reveal on mount ──────────────────────────────────────────────────
 
   useEffect(() => {
@@ -358,6 +370,7 @@ export default function GameScreen() {
     // game:started — reset all state for new game
     socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
       log.info('game started', { role: yourRole })
+      SoundManager.play('game_start')
       setRoleAndWord(yourRole, yourWord, yourVillagerWord)
       setClues([])
       setHasSubmittedClue(false)
@@ -427,6 +440,7 @@ export default function GameScreen() {
     // Speaking turn — also used as new-round signal
     socket.on('round:speaking-turn', ({ timeSeconds, speakingOrder: _order }: any) => {
       if (phaseRef.current !== 'speaking') {
+        SoundManager.play('round_start')
         setClues([])
         setHasSubmittedClue(false)
         setVotedFor(null)
@@ -456,6 +470,7 @@ export default function GameScreen() {
     // Round ended
     socket.on('round:ended', ({ round, nextRound }: any) => {
       log.info('phase: reveal', { roundNumber: round?.roundNumber, eliminatedId: round?.eliminatedPlayerId })
+      SoundManager.play('reveal')
       phaseRef.current = 'reveal'
       setPhase('reveal')
       setAllVotedMsg(false)
@@ -463,6 +478,7 @@ export default function GameScreen() {
       if (nextRound) setRound(nextRound)
       if (round?.wordReveal) setWordReveal(round.wordReveal)
       if (round?.eliminatedPlayerId) {
+        SoundManager.play('elimination')
         const elim = players.find((p: any) => p.userId === round.eliminatedPlayerId)
         const elimRole = round.eliminatedRole ?? (elim as any)?.role ?? 'villager'
         const elimName = elim?.username ?? round.eliminatedPlayerId
@@ -473,6 +489,7 @@ export default function GameScreen() {
           socket.emit('deadchat:join' as any)
         }
         // Show elimination overlay
+        HapticManager.heavy()
         showElimination(elimName, elimRole, 'voted')
       } else {
         if (round?.votes?.length > 0) setIsTie(true)
@@ -524,13 +541,16 @@ export default function GameScreen() {
         socket.emit('deadchat:join' as any)
       }
       // Show elimination overlay with said_word reason
+      HapticManager.heavy()
       showElimination(username, role, 'said_word')
     })
 
     // Game finished
     socket.on('game:finished', (data) => {
       log.info('game finished', { winner: (data as any)?.winner })
+      SoundManager.play('game_end')
       setResult(data)
+      HapticManager.success()
       router.replace(`/results/${code}`)
     })
 
@@ -618,7 +638,9 @@ export default function GameScreen() {
   const vote = (playerId: string) => {
     if (votedFor || phase !== 'voting') return
     log.info('vote cast', { targetId: playerId })
+    SoundManager.play('vote')
     setVotedFor(playerId)
+    HapticManager.medium()
     getSocket().emit('vote:cast', playerId)
   }
 

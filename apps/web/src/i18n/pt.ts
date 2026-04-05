@@ -22,6 +22,7 @@ export default {
     friends: 'Amigos',
     signOut: 'Sair',
     profile: 'Perfil',
+    settings: 'Configurações',
   },
   auth: {
     signIn: 'Entrar',
