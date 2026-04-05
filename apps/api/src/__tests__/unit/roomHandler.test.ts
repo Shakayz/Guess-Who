@@ -477,4 +477,312 @@ describe('game:leave-eliminated', () => {
 
     expect(socket.leave).not.toHaveBeenCalled()
   })
+
+  it('leaves room when state is null (game already over)', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    mockRedis.get.mockResolvedValue(null)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:leave-eliminated')
+
+    expect(socket.leave).toHaveBeenCalledWith('room:room-1')
+  })
+})
+
+// ─── game:start — full flow ───────────────────────────────────────────────────
+
+describe('game:start — full start flow', () => {
+  it('starts game successfully and emits game:started when host triggers', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    const gameState = {
+      ...waitingState,
+      players: [
+        { userId: 'host-1', username: 'Host',  role: undefined, status: 'alive', isHost: true, isReady: true, honorGiven: false },
+        { userId: 'p2',     username: 'P2',    role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p3',     username: 'P3',    role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p4',     username: 'P4',    role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+      ],
+    }
+
+    // Lock + state
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+
+    mockPrisma.wordPack.findFirst.mockResolvedValue(null)
+    mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+      fn({
+        game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
+        round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
+        gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+      })
+    )
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+    await vi.advanceTimersByTimeAsync(3100)
+
+    // room:updated should be emitted
+    expect(io.to).toHaveBeenCalledWith('room:room-1')
+    vi.useRealTimers()
+  })
+
+  it('does not start if fewer than 4 players', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    const gameState = {
+      ...waitingState,
+      players: [
+        { userId: 'host-1', isReady: true },
+        { userId: 'p2', isReady: true },
+      ],
+    }
+
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+
+    // $transaction should NOT have been called (not enough players)
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('does not start if some players are not ready', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    const gameState = {
+      ...waitingState,
+      players: [
+        { userId: 'host-1', isReady: true },
+        { userId: 'p2', isReady: false },
+        { userId: 'p3', isReady: true },
+        { userId: 'p4', isReady: true },
+      ],
+    }
+
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('does not start if game already in_progress', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    const gameState = {
+      ...waitingState,
+      status: 'in_progress',
+      players: [
+        { userId: 'host-1', isReady: true },
+        { userId: 'p2', isReady: true },
+        { userId: 'p3', isReady: true },
+        { userId: 'p4', isReady: true },
+      ],
+    }
+
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled()
+  })
+})
+
+// ─── room:join — auto-start matchmade game ───────────────────────────────────
+
+describe('room:join — auto-start when all expected players joined', () => {
+  it('triggers auto-start when matchmade room fills up', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const socket = makeSocket('p2', 'P2') // second player joining
+
+    const matchmadeState = {
+      ...waitingState,
+      isMatchmade: true,
+      expectedPlayers: 2,
+      players: [
+        { userId: 'host-1', username: 'Host', isHost: true, isReady: true, status: 'alive', honorGiven: false },
+      ],
+    }
+
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(matchmadeState))
+    mockRedis.del.mockResolvedValue(1)
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'p2', locale: 'en' })
+    mockPrisma.gameParticipation.findFirst.mockResolvedValue(null)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:join', { roomCode: 'ABCD' })
+
+    // room:updated should be emitted when p2 joined (now 2 players = expectedPlayers)
+    expect(io.to).toHaveBeenCalledWith('room:room-1')
+
+    // Advance past the 2000ms auto-start delay
+    await vi.advanceTimersByTimeAsync(3000)
+    vi.useRealTimers()
+  })
+})
+
+// ─── room:settings — all options ─────────────────────────────────────────────
+
+describe('room:settings — full options', () => {
+  it('enables detective and doubleAgent in special mode', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = { ...waitingState, gameMode: 'special' }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:settings', {
+      gameMode: 'special',
+      enableDetective: true,
+      enableDoubleAgent: true,
+      maxRounds: 10,
+      speakingTimeSeconds: 60,
+      votingTimeSeconds: 45,
+      language: 'fr',
+    })
+
+    expect(mockPrisma.room.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ speakingTimeSeconds: 60, votingTimeSeconds: 45, language: 'fr' }),
+    }))
+    const setCall = mockRedis.set.mock.calls[0]
+    const savedState = JSON.parse(setCall[1])
+    expect(savedState.enableDetective).toBe(true)
+    expect(savedState.enableDoubleAgent).toBe(true)
+    expect(savedState.maxRounds).toBe(10)
+  })
+
+  it('clamps speakingTimeSeconds to valid range', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = { ...waitingState }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:settings', { speakingTimeSeconds: 5, votingTimeSeconds: 200 })
+
+    expect(mockPrisma.room.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ speakingTimeSeconds: 10, votingTimeSeconds: 120 }),
+    }))
+  })
+
+  it('does not update DB if no numeric/language settings provided', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = { ...waitingState }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:settings', { gameMode: 'special' })
+
+    // room.update is not called when only state-only settings are changed
+    // (categories, gameMode, maxRounds, enableDetective, enableDoubleAgent)
+    expect(mockPrisma.room.update).not.toHaveBeenCalled()
+  })
+
+  it('ignores unsupported language codes', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = { ...waitingState }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:settings', { language: 'klingon' })
+
+    // Should not update DB with unsupported language
+    expect(mockPrisma.room.update).not.toHaveBeenCalled()
+  })
+})
+
+// ─── room:join — ALREADY_IN_GAME error ───────────────────────────────────────
+
+describe('room:join — ALREADY_IN_GAME block', () => {
+  it('emits ALREADY_IN_GAME when player is in another active game', async () => {
+    const io = makeIo()
+    const socket = makeSocket('other-user', 'Other')
+    mockPrisma.room.findUnique.mockResolvedValue({ ...defaultRoom, hostId: 'someone-else', language: 'en' })
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'other-user', locale: 'en' })
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(waitingState))
+    mockRedis.del.mockResolvedValue(1)
+    // Player is in another active game (different room)
+    mockPrisma.gameParticipation.findFirst.mockResolvedValue({
+      game: { roomId: 'room-other' },
+    })
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:join', { roomCode: 'ABCD' })
+
+    expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'ALREADY_IN_GAME' }))
+  })
+
+  it('emits PLAYER_FORFEITED when forfeited player tries to rejoin', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host')
+    const forfeitedState = {
+      ...waitingState,
+      players: [{ userId: 'host-1', status: 'forfeited' }],
+    }
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(forfeitedState))
+    mockRedis.del.mockResolvedValue(1)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:join', { roomCode: 'ABCD' })
+
+    expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'PLAYER_FORFEITED' }))
+  })
+})
+
+// ─── room:leave — edge cases ──────────────────────────────────────────────────
+
+describe('room:leave — edge cases', () => {
+  it('does nothing when state is null', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    mockRedis.get.mockResolvedValue(null)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:leave')
+
+    expect(mockRedis.set).not.toHaveBeenCalled()
+  })
 })

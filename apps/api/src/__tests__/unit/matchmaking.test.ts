@@ -48,7 +48,7 @@ function queueEntry(userId: string, rankPoints = 100) {
   return JSON.stringify({ userId, socketId: `sock-${userId}`, categories: [], locale: 'en', rankPoints, joinedAt: Date.now() })
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks()
   vi.useFakeTimers()
 
@@ -71,13 +71,28 @@ beforeEach(() => {
     isPrivate: false, language: 'en',
     createdAt: new Date(),
   })
+
+  // Restore onlineUsers mock after vi.clearAllMocks() clears implementations
+  const { onlineUsers: ou } = await import('../../socket/onlineUsers')
+  ;(ou.get as any).mockReturnValue('sock-user')
+  ;(ou.has as any).mockReturnValue(true)
 })
 
 afterEach(() => {
   vi.useRealTimers()
 })
 
+vi.mock('../../socket/onlineUsers', () => ({
+  onlineUsers: {
+    get: vi.fn().mockReturnValue('sock-user'),
+    has: vi.fn().mockReturnValue(true),
+    set: vi.fn(),
+    delete: vi.fn(),
+  },
+}))
+
 import { registerMatchmakingHandlers, cleanupEmptyQueue } from '../../socket/handlers/matchmaking'
+import { onlineUsers } from '../../socket/onlineUsers'
 
 // ─── matchmaking:join ─────────────────────────────────────────────────────────
 
@@ -269,5 +284,287 @@ describe('matchmaking queue status correctness', () => {
       elapsed: expect.any(Number),
       maxWait: expect.any(Number),
     })
+  })
+})
+
+// ─── Matchmaking window tick logic ────────────────────────────────────────────
+// These tests exercise the internal tick functions by using fake timers to
+// trigger the setInterval that fires the match-making logic.
+// Each test uses a unique locale so they get different queue keys and don't
+// conflict in the module-level `activeWindows` Map.
+
+describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS', () => {
+  it('starts match when IDEAL_PLAYERS (10) join and tick fires [locale:de]', async () => {
+    const io = makeIo()
+    const socket = makeSocket('user-de1')
+    // Use unique locale to get unique queue key: matchmaking:normal:de
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-de1', locale: 'de' })
+      .mockResolvedValueOnce({ id: 'user-de1', rankPoints: 0 })
+
+    // IDEAL_PLAYERS = 10 — use 10 entries to trigger instant match
+    const entries = Array.from({ length: 10 }, (_, i) =>
+      JSON.stringify({ userId: `user-de${i}`, socketId: `sock-de${i}`, categories: [], locale: 'de', rankPoints: 0, joinedAt: Date.now() })
+    )
+    ;(mockRedis as any).llen.mockResolvedValue(10)
+    ;(mockRedis as any).lrange.mockResolvedValue(entries)
+    let popCount = 0
+    ;(mockRedis as any).lpop.mockImplementation(() => {
+      const e = entries[popCount]
+      popCount++
+      return Promise.resolve(e ?? null)
+    })
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    mockPrisma.room.create.mockResolvedValue({
+      id: 'room-de', code: 'XYZW', hostId: 'user-de0',
+      maxPlayers: 10, imposterCount: 2,
+      speakingTimeSeconds: 30, votingTimeSeconds: 30,
+      isPrivate: false, language: 'de',
+      createdAt: new Date(),
+    })
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'normal', categories: [] })
+
+    // Advance timer to trigger the interval tick (TICK_INTERVAL_MS = 1000)
+    await vi.advanceTimersByTimeAsync(2000)
+
+    // Room should have been created
+    expect(mockPrisma.room.create).toHaveBeenCalled()
+  })
+
+  it('starts ranked match when 10 players join ranked queue with similar LP [locale:it]', async () => {
+    const io = makeIo()
+    const socket = makeSocket('user-it1')
+
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-it1', locale: 'it' })
+      .mockResolvedValueOnce({ id: 'user-it1', rankPoints: 1000 })
+
+    // Simulate 10 ranked players with similar LP (within ±50 of each other)
+    const now = Date.now()
+    const entries = Array.from({ length: 10 }, (_, i) =>
+      JSON.stringify({ userId: `user-it${i}`, socketId: `sock-it${i}`, categories: [], locale: 'it', rankPoints: 1000 + i, joinedAt: now })
+    )
+    ;(mockRedis as any).llen.mockResolvedValue(10)
+    ;(mockRedis as any).lrange.mockResolvedValue(entries)
+    ;(mockRedis as any).lrem.mockResolvedValue(1)
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    mockPrisma.room.create.mockResolvedValue({
+      id: 'room-it-ranked', code: 'RNKD', hostId: 'user-it0',
+      maxPlayers: 10, imposterCount: 3,
+      speakingTimeSeconds: 30, votingTimeSeconds: 30,
+      isPrivate: false, language: 'it',
+      createdAt: new Date(),
+    })
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'ranked', categories: [] })
+
+    // Advance timer to trigger the ranked interval tick (RANKED_TICK_MS = 2000)
+    await vi.advanceTimersByTimeAsync(5000)
+
+    // Ranked room should have been created
+    expect(mockPrisma.room.create).toHaveBeenCalled()
+  })
+
+  it('pushes players back when room creation fails in executeMatch [locale:pt]', async () => {
+    const io = makeIo()
+    const socket = makeSocket('user-pt1')
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-pt1', locale: 'pt' })
+      .mockResolvedValueOnce({ id: 'user-pt1', rankPoints: 0 })
+
+    // Use 10 entries for instant match at IDEAL_PLAYERS
+    const entries = Array.from({ length: 10 }, (_, i) =>
+      JSON.stringify({ userId: `user-pt${i}`, socketId: `sock-pt${i}`, categories: [], locale: 'pt', rankPoints: 0, joinedAt: Date.now() })
+    )
+    ;(mockRedis as any).llen.mockResolvedValue(10)
+    ;(mockRedis as any).lrange.mockResolvedValue(entries)
+    let popCount = 0
+    ;(mockRedis as any).lpop.mockImplementation(() => {
+      const e = entries[popCount]
+      popCount++
+      return Promise.resolve(e ?? null)
+    })
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    // Room creation fails → catch() returns null
+    mockPrisma.room.create.mockImplementation(() => Promise.reject(new Error('DB down')))
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'normal', categories: [] })
+    await vi.advanceTimersByTimeAsync(2000)
+
+    // lpush should be called to push entries back (because room is null)
+    expect((mockRedis as any).lpush).toHaveBeenCalled()
+  })
+
+  it('resets window timer after match when remaining players in queue [locale:zh]', async () => {
+    const io = makeIo()
+    const socket = makeSocket('user-zh1')
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-zh1', locale: 'zh' })
+      .mockResolvedValueOnce({ id: 'user-zh1', rankPoints: 0 })
+
+    // Use 10 entries for instant match (IDEAL_PLAYERS), then 5 remain
+    const entries = Array.from({ length: 10 }, (_, i) =>
+      JSON.stringify({ userId: `user-zh${i}`, socketId: `sock-zh${i}`, categories: [], locale: 'zh', rankPoints: 0, joinedAt: Date.now() })
+    )
+    // Always return 10 so the tick sees IDEAL_PLAYERS and matches immediately
+    ;(mockRedis as any).llen.mockResolvedValue(10)
+    ;(mockRedis as any).lrange.mockResolvedValue(entries)
+    let popCount = 0
+    ;(mockRedis as any).lpop.mockImplementation(() => {
+      const e = entries[popCount]
+      popCount++
+      return Promise.resolve(e ?? null)
+    })
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    mockPrisma.room.create.mockResolvedValue({
+      id: 'room-zh', code: 'ABCD', hostId: 'user-zh0',
+      maxPlayers: 10, imposterCount: 2,
+      speakingTimeSeconds: 30, votingTimeSeconds: 30,
+      isPrivate: false, language: 'zh', createdAt: new Date(),
+    })
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'normal', categories: [] })
+    await vi.advanceTimersByTimeAsync(3000)
+
+    // A room should have been created for the matched players
+    expect(mockPrisma.room.create).toHaveBeenCalled()
+  })
+
+  it('resets window start time when max wait exceeded but queue too small [locale:ar-small]', async () => {
+    const io = makeIo()
+    const socket = makeSocket('user-arsmall')
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-arsmall', locale: 'ar' })
+      .mockResolvedValueOnce({ id: 'user-arsmall', rankPoints: 0 })
+
+    // Only 2 players — not enough for MIN_PLAYERS (4)
+    const entries = [
+      JSON.stringify({ userId: 'user-arsmall', socketId: 'sock-ar', locale: 'ar', rankPoints: 0, joinedAt: Date.now() }),
+      JSON.stringify({ userId: 'user-arsmall2', socketId: 'sock-ar2', locale: 'ar', rankPoints: 0, joinedAt: Date.now() }),
+    ]
+    ;(mockRedis as any).llen.mockResolvedValue(2)
+    ;(mockRedis as any).lrange.mockResolvedValue(entries)
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'normal', categories: [] })
+
+    // Advance past MAX_WAIT_SECONDS (45s) to trigger the "reset timer" branch
+    await vi.advanceTimersByTimeAsync(60000)
+
+    // Should not have created a room (only 2 players < MIN_PLAYERS 4)
+    expect(mockPrisma.room.create).not.toHaveBeenCalled()
+  })
+
+  it('forces match at max wait time when MIN_PLAYERS (4) met [locale:es-force]', async () => {
+    const io = makeIo()
+    const socket = makeSocket('user-es1')
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-es1', locale: 'es' })
+      .mockResolvedValueOnce({ id: 'user-es1', rankPoints: 0 })
+
+    // 4 players — meets MIN_PLAYERS but below IDEAL_PLAYERS (10)
+    const entries = Array.from({ length: 4 }, (_, i) =>
+      JSON.stringify({ userId: `user-es${i}`, socketId: `sock-es${i}`, categories: [], locale: 'es', rankPoints: 0, joinedAt: Date.now() })
+    )
+    ;(mockRedis as any).llen.mockResolvedValue(4)
+    ;(mockRedis as any).lrange.mockResolvedValue(entries)
+    let popCount = 0
+    ;(mockRedis as any).lpop.mockImplementation(() => {
+      const e = entries[popCount]
+      popCount++
+      return Promise.resolve(e ?? null)
+    })
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    mockPrisma.room.create.mockResolvedValue({
+      id: 'room-es-forced', code: 'FORC', hostId: 'user-es0',
+      maxPlayers: 10, imposterCount: 1,
+      speakingTimeSeconds: 30, votingTimeSeconds: 30,
+      isPrivate: false, language: 'es', createdAt: new Date(),
+    })
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'normal', categories: [] })
+
+    // Advance past MAX_WAIT_SECONDS (45s) — force-start branch should trigger
+    await vi.advanceTimersByTimeAsync(60000)
+
+    expect(mockPrisma.room.create).toHaveBeenCalled()
+  })
+
+  it('emits matchmaking:found to online players after successful match [locale:pl]', async () => {
+    // Use 'pl' locale (unique in this file) to avoid activeWindows key collision
+    const io = makeIo()
+    const socket = makeSocket('user-pl-found')
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-pl-found', locale: 'pl' })
+      .mockResolvedValueOnce({ id: 'user-pl-found', rankPoints: 0 })
+
+    const entries = Array.from({ length: 10 }, (_, i) =>
+      JSON.stringify({ userId: `user-pl${i}`, socketId: `sock-pl${i}`, categories: [], locale: 'pl', rankPoints: 0, joinedAt: Date.now() })
+    )
+    ;(mockRedis as any).llen.mockResolvedValue(10)
+    ;(mockRedis as any).lrange.mockResolvedValue(entries)
+    let popCount = 0
+    ;(mockRedis as any).lpop.mockImplementation(() => {
+      const e = entries[popCount]
+      popCount++
+      return Promise.resolve(e ?? null)
+    })
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    mockPrisma.room.create.mockResolvedValue({
+      id: 'room-pl-broadcast', code: 'BCAST', hostId: 'user-pl0',
+      maxPlayers: 10, imposterCount: 2,
+      speakingTimeSeconds: 30, votingTimeSeconds: 30,
+      isPrivate: false, language: 'pl', createdAt: new Date(),
+    })
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'normal', categories: [] })
+    await vi.advanceTimersByTimeAsync(2000)
+
+    // Room created and matchmaking:found emitted via io.to(socketId)
+    expect(mockPrisma.room.create).toHaveBeenCalled()
+    expect(io.to).toHaveBeenCalled()
+  })
+
+  it('notifies players via io.to when ranked room creation fails [locale:ko-ranked]', async () => {
+    // Use 'ko' locale (unique in this file) to avoid activeWindows key collision
+    const io = makeIo()
+    const socket = makeSocket('user-ko1')
+
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-ko1', locale: 'ko' })
+      .mockResolvedValueOnce({ id: 'user-ko1', rankPoints: 2000 })
+
+    const now = Date.now()
+    const entries = Array.from({ length: 10 }, (_, i) =>
+      JSON.stringify({ userId: `user-ko${i}`, socketId: `sock-ko${i}`, categories: [], locale: 'ko', rankPoints: 2000 + i, joinedAt: now })
+    )
+    ;(mockRedis as any).llen.mockResolvedValue(10)
+    ;(mockRedis as any).lrange.mockResolvedValue(entries)
+    ;(mockRedis as any).lrem.mockResolvedValue(1)
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    // Room creation fails — catch() returns null → notify players
+    mockPrisma.room.create.mockImplementation(() => Promise.reject(new Error('DB error')))
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'ranked', categories: [] })
+    await vi.advanceTimersByTimeAsync(5000)
+
+    // io.to should have been called for error notification + matchmaking:error emit
+    expect(io.to).toHaveBeenCalled()
   })
 })

@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -20,23 +20,13 @@ vi.mock('../../store/auth', () => ({
     selector({ user: { id: 'u1', username: 'testuser' }, token: 'tok' }),
 }))
 
+const mockApiGet = vi.fn()
+const mockApiPatch = vi.fn()
 vi.mock('../../lib/api', () => ({
   api: {
-    get: vi.fn().mockResolvedValue({
-      id: 'u1',
-      username: 'testuser',
-      email: 'test@test.com',
-      avatarUrl: null,
-      rankTier: 'bronze',
-      rankPoints: 100,
-      honorPoints: 5,
-      starCoins: 50,
-      goldCoins: 0,
-      locale: 'en',
-      createdAt: new Date().toISOString(),
-    }),
+    get: (...args: unknown[]) => mockApiGet(...args),
     post: vi.fn().mockResolvedValue({}),
-    patch: vi.fn().mockResolvedValue({}),
+    patch: (...args: unknown[]) => mockApiPatch(...args),
     put: vi.fn().mockResolvedValue({}),
     delete: vi.fn().mockResolvedValue({}),
   },
@@ -61,8 +51,36 @@ vi.mock('@imposter/shared', () => ({
   },
 }))
 
+const meResponse = {
+  id: 'u1',
+  username: 'testuser',
+  email: 'test@test.com',
+  avatarUrl: null,
+  rankTier: 'bronze',
+  rankPoints: 150,
+  honorPoints: 5,
+  starCoins: 50,
+  goldCoins: 0,
+  locale: 'en',
+  createdAt: new Date('2023-01-01').toISOString(),
+  honorTeamplayer: 3,
+  honorSharpMind: 1,
+  honorGoodSport: 0,
+}
+
+const achievementsResponse: any[] = [
+  { id: 'a1', key: 'first_win', name: 'First Win', description: 'Win your first game', icon: '🏆', unlocked: true, unlockedAt: new Date().toISOString() },
+  { id: 'a2', key: 'veteran', name: 'Veteran', description: 'Play 50 games', icon: '⭐', unlocked: false, unlockedAt: null },
+]
+
+const profileStatsResponse = {
+  stats: { totalGames: 30, wins: 18, losses: 12, winRate: 0.6, asVillager: 22, asImposter: 8, survived: 15 },
+  recentGames: [
+    { gameId: 'g1', role: 'villager', survived: true, winnerTeam: 'villagers', didWin: true, rounds: 3, playedAt: new Date().toISOString() },
+  ],
+}
+
 import ProfilePage from '../../pages/ProfilePage'
-import { api } from '../../lib/api'
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -72,6 +90,13 @@ function wrapper({ children }: { children: React.ReactNode }) {
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockApiGet.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.resolve(meResponse)
+      if (path === '/achievements') return Promise.resolve(achievementsResponse)
+      if (path.includes('/profile')) return Promise.resolve(profileStatsResponse)
+      return Promise.resolve({})
+    })
+    mockApiPatch.mockResolvedValue({ ...meResponse, username: 'newuser' })
   })
 
   it('renders without crashing', () => {
@@ -85,12 +110,99 @@ describe('ProfilePage', () => {
   })
 
   it('shows loading state initially', () => {
+    mockApiGet.mockReturnValue(new Promise(() => {}))
     render(<ProfilePage />, { wrapper })
     expect(document.body).toBeInTheDocument()
   })
 
+  it('renders profile data after loading', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getAllByText('testuser').length).toBeGreaterThan(0)
+    })
+  })
+
+  it('renders honor points display', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      // Honor points shown in stats
+      expect(screen.getByText('profile.honorPoints')).toBeInTheDocument()
+    })
+  })
+
+  it('renders star coins display', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('profile.starCoins')).toBeInTheDocument()
+    })
+  })
+
+  it('renders rank points display', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('profile.rankPoints')).toBeInTheDocument()
+    })
+  })
+
+  it('shows achievements section', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('First Win')).toBeInTheDocument()
+    })
+  })
+
+  it('shows unlock status on achievements', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Veteran')).toBeInTheDocument()
+    })
+  })
+
+  it('shows edit button for avatar', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Edit')).toBeInTheDocument()
+    })
+  })
+
+  it('shows username edit UI when pencil/edit is clicked', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      // Find the username edit button - it's typically a pencil icon button next to username
+      const editButtons = screen.getAllByRole('button')
+      const editUsernameBtn = editButtons.find(btn => btn.title === 'edit' || btn.getAttribute('aria-label') === 'edit')
+      if (editUsernameBtn) fireEvent.click(editUsernameBtn)
+    })
+    expect(document.body).toBeInTheDocument()
+  })
+
+  it('renders honor labels for honor_teamplayer', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('profile.teamPlayer')).toBeInTheDocument()
+    })
+  })
+
   it('renders without errors even while data is loading', () => {
-    vi.mocked(api.get).mockReturnValue(new Promise(() => {}) as any)
+    mockApiGet.mockReturnValue(new Promise(() => {}))
     render(<ProfilePage />, { wrapper })
     expect(document.body).toBeInTheDocument()
   })

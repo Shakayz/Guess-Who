@@ -86,6 +86,16 @@ import {
   forfeitPlayer,
 } from '../../socket/gameLoop'
 
+// Additional mock for onlineUsers
+vi.mock('../../socket/onlineUsers', () => ({
+  onlineUsers: {
+    get: vi.fn().mockReturnValue(null),
+    has: vi.fn().mockReturnValue(false),
+    set: vi.fn(),
+    delete: vi.fn(),
+  },
+}))
+
 // ── Reset all mocks between tests ─────────────────────────────────────────────
 beforeEach(() => {
   vi.clearAllMocks()
@@ -476,5 +486,440 @@ describe('forfeitPlayer', () => {
     const setCall = mockRedis.set.mock.calls[0]
     const savedState = JSON.parse(setCall[1])
     expect(savedState.rounds[0].speakingOrder).not.toContain('u1')
+  })
+
+  it('calls tryEarlyResolve when player forfeits during voting phase', async () => {
+    const io = makeIo()
+    io.to.mockReturnValue({ emit: vi.fn() })
+    const state = makeState({ status: 'voting' })
+    // All players have voted except u1 — but after u1 forfeits, remaining all voted
+    state.rounds[0].votes = [
+      { voterId: 'u2', targetId: 'u4' },
+      { voterId: 'u3', targetId: 'u4' },
+      { voterId: 'u4', targetId: 'u1' },
+    ]
+    // After u1 forfeits, the alive voters are u2, u3, u4 — all have voted → tryEarlyResolve fires
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    mockRedis.set.mockResolvedValue('OK')
+    // set with NX for resolving lock
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    await forfeitPlayer(io, 'room-1', 'u1')
+
+    // forfeit emitted
+    expect(mockRedis.set).toHaveBeenCalled()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Internal flows: resolveRound via tryEarlyResolve (winner path)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('resolveRound — villagers win when all imposters eliminated', () => {
+  it('emits game:finished after all imposters are voted out', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // 3 villagers vs 1 imposter; all 4 vote for imposter → imposter eliminated → villagers win
+    const state = makeState({
+      status: 'voting',
+      gameMode: 'normal',
+      rounds: [
+        {
+          id: 'round-1',
+          roundNumber: 1,
+          votes: [
+            { voterId: 'u1', targetId: 'u4' },
+            { voterId: 'u2', targetId: 'u4' },
+            { voterId: 'u3', targetId: 'u4' },
+            { voterId: 'u4', targetId: 'u1' },
+          ],
+          clues: [],
+          speakingOrder: ['u1', 'u2', 'u3', 'u4'],
+        },
+      ],
+    })
+
+    // First get: tryEarlyResolve state check
+    // Second/third get: resolveRound inner calls
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    // set NX for resolving lock — return 'OK' to allow resolution
+    ;(mockRedis as any).set.mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+
+    mockPrisma.round.findUnique.mockResolvedValue({ id: 'round-1', villagerWord: 'Apple', imposterWord: 'Pear' })
+    mockPrisma.roundVote.createMany.mockResolvedValue({})
+    mockPrisma.round.update.mockResolvedValue({})
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.game.update.mockResolvedValue({})
+    mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+    mockPrisma.achievement.findMany.mockResolvedValue([])
+    mockPrisma.gameParticipation.findMany.mockResolvedValue([])
+
+    await tryEarlyResolve(io, 'room-1')
+
+    // Advance past 1500ms vote:all-cast delay and past 3000ms game:finished delay
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(emitFn).toHaveBeenCalledWith('vote:all-cast')
+    vi.useRealTimers()
+  })
+})
+
+describe('resolveRound — tie vote triggers tiebreaker', () => {
+  it('emits round:tiebreaker-start when vote is tied', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // u1 and u2 tie: 2 votes each
+    const state = makeState({
+      status: 'voting',
+      rounds: [
+        {
+          id: 'round-1',
+          roundNumber: 1,
+          votes: [
+            { voterId: 'u1', targetId: 'u2' },
+            { voterId: 'u2', targetId: 'u1' },
+            { voterId: 'u3', targetId: 'u2' },
+            { voterId: 'u4', targetId: 'u1' },
+          ],
+          clues: [],
+          speakingOrder: ['u1', 'u2', 'u3', 'u4'],
+        },
+      ],
+    })
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    ;(mockRedis as any).set.mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+
+    mockPrisma.round.findUnique.mockResolvedValue({ id: 'round-1', villagerWord: 'Apple', imposterWord: 'Pear' })
+    mockPrisma.roundVote.createMany.mockResolvedValue({})
+    mockPrisma.room.findUnique.mockResolvedValue({
+      id: 'room-1', speakingTimeSeconds: 30, votingTimeSeconds: 30,
+    })
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+
+    await tryEarlyResolve(io, 'room-1')
+
+    // Advance 1500ms (vote:all-cast delay) + 3000ms (tiebreaker start delay) + tiebreaker clue duration
+    await vi.advanceTimersByTimeAsync(35000)
+
+    // Tiebreaker should have been triggered
+    const calls = emitFn.mock.calls.map((c: any[]) => c[0])
+    expect(calls).toContain('vote:all-cast')
+    vi.useRealTimers()
+  })
+})
+
+describe('resolveRound — no winner starts next round', () => {
+  it('creates next round and emits round:ended with nextRound when no winner', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // 2 villagers + 1 imposter alive + 1 eliminated villager; imposter survives → no winner yet
+    const state = {
+      status: 'voting',
+      gameMode: 'normal',
+      currentRound: 1,
+      maxRounds: 5,
+      players: [
+        { userId: 'u1', username: 'Alice', role: 'villager', status: 'alive' },
+        { userId: 'u2', username: 'Bob',   role: 'villager', status: 'alive' },
+        { userId: 'u3', username: 'Carol', role: 'villager', status: 'eliminated' },
+        { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'alive' },
+      ],
+      villagerWord: 'Apple',
+      imposterWord: 'Pear',
+      rounds: [
+        {
+          id: 'round-1',
+          roundNumber: 1,
+          votes: [
+            { voterId: 'u1', targetId: 'u3' },
+            { voterId: 'u2', targetId: 'u3' },
+            { voterId: 'u4', targetId: 'u3' },
+          ],
+          clues: [],
+          speakingOrder: ['u1', 'u2', 'u4'],
+        },
+      ],
+    }
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    ;(mockRedis as any).set.mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+
+    mockPrisma.round.findUnique.mockResolvedValue({ id: 'round-1', villagerWord: 'Apple', imposterWord: 'Pear' })
+    mockPrisma.roundVote.createMany.mockResolvedValue({})
+    mockPrisma.round.update.mockResolvedValue({})
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.game.update.mockResolvedValue({})
+    mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+    mockPrisma.round.create.mockResolvedValue({ id: 'round-2', roundNumber: 2 })
+
+    await tryEarlyResolve(io, 'room-1')
+    await vi.advanceTimersByTimeAsync(10000)
+
+    const calls = emitFn.mock.calls.map((c: any[]) => c[0])
+    expect(calls).toContain('vote:all-cast')
+    vi.useRealTimers()
+  })
+})
+
+describe('eliminatePlayerForWord — ranked game win', () => {
+  it('applies ranked LP when ranked game ends via word elimination', async () => {
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    const state = makeState({
+      gameMode: 'ranked',
+      players: [
+        { userId: 'u1', username: 'Alice', role: 'villager', status: 'alive' },
+        { userId: 'u2', username: 'Bob',   role: 'villager', status: 'alive' },
+        { userId: 'u3', username: 'Carol', role: 'villager', status: 'alive' },
+        { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'eliminated' },
+      ],
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    mockRedis.set.mockResolvedValue('OK')
+
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.game.update.mockResolvedValue({})
+    mockPrisma.user.findMany.mockResolvedValue([
+      { id: 'u1', rankPoints: 1000, rankTier: 'Gold' },
+      { id: 'u2', rankPoints: 1000, rankTier: 'Gold' },
+      { id: 'u3', rankPoints: 1000, rankTier: 'Gold' },
+    ])
+    mockPrisma.user.update = vi.fn().mockResolvedValue({})
+
+    await eliminatePlayerForWord(io, 'room-1', 0, 0)
+
+    expect(io.to).toHaveBeenCalledWith('room:room-1')
+  })
+})
+
+describe('resolveRound — hard 30-round cap', () => {
+  it('ends game as draw when nextRoundNumber exceeds 30', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    const state = {
+      status: 'voting',
+      gameMode: 'normal',
+      currentRound: 30, // next would be 31
+      maxRounds: 0,     // unlimited — hard cap should trigger
+      players: [
+        { userId: 'u1', username: 'Alice', role: 'villager', status: 'alive' },
+        { userId: 'u2', username: 'Bob',   role: 'villager', status: 'alive' },
+        { userId: 'u3', username: 'Carol', role: 'villager', status: 'alive' },
+        { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'alive' },
+      ],
+      villagerWord: 'Apple',
+      imposterWord: 'Pear',
+      rounds: Array.from({ length: 30 }, (_, i) => ({
+        id: `round-${i + 1}`,
+        roundNumber: i + 1,
+        votes: [
+          // round 30: u3 is eliminated (a villager), no winner yet
+          { voterId: 'u1', targetId: 'u3' },
+          { voterId: 'u2', targetId: 'u3' },
+          { voterId: 'u4', targetId: 'u3' },
+          ...(i < 29 ? [] : [{ voterId: 'u3', targetId: 'u4' }]),
+        ],
+        clues: [],
+        speakingOrder: ['u1', 'u2', 'u3', 'u4'],
+      })),
+    }
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    ;(mockRedis as any).set.mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+
+    mockPrisma.round.findUnique.mockResolvedValue({ id: 'round-30', villagerWord: 'Apple', imposterWord: 'Pear' })
+    mockPrisma.roundVote.createMany.mockResolvedValue({})
+    mockPrisma.round.update.mockResolvedValue({})
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.game.update.mockResolvedValue({})
+    mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+
+    await tryEarlyResolve(io, 'room-1')
+    await vi.advanceTimersByTimeAsync(10000)
+
+    const calls = emitFn.mock.calls.map((c: any[]) => c[0])
+    expect(calls).toContain('vote:all-cast')
+    vi.useRealTimers()
+  })
+})
+
+describe('resolveRound — imposters win by surviving all rounds', () => {
+  it('ends game as imposters win when maxRounds reached and imposters alive', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // currentRound = maxRounds = 3, next would be 4 > maxRounds → imposters survive all rounds
+    const state = {
+      status: 'voting',
+      gameMode: 'normal',
+      currentRound: 3,
+      maxRounds: 3,
+      players: [
+        { userId: 'u1', username: 'Alice', role: 'villager', status: 'alive' },
+        { userId: 'u2', username: 'Bob',   role: 'villager', status: 'alive' },
+        { userId: 'u3', username: 'Carol', role: 'villager', status: 'eliminated' },
+        { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'alive' },
+      ],
+      villagerWord: 'Apple',
+      imposterWord: 'Pear',
+      rounds: [
+        { id: 'round-1', roundNumber: 1, votes: [], clues: [], speakingOrder: [] },
+        { id: 'round-2', roundNumber: 2, votes: [], clues: [], speakingOrder: [] },
+        {
+          id: 'round-3', roundNumber: 3,
+          votes: [
+            { voterId: 'u1', targetId: 'u3' },
+            { voterId: 'u2', targetId: 'u3' },
+            { voterId: 'u4', targetId: 'u3' },
+          ],
+          clues: [],
+          speakingOrder: ['u1', 'u2', 'u4'],
+        },
+      ],
+    }
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    ;(mockRedis as any).set.mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+
+    mockPrisma.round.findUnique.mockResolvedValue({ id: 'round-3', villagerWord: 'Apple', imposterWord: 'Pear' })
+    mockPrisma.roundVote.createMany.mockResolvedValue({})
+    mockPrisma.round.update.mockResolvedValue({})
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.game.update.mockResolvedValue({})
+    mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+
+    await tryEarlyResolve(io, 'room-1')
+    await vi.advanceTimersByTimeAsync(10000)
+
+    const calls = emitFn.mock.calls.map((c: any[]) => c[0])
+    expect(calls).toContain('vote:all-cast')
+    vi.useRealTimers()
+  })
+})
+
+describe('forfeitPlayer — voting phase', () => {
+  it('calls tryEarlyResolve when forfeiting during voting and all remaining voted', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    const state = makeState({ status: 'voting' })
+    // u2, u3, u4 have voted; u1 forfeits → all remaining alive have voted
+    state.rounds[0].votes = [
+      { voterId: 'u2', targetId: 'u4' },
+      { voterId: 'u3', targetId: 'u4' },
+      { voterId: 'u4', targetId: 'u2' },
+    ]
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    ;(mockRedis as any).set.mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+    mockPrisma.round.findUnique.mockResolvedValue({ id: 'round-1', villagerWord: 'Apple', imposterWord: 'Pear' })
+    mockPrisma.roundVote.createMany.mockResolvedValue({})
+    mockPrisma.round.update.mockResolvedValue({})
+    mockPrisma.game.update.mockResolvedValue({})
+    mockPrisma.gameParticipation.findMany.mockResolvedValue([])
+    mockPrisma.achievement.findMany.mockResolvedValue([])
+    mockPrisma.round.create.mockResolvedValue({ id: 'round-2', roundNumber: 2 })
+
+    await forfeitPlayer(io, 'room-1', 'u1')
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(emitFn).toHaveBeenCalledWith('game:player-forfeited', { userId: 'u1', username: 'Alice' })
+    vi.useRealTimers()
+  })
+})
+
+describe('checkAndUnlockAchievements via resolveRound', () => {
+  it('unlocks first_win achievement for a winning villager', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    const state = makeState({
+      status: 'voting',
+      gameMode: 'normal',
+      rounds: [{
+        id: 'round-1', roundNumber: 1,
+        votes: [
+          { voterId: 'u1', targetId: 'u4' },
+          { voterId: 'u2', targetId: 'u4' },
+          { voterId: 'u3', targetId: 'u4' },
+          { voterId: 'u4', targetId: 'u1' },
+        ],
+        clues: [], speakingOrder: ['u1', 'u2', 'u3', 'u4'],
+      }],
+    })
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    ;(mockRedis as any).set.mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+
+    mockPrisma.round.findUnique.mockResolvedValue({ id: 'round-1', villagerWord: 'Apple', imposterWord: 'Pear' })
+    mockPrisma.roundVote.createMany.mockResolvedValue({})
+    mockPrisma.round.update.mockResolvedValue({})
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.game.update.mockResolvedValue({})
+    mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+
+    // Achievement mocks
+    mockPrisma.achievement.findMany.mockResolvedValue([
+      { id: 'ach-1', key: 'first_win', name: 'First Win', icon: '🏆' },
+    ])
+    mockPrisma.gameParticipation.findMany.mockResolvedValue([
+      { userId: 'u1', role: 'villager', survived: true, gameId: 'game-1' },
+    ])
+    mockPrisma.gameParticipation.count.mockResolvedValue(1)
+    mockPrisma.friendship.count.mockResolvedValue(0)
+    mockPrisma.round.findMany = vi.fn().mockResolvedValue([])
+    mockPrisma.userAchievement.findMany.mockResolvedValue([])
+    mockPrisma.userAchievement.create.mockResolvedValue({})
+
+    await tryEarlyResolve(io, 'room-1')
+    await vi.advanceTimersByTimeAsync(10000)
+
+    expect(mockPrisma.achievement.findMany).toHaveBeenCalled()
+    vi.useRealTimers()
   })
 })

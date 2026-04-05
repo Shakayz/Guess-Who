@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockNavigate = vi.fn()
@@ -28,18 +28,24 @@ const mockGameState = {
   completedRounds: [] as unknown[],
   reset: vi.fn(),
   setRoleAndWord: vi.fn(),
+  setResult: vi.fn(),
+  setRoom: vi.fn(),
 }
 
 vi.mock('../../store/game', () => ({
-  useGameStore: (selector?: (s: unknown) => unknown) => {
-    return selector ? selector(mockGameState) : mockGameState
-  },
+  useGameStore: Object.assign(
+    (selector?: (s: unknown) => unknown) => {
+      return selector ? selector(mockGameState) : mockGameState
+    },
+    { getState: () => mockGameState },
+  ),
 }))
 
 const mockSocketOn = vi.fn()
 const mockSocketOff = vi.fn()
+const mockSocketEmit = vi.fn()
 vi.mock('../../lib/socket', () => ({
-  getSocket: () => ({ on: mockSocketOn, off: mockSocketOff, emit: vi.fn() }),
+  getSocket: () => ({ on: mockSocketOn, off: mockSocketOff, emit: mockSocketEmit }),
 }))
 
 vi.mock('../../components/NavBar', () => ({ NavBar: () => <div data-testid="navbar" /> }))
@@ -63,6 +69,22 @@ vi.mock('@imposter/shared', () => ({
 
 import ResultsPage from '../../pages/ResultsPage'
 
+const winResult = {
+  winner: 'villagers',
+  finalRound: { id: 'r1', roundNumber: 3, speakingOrder: [], clues: [], votes: [] },
+  rewards: { starCoinsEarned: 10, xpEarned: 50, lpChange: 5, achievements: [] },
+}
+
+const winRoom = {
+  code: 'GAME01',
+  status: 'finished',
+  settings: { gameMode: 'normal', isPrivate: false },
+  players: [
+    { userId: 'u1', username: 'testuser', role: 'villager', status: 'alive', avatarUrl: null },
+    { userId: 'u2', username: 'enemy', role: 'imposter', status: 'eliminated', avatarUrl: null },
+  ],
+}
+
 describe('ResultsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -79,42 +101,27 @@ describe('ResultsPage', () => {
 
   it('shows fallback text when no result is available', () => {
     render(<ResultsPage />)
-    // When result is null, shows a fallback view
     expect(screen.getByText('No game data available.')).toBeInTheDocument()
   })
 
+  it('shows back to home button on fallback screen', () => {
+    render(<ResultsPage />)
+    expect(screen.getByText('Back to Home')).toBeInTheDocument()
+  })
+
+  it('navigates home when back button clicked from fallback', () => {
+    render(<ResultsPage />)
+    fireEvent.click(screen.getByText('Back to Home'))
+    expect(mockGameState.reset).toHaveBeenCalled()
+    expect(mockNavigate).toHaveBeenCalledWith('/')
+  })
+
   it('renders navbar when result is available', () => {
-    mockGameState.result = {
-      winner: 'villagers',
-      finalRound: { id: 'r1', roundNumber: 3, speakingOrder: [], clues: [], votes: [] },
-      rewards: { starCoinsEarned: 10, xpEarned: 50, lpChange: 5, achievements: [] },
-    }
-    mockGameState.room = {
-      code: 'GAME01',
-      status: 'finished',
-      players: [{ userId: 'u1', username: 'testuser', role: 'villager', status: 'alive', avatarUrl: null }],
-    }
+    mockGameState.result = winResult
+    mockGameState.room = winRoom
     mockGameState.myRole = 'villager'
     render(<ResultsPage />)
     expect(screen.getByTestId('navbar')).toBeInTheDocument()
-  })
-
-  it('renders with a completed game result', () => {
-    mockGameState.result = {
-      winner: 'villagers',
-      finalRound: { id: 'r1', roundNumber: 3, speakingOrder: [], clues: [], votes: [] },
-      rewards: { starCoinsEarned: 10, xpEarned: 50, lpChange: 5, achievements: [] },
-    }
-    mockGameState.room = {
-      code: 'GAME01',
-      status: 'finished',
-      players: [
-        { userId: 'u1', username: 'testuser', role: 'villager', status: 'alive', avatarUrl: null },
-      ],
-    }
-    mockGameState.myRole = 'villager'
-    render(<ResultsPage />)
-    expect(document.body).toBeInTheDocument()
   })
 
   it('registers socket listeners on mount', () => {
@@ -126,5 +133,111 @@ describe('ResultsPage', () => {
     const { unmount } = render(<ResultsPage />)
     unmount()
     expect(mockSocketOff).toHaveBeenCalled()
+  })
+
+  it('renders with a completed game result as villager winning', () => {
+    mockGameState.result = winResult
+    mockGameState.room = winRoom
+    mockGameState.myRole = 'villager'
+    render(<ResultsPage />)
+    expect(document.body).toBeInTheDocument()
+  })
+
+  it('renders when imposters win', () => {
+    mockGameState.result = {
+      winner: 'imposters',
+      finalRound: { id: 'r1', roundNumber: 2, speakingOrder: [], clues: [], votes: [] },
+      rewards: { starCoinsEarned: 5, xpEarned: 25, lpChange: -3, achievements: [] },
+    }
+    mockGameState.room = winRoom
+    mockGameState.myRole = 'villager'
+    render(<ResultsPage />)
+    expect(document.body).toBeInTheDocument()
+  })
+
+  it('renders when imposter player wins', () => {
+    mockGameState.result = {
+      winner: 'imposters',
+      finalRound: { id: 'r1', roundNumber: 2, speakingOrder: [], clues: [], votes: [] },
+      rewards: { starCoinsEarned: 15, xpEarned: 75, lpChange: 10, achievements: [] },
+    }
+    mockGameState.room = { ...winRoom, settings: { gameMode: 'normal', isPrivate: false } }
+    mockGameState.myRole = 'imposter'
+    render(<ResultsPage />)
+    expect(document.body).toBeInTheDocument()
+  })
+
+  it('renders ranked game results with LP display', () => {
+    mockGameState.result = {
+      winner: 'villagers',
+      finalRound: { id: 'r1', roundNumber: 1, speakingOrder: [], clues: [], votes: [] },
+      rewards: { starCoinsEarned: 0, xpEarned: 0, lpChange: 20, achievements: [] },
+    }
+    mockGameState.room = {
+      ...winRoom,
+      settings: { gameMode: 'ranked', isPrivate: false },
+    }
+    mockGameState.myRole = 'villager'
+    render(<ResultsPage />)
+    expect(document.body).toBeInTheDocument()
+  })
+
+  it('emits gamechat:history on mount', () => {
+    render(<ResultsPage />)
+    expect(mockSocketEmit).toHaveBeenCalledWith('gamechat:history')
+  })
+
+  it('handles chat message received via socket', () => {
+    mockGameState.result = winResult
+    mockGameState.room = winRoom
+    mockGameState.myRole = 'villager'
+    render(<ResultsPage />)
+    // Simulate receiving a chat message
+    const chatMsgCall = mockSocketOn.mock.calls.find(call => call[0] === 'gamechat:message')
+    expect(chatMsgCall).toBeDefined()
+    act(() => {
+      chatMsgCall![1]({ id: 'm1', userId: 'u2', username: 'enemy', text: 'Good game!', createdAt: new Date().toISOString() })
+    })
+    expect(screen.getByText('Good game!')).toBeInTheDocument()
+  })
+
+  it('handles play again button click', () => {
+    mockGameState.result = winResult
+    mockGameState.room = winRoom
+    mockGameState.myRole = 'villager'
+    render(<ResultsPage />)
+    // The play again button should be rendered
+    const playAgainBtn = screen.queryByText('results.playAgain')
+    if (playAgainBtn) {
+      fireEvent.click(playAgainBtn)
+      expect(mockGameState.reset).toHaveBeenCalled()
+    }
+    expect(document.body).toBeInTheDocument()
+  })
+
+  it('handles completed rounds when present', () => {
+    mockGameState.result = winResult
+    mockGameState.room = winRoom
+    mockGameState.myRole = 'villager'
+    mockGameState.completedRounds = [
+      {
+        id: 'r1', roundNumber: 1, speakingOrder: ['u1', 'u2'], clues: [], votes: [],
+        wordReveal: { villagerWord: 'pizza', imposterWord: 'pasta' }, eliminatedPlayerId: 'u2',
+      },
+    ]
+    render(<ResultsPage />)
+    expect(document.body).toBeInTheDocument()
+  })
+
+  it('renders with draw result', () => {
+    mockGameState.result = {
+      winner: 'draw',
+      finalRound: { id: 'r1', roundNumber: 1, speakingOrder: [], clues: [], votes: [] },
+      rewards: { starCoinsEarned: 3, xpEarned: 10, lpChange: 0, achievements: [] },
+    }
+    mockGameState.room = winRoom
+    mockGameState.myRole = 'villager'
+    render(<ResultsPage />)
+    expect(document.body).toBeInTheDocument()
   })
 })

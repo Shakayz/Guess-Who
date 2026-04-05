@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ---- Mocks ----
@@ -71,7 +71,6 @@ describe('AuthPage', () => {
     render(<AuthPage />)
     fireEvent.change(screen.getByPlaceholderText('Email or username'), { target: { value: 'user@test.com' } })
     fireEvent.change(screen.getByPlaceholderText('auth.password'), { target: { value: 'password123' } })
-    // Submit the form directly rather than clicking by name (multiple buttons share the same name)
     const form = screen.getByPlaceholderText('auth.password').closest('form')!
     fireEvent.submit(form)
     await waitFor(() => {
@@ -113,5 +112,64 @@ describe('AuthPage', () => {
     render(<AuthPage />)
     fireEvent.click(screen.getByText('Continue with Apple'))
     expect(screen.getByText('Apple Sign-In is not available in this browser')).toBeInTheDocument()
+  })
+
+  it('switches sign-in mode back when sign in tab is clicked after sign-up', () => {
+    render(<AuthPage />)
+    const signUpBtn = screen.getAllByText('auth.signUp')[0]
+    fireEvent.click(signUpBtn)
+    const signInBtn = screen.getAllByText('auth.signIn')[0]
+    fireEvent.click(signInBtn)
+    expect(screen.getByPlaceholderText('Email or username')).toBeInTheDocument()
+  })
+
+  it('submits sign-up form with correct data', async () => {
+    vi.mocked(api.post).mockResolvedValueOnce({ token: 'tok', user: { id: '1', username: 'newuser' } })
+    render(<AuthPage />)
+    // Switch to sign up
+    fireEvent.click(screen.getAllByText('auth.signUp')[0])
+    fireEvent.change(screen.getByPlaceholderText('auth.username'), { target: { value: 'newuser' } })
+    fireEvent.change(screen.getByPlaceholderText('auth.email'), { target: { value: 'newuser@test.com' } })
+    fireEvent.change(screen.getByPlaceholderText('auth.password'), { target: { value: 'password123' } })
+    const form = screen.getByPlaceholderText('auth.password').closest('form')!
+    fireEvent.submit(form)
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/auth/signup', expect.any(Object))
+    })
+  })
+
+  it('handles language change button click', () => {
+    render(<AuthPage />)
+    fireEvent.click(screen.getByText('Français'))
+    expect(mockChangeLanguage).toHaveBeenCalledWith('fr')
+  })
+
+  it('calls api.patch on language change', async () => {
+    render(<AuthPage />)
+    await act(async () => {
+      fireEvent.click(screen.getByText('Español'))
+    })
+    expect(mockChangeLanguage).toHaveBeenCalledWith('es')
+  })
+
+  it('renders all language options', () => {
+    render(<AuthPage />)
+    expect(screen.getByText('العربية')).toBeInTheDocument()
+    expect(screen.getByText('Italiano')).toBeInTheDocument()
+    expect(screen.getByText('Português')).toBeInTheDocument()
+  })
+
+  it('shows sign-up error when registration fails', async () => {
+    vi.mocked(api.post).mockRejectedValueOnce(new Error('Username taken'))
+    render(<AuthPage />)
+    fireEvent.click(screen.getAllByText('auth.signUp')[0])
+    fireEvent.change(screen.getByPlaceholderText('auth.username'), { target: { value: 'taken' } })
+    fireEvent.change(screen.getByPlaceholderText('auth.email'), { target: { value: 'taken@test.com' } })
+    fireEvent.change(screen.getByPlaceholderText('auth.password'), { target: { value: 'password123' } })
+    const form = screen.getByPlaceholderText('auth.password').closest('form')!
+    fireEvent.submit(form)
+    await waitFor(() => {
+      expect(screen.getByText('Username taken')).toBeInTheDocument()
+    })
   })
 })

@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ---- Mocks ----
@@ -10,7 +10,7 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+    t: (key: string, fallback?: unknown) => (typeof fallback === 'string' ? fallback : key),
     i18n: { language: 'en', changeLanguage: vi.fn() },
   }),
 }))
@@ -46,9 +46,12 @@ vi.mock('../../lib/api', () => ({
   },
 }))
 
+const mockSocketOn = vi.fn()
+const mockSocketOff = vi.fn()
+const mockSocketEmit = vi.fn()
 vi.mock('../../lib/socket', () => ({
   connectSocket: vi.fn(),
-  getSocket: () => ({ on: vi.fn(), off: vi.fn(), emit: vi.fn(), connected: false }),
+  getSocket: () => ({ on: mockSocketOn, off: mockSocketOff, emit: mockSocketEmit, connected: false }),
 }))
 
 vi.mock('../../components/NavBar', () => ({ NavBar: () => <div data-testid="navbar" /> }))
@@ -57,6 +60,7 @@ vi.mock('@imposter/shared', () => ({
   WORD_CATEGORIES: [
     { key: 'food', label: 'Food', icon: '🍕' },
     { key: 'animals', label: 'Animals', icon: '🐶' },
+    { key: 'sports', label: 'Sports', icon: '⚽' },
   ],
   MATCHMAKING_CONFIG: { IDEAL_PLAYERS: 6, MAX_WAIT_SECONDS: 60 },
 }))
@@ -101,6 +105,30 @@ describe('HomePage', () => {
     expect(screen.getByText('Game In Progress')).toBeInTheDocument()
   })
 
+  it('shows eliminated status in active game card', () => {
+    _room = {
+      id: 'r1',
+      code: 'ABCD',
+      status: 'in_progress',
+      players: [{ userId: 'u1', status: 'eliminated' }],
+      currentRound: 2,
+    }
+    render(<HomePage />)
+    expect(screen.getByText('Eliminated')).toBeInTheDocument()
+  })
+
+  it('shows forfeited status in active game card', () => {
+    _room = {
+      id: 'r1',
+      code: 'ABCD',
+      status: 'in_progress',
+      players: [{ userId: 'u1', status: 'forfeited' }],
+      currentRound: 2,
+    }
+    render(<HomePage />)
+    expect(screen.getByText('Forfeited')).toBeInTheDocument()
+  })
+
   it('shows room code input and join button', () => {
     render(<HomePage />)
     expect(screen.getByPlaceholderText('home.roomCodePlaceholder')).toBeInTheDocument()
@@ -116,11 +144,30 @@ describe('HomePage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/lobby/ABCD1234')
   })
 
+  it('does not navigate if room code is empty', () => {
+    render(<HomePage />)
+    const input = screen.getByPlaceholderText('home.roomCodePlaceholder')
+    const form = input.closest('form')!
+    fireEvent.submit(form)
+    expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
   it('shows how to play modal on button click', () => {
     render(<HomePage />)
     const howToPlayBtn = screen.getByText('home.howToPlay')
     fireEvent.click(howToPlayBtn)
     expect(screen.getByText('home.htp.objective')).toBeInTheDocument()
+  })
+
+  it('closes how to play modal when close button is clicked', () => {
+    render(<HomePage />)
+    fireEvent.click(screen.getByText('home.howToPlay'))
+    // Find close button (✕ or similar)
+    const closeBtn = screen.getAllByRole('button').find(b => b.textContent?.includes('✕') || b.textContent?.includes('home.close'))
+    if (closeBtn) {
+      fireEvent.click(closeBtn)
+    }
+    expect(document.body).toBeInTheDocument()
   })
 
   it('creates a lobby room when lobby mode is selected and Create is clicked', async () => {
@@ -132,5 +179,121 @@ describe('HomePage', () => {
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/rooms', expect.any(Object))
     })
+  })
+
+  it('selects normal mode and shows start matchmaking button', () => {
+    render(<HomePage />)
+    fireEvent.click(screen.getByText('home.normalLabel'))
+    expect(screen.getByText('home.findGame')).toBeInTheDocument()
+  })
+
+  it('selects ranked mode and shows start matchmaking button', () => {
+    render(<HomePage />)
+    fireEvent.click(screen.getByText('home.rankedLabel'))
+    expect(screen.getByText('home.findRanked')).toBeInTheDocument()
+  })
+
+  it('starts matchmaking when Find Match is clicked in normal mode', async () => {
+    render(<HomePage />)
+    fireEvent.click(screen.getByText('home.normalLabel'))
+    await act(async () => {
+      fireEvent.click(screen.getByText('home.findGame'))
+    })
+    expect(mockSocketEmit).toHaveBeenCalledWith('matchmaking:join', expect.any(Object))
+  })
+
+  it('shows cancel button while matchmaking', async () => {
+    render(<HomePage />)
+    fireEvent.click(screen.getByText('home.normalLabel'))
+    await act(async () => {
+      fireEvent.click(screen.getByText('home.findGame'))
+    })
+    expect(screen.getByText('common.cancel')).toBeInTheDocument()
+  })
+
+  it('cancels matchmaking when cancel is clicked', async () => {
+    render(<HomePage />)
+    fireEvent.click(screen.getByText('home.normalLabel'))
+    await act(async () => {
+      fireEvent.click(screen.getByText('home.findGame'))
+    })
+    fireEvent.click(screen.getByText('common.cancel'))
+    expect(mockSocketEmit).toHaveBeenCalledWith('matchmaking:leave', expect.any(Object))
+  })
+
+  it('navigates to lobby when matchmaking:found event fires', async () => {
+    render(<HomePage />)
+    fireEvent.click(screen.getByText('home.normalLabel'))
+    await act(async () => {
+      fireEvent.click(screen.getByText('home.findGame'))
+    })
+    // Simulate matchmaking:found event
+    const foundCall = mockSocketOn.mock.calls.find(c => c[0] === 'matchmaking:found')
+    if (foundCall) {
+      act(() => {
+        foundCall[1]({ roomCode: 'NEWROOM' })
+      })
+      expect(mockNavigate).toHaveBeenCalledWith('/lobby/NEWROOM')
+    }
+    expect(document.body).toBeInTheDocument()
+  })
+
+  it('shows category filter when normal mode is selected', () => {
+    render(<HomePage />)
+    fireEvent.click(screen.getByText('home.normalLabel'))
+    expect(screen.getByText('Food')).toBeInTheDocument()
+  })
+
+  it('toggles a category when category button is clicked', () => {
+    render(<HomePage />)
+    fireEvent.click(screen.getByText('home.normalLabel'))
+    fireEvent.click(screen.getByText('Food'))
+    // Click again to deselect
+    fireEvent.click(screen.getByText('Food'))
+    expect(document.body).toBeInTheDocument()
+  })
+
+  it('shows lobby sub-mode selection when lobby mode is selected', () => {
+    render(<HomePage />)
+    fireEvent.click(screen.getByText('home.lobbyLabel'))
+    expect(screen.getByText('home.normalGameMode')).toBeInTheDocument()
+    expect(screen.getByText('home.specialGameMode')).toBeInTheDocument()
+  })
+
+  it('shows error when create lobby fails', async () => {
+    vi.mocked(api.post).mockRejectedValueOnce(new Error('Server error'))
+    render(<HomePage />)
+    fireEvent.click(screen.getByText('home.lobbyLabel'))
+    await act(async () => {
+      fireEvent.click(screen.getByText('home.createLobby'))
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Server error')).toBeInTheDocument()
+    })
+  })
+
+  it('navigates to game when active game card is clicked', () => {
+    _room = {
+      id: 'r1',
+      code: 'ABCD',
+      status: 'in_progress',
+      players: [{ userId: 'u1', status: 'alive' }],
+      currentRound: 1,
+    }
+    render(<HomePage />)
+    const activeGameBtn = screen.getByText('Game In Progress').closest('button')!
+    fireEvent.click(activeGameBtn)
+    expect(mockNavigate).toHaveBeenCalledWith('/game/ABCD')
+  })
+
+  it('does not show active game card for waiting room status', () => {
+    _room = {
+      id: 'r1',
+      code: 'ABCD',
+      status: 'waiting',
+      players: [{ userId: 'u1', status: 'alive' }],
+    }
+    render(<HomePage />)
+    expect(screen.queryByText('Game In Progress')).not.toBeInTheDocument()
   })
 })

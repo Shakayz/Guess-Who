@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockNavigate = vi.fn()
@@ -17,20 +17,10 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
+const mockApiGet = vi.fn()
 vi.mock('../../lib/api', () => ({
   api: {
-    get: vi.fn().mockResolvedValue({
-      id: 'u2',
-      username: 'player2',
-      avatarUrl: null,
-      rankTier: 'silver',
-      rankPoints: 600,
-      honorPoints: 10,
-      createdAt: new Date().toISOString(),
-      stats: { totalGames: 20, wins: 12, losses: 8, winRate: 0.6, asVillager: 15, asImposter: 5, survived: 10 },
-      recentGames: [],
-      honors: [],
-    }),
+    get: (...args: unknown[]) => mockApiGet(...args),
     post: vi.fn().mockResolvedValue({}),
     delete: vi.fn().mockResolvedValue({}),
   },
@@ -50,12 +40,31 @@ vi.mock('@imposter/shared', () => ({
   },
 }))
 
+const fullProfile = {
+  id: 'u2',
+  username: 'player2',
+  avatarUrl: null,
+  rankTier: 'silver' as const,
+  rankPoints: 600,
+  honorPoints: 10,
+  createdAt: new Date('2023-01-01').toISOString(),
+  stats: { totalGames: 20, wins: 12, losses: 8, winRate: 60, asVillager: 15, asImposter: 5, survived: 10 },
+  recentGames: [
+    { gameId: 'g1', role: 'villager', survived: true, winnerTeam: 'villagers', didWin: true, rounds: 3, playedAt: new Date().toISOString() },
+    { gameId: 'g2', role: 'imposter', survived: false, winnerTeam: 'villagers', didWin: false, rounds: 2, playedAt: new Date().toISOString() },
+  ],
+  honors: [
+    { type: 'teamplayer', count: 5 },
+    { type: 'sharp_mind', count: 3 },
+  ],
+}
+
 import PlayerProfilePage from '../../pages/PlayerProfilePage'
-import { api } from '../../lib/api'
 
 describe('PlayerProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockApiGet.mockResolvedValue(fullProfile)
   })
 
   it('renders without crashing', () => {
@@ -69,13 +78,105 @@ describe('PlayerProfilePage', () => {
   })
 
   it('shows loading state while data is pending', () => {
-    vi.mocked(api.get).mockReturnValueOnce(new Promise(() => {}))
+    mockApiGet.mockReturnValueOnce(new Promise(() => {}))
     render(<PlayerProfilePage />)
     expect(document.body).toBeInTheDocument()
   })
 
   it('fetches profile for given userId on mount', async () => {
     render(<PlayerProfilePage />)
-    expect(api.get).toHaveBeenCalledWith('/users/u2/profile')
+    expect(mockApiGet).toHaveBeenCalledWith('/users/u2/profile')
+  })
+
+  it('renders player profile data after loading', async () => {
+    await act(async () => {
+      render(<PlayerProfilePage />)
+    })
+    await waitFor(() => {
+      expect(screen.getByText('player2')).toBeInTheDocument()
+    })
+  })
+
+  it('renders stats grid with correct values', async () => {
+    await act(async () => {
+      render(<PlayerProfilePage />)
+    })
+    await waitFor(() => {
+      // Total games
+      expect(screen.getByText('20')).toBeInTheDocument()
+      // Wins
+      expect(screen.getByText('12')).toBeInTheDocument()
+    })
+  })
+
+  it('renders honor badges when honors exist', async () => {
+    await act(async () => {
+      render(<PlayerProfilePage />)
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Team Player')).toBeInTheDocument()
+      expect(screen.getByText('Sharp Mind')).toBeInTheDocument()
+    })
+  })
+
+  it('renders recent games list', async () => {
+    await act(async () => {
+      render(<PlayerProfilePage />)
+    })
+    await waitFor(() => {
+      expect(screen.getByText('playerProfile.recentGames')).toBeInTheDocument()
+    })
+  })
+
+  it('shows error state when API fails', async () => {
+    mockApiGet.mockRejectedValueOnce(new Error('User not found'))
+    await act(async () => {
+      render(<PlayerProfilePage />)
+    })
+    await waitFor(() => {
+      expect(screen.getByText('playerProfile.loadError')).toBeInTheDocument()
+    })
+  })
+
+  it('navigates back when back button clicked', async () => {
+    await act(async () => {
+      render(<PlayerProfilePage />)
+    })
+    await waitFor(() => {
+      const backBtn = screen.getAllByText('playerProfile.back')[0]
+      fireEvent.click(backBtn)
+    })
+    expect(mockNavigate).toHaveBeenCalledWith(-1)
+  })
+
+  it('navigates back on error back button', async () => {
+    mockApiGet.mockRejectedValueOnce(new Error('Error'))
+    await act(async () => {
+      render(<PlayerProfilePage />)
+    })
+    await waitFor(() => {
+      fireEvent.click(screen.getByText('playerProfile.back'))
+    })
+    expect(mockNavigate).toHaveBeenCalledWith(-1)
+  })
+
+  it('shows no games message when recentGames is empty', async () => {
+    mockApiGet.mockResolvedValueOnce({ ...fullProfile, recentGames: [] })
+    await act(async () => {
+      render(<PlayerProfilePage />)
+    })
+    await waitFor(() => {
+      expect(screen.getByText('playerProfile.noGames')).toBeInTheDocument()
+    })
+  })
+
+  it('does not show honors section when honors array is empty', async () => {
+    mockApiGet.mockResolvedValueOnce({ ...fullProfile, honors: [] })
+    await act(async () => {
+      render(<PlayerProfilePage />)
+    })
+    await waitFor(() => {
+      expect(screen.queryByText('playerProfile.honorsReceived')).not.toBeInTheDocument()
+    })
   })
 })

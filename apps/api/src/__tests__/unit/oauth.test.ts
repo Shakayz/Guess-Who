@@ -512,3 +512,143 @@ describe('OAuth Routes', () => {
     })
   })
 })
+
+// ─── Additional Apple verify paths ───────────────────────────────────────────
+// These test the Apple new-user-creation and email-link flows that need a dev-mode
+// app instance (NODE_ENV = 'development') so verifyAppleToken falls through to
+// the decoded-without-verify dev fallback path.
+
+describe('Apple verify — development fallback paths', () => {
+  let devApp: any
+
+  beforeAll(async () => {
+    // Build a separate Fastify instance with NODE_ENV=development so the dev
+    // fallback path in /apple/verify is exercised.
+    const Fastify = (await import('fastify')).default
+    const jwtPlugin = (await import('@fastify/jwt')).default
+
+    // We need to re-mock env for this app instance
+    devApp = Fastify({ logger: false })
+    await devApp.register(jwtPlugin, { secret: 'test-secret-key-that-is-at-least-32-chars-long' })
+    devApp.decorate('authenticate', async function (request: any, reply: any) {
+      try { await request.jwtVerify() } catch { reply.status(401).send({ error: 'Unauthorized' }) }
+    })
+
+    // Temporarily set NODE_ENV to development so the dev fallback triggers
+    const { env: envMod } = await import('../../config/env')
+    ;(envMod as any).NODE_ENV = 'development'
+
+    await devApp.register(oauthRoutes, { prefix: '/api/auth' })
+    await devApp.ready()
+
+    ;(envMod as any).NODE_ENV = 'test'
+  })
+
+  afterAll(async () => {
+    await devApp?.close()
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(mockPrismaUser as any).findFirst = vi.fn()
+    // Ensure env is restored to 'development' for these tests
+    import('../../config/env').then(({ env: envMod }) => {
+      ;(envMod as any).NODE_ENV = 'development'
+    })
+  })
+
+  afterEach(async () => {
+    // Reset NODE_ENV back to test after each test
+    const { env: envMod } = await import('../../config/env')
+    ;(envMod as any).NODE_ENV = 'test'
+  })
+
+  it('creates new Apple user and returns setupToken in dev fallback', async () => {
+    const { env: envMod } = await import('../../config/env')
+    ;(envMod as any).NODE_ENV = 'development'
+
+    // verifyAppleToken fails (fetch fails) → dev fallback uses jwt.decode
+    mockFetch.mockResolvedValue({ ok: false })
+    const jwt_module = await import('jsonwebtoken')
+    vi.mocked(jwt_module.decode).mockReturnValue({ sub: 'apple-dev-new', email: 'devnew@icloud.com' } as any)
+
+    ;(mockPrismaUser as any).findFirst.mockResolvedValue(null)
+    mockPrismaUser.findUnique.mockResolvedValue(null)
+    mockPrismaUser.create.mockResolvedValue({
+      id: 'user-apple-new',
+      username: 'pending_devnew',
+      email: 'devnew@icloud.com',
+      appleId: 'apple-dev-new',
+    })
+
+    const res = await devApp.inject({
+      method: 'POST',
+      url: '/api/auth/apple/verify',
+      payload: { identityToken: 'dev.apple.jwt', name: 'Dev New' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.needsUsername).toBe(true)
+    expect(body.setupToken).toBeDefined()
+  })
+
+  it('signs in existing Apple user in dev fallback', async () => {
+    const { env: envMod } = await import('../../config/env')
+    ;(envMod as any).NODE_ENV = 'development'
+
+    mockFetch.mockResolvedValue({ ok: false })
+    const jwt_module = await import('jsonwebtoken')
+    vi.mocked(jwt_module.decode).mockReturnValue({ sub: 'apple-dev-existing', email: 'devexist@icloud.com' } as any)
+
+    ;(mockPrismaUser as any).findFirst.mockResolvedValue({
+      id: 'user-apple-exist',
+      username: 'devuser',
+      email: 'devexist@icloud.com',
+      appleId: 'apple-dev-existing',
+    })
+
+    const res = await devApp.inject({
+      method: 'POST',
+      url: '/api/auth/apple/verify',
+      payload: { identityToken: 'dev.existing.apple.jwt' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.token).toBeDefined()
+    expect(body.user.id).toBe('user-apple-exist')
+  })
+
+  it('links Apple ID to email in dev fallback when email matches existing user', async () => {
+    const { env: envMod } = await import('../../config/env')
+    ;(envMod as any).NODE_ENV = 'development'
+
+    mockFetch.mockResolvedValue({ ok: false })
+    const jwt_module = await import('jsonwebtoken')
+    vi.mocked(jwt_module.decode).mockReturnValue({ sub: 'apple-link-sub', email: 'linked@example.com' } as any)
+
+    ;(mockPrismaUser as any).findFirst.mockResolvedValue(null) // no user with this appleId
+    mockPrismaUser.findUnique.mockResolvedValue({
+      id: 'user-link',
+      username: 'linkuser',
+      email: 'linked@example.com',
+    })
+    mockPrismaUser.update.mockResolvedValue({
+      id: 'user-link',
+      username: 'linkuser',
+      email: 'linked@example.com',
+      appleId: 'apple-link-sub',
+    })
+
+    const res = await devApp.inject({
+      method: 'POST',
+      url: '/api/auth/apple/verify',
+      payload: { identityToken: 'dev.link.apple.jwt' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.token).toBeDefined()
+  })
+})
