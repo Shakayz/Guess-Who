@@ -99,43 +99,48 @@ export default function LeaderboardScreen() {
     return (
       <TouchableOpacity
         onPress={() => navigateToPlayer(item.id)}
-        className="flex-row items-center mb-2 bg-neutral-900 border border-neutral-800 rounded-2xl"
-        style={{ marginHorizontal: px, paddingHorizontal: isTablet ? 20 : 16, paddingVertical: isTablet ? 16 : 12, ...contentStyle }}
+        className="flex-row items-center mb-2 bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden"
+        style={{ marginHorizontal: px, paddingHorizontal: isTablet ? 20 : 16, paddingVertical: isTablet ? 14 : 11, ...contentStyle }}
         activeOpacity={0.7}
       >
         {/* Position */}
-        <View className="w-8 items-center">
-          <Text className="text-neutral-500 font-bold text-sm">
+        <View className="w-7 items-center mr-1">
+          <Text className="text-neutral-600 font-bold text-sm tabular-nums">
             {position}
           </Text>
         </View>
 
         {/* Avatar */}
-        <View className="w-10 h-10 rounded-full bg-neutral-800 items-center justify-center mx-3">
-          <Text className="text-white font-bold text-sm">
+        <View
+          className="rounded-full bg-neutral-700 items-center justify-center mx-3 border border-neutral-600/50"
+          style={{ width: isTablet ? 42 : 36, height: isTablet ? 42 : 36 }}
+        >
+          <Text className="text-white font-bold" style={{ fontSize: isTablet ? 16 : 13 }}>
             {item.username.charAt(0).toUpperCase()}
           </Text>
         </View>
 
         {/* Name + Rank Badge */}
         <View className="flex-1">
-          <Text className="text-white font-semibold text-sm">
+          <Text className="text-white font-semibold" style={{ fontSize: 14 * fontScale }}>
             {item.username}
           </Text>
           <View className="flex-row items-center gap-1 mt-0.5">
-            <Text className="text-xs">{rankCfg.icon}</Text>
-            <Text className="text-xs font-medium" style={{ color: rankCfg.color }}>
+            <Text style={{ fontSize: 10 }}>{rankCfg.icon}</Text>
+            <Text className="font-semibold" style={{ color: rankCfg.color, fontSize: 10 * fontScale }}>
               {rankCfg.label}
             </Text>
           </View>
         </View>
 
         {/* LP */}
-        <View className="items-end">
-          <Text className="text-violet-400 font-bold text-sm">
+        <View
+          className="items-center px-2.5 py-1 rounded-lg bg-violet-950/50 border border-violet-800/40"
+        >
+          <Text className="text-violet-300 font-extrabold tabular-nums" style={{ fontSize: 13 * fontScale }}>
             {item.rankPoints}
           </Text>
-          <Text className="text-neutral-600 text-[10px]">LP</Text>
+          <Text className="text-violet-600 font-bold" style={{ fontSize: 9 * fontScale }}>LP</Text>
         </View>
       </TouchableOpacity>
     )
