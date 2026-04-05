@@ -13,6 +13,7 @@ import { getSocket, disconnectSocket } from '../../lib/socket'
 import { RANK_CONFIG } from '@imposter/shared'
 import type { HonorType } from '@imposter/shared'
 import { useTranslation } from 'react-i18next'
+import { useResponsive } from '../../lib/responsive'
 
 const HONOR_OPTIONS: { type: HonorType; label: string; icon: string }[] = [
   { type: 'teamplayer', label: 'Team Player', icon: '🤝' },
@@ -34,6 +35,8 @@ export default function ResultsScreen() {
 
   const [honorGiven, setHonorGiven] = useState<Record<string, HonorType>>({})
   const [honorTarget, setHonorTarget] = useState<string | null>(null)
+  const { isTablet, px, fontScale } = useResponsive()
+  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
   const winner = result?.winner ?? 'villagers'
   const rewards = result?.rewards ?? { starCoinsEarned: 25, xpEarned: 120, lpChange: 18, achievements: [] }
@@ -56,9 +59,10 @@ export default function ResultsScreen() {
     <SafeAreaView className="flex-1 bg-neutral-950" edges={['bottom']}>
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }}
+        contentContainerStyle={{ padding: px, gap: isTablet ? 16 : 12, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
+        <View style={contentStyle}>
 
         {/* Outcome hero */}
         <View
@@ -82,12 +86,13 @@ export default function ResultsScreen() {
             ].join(' ')}
             style={{ opacity: 0.7 }}
           />
-          <Text className="text-6xl mb-3">{didWin ? '🏆' : '💀'}</Text>
+          <Text style={{ fontSize: isTablet ? 72 : 60, marginBottom: 12 }}>{didWin ? '🏆' : '💀'}</Text>
           <Text
             className={[
-              'text-3xl font-extrabold tracking-tight mb-1',
+              'font-extrabold tracking-tight mb-1',
               didWin ? 'text-emerald-400' : 'text-red-400',
             ].join(' ')}
+            style={{ fontSize: isTablet ? 36 : 30 }}
           >
             {didWin ? 'Victory!' : 'Defeat'}
           </Text>
@@ -300,6 +305,7 @@ export default function ResultsScreen() {
           </TouchableOpacity>
         </View>
 
+        </View>
       </ScrollView>
     </SafeAreaView>
   )

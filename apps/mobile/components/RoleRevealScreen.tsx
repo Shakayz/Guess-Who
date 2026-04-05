@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { Modal, View, Text, Animated } from 'react-native'
+import { Modal, View, Text, Animated, useWindowDimensions } from 'react-native'
 
 interface RoleRevealScreenProps {
   visible: boolean
@@ -47,6 +47,10 @@ export default function RoleRevealScreen({
   villagerWord,
   onDismiss,
 }: RoleRevealScreenProps) {
+  const { width } = useWindowDimensions()
+  const isTablet = width >= 768
+  const cardMaxWidth = isTablet ? 440 : 340
+
   const flipAnim = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
@@ -100,7 +104,7 @@ export default function RoleRevealScreen({
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <View className="flex-1 bg-black/80 items-center justify-center px-6">
-        <View style={{ width: '100%', maxWidth: 340, aspectRatio: 0.72 }}>
+        <View style={{ width: '100%', maxWidth: cardMaxWidth, aspectRatio: 0.72 }}>
           {/* Front side */}
           <Animated.View
             style={[

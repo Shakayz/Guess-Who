@@ -3,7 +3,7 @@
     "name": "Imposter Game",
     "slug": "imposter-game",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "scheme": "imposter",
     "userInterfaceStyle": "dark",
@@ -13,8 +13,9 @@
       "backgroundColor": "#09090b"
     },
     "ios": {
-      "supportsTablet": false,
-      "bundleIdentifier": "com.imposter.game"
+      "supportsTablet": true,
+      "bundleIdentifier": "com.imposter.game",
+      "requireFullScreen": false
     },
     "android": {
       "adaptiveIcon": {

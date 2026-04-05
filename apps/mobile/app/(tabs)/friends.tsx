@@ -16,6 +16,7 @@ import { getSocket } from '../../lib/socket'
 import { useAuthStore } from '../../store/auth'
 import { useSocialStore } from '../../store/social'
 import * as Sharing from 'expo-sharing'
+import { useResponsive } from '../../lib/responsive'
 
 /* ---------- Types ---------- */
 
@@ -195,6 +196,9 @@ export default function FriendsScreen() {
   const getInitial = (username: string) =>
     username.charAt(0).toUpperCase()
 
+  const { isTablet, px, fontScale } = useResponsive()
+  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
+
   return (
     <SafeAreaView className="flex-1 bg-neutral-950" edges={['bottom']}>
       <ScrollView
@@ -203,8 +207,9 @@ export default function FriendsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <View style={contentStyle}>
         {/* Search Bar */}
-        <View className="px-4 pt-3 pb-1">
+        <View className="pt-3 pb-1" style={{ paddingHorizontal: px }}>
           <TextInput
             className="bg-neutral-900 text-white px-4 py-3 rounded-xl border border-neutral-800 text-sm"
             placeholder="Search players by username..."
@@ -219,7 +224,7 @@ export default function FriendsScreen() {
 
         {/* Search Results */}
         {searchQuery.trim().length >= 2 && (
-          <View className="px-4 mt-2">
+          <View className="mt-2" style={{ paddingHorizontal: px }}>
             {searchLoading ? (
               <View className="py-4 items-center">
                 <ActivityIndicator size="small" color="#8b5cf6" />
@@ -288,7 +293,7 @@ export default function FriendsScreen() {
         )}
 
         {/* Friend Requests */}
-        <View className="px-4 mt-5">
+        <View className="mt-5" style={{ paddingHorizontal: px }}>
           <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3 px-1">
             Friend Requests
           </Text>
@@ -348,7 +353,7 @@ export default function FriendsScreen() {
         </View>
 
         {/* Friends List */}
-        <View className="px-4 mt-5">
+        <View className="mt-5" style={{ paddingHorizontal: px }}>
           <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3 px-1">
             {t('nav.friends')}
           </Text>
@@ -424,7 +429,7 @@ export default function FriendsScreen() {
         </View>
 
         {/* Share Section */}
-        <View className="px-4 mt-6">
+        <View className="mt-6" style={{ paddingHorizontal: px }}>
           <TouchableOpacity
             onPress={handleShareInvite}
             className="flex-row items-center justify-center gap-2 py-4 rounded-2xl border border-neutral-800 bg-neutral-900"
@@ -435,6 +440,7 @@ export default function FriendsScreen() {
               Share invite link
             </Text>
           </TouchableOpacity>
+        </View>
         </View>
       </ScrollView>
     </SafeAreaView>

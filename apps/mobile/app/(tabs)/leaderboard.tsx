@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { RANK_CONFIG } from '@imposter/shared'
 import type { RankTier } from '@imposter/shared'
 import { api } from '../../lib/api'
+import { useResponsive } from '../../lib/responsive'
 
 interface LeaderboardEntry {
   id: string
@@ -88,6 +89,9 @@ export default function LeaderboardScreen() {
     ? [{ circle: 64, font: 22 }, { circle: 80, font: 28 }, { circle: 64, font: 22 }]
     : top3.map(() => ({ circle: 64, font: 22 }))
 
+  const { isTablet, px, fontScale } = useResponsive()
+  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
+
   const renderItem = ({ item, index }: { item: LeaderboardEntry; index: number }) => {
     const position = index + 4 // offset by top 3
     const rankCfg = RANK_CONFIG[item.rank] ?? RANK_CONFIG.wooden
@@ -95,7 +99,8 @@ export default function LeaderboardScreen() {
     return (
       <TouchableOpacity
         onPress={() => navigateToPlayer(item.id)}
-        className="flex-row items-center px-4 py-3 mx-4 mb-2 bg-neutral-900 border border-neutral-800 rounded-2xl"
+        className="flex-row items-center mb-2 bg-neutral-900 border border-neutral-800 rounded-2xl"
+        style={{ marginHorizontal: px, paddingHorizontal: isTablet ? 20 : 16, paddingVertical: isTablet ? 16 : 12, ...contentStyle }}
         activeOpacity={0.7}
       >
         {/* Position */}
@@ -148,7 +153,7 @@ export default function LeaderboardScreen() {
           <>
             {/* Podium */}
             {top3.length > 0 && (
-              <View className="px-4 pt-6 pb-4">
+              <View className="pt-6 pb-4" style={{ paddingHorizontal: px, ...contentStyle }}>
                 <View className="flex-row items-end justify-center gap-3">
                   {podiumOrder.map((player, i) => {
                     if (!player) return null
@@ -169,8 +174,8 @@ export default function LeaderboardScreen() {
                         <View
                           className="rounded-full items-center justify-center mb-2"
                           style={{
-                            width: size.circle,
-                            height: size.circle,
+                            width: isTablet ? size.circle * 1.3 : size.circle,
+                            height: isTablet ? size.circle * 1.3 : size.circle,
                             backgroundColor: isFirst ? '#7c3aed' : '#262626',
                             borderWidth: 2,
                             borderColor: isFirst ? '#a78bfa' : '#404040',
@@ -211,7 +216,7 @@ export default function LeaderboardScreen() {
 
             {/* Divider */}
             {rest.length > 0 && (
-              <View className="flex-row items-center gap-3 mx-4 mb-3 mt-2">
+              <View className="flex-row items-center gap-3 mb-3 mt-2" style={{ marginHorizontal: px, ...contentStyle }}>
                 <View className="flex-1 h-px bg-neutral-800" />
                 <Text className="text-neutral-500 text-xs font-medium uppercase tracking-wider">
                   {t('leaderboard.rankings', 'Rankings')}
