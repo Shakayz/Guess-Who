@@ -18,7 +18,9 @@
   },
   "typesVersions": {
     "*": {
-      "i18n/*": ["./src/i18n/*"]
+      "i18n/*": [
+        "./src/i18n/*"
+      ]
     }
   },
   "scripts": {
@@ -26,10 +28,12 @@
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
     "tsup": "^8.0.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^1.0.0"
   }
 }
