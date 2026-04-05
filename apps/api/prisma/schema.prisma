@@ -237,10 +237,17 @@ model Achievement {
   name        String
   description String
   icon        String
+  category    String   @default("general") @db.VarChar(30)  // gameplay, social, ranked, imposter, detective, milestones, secret
+  difficulty  String   @default("bronze") @db.VarChar(15)    // bronze, silver, gold, platinum, diamond
+  xpReward    Int      @default(10)
+  coinReward  Int      @default(0)
+  isSecret    Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   users UserAchievement[]
 
+  @@index([category])
+  @@index([difficulty])
   @@map("achievements")
 }
 
