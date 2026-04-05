@@ -115,30 +115,33 @@ export default function HomePage() {
     navigate(`/lobby/${roomCode.trim().toUpperCase()}`)
   }
 
-  const MODES: { id: HomeMode; icon: string; labelKey: string; descKey: string; color: string; inactive: string }[] = [
+  const MODES: { id: HomeMode; icon: string; labelKey: string; descKey: string; color: string; inactive: string; shadow: string }[] = [
     {
       id: 'normal',
       icon: '🎲',
       labelKey: 'home.normalLabel',
       descKey: 'home.normalDesc',
-      color: 'border-brand-700/50 bg-brand-950/40 text-brand-400',
-      inactive: 'border-neutral-800 hover:border-neutral-700',
+      color: 'border-brand-700/60 bg-brand-950/50 text-brand-400 shadow-md shadow-brand-950/50 ring-1 ring-brand-600/20',
+      inactive: 'border-neutral-800 hover:border-brand-800/50 hover:-translate-y-0.5 hover:shadow-md hover:shadow-neutral-950/60',
+      shadow: 'shadow-brand-950/50',
     },
     {
       id: 'ranked',
       icon: '🏆',
       labelKey: 'home.rankedLabel',
       descKey: 'home.rankedDesc',
-      color: 'border-amber-700/50 bg-amber-950/40 text-amber-400',
-      inactive: 'border-neutral-800 hover:border-neutral-700',
+      color: 'border-amber-700/60 bg-amber-950/50 text-amber-400 shadow-md shadow-amber-950/50 ring-1 ring-amber-600/20',
+      inactive: 'border-neutral-800 hover:border-amber-800/50 hover:-translate-y-0.5 hover:shadow-md hover:shadow-neutral-950/60',
+      shadow: 'shadow-amber-950/50',
     },
     {
       id: 'lobby',
       icon: '🚪',
       labelKey: 'home.lobbyLabel',
       descKey: 'home.lobbyDesc',
-      color: 'border-violet-700/50 bg-violet-950/40 text-violet-400',
-      inactive: 'border-neutral-800 hover:border-neutral-700',
+      color: 'border-violet-700/60 bg-violet-950/50 text-violet-400 shadow-md shadow-violet-950/50 ring-1 ring-violet-600/20',
+      inactive: 'border-neutral-800 hover:border-violet-800/50 hover:-translate-y-0.5 hover:shadow-md hover:shadow-neutral-950/60',
+      shadow: 'shadow-violet-950/50',
     },
   ]
 
@@ -280,7 +283,7 @@ export default function HomePage() {
           {/* Quick Join */}
           <form onSubmit={handleJoin} className="flex gap-2">
             <input
-              className="input-field flex-1 font-mono uppercase tracking-[0.25em] text-center text-lg h-12"
+              className="input-field flex-1 font-mono uppercase tracking-[0.25em] text-center text-lg h-12 focus:ring-2 focus:ring-brand-600/50 focus:shadow-lg focus:shadow-brand-950/40 transition-all"
               placeholder={t('home.roomCodePlaceholder')}
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
@@ -290,7 +293,7 @@ export default function HomePage() {
             <button
               type="submit"
               disabled={roomCode.trim().length < 4 || !!isBlockedFromNewGame}
-              className="h-12 px-6 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-neutral-800 border border-neutral-700 whitespace-nowrap"
+              className="h-12 px-6 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-neutral-800 border border-neutral-700 hover:border-neutral-600 whitespace-nowrap shadow-sm"
             >
               {t('room.joinRoom')}
             </button>
@@ -319,7 +322,7 @@ export default function HomePage() {
                       setError(null)
                     }}
                     className={[
-                      'flex flex-col items-center gap-1.5 p-4 rounded-2xl border transition-all duration-150 active:scale-[0.97]',
+                      'flex flex-col items-center gap-1.5 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.97]',
                       active ? mode.color : `bg-neutral-900 text-neutral-400 ${mode.inactive}`,
                     ].join(' ')}
                   >
@@ -403,10 +406,10 @@ export default function HomePage() {
                       className={[
                         'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border',
                         selected
-                          ? 'bg-brand-950/60 border-brand-700/50 text-brand-300'
+                          ? 'bg-brand-950/60 border-brand-700/50 text-brand-300 shadow-sm shadow-brand-950/40 ring-1 ring-brand-700/20'
                           : isAll
-                            ? 'bg-neutral-800/40 border-neutral-700/30 text-neutral-400'
-                            : 'bg-neutral-900/40 border-neutral-800/40 text-neutral-600',
+                            ? 'bg-neutral-800/40 border-neutral-700/30 text-neutral-400 hover:border-neutral-600/50 hover:text-neutral-300'
+                            : 'bg-neutral-900/40 border-neutral-800/40 text-neutral-600 hover:border-neutral-700/50 hover:text-neutral-400',
                       ].join(' ')}
                     >
                       <span>{cat.icon}</span>

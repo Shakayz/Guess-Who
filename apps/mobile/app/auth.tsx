@@ -333,58 +333,71 @@ export default function AuthScreen() {
 
               {/* Logo */}
               <View className="items-center mb-10">
-                <View className="rounded-2xl bg-violet-700 items-center justify-center mb-5" style={{ width: isTablet ? 80 : 64, height: isTablet ? 80 : 64 }}>
+                <View
+                  className="rounded-2xl bg-violet-700 items-center justify-center mb-5 overflow-hidden"
+                  style={{ width: isTablet ? 80 : 64, height: isTablet ? 80 : 64 }}
+                >
+                  <View className="absolute top-0 left-0 right-0 h-1/2 bg-white/10 rounded-t-2xl" />
                   <Text style={{ fontSize: isTablet ? 40 : 30 }}>🎭</Text>
                 </View>
                 <Text className="font-extrabold text-white tracking-tight" style={{ fontSize: isTablet ? 36 : 30 }}>Imposter Game</Text>
-                <Text className="text-neutral-500 mt-1.5" style={{ fontSize: 14 * fontScale }}>Deceive. Detect. Dominate.</Text>
+                <View className="flex-row items-center gap-1.5 mt-2 px-3 py-1 rounded-full border border-violet-800/40 bg-violet-950/30">
+                  <View className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                  <Text className="text-violet-400 font-semibold" style={{ fontSize: 12 * fontScale }}>Deceive. Detect. Dominate.</Text>
+                </View>
               </View>
 
               {/* OAuth buttons */}
-              <View className="gap-3 mb-5">
+              <View className="gap-2.5 mb-5">
                 <AppleAuthentication.AppleAuthenticationButton
                   buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
                   buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                  cornerRadius={12}
-                  style={{ width: '100%', height: 48 }}
+                  cornerRadius={14}
+                  style={{ width: '100%', height: 50 }}
                   onPress={handleApple}
                 />
                 <TouchableOpacity
                   onPress={handleGoogleSignIn}
                   disabled={loading}
-                  className="flex-row items-center justify-center gap-3 py-3 rounded-xl bg-white border border-neutral-200"
-                  activeOpacity={0.8}
+                  className="flex-row items-center justify-center gap-2.5 rounded-xl bg-white border border-neutral-200 overflow-hidden"
+                  activeOpacity={0.85}
+                  style={{ height: 50 }}
                 >
-                  <Text className="text-2xl">G</Text>
-                  <Text className="text-neutral-900 font-semibold text-sm">Continue with Google</Text>
+                  <View className="w-5 h-5 rounded-full bg-neutral-100 items-center justify-center">
+                    <Text style={{ fontSize: 14, lineHeight: 18, fontWeight: '700', color: '#4285F4' }}>G</Text>
+                  </View>
+                  <Text className="text-neutral-900 font-semibold" style={{ fontSize: 15 * fontScale }}>Continue with Google</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Divider */}
               <View className="flex-row items-center gap-3 mb-5">
                 <View className="flex-1 h-px bg-neutral-800" />
-                <Text className="text-neutral-600 text-xs font-medium">or</Text>
+                <Text className="text-neutral-600 text-xs font-medium uppercase tracking-widest">or</Text>
                 <View className="flex-1 h-px bg-neutral-800" />
               </View>
 
               {/* Card */}
-              <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+              <View className="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
+                {/* Top accent */}
+                <View className="absolute top-0 left-0 right-0 h-0.5 bg-violet-700/60" />
 
+                <View className="p-6">
                 {/* Mode tabs */}
-                <View className="flex-row rounded-xl bg-neutral-800 p-1 mb-6">
+                <View className="flex-row rounded-xl bg-neutral-800/80 p-1 mb-6 border border-neutral-700/50">
                   {(['signin', 'signup'] as const).map((m) => (
                     <TouchableOpacity
                       key={m}
                       onPress={() => switchMode(m)}
                       className={[
                         'flex-1 py-2 rounded-lg items-center',
-                        mode === m ? 'bg-neutral-950' : '',
+                        mode === m ? 'bg-neutral-950 border border-neutral-700/60' : '',
                       ].join(' ')}
                     >
                       <Text className={[
-                        'text-sm font-semibold',
+                        'font-semibold',
                         mode === m ? 'text-white' : 'text-neutral-500',
-                      ].join(' ')}>
+                      ].join(' ')} style={{ fontSize: 13 * fontScale }}>
                         {m === 'signin' ? t('auth.signIn') : t('auth.signUp')}
                       </Text>
                     </TouchableOpacity>
@@ -394,10 +407,12 @@ export default function AuthScreen() {
                 {/* Username (signup only) */}
                 {mode === 'signup' && (
                   <View className="mb-3">
+                    <Text className="text-xs font-semibold text-neutral-500 mb-1.5 uppercase tracking-wider">{t('auth.username')}</Text>
                     <TextInput
-                      className="bg-neutral-800 text-white px-4 py-3 rounded-xl border border-neutral-700"
+                      className="bg-neutral-800 text-white px-4 rounded-xl border border-neutral-700/80"
+                      style={{ paddingVertical: 13, fontSize: 15 * fontScale }}
                       placeholder={t('auth.username')}
-                      placeholderTextColor="#737373"
+                      placeholderTextColor="#525252"
                       value={form.username}
                       onChangeText={update('username')}
                       autoCapitalize="none"
@@ -409,10 +424,12 @@ export default function AuthScreen() {
 
                 {/* Email */}
                 <View className="mb-3">
+                  <Text className="text-xs font-semibold text-neutral-500 mb-1.5 uppercase tracking-wider">{t('auth.email')}</Text>
                   <TextInput
-                    className="bg-neutral-800 text-white px-4 py-3 rounded-xl border border-neutral-700"
+                    className="bg-neutral-800 text-white px-4 rounded-xl border border-neutral-700/80"
+                    style={{ paddingVertical: 13, fontSize: 15 * fontScale }}
                     placeholder={t('auth.email')}
-                    placeholderTextColor="#737373"
+                    placeholderTextColor="#525252"
                     value={form.email}
                     onChangeText={update('email')}
                     keyboardType="email-address"
@@ -422,11 +439,13 @@ export default function AuthScreen() {
                 </View>
 
                 {/* Password */}
-                <View className="mb-4">
+                <View className="mb-5">
+                  <Text className="text-xs font-semibold text-neutral-500 mb-1.5 uppercase tracking-wider">{t('auth.password')}</Text>
                   <TextInput
-                    className="bg-neutral-800 text-white px-4 py-3 rounded-xl border border-neutral-700"
-                    placeholder={t('auth.password')}
-                    placeholderTextColor="#737373"
+                    className="bg-neutral-800 text-white px-4 rounded-xl border border-neutral-700/80"
+                    style={{ paddingVertical: 13, fontSize: 15 * fontScale }}
+                    placeholder="••••••••"
+                    placeholderTextColor="#525252"
                     value={form.password}
                     onChangeText={update('password')}
                     secureTextEntry
@@ -437,7 +456,7 @@ export default function AuthScreen() {
                 {/* Error */}
                 {error && (
                   <View className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800 mb-4">
-                    <Text className="text-red-400 text-sm">⚠ {error}</Text>
+                    <Text className="text-red-400" style={{ fontSize: 13 * fontScale }}>⚠ {error}</Text>
                   </View>
                 )}
 
@@ -446,19 +465,22 @@ export default function AuthScreen() {
                   onPress={handleSubmit}
                   disabled={loading}
                   className={[
-                    'py-3 rounded-xl items-center',
+                    'rounded-xl items-center overflow-hidden',
                     loading ? 'bg-violet-800 opacity-60' : 'bg-violet-600',
                   ].join(' ')}
                   activeOpacity={0.8}
+                  style={{ paddingVertical: 14 }}
                 >
+                  <View className="absolute top-0 left-0 right-0 h-1/2 rounded-t-xl" style={{ backgroundColor: 'rgba(255,255,255,0.07)' }} />
                   {loading ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
-                    <Text className="text-white font-semibold text-base">
+                    <Text className="text-white font-extrabold tracking-wide" style={{ fontSize: 15 * fontScale }}>
                       {mode === 'signin' ? t('auth.signIn') : t('auth.signUp')}
                     </Text>
                   )}
                 </TouchableOpacity>
+                </View>
               </View>
 
               {/* Footer hint */}

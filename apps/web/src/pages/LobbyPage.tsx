@@ -478,21 +478,25 @@ export default function LobbyPage() {
             <p className="text-neutral-500 text-sm mt-1">{t('lobby.shareHint')}</p>
           </div>
 
-          <div className="flex flex-col items-center gap-2">
-            {code && <RoomCodeDisplay code={code} />}
+          <div className="flex flex-col items-center gap-3">
+            {code && (
+              <div className="ring-1 ring-brand-600/30 rounded-2xl shadow-lg shadow-brand-950/30">
+                <RoomCodeDisplay code={code} />
+              </div>
+            )}
             <button
               onClick={shareRoom}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white border border-neutral-700 transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-neutral-800/80 hover:bg-neutral-700 text-neutral-400 hover:text-white border border-neutral-700/60 hover:border-neutral-600 transition-all shadow-sm"
             >
               {t('lobby.share')}
             </button>
           </div>
 
           {/* Player list */}
-          <div className="card space-y-2">
+          <div className="card space-y-2 border-neutral-800/60 bg-neutral-900/60">
             <div className="flex items-center justify-between mb-1">
               <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">{t('lobby.players')}</p>
-              <span className="text-xs text-neutral-500 tabular-nums">
+              <span className="text-xs text-neutral-500 tabular-nums bg-neutral-800 px-2 py-0.5 rounded-full">
                 {players.length} / {settings.maxPlayers}
               </span>
             </div>
@@ -508,7 +512,9 @@ export default function LobbyPage() {
               </div>
             ) : (
               players.map((p) => (
-                <PlayerCard key={p.id} player={p} isCurrentUser={p.userId === user?.id} />
+                <div key={p.id} className="transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-neutral-950/40">
+                  <PlayerCard player={p} isCurrentUser={p.userId === user?.id} />
+                </div>
               ))
             )}
           </div>
@@ -668,7 +674,9 @@ export default function LobbyPage() {
                   'flex-1 py-3 rounded-xl font-semibold transition-all',
                   isReady
                     ? 'bg-emerald-700/60 hover:bg-red-900/60 text-emerald-300 hover:text-red-300 border border-emerald-700/50'
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20',
+                    : allReady
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 animate-pulse-slow'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20',
                 ].join(' ')}
               >
                 {isReady ? `✓ ${t('lobby.ready')}` : t('lobby.notReady')}
@@ -677,7 +685,12 @@ export default function LobbyPage() {
               <button
                 onClick={startGame}
                 disabled={players.length < minPlayers || !allReady}
-                className="flex-1 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-brand-600/20"
+                className={[
+                  'flex-1 py-3 rounded-xl text-white font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg',
+                  allReady && players.length >= minPlayers
+                    ? 'bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 shadow-brand-600/30 animate-pulse-slow'
+                    : 'bg-brand-600 hover:bg-brand-500 shadow-brand-600/20',
+                ].join(' ')}
               >
                 {t('lobby.startGame')}
               </button>

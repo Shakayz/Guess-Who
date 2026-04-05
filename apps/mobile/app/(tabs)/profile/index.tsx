@@ -259,6 +259,11 @@ export default function ProfileScreen() {
             className="mb-4"
             activeOpacity={0.8}
           >
+            {/* Avatar ring */}
+            <View
+              className="rounded-full border-2 border-violet-600/60 p-0.5"
+              style={{ width: isTablet ? 108 : 88, height: isTablet ? 108 : 88, alignItems: 'center', justifyContent: 'center' }}
+            >
             <View
               className="rounded-full bg-violet-600 items-center justify-center overflow-hidden"
               style={{ width: isTablet ? 100 : 80, height: isTablet ? 100 : 80 }}
@@ -288,10 +293,11 @@ export default function ProfileScreen() {
                 </View>
               )}
             </View>
+            </View>
             {!uploadingAvatar && (
               <View
                 className="absolute bottom-0 right-0 bg-violet-600 rounded-full items-center justify-center border-2 border-neutral-950"
-                style={{ width: 24, height: 24 }}
+                style={{ width: 26, height: 26 }}
               >
                 <Text style={{ fontSize: 12, color: '#fff' }}>✎</Text>
               </View>
@@ -350,14 +356,39 @@ export default function ProfileScreen() {
         </View>
 
         {/* Rank */}
-        <View className="mx-4 mb-4 p-4 rounded-2xl border border-neutral-800 bg-neutral-900 items-center">
-          <Text className="text-3xl mb-1">{rankCfg.icon}</Text>
-          <Text className="text-lg font-bold" style={{ color: rankCfg.color }}>
-            {rankCfg.label}
-          </Text>
-          <Text className="text-neutral-400 text-sm mt-1">
-            {profile.rankPoints} LP
-          </Text>
+        <View
+          className="mx-4 mb-4 rounded-2xl overflow-hidden border"
+          style={{ borderColor: rankCfg.color + '40' }}
+        >
+          <View className="absolute inset-0" style={{ backgroundColor: rankCfg.color + '10' }} />
+          <View className="absolute top-0 left-0 right-0 h-0.5" style={{ backgroundColor: rankCfg.color + 'AA' }} />
+          <View className="flex-row items-center gap-4 p-4">
+            <View
+              className="rounded-2xl items-center justify-center border"
+              style={{
+                width: isTablet ? 68 : 56,
+                height: isTablet ? 68 : 56,
+                backgroundColor: rankCfg.color + '20',
+                borderColor: rankCfg.color + '50',
+              }}
+            >
+              <Text style={{ fontSize: isTablet ? 36 : 28 }}>{rankCfg.icon}</Text>
+            </View>
+            <View className="flex-1">
+              <Text className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-0.5">
+                Current Rank
+              </Text>
+              <Text className="font-extrabold tracking-tight" style={{ color: rankCfg.color, fontSize: isTablet ? 24 : 20 }}>
+                {rankCfg.label}
+              </Text>
+              <View className="flex-row items-center gap-1.5 mt-1">
+                <Text className="text-neutral-300 font-bold" style={{ fontSize: 15 * fontScale }}>
+                  {profile.rankPoints}
+                </Text>
+                <Text className="text-neutral-500 text-xs">LP</Text>
+              </View>
+            </View>
+          </View>
         </View>
 
         {/* Stats Grid */}
@@ -365,13 +396,14 @@ export default function ProfileScreen() {
           {stats.map((stat) => (
             <View
               key={stat.label}
-              className="bg-neutral-900 border border-neutral-800 rounded-2xl items-center"
+              className="bg-neutral-900 border border-neutral-800 rounded-2xl items-center overflow-hidden"
               style={{ width: isTablet ? '23%' : '48%', padding: isTablet ? 20 : 16 }}
             >
-              <Text className="text-white text-2xl font-bold">
+              <View className="absolute top-0 left-0 right-0 h-0.5 bg-violet-800/50" />
+              <Text className="text-white font-extrabold" style={{ fontSize: isTablet ? 32 : 26 }}>
                 {stat.value}
               </Text>
-              <Text className="text-neutral-500 text-xs mt-1">
+              <Text className="text-neutral-500 text-xs mt-1 uppercase tracking-wider font-semibold" style={{ fontSize: 10 * fontScale }}>
                 {stat.label}
               </Text>
             </View>
@@ -387,11 +419,12 @@ export default function ProfileScreen() {
             {honors.map((h) => (
               <View
                 key={h.label}
-                className="flex-1 bg-neutral-900 border border-neutral-800 rounded-2xl p-3 items-center"
+                className="flex-1 bg-neutral-900 border border-neutral-800 rounded-2xl p-3 items-center overflow-hidden"
               >
-                <Text className="text-2xl mb-1">{h.icon}</Text>
-                <Text className="text-white font-bold text-lg">{h.count}</Text>
-                <Text className="text-neutral-500 text-[10px] mt-0.5 text-center">
+                <View className="absolute top-0 left-0 right-0 h-0.5 bg-amber-800/40" />
+                <Text style={{ fontSize: isTablet ? 28 : 22, marginBottom: 4 }}>{h.icon}</Text>
+                <Text className="text-white font-extrabold" style={{ fontSize: isTablet ? 24 : 20 }}>{h.count}</Text>
+                <Text className="text-neutral-500 mt-0.5 text-center font-semibold uppercase tracking-wider" style={{ fontSize: 9 * fontScale }}>
                   {h.label}
                 </Text>
               </View>

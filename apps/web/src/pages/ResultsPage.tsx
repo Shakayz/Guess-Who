@@ -133,13 +133,13 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
     : null
 
   return (
-    <div className="rounded-xl border border-neutral-800 overflow-hidden">
+    <div className="rounded-xl border border-neutral-800/70 overflow-hidden bg-neutral-900/30 hover:border-neutral-700/70 transition-colors">
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex flex-col gap-2 px-4 py-3 text-left hover:bg-neutral-800/40 transition-colors"
       >
         <div className="flex items-center gap-3 w-full">
-          <span className="w-6 h-6 rounded-full bg-brand-900/60 border border-brand-700/50 flex items-center justify-center text-xs font-bold text-brand-400 flex-shrink-0">
+          <span className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-900/80 to-brand-950/80 border border-brand-700/60 flex items-center justify-center text-xs font-bold text-brand-400 flex-shrink-0 shadow-sm shadow-brand-950/40">
             {round.roundNumber}
           </span>
           <div className="flex-1 min-w-0">
@@ -463,31 +463,33 @@ export default function ResultsPage() {
           )}
 
           {/* Animated Rewards */}
-          <div className="card">
+          <div className="card border-neutral-800/60">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('results.rewards')}</p>
             <div className={['grid gap-3', isRanked ? 'grid-cols-3' : isLobby ? 'grid-cols-1' : 'grid-cols-2'].join(' ')}>
-              <div className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50 animate-count-up" style={{ animationDelay: '0.1s' }}>
-                <span className="text-xl">⭐</span>
-                <span className="text-lg font-bold text-white tabular-nums">+{animatedStars}</span>
+              <div className="flex flex-col items-center gap-1 p-4 rounded-xl bg-gradient-to-b from-amber-950/40 to-neutral-800/60 border border-amber-800/30 animate-count-up shadow-sm shadow-amber-950/30 relative overflow-hidden" style={{ animationDelay: '0.1s' }}>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-400/5 to-transparent -translate-x-full animate-[shimmer_2s_ease-in-out_1.2s_1_forwards]" style={{ backgroundSize: '200% 100%' }} />
+                <span className="text-2xl">⭐</span>
+                <span className="text-xl font-bold text-amber-300 tabular-nums">+{animatedStars}</span>
                 <span className="text-xs text-neutral-500">{t('results.starCoins')}</span>
               </div>
               {!isLobby && (
-                <div className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50 animate-count-up" style={{ animationDelay: '0.3s' }}>
-                  <span className="text-xl">⚡</span>
-                  <span className="text-lg font-bold text-white tabular-nums">+{animatedXP}</span>
+                <div className="flex flex-col items-center gap-1 p-4 rounded-xl bg-gradient-to-b from-blue-950/40 to-neutral-800/60 border border-blue-800/30 animate-count-up shadow-sm shadow-blue-950/30 relative overflow-hidden" style={{ animationDelay: '0.3s' }}>
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-400/5 to-transparent -translate-x-full animate-[shimmer_2s_ease-in-out_1.4s_1_forwards]" style={{ backgroundSize: '200% 100%' }} />
+                  <span className="text-2xl">⚡</span>
+                  <span className="text-xl font-bold text-blue-300 tabular-nums">+{animatedXP}</span>
                   <span className="text-xs text-neutral-500">{t('results.xp')}</span>
                 </div>
               )}
               {isRanked && (
                 <div className={[
-                  'flex flex-col items-center gap-1 p-3 rounded-xl border animate-count-up',
+                  'flex flex-col items-center gap-1 p-4 rounded-xl border animate-count-up relative overflow-hidden',
                   (rewards?.lpChange ?? 0) >= 0
-                    ? 'bg-emerald-950/40 border-emerald-800/40'
-                    : 'bg-red-950/40 border-red-800/40',
+                    ? 'bg-gradient-to-b from-emerald-950/40 to-neutral-800/60 border-emerald-800/30 shadow-sm shadow-emerald-950/30'
+                    : 'bg-gradient-to-b from-red-950/40 to-neutral-800/60 border-red-800/30 shadow-sm shadow-red-950/30',
                 ].join(' ')} style={{ animationDelay: '0.5s' }}>
-                  <span className="text-xl">📊</span>
+                  <span className="text-2xl">📊</span>
                   <span className={[
-                    'text-lg font-bold tabular-nums',
+                    'text-xl font-bold tabular-nums',
                     (rewards?.lpChange ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400',
                   ].join(' ')}>
                     {(rewards?.lpChange ?? 0) >= 0 ? '+' : '-'}{animatedLP}
@@ -601,16 +603,23 @@ export default function ResultsPage() {
                       </span>
                     ) : honorTarget === p.userId ? (
                       <div className="flex flex-col gap-1.5 items-end animate-slide-up">
-                        {(['teamplayer', 'sharp_mind', 'good_sport'] as HonorType[]).map((type) => (
-                          <button
-                            key={type}
-                            onClick={() => handleHonor(p.userId, type)}
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-semibold text-neutral-300 hover:text-white transition-colors"
-                          >
-                            <span>{HONOR_ICON[type]}</span>
-                            <span>{t(`honor.${type === 'sharp_mind' ? 'sharpMind' : type === 'good_sport' ? 'goodSport' : 'teamplayer'}`)}</span>
-                          </button>
-                        ))}
+                        {(['teamplayer', 'sharp_mind', 'good_sport'] as HonorType[]).map((type) => {
+                          const honorColors: Record<HonorType, string> = {
+                            teamplayer: 'bg-emerald-950/60 hover:bg-emerald-900/60 border-emerald-800/40 text-emerald-300 hover:text-emerald-200',
+                            sharp_mind: 'bg-blue-950/60 hover:bg-blue-900/60 border-blue-800/40 text-blue-300 hover:text-blue-200',
+                            good_sport: 'bg-amber-950/60 hover:bg-amber-900/60 border-amber-800/40 text-amber-300 hover:text-amber-200',
+                          }
+                          return (
+                            <button
+                              key={type}
+                              onClick={() => handleHonor(p.userId, type)}
+                              className={['flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all hover:-translate-y-0.5 hover:shadow-sm', honorColors[type]].join(' ')}
+                            >
+                              <span>{HONOR_ICON[type]}</span>
+                              <span>{t(`honor.${type === 'sharp_mind' ? 'sharpMind' : type === 'good_sport' ? 'goodSport' : 'teamplayer'}`)}</span>
+                            </button>
+                          )
+                        })}
                         <button
                           onClick={() => setHonorTarget(null)}
                           className="text-[10px] text-neutral-600 hover:text-neutral-400 transition-colors"
@@ -621,7 +630,7 @@ export default function ResultsPage() {
                     ) : (
                       <button
                         onClick={() => setHonorTarget(p.userId)}
-                        className="text-xs px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white transition-colors font-medium"
+                        className="text-xs px-3 py-1.5 rounded-xl bg-neutral-800/80 hover:bg-neutral-700 text-neutral-400 hover:text-white transition-all border border-neutral-700/50 hover:border-neutral-600 font-medium hover:-translate-y-0.5 hover:shadow-sm"
                       >
                         {t('results.plusHonor')}
                       </button>

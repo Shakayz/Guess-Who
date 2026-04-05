@@ -493,16 +493,24 @@ export default function LobbyScreen() {
         {/* Room code + share */}
         <TouchableOpacity
           onPress={copyRoomCode}
-          className="bg-neutral-900 border border-violet-900/50 rounded-2xl items-center overflow-hidden"
-          style={{ padding: isTablet ? 24 : 20 }}
+          className="bg-neutral-900 border-2 border-violet-800/50 rounded-2xl items-center overflow-hidden"
+          style={{ paddingVertical: isTablet ? 28 : 22, paddingHorizontal: isTablet ? 24 : 20 }}
+          activeOpacity={0.8}
         >
           {/* Top accent */}
-          <View className="absolute top-0 left-0 right-0 h-0.5 bg-violet-600/60" />
-          <Text className="font-semibold uppercase tracking-widest text-neutral-500 mb-2" style={{ fontSize: 11 * fontScale }}>Room Code</Text>
-          <Text className="font-black font-mono text-white tracking-[0.25em]" style={{ fontSize: (isTablet ? 52 : 40) }}>{code}</Text>
-          <View className="flex-row items-center gap-1.5 mt-2">
-            <Text className={['font-semibold', codeCopied ? 'text-emerald-400' : 'text-neutral-600'].join(' ')} style={{ fontSize: 12 * fontScale }}>
-              {codeCopied ? '✓ Copied!' : 'Tap to copy'}
+          <View className="absolute top-0 left-0 right-0 h-1 bg-violet-600/70" />
+          {/* Subtle bg glow */}
+          <View className="absolute inset-0 bg-violet-950/20" />
+          <Text className="font-bold uppercase tracking-[0.2em] text-violet-500 mb-3" style={{ fontSize: 11 * fontScale }}>Room Code</Text>
+          <Text className="font-black font-mono text-white" style={{ fontSize: (isTablet ? 56 : 46), letterSpacing: 10 }}>{code}</Text>
+          <View
+            className={[
+              'flex-row items-center gap-1.5 mt-3 px-3 py-1 rounded-full border',
+              codeCopied ? 'bg-emerald-950/50 border-emerald-700/50' : 'bg-neutral-800/60 border-neutral-700/50',
+            ].join(' ')}
+          >
+            <Text className={['text-xs font-semibold', codeCopied ? 'text-emerald-400' : 'text-neutral-500'].join(' ')}>
+              {codeCopied ? '✓ Copied to clipboard!' : '📋 Tap to copy'}
             </Text>
           </View>
         </TouchableOpacity>
@@ -772,28 +780,34 @@ export default function LobbyScreen() {
         <View className="flex-row gap-3 mt-2">
           <TouchableOpacity
             onPress={handleLeave}
-            className="px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700 items-center justify-center"
+            className="px-4 rounded-xl bg-neutral-800 border border-neutral-700 items-center justify-center"
             activeOpacity={0.8}
+            style={{ paddingVertical: isTablet ? 16 : 13 }}
           >
-            <Text className="text-neutral-300 font-semibold text-sm">← Leave</Text>
+            <Text className="text-neutral-400 font-semibold" style={{ fontSize: 14 * fontScale }}>← Leave</Text>
           </TouchableOpacity>
 
           {!isHost ? (
             <TouchableOpacity
               onPress={toggleReady}
               className={[
-                'flex-1 py-3 rounded-xl items-center',
+                'flex-1 rounded-2xl items-center overflow-hidden',
                 isReady ? 'bg-emerald-600' : 'bg-neutral-800 border border-neutral-700',
               ].join(' ')}
               activeOpacity={0.8}
+              style={{ paddingVertical: isTablet ? 16 : 13 }}
             >
+              {isReady && (
+                <View className="absolute top-0 left-0 right-0 h-1/2 rounded-t-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }} />
+              )}
               <Text
                 className={[
-                  'font-semibold text-sm',
+                  'font-bold tracking-wide',
                   isReady ? 'text-white' : 'text-neutral-300',
                 ].join(' ')}
+                style={{ fontSize: 15 * fontScale }}
               >
-                {isReady ? '✓ Ready' : 'Not Ready'}
+                {isReady ? '✓ Ready' : 'Set Ready'}
               </Text>
             </TouchableOpacity>
           ) : (
@@ -801,20 +815,29 @@ export default function LobbyScreen() {
               onPress={startGame}
               disabled={!allReady}
               className={[
-                'flex-1 py-3 rounded-xl items-center',
-                allReady ? 'bg-violet-600' : 'bg-violet-900 opacity-40',
+                'flex-1 rounded-2xl items-center overflow-hidden',
+                allReady ? 'bg-violet-600' : 'bg-violet-950 border border-violet-900/40',
               ].join(' ')}
               activeOpacity={0.8}
+              style={{ paddingVertical: isTablet ? 16 : 13, opacity: allReady ? 1 : 0.5 }}
             >
-              <Text className="text-white font-bold text-sm">Start Game</Text>
+              {allReady && (
+                <View className="absolute top-0 left-0 right-0 h-1/2 rounded-t-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }} />
+              )}
+              <Text className="text-white font-extrabold tracking-wide" style={{ fontSize: 15 * fontScale }}>
+                {allReady ? '▶ Start Game' : 'Start Game'}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
 
         {isHost && !allReady && players.length >= minPlayers && (
-          <Text className="text-neutral-500 text-center" style={{ fontSize: 12 * fontScale }}>
-            Waiting for all players to be ready
-          </Text>
+          <View className="flex-row items-center justify-center gap-1.5">
+            <View className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            <Text className="text-amber-600 text-center" style={{ fontSize: 12 * fontScale }}>
+              Waiting for all players to be ready
+            </Text>
+          </View>
         )}
         </View>
       </ScrollView>

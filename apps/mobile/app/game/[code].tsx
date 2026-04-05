@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Modal,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -112,6 +113,108 @@ function PhaseIndicator({ currentPhase }: { currentPhase: Phase }) {
   )
 }
 
+// ─── PlayerClueHistoryModal ───────────────────────────────────────────────────
+
+function PlayerClueHistoryModal({
+  visible,
+  player,
+  completedRounds,
+  currentClues,
+  onClose,
+}: {
+  visible: boolean
+  player: { userId: string; username: string } | null
+  completedRounds: any[]
+  currentClues: any[]
+  onClose: () => void
+}) {
+  if (!player) return null
+
+  // Collect clues from completed rounds + current round clues
+  const allRoundClues: { roundNumber: number; clue: string }[] = []
+
+  completedRounds.forEach((round) => {
+    const roundClue = (round.clues ?? []).find((c: any) => c.playerId === player.userId)
+    if (roundClue) {
+      allRoundClues.push({ roundNumber: round.roundNumber, clue: roundClue.text })
+    }
+  })
+
+  // Current round clues
+  currentClues.forEach((c: any) => {
+    if (c.playerId === player.userId) {
+      const maxRound = allRoundClues.reduce((m, r) => Math.max(m, r.roundNumber), 0)
+      allRoundClues.push({ roundNumber: maxRound + 1, clue: c.text })
+    }
+  })
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity
+        className="flex-1 bg-black/70"
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <View className="flex-1" />
+        <View
+          className="bg-neutral-900 rounded-t-3xl border-t border-neutral-700 overflow-hidden"
+          onStartShouldSetResponder={() => true}
+        >
+          {/* Handle bar */}
+          <View className="items-center pt-3 pb-1">
+            <View className="w-10 h-1 rounded-full bg-neutral-700" />
+          </View>
+
+          {/* Header */}
+          <View className="flex-row items-center justify-between px-5 py-3 border-b border-neutral-800">
+            <View className="flex-row items-center gap-2">
+              <View className="w-8 h-8 rounded-full bg-violet-700 items-center justify-center">
+                <Text className="text-white text-sm font-bold">
+                  {player.username.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+              <View>
+                <Text className="text-white font-bold text-base">{player.username}</Text>
+                <Text className="text-neutral-500 text-xs">Clue history</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={onClose}
+              className="w-8 h-8 rounded-full bg-neutral-800 items-center justify-center"
+            >
+              <Text className="text-neutral-400 text-sm">✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 32 }}
+            showsVerticalScrollIndicator={false}
+            style={{ maxHeight: 360 }}
+          >
+            {allRoundClues.length === 0 ? (
+              <Text className="text-neutral-600 text-sm italic text-center py-6">
+                No clues submitted yet
+              </Text>
+            ) : (
+              allRoundClues.map((item, i) => (
+                <View
+                  key={i}
+                  className="flex-row items-start gap-3 px-3 py-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50"
+                >
+                  <View className="px-1.5 py-0.5 rounded bg-violet-900/60 border border-violet-700/40 mt-0.5">
+                    <Text className="text-[10px] font-bold text-violet-400">R{item.roundNumber}</Text>
+                  </View>
+                  <Text className="flex-1 text-white text-sm leading-snug">{item.clue}</Text>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  )
+}
+
 // ─── GameScreen ───────────────────────────────────────────────────────────────
 
 export default function GameScreen() {
@@ -137,6 +240,7 @@ export default function GameScreen() {
     setRoleAndWord,
     result,
     reset,
+    completedRounds,
   } = useGameStore()
   const user = useAuthStore((s) => s.user)
   const { isTablet, px, fontScale } = useResponsive()
@@ -184,6 +288,7 @@ export default function GameScreen() {
   } | null>(null)
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
   const [clueFlagCounts, setClueFlagCounts] = useState<Record<number, number>>({})
+  const [clueHistoryPlayer, setClueHistoryPlayer] = useState<{ userId: string; username: string } | null>(null)
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatScrollRef = useRef<ScrollView>(null)
@@ -584,6 +689,15 @@ export default function GameScreen() {
         />
       )}
 
+      {/* Player clue history modal */}
+      <PlayerClueHistoryModal
+        visible={clueHistoryPlayer !== null}
+        player={clueHistoryPlayer}
+        completedRounds={completedRounds}
+        currentClues={clues}
+        onClose={() => setClueHistoryPlayer(null)}
+      />
+
       {/* Floating emote reactions */}
       {floatingEmotes.length > 0 && (
         <View className="absolute top-20 left-0 right-0 z-50 items-center" pointerEvents="none">
@@ -904,50 +1018,90 @@ export default function GameScreen() {
               <View className="gap-2">
                 {alivePlayers
                   .filter((p) => p.userId !== user?.id)
-                  .map((p) => (
-                    <TouchableOpacity
-                      key={p.id}
-                      onPress={() => vote(p.userId)}
-                      disabled={!!votedFor || isEliminated}
-                      className={[
-                        'flex-row items-center gap-3 px-3 py-3 rounded-xl border',
-                        votedFor === p.userId
-                          ? 'border-amber-600 bg-amber-950/30'
-                          : votedFor
-                          ? 'border-neutral-800 bg-neutral-900/40 opacity-50'
-                          : 'border-neutral-800 bg-neutral-900/40',
-                      ].join(' ')}
-                      activeOpacity={0.7}
-                    >
-                      <View className="w-8 h-8 rounded-full bg-violet-700 items-center justify-center">
-                        <Text className="text-white text-sm font-bold">
-                          {p.username.charAt(0).toUpperCase()}
+                  .map((p) => {
+                    const isVotedTarget = votedFor === p.userId
+                    const hasVoted = !!votedFor
+                    return (
+                      <TouchableOpacity
+                        key={p.id}
+                        onPress={() => vote(p.userId)}
+                        disabled={hasVoted || isEliminated}
+                        className={[
+                          'flex-row items-center gap-3 px-3 py-3 rounded-xl border overflow-hidden',
+                          isVotedTarget
+                            ? 'border-amber-600/70 bg-amber-950/40'
+                            : hasVoted
+                            ? 'border-neutral-800 bg-neutral-900/30 opacity-40'
+                            : 'border-neutral-700/60 bg-neutral-800/40',
+                        ].join(' ')}
+                        activeOpacity={0.7}
+                        style={!hasVoted ? { activeOpacity: 0.7 } : undefined}
+                      >
+                        {isVotedTarget && (
+                          <View className="absolute top-0 left-0 right-0 h-0.5 bg-amber-500" />
+                        )}
+                        <View
+                          className={[
+                            'w-9 h-9 rounded-full items-center justify-center',
+                            isVotedTarget ? 'bg-amber-800/60' : 'bg-neutral-700',
+                          ].join(' ')}
+                        >
+                          <Text className="text-white text-sm font-bold">
+                            {p.username.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <Text className={['flex-1 font-semibold text-sm', isVotedTarget ? 'text-amber-200' : 'text-white'].join(' ')}>
+                          {p.username}
                         </Text>
-                      </View>
-                      <Text className="flex-1 font-semibold text-white text-sm">{p.username}</Text>
-                      {votedFor === p.userId ? (
-                        <Text className="text-amber-400 text-xs font-bold">Your Vote</Text>
-                      ) : !votedFor ? (
-                        <Text className="text-neutral-600 text-xs">Tap to vote</Text>
-                      ) : null}
-                    </TouchableOpacity>
-                  ))}
+                        {isVotedTarget ? (
+                          <View className="flex-row items-center gap-1 px-2 py-1 rounded-lg bg-amber-900/60 border border-amber-700/40">
+                            <Text className="text-amber-300 text-[10px] font-bold">✓ Your Vote</Text>
+                          </View>
+                        ) : !hasVoted ? (
+                          <View className="px-2.5 py-1 rounded-lg bg-neutral-700/50 border border-neutral-600/40">
+                            <Text className="text-neutral-400 text-[10px] font-semibold">Vote</Text>
+                          </View>
+                        ) : null}
+                      </TouchableOpacity>
+                    )
+                  })}
               </View>
             </View>
           )}
 
           {/* ─── Reveal phase ──────────────────────────────────────────────── */}
           {phase === 'reveal' && (
-            <View className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 items-center">
-              <Text className="text-5xl mb-3">
-                {eliminated?.role === 'imposter' || eliminated?.role === 'double_agent'
-                  ? '🎉'
-                  : eliminated
-                  ? '😬'
-                  : isTie
-                  ? '🤝'
-                  : '😬'}
-              </Text>
+            <View className="rounded-2xl overflow-hidden border border-neutral-700">
+              {/* Colored header strip */}
+              <View
+                className={[
+                  'px-5 py-4 items-center',
+                  eliminated?.role === 'imposter' || eliminated?.role === 'double_agent'
+                    ? 'bg-emerald-950/60'
+                    : eliminated
+                    ? 'bg-violet-950/60'
+                    : 'bg-neutral-900',
+                ].join(' ')}
+              >
+                <View
+                  className={[
+                    'absolute top-0 left-0 right-0 h-0.5',
+                    eliminated?.role === 'imposter' || eliminated?.role === 'double_agent'
+                      ? 'bg-emerald-500'
+                      : eliminated
+                      ? 'bg-violet-500'
+                      : 'bg-amber-500',
+                  ].join(' ')}
+                />
+                <Text style={{ fontSize: 48, marginBottom: 8 }}>
+                  {eliminated?.role === 'imposter' || eliminated?.role === 'double_agent'
+                    ? '🎉'
+                    : eliminated
+                    ? '😬'
+                    : isTie
+                    ? '🤝'
+                    : '😬'}
+                </Text>
               {eliminated ? (
                 <>
                   <Text className="text-white font-bold text-lg mb-1 text-center">
@@ -982,19 +1136,21 @@ export default function GameScreen() {
               {/* Word reveal */}
               {wordReveal && (
                 <View className="flex-row gap-3 mt-4 w-full">
-                  <View className="flex-1 rounded-xl bg-violet-950/40 border border-violet-800/40 p-3 items-center">
-                    <Text className="text-xs text-neutral-500 mb-1">Villager Word</Text>
-                    <Text className="text-white font-extrabold text-lg">{wordReveal.villagerWord}</Text>
+                  <View className="flex-1 rounded-xl bg-violet-950/50 border border-violet-700/50 p-3 items-center">
+                    <Text className="text-[10px] font-bold uppercase tracking-widest text-violet-500 mb-1">Villager Word</Text>
+                    <Text className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</Text>
                   </View>
-                  <View className="flex-1 rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 items-center">
-                    <Text className="text-xs text-neutral-500 mb-1">Imposter Word</Text>
-                    <Text className="text-amber-300 font-extrabold text-lg">
+                  <View className="flex-1 rounded-xl bg-amber-950/50 border border-amber-700/50 p-3 items-center">
+                    <Text className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-1">Imposter Word</Text>
+                    <Text className="text-amber-300 font-extrabold text-xl">
                       {wordReveal.imposterWord}
                     </Text>
                   </View>
                 </View>
               )}
-              <Text className="text-xs text-neutral-600 mt-4">Next round starting soon...</Text>
+              <Text className="text-[10px] font-semibold uppercase tracking-widest text-neutral-600 mt-4">Next round starting soon...</Text>
+              </View>
+              <View className="bg-neutral-950 h-1" />
             </View>
           )}
 
@@ -1070,43 +1226,62 @@ export default function GameScreen() {
 
           {/* ─── Players list ──────────────────────────────────────────────── */}
           <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
-            <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">
-              Players ({alivePlayers.length})
-            </Text>
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                Players
+              </Text>
+              <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-950/50 border border-emerald-800/30">
+                <View className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <Text className="text-[10px] font-bold text-emerald-400">{alivePlayers.length} alive</Text>
+              </View>
+            </View>
             <View className="flex-row flex-wrap gap-1.5">
-              {players.map((p) => (
-                <View
-                  key={p.id}
-                  className={[
-                    'flex-row items-center gap-1.5 px-2 py-1 rounded-lg',
-                    p.status === 'alive'
-                      ? 'bg-neutral-800'
-                      : p.status === ('forfeited' as any)
-                      ? 'bg-orange-950/30 border border-orange-900/20'
-                      : 'bg-neutral-900 opacity-40',
-                  ].join(' ')}
-                >
-                  <View
+              {players.map((p) => {
+                const isAlive = p.status === 'alive'
+                const isForfeited = p.status === ('forfeited' as any)
+                const isMe = p.userId === user?.id
+                const canViewHistory = !isMe && (hasSubmittedClue || phase !== 'speaking')
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    onPress={() => canViewHistory ? setClueHistoryPlayer({ userId: p.userId, username: p.username }) : undefined}
+                    activeOpacity={canViewHistory ? 0.7 : 1}
                     className={[
-                      'w-1.5 h-1.5 rounded-full',
-                      p.status === 'alive'
-                        ? 'bg-emerald-400'
-                        : p.status === ('forfeited' as any)
-                        ? 'bg-orange-700'
-                        : 'bg-neutral-700',
-                    ].join(' ')}
-                  />
-                  <Text
-                    className={[
-                      'text-xs font-semibold',
-                      p.status === 'alive' ? 'text-white' : 'text-neutral-600',
+                      'flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-xl border',
+                      isAlive && isMe
+                        ? 'bg-violet-950/40 border-violet-700/50'
+                        : isAlive
+                        ? 'bg-neutral-800/70 border-neutral-700/50'
+                        : isForfeited
+                        ? 'bg-orange-950/30 border-orange-900/30'
+                        : 'bg-neutral-900/40 border-neutral-800/30 opacity-40',
                     ].join(' ')}
                   >
-                    {p.username}
-                  </Text>
-                </View>
-              ))}
+                    <View
+                      className={[
+                        'w-1.5 h-1.5 rounded-full',
+                        isAlive ? (isMe ? 'bg-violet-400' : 'bg-emerald-400') : isForfeited ? 'bg-orange-600' : 'bg-neutral-700',
+                      ].join(' ')}
+                    />
+                    <Text
+                      className={[
+                        'text-xs font-semibold',
+                        isAlive ? (isMe ? 'text-violet-200' : 'text-white') : 'text-neutral-600',
+                      ].join(' ')}
+                    >
+                      {p.username}
+                    </Text>
+                    {!isAlive && !isForfeited && (
+                      <Text className="text-[9px] text-neutral-700">☠</Text>
+                    )}
+                    {canViewHistory && isAlive && (
+                      <Text className="text-[9px] text-neutral-600">📜</Text>
+                    )}
+                  </TouchableOpacity>
+                )
+              })}
             </View>
+            <Text className="text-[10px] text-neutral-700 mt-2">Tap a player to see their clue history</Text>
           </View>
 
           {/* ─── Emote Reactions Bar ───────────────────────────────────────── */}

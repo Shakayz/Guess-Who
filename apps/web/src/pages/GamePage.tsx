@@ -1041,38 +1041,46 @@ export default function GamePage() {
           const isImposterElim = eliminated?.role === 'imposter' || eliminated?.role === 'double_agent'
           return (
             <div className={[
-              'card text-center py-8 relative overflow-hidden',
+              'card text-center py-10 relative overflow-hidden',
               eliminated
-                ? isImposterElim ? 'border-emerald-800/40' : 'border-red-800/40'
-                : isTie ? 'border-amber-800/40' : 'border-neutral-700',
+                ? isImposterElim ? 'border-emerald-700/50 shadow-lg shadow-emerald-950/30' : 'border-red-700/50 shadow-lg shadow-red-950/30'
+                : isTie ? 'border-amber-700/50 shadow-lg shadow-amber-950/30' : 'border-neutral-700',
             ].join(' ')}>
               {/* Background glow */}
               {eliminated && (
                 <div className={[
-                  'absolute inset-0 opacity-10',
+                  'absolute inset-0 opacity-15',
                   isImposterElim
-                    ? 'bg-gradient-to-br from-emerald-500 to-transparent'
-                    : 'bg-gradient-to-br from-red-600 to-transparent',
+                    ? 'bg-gradient-to-br from-emerald-500 via-emerald-900/20 to-transparent'
+                    : 'bg-gradient-to-br from-red-600 via-red-900/20 to-transparent',
+                ].join(' ')} />
+              )}
+              {eliminated && (
+                <div className={[
+                  'absolute top-0 inset-x-0 h-1',
+                  isImposterElim
+                    ? 'bg-gradient-to-r from-transparent via-emerald-500 to-transparent'
+                    : 'bg-gradient-to-r from-transparent via-red-500 to-transparent',
                 ].join(' ')} />
               )}
               <div className="relative">
                 {eliminated ? (
                   <>
-                    <p className="text-5xl mb-2" style={{ animation: 'role-drop 0.5s cubic-bezier(0.34,1.56,0.64,1) both' }}>
-                      💀
+                    <p className="text-7xl mb-3" style={{ animation: 'role-drop 0.5s cubic-bezier(0.34,1.56,0.64,1) both', filter: isImposterElim ? 'drop-shadow(0 0 12px rgba(52,211,153,0.5))' : 'drop-shadow(0 0 12px rgba(248,113,113,0.5))' }}>
+                      {isImposterElim ? '🎯' : '💀'}
                     </p>
                     <p
-                      className="text-white font-bold text-lg mb-1"
+                      className="text-white font-bold text-xl mb-2"
                       style={{ animation: 'role-rise 0.4s ease 0.2s both' }}
                     >
                       {t('game.wasEliminatedPlayer', { name: eliminated.username })}
                     </p>
                     <p
                       className={[
-                        'text-sm font-bold px-3 py-1 rounded-full inline-block',
+                        'text-sm font-bold px-4 py-1.5 rounded-full inline-block',
                         isImposterElim
-                          ? 'text-red-400 bg-red-950/60 border border-red-800/40'
-                          : 'text-brand-400 bg-brand-950/60 border border-brand-800/40',
+                          ? 'text-red-400 bg-red-950/60 border border-red-700/50 shadow-sm shadow-red-950/50'
+                          : 'text-brand-400 bg-brand-950/60 border border-brand-700/50 shadow-sm shadow-brand-950/50',
                       ].join(' ')}
                       style={{ animation: 'role-rise 0.4s ease 0.4s both' }}
                     >
@@ -1082,17 +1090,17 @@ export default function GamePage() {
                         : t('game.roleVillager')}
                     </p>
                     {isImposterElim && (
-                      <p className="text-emerald-400 text-xs font-semibold mt-2" style={{ animation: 'role-rise 0.4s ease 0.55s both' }}>
+                      <p className="text-emerald-400 text-sm font-bold mt-3" style={{ animation: 'role-rise 0.4s ease 0.55s both', textShadow: '0 0 10px rgba(52,211,153,0.4)' }}>
                         {t('game.goodCatch', 'Nice catch!')}
                       </p>
                     )}
                   </>
                 ) : isTie ? (
                   <>
-                    <p className="text-5xl mb-2" style={{ animation: 'role-drop 0.5s cubic-bezier(0.34,1.56,0.64,1) both' }}>
+                    <p className="text-7xl mb-3" style={{ animation: 'role-drop 0.5s cubic-bezier(0.34,1.56,0.64,1) both' }}>
                       🤝
                     </p>
-                    <p className="text-white font-bold text-lg mb-1" style={{ animation: 'role-rise 0.4s ease 0.2s both' }}>
+                    <p className="text-white font-bold text-xl mb-1" style={{ animation: 'role-rise 0.4s ease 0.2s both' }}>
                       {t('game.itsTie')}
                     </p>
                     <p className="text-neutral-400 text-sm" style={{ animation: 'role-rise 0.4s ease 0.35s both' }}>
@@ -1172,9 +1180,9 @@ export default function GamePage() {
       </div>
 
       {/* ── Chat sidebar ── */}
-      <div className="w-full lg:w-72 flex flex-col border-t lg:border-t-0 lg:border-l border-neutral-800 h-64 lg:h-screen">
+      <div className="w-full lg:w-72 flex flex-col border-t lg:border-t-0 lg:border-l border-neutral-800/80 h-64 lg:h-screen bg-neutral-950/60 backdrop-blur-sm">
         {/* Players list */}
-        <div className="border-b border-neutral-800 p-3">
+        <div className="border-b border-neutral-800/70 p-3 bg-neutral-900/30">
           <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">
             {t('game.playersLabel', { count: alivePlayers.length })}
           </p>
@@ -1190,7 +1198,7 @@ export default function GamePage() {
               <span>{detectiveRevealUsed ? t('game.detectiveUsed') : t('game.detectiveAvailable')}</span>
             </div>
           )}
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {players.map((p) => {
               const canReveal = myRole === 'detective' && !detectiveRevealUsed && p.userId !== user?.id && p.status === 'alive' && (phase === 'clues' || phase === 'voting')
               return (
@@ -1202,12 +1210,12 @@ export default function GamePage() {
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedPlayerId(p.userId) }}
                   title={`View ${getDisplayName(p.userId, p.username)}'s clue history`}
                   className={[
-                    'flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer select-none',
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer select-none border',
                     p.status === 'alive'
-                      ? 'bg-neutral-800 text-white hover:bg-neutral-700 hover:ring-1 hover:ring-neutral-600'
+                      ? 'bg-neutral-800/80 text-white hover:bg-neutral-700 hover:ring-1 hover:ring-neutral-600 border-neutral-700/50 hover:border-neutral-600'
                       : p.status === 'forfeited'
-                      ? 'bg-orange-950/30 text-neutral-600 line-through border border-orange-900/20 hover:bg-orange-950/50'
-                      : 'bg-red-950/30 text-neutral-600 line-through border border-red-900/20 hover:bg-red-950/50',
+                      ? 'bg-orange-950/30 text-neutral-600 line-through border-orange-900/20 hover:bg-orange-950/50'
+                      : 'bg-red-950/30 text-neutral-600 line-through border-red-900/20 hover:bg-red-950/50',
                   ].join(' ')}
                 >
                   <span className={[

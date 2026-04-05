@@ -67,79 +67,109 @@ export default function ResultsScreen() {
         {/* Outcome hero */}
         <View
           className={[
-            'rounded-2xl border relative overflow-hidden py-10 items-center',
-            didWin ? 'border-emerald-700' : 'border-red-800',
+            'rounded-2xl border-2 relative overflow-hidden items-center',
+            didWin ? 'border-emerald-600/70' : 'border-red-700/70',
           ].join(' ')}
+          style={{ paddingVertical: isTablet ? 52 : 40 }}
         >
-          {/* Background gradient overlay */}
+          {/* Background tint */}
           <View
-            className={[
-              'absolute inset-0 opacity-10',
-              didWin ? 'bg-emerald-500' : 'bg-red-600',
-            ].join(' ')}
+            className={['absolute inset-0', didWin ? 'bg-emerald-950' : 'bg-red-950'].join(' ')}
+            style={{ opacity: 0.35 }}
           />
-          {/* Top accent */}
+          {/* Top accent bar */}
           <View
             className={[
-              'absolute top-0 left-0 right-0 h-0.5',
+              'absolute top-0 left-0 right-0 h-1',
               didWin ? 'bg-emerald-500' : 'bg-red-500',
             ].join(' ')}
-            style={{ opacity: 0.7 }}
           />
-          <Text style={{ fontSize: isTablet ? 72 : 60, marginBottom: 12 }}>{didWin ? '🏆' : '💀'}</Text>
-          <Text
+          {/* Bottom fade */}
+          <View
+            className="absolute bottom-0 left-0 right-0 h-16"
+            style={{ backgroundColor: didWin ? 'rgba(5,46,22,0.3)' : 'rgba(69,10,10,0.3)' }}
+          />
+
+          <Text style={{ fontSize: isTablet ? 80 : 64, marginBottom: 14 }}>{didWin ? '🏆' : '💀'}</Text>
+
+          {/* WIN / LOSS badge */}
+          <View
             className={[
-              'font-extrabold tracking-tight mb-1',
-              didWin ? 'text-emerald-400' : 'text-red-400',
+              'flex-row items-center gap-2 px-5 py-2 rounded-full border mb-3',
+              didWin
+                ? 'bg-emerald-900/60 border-emerald-600/60'
+                : 'bg-red-900/60 border-red-600/60',
             ].join(' ')}
-            style={{ fontSize: isTablet ? 36 : 30 }}
           >
-            {didWin ? 'Victory!' : 'Defeat'}
-          </Text>
-          <Text className="text-neutral-400 text-sm text-center px-4">
+            <Text
+              className={[
+                'font-extrabold tracking-widest uppercase',
+                didWin ? 'text-emerald-300' : 'text-red-300',
+              ].join(' ')}
+              style={{ fontSize: isTablet ? 22 : 18, letterSpacing: 4 }}
+            >
+              {didWin ? 'Victory' : 'Defeat'}
+            </Text>
+          </View>
+
+          <Text
+            className={['font-semibold text-center px-6', didWin ? 'text-emerald-500' : 'text-red-500'].join(' ')}
+            style={{ fontSize: 13 * fontScale }}
+          >
             {winner === 'villagers'
               ? 'Villagers found the imposters'
               : 'Imposters escaped detection'}
           </Text>
+
+          {/* Role indicator */}
+          <View className="flex-row items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full bg-black/20 border border-white/10">
+            <Text style={{ fontSize: 12 }}>
+              {isImposter ? '🎭' : '🏘️'}
+            </Text>
+            <Text className="text-neutral-400 text-xs font-semibold">
+              You played as {isImposter ? 'Imposter' : 'Villager'}
+            </Text>
+          </View>
         </View>
 
         {/* Rewards */}
-        <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
+        <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 overflow-hidden">
+          <View className="absolute top-0 left-0 right-0 h-0.5 bg-amber-700/50" />
           <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
             Rewards Earned
           </Text>
-          <View className="flex-row gap-3">
+          <View className="flex-row gap-2">
             {/* Star Coins */}
-            <View className="flex-1 items-center gap-1 p-3 rounded-xl bg-neutral-800 border border-neutral-700">
-              <Text className="text-xl">⭐</Text>
-              <Text className="text-lg font-bold text-white">+{rewards.starCoinsEarned}</Text>
-              <Text className="text-xs text-neutral-500">Star Coins</Text>
+            <View className="flex-1 items-center gap-1.5 py-4 px-2 rounded-2xl bg-amber-950/30 border border-amber-800/40">
+              <Text style={{ fontSize: 22 }}>⭐</Text>
+              <Text className="text-lg font-extrabold text-amber-300">+{rewards.starCoinsEarned}</Text>
+              <Text className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider">Coins</Text>
             </View>
             {/* XP */}
-            <View className="flex-1 items-center gap-1 p-3 rounded-xl bg-neutral-800 border border-neutral-700">
-              <Text className="text-xl">⚡</Text>
-              <Text className="text-lg font-bold text-white">+{rewards.xpEarned}</Text>
-              <Text className="text-xs text-neutral-500">XP</Text>
+            <View className="flex-1 items-center gap-1.5 py-4 px-2 rounded-2xl bg-violet-950/30 border border-violet-800/40">
+              <Text style={{ fontSize: 22 }}>⚡</Text>
+              <Text className="text-lg font-extrabold text-violet-300">+{rewards.xpEarned}</Text>
+              <Text className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider">XP</Text>
             </View>
             {/* LP */}
             <View
               className={[
-                'flex-1 items-center gap-1 p-3 rounded-xl border',
+                'flex-1 items-center gap-1.5 py-4 px-2 rounded-2xl border',
                 rewards.lpChange >= 0
-                  ? 'bg-emerald-950 border-emerald-800'
-                  : 'bg-red-950 border-red-800',
+                  ? 'bg-emerald-950/40 border-emerald-700/50'
+                  : 'bg-red-950/40 border-red-700/50',
               ].join(' ')}
             >
-              <Text className="text-xl">📊</Text>
+              <Text style={{ fontSize: 22 }}>📊</Text>
               <Text
                 className={[
-                  'text-lg font-bold',
-                  rewards.lpChange >= 0 ? 'text-emerald-400' : 'text-red-400',
+                  'text-lg font-extrabold',
+                  rewards.lpChange >= 0 ? 'text-emerald-300' : 'text-red-300',
                 ].join(' ')}
               >
                 {rewards.lpChange >= 0 ? '+' : ''}{rewards.lpChange}
               </Text>
-              <Text className="text-xs text-neutral-500">LP</Text>
+              <Text className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider">LP</Text>
             </View>
           </View>
 
@@ -162,72 +192,96 @@ export default function ResultsScreen() {
         </View>
 
         {/* Player role reveal */}
-        <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
+        <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 overflow-hidden">
+          <View className="absolute top-0 left-0 right-0 h-0.5 bg-violet-800/50" />
           <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
             Player Roles
           </Text>
           <View className="gap-2">
             {players.map((p) => {
               const role = (p as any).role as string | undefined
+              const isImposterRole = role === 'imposter' || role === 'double_agent'
               const survived = p.status === 'alive'
               const isMe = p.userId === user?.id
               return (
                 <View
                   key={p.id}
                   className={[
-                    'flex-row items-center gap-3 px-3 py-2.5 rounded-xl border',
-                    isMe
-                      ? 'border-violet-800 bg-violet-950/30'
-                      : 'border-neutral-800 bg-neutral-900/40',
+                    'flex-row items-center gap-3 px-3 py-3 rounded-xl border overflow-hidden',
+                    isMe && isImposterRole
+                      ? 'border-red-700/50 bg-red-950/20'
+                      : isMe
+                      ? 'border-violet-700/50 bg-violet-950/20'
+                      : isImposterRole
+                      ? 'border-red-900/30 bg-red-950/10'
+                      : 'border-neutral-800/60 bg-neutral-800/20',
                   ].join(' ')}
                 >
+                  {/* Left accent for imposters */}
+                  {isImposterRole && (
+                    <View className="absolute left-0 top-0 bottom-0 w-0.5 bg-red-600/60" />
+                  )}
                   {/* Avatar */}
-                  <View className="w-8 h-8 rounded-full bg-violet-700 items-center justify-center">
+                  <View
+                    className={[
+                      'rounded-full items-center justify-center',
+                      isImposterRole ? 'bg-red-800/60' : isMe ? 'bg-violet-700' : 'bg-neutral-700',
+                    ].join(' ')}
+                    style={{ width: 34, height: 34 }}
+                  >
                     <Text className="text-white text-sm font-bold">
                       {p.username.charAt(0).toUpperCase()}
                     </Text>
                   </View>
                   <View className="flex-1">
-                    <View className="flex-row items-center gap-1.5">
+                    <View className="flex-row items-center gap-1.5 flex-wrap">
                       <Text className="font-semibold text-white text-sm">{p.username}</Text>
                       {isMe && (
-                        <Text className="text-xs text-violet-400 font-bold">YOU</Text>
+                        <View className="px-1.5 py-0.5 rounded bg-violet-900/60 border border-violet-700/40">
+                          <Text className="text-[9px] text-violet-400 font-bold">YOU</Text>
+                        </View>
                       )}
                     </View>
+                    <View className="flex-row items-center gap-1.5 mt-0.5">
+                      {/* Role badge */}
+                      <View
+                        className={[
+                          'flex-row items-center gap-1 px-2 py-0.5 rounded-full border',
+                          isImposterRole
+                            ? 'bg-red-950/60 border-red-800/60'
+                            : role === 'detective'
+                            ? 'bg-sky-950/60 border-sky-800/60'
+                            : 'bg-violet-950/60 border-violet-800/60',
+                        ].join(' ')}
+                      >
+                        <Text style={{ fontSize: 10 }}>
+                          {role === 'imposter' ? '🎭' : role === 'double_agent' ? '🕵️' : role === 'detective' ? '🔍' : '🏘️'}
+                        </Text>
+                        <Text
+                          className={[
+                            'text-[10px] font-bold',
+                            isImposterRole ? 'text-red-400' : role === 'detective' ? 'text-sky-400' : 'text-violet-400',
+                          ].join(' ')}
+                        >
+                          {role === 'imposter' ? 'Imposter' : role === 'double_agent' ? 'Double Agent' : role === 'detective' ? 'Detective' : 'Villager'}
+                        </Text>
+                      </View>
+                      {/* Survived status */}
+                      <View
+                        className={[
+                          'flex-row items-center gap-0.5 px-1.5 py-0.5 rounded-full',
+                          survived ? 'bg-emerald-950/50' : 'bg-neutral-900/50',
+                        ].join(' ')}
+                      >
+                        <Text style={{ fontSize: 8 }}>{survived ? '✓' : '☠'}</Text>
+                        <Text
+                          className={['text-[9px] font-semibold', survived ? 'text-emerald-500' : 'text-neutral-600'].join(' ')}
+                        >
+                          {survived ? 'Survived' : 'Eliminated'}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                  {/* Role badge */}
-                  <View
-                    className={[
-                      'px-2 py-0.5 rounded-full border',
-                      role === 'imposter' || role === 'double_agent'
-                        ? 'bg-red-950 border-red-800'
-                        : 'bg-violet-950 border-violet-800',
-                    ].join(' ')}
-                  >
-                    <Text
-                      className={[
-                        'text-xs font-semibold',
-                        role === 'imposter' || role === 'double_agent'
-                          ? 'text-red-400'
-                          : 'text-violet-400',
-                      ].join(' ')}
-                    >
-                      {role === 'imposter'
-                        ? '🎭 Imposter'
-                        : role === 'double_agent'
-                        ? '🕵️ Double Agent'
-                        : '🏘️ Villager'}
-                    </Text>
-                  </View>
-                  {/* Survived badge */}
-                  <Text
-                    className={[
-                      'text-xs ml-1',
-                      survived ? 'text-emerald-500' : 'text-neutral-600',
-                    ].join(' ')}
-                  >
-                    {survived ? 'Survived' : 'Eliminated'}
-                  </Text>
                 </View>
               )
             })}
@@ -291,17 +345,21 @@ export default function ResultsScreen() {
         <View className="flex-row gap-3 pt-2">
           <TouchableOpacity
             onPress={handlePlayAgain}
-            className="flex-1 py-3.5 rounded-xl bg-violet-600 items-center"
+            className="flex-1 rounded-2xl items-center overflow-hidden bg-violet-600"
             activeOpacity={0.8}
+            style={{ paddingVertical: isTablet ? 18 : 15 }}
           >
-            <Text className="text-white font-bold text-base">Play Again</Text>
+            {/* Shine overlay */}
+            <View className="absolute top-0 left-0 right-0 h-1/2 rounded-t-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.07)' }} />
+            <Text className="text-white font-extrabold tracking-wide" style={{ fontSize: 16 * fontScale }}>Play Again</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.replace('/')}
-            className="px-5 py-3.5 rounded-xl bg-neutral-800 border border-neutral-700 items-center"
+            className="px-6 rounded-2xl bg-neutral-800 border border-neutral-700 items-center justify-center"
             activeOpacity={0.8}
+            style={{ paddingVertical: isTablet ? 18 : 15 }}
           >
-            <Text className="text-neutral-300 font-semibold text-sm">Home</Text>
+            <Text className="text-neutral-300 font-semibold" style={{ fontSize: 14 * fontScale }}>Home</Text>
           </TouchableOpacity>
         </View>
 
