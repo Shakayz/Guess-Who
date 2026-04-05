@@ -9,6 +9,13 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.tsx', 'src/**/*.test.ts'],
     setupFiles: ['src/__tests__/setup.ts'],
+    coverage: {
+      exclude: [
+        'postcss.config.js',
+        'tailwind.config.ts',
+        'src/main.tsx',
+      ],
+    },
   },
   resolve: {
     alias: {

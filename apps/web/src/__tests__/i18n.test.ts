@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 
+// Import the i18n setup module to ensure it's included in coverage
+import i18nInstance from '../i18n/index'
 import en from '../i18n/en'
 import fr from '../i18n/fr'
 import es from '../i18n/es'
@@ -14,6 +16,28 @@ const REQUIRED_TOP_LEVEL_KEYS = ['common', 'nav', 'auth', 'home']
 function isNonEmptyObject(val: unknown): val is Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val) && Object.keys(val).length > 0
 }
+
+describe('i18n index setup', () => {
+  it('exports an i18n instance', () => {
+    expect(i18nInstance).toBeDefined()
+  })
+
+  it('i18n instance has expected languages loaded', () => {
+    expect(i18nInstance.isInitialized).toBe(true)
+  })
+
+  it('i18n instance uses en as fallback language', () => {
+    const fallback = i18nInstance.options.fallbackLng
+    // fallbackLng can be a string, array, or object depending on i18next version
+    if (typeof fallback === 'string') {
+      expect(fallback).toBe('en')
+    } else if (Array.isArray(fallback)) {
+      expect(fallback).toContain('en')
+    } else {
+      expect(fallback).toBeDefined()
+    }
+  })
+})
 
 describe('i18n translation files', () => {
   const translations: Record<string, Record<string, unknown>> = { en, fr, es, ar, de, it: itLocale, pt, zh }

@@ -119,4 +119,28 @@ describe('api', () => {
       expect.objectContaining({ method: 'PUT', body: JSON.stringify({ name: 'bar' }) }),
     )
   })
+
+  it('PATCH sends method PATCH with JSON body', async () => {
+    mockFetch(200, { patched: true })
+    const { api } = await import('../lib/api')
+    await api.patch('/items/1', { name: 'baz' })
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/items/1',
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ name: 'baz' }) }),
+    )
+  })
+
+  it('throws error with fallback message when json() rejects on non-ok response', async () => {
+    const response = {
+      ok: false,
+      status: 503,
+      json: vi.fn().mockRejectedValue(new Error('not json')),
+    }
+    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValue(response)
+    const { api } = await import('../lib/api')
+    await expect(api.get('/server-error')).rejects.toMatchObject({
+      message: 'HTTP 503',
+      status: 503,
+    })
+  })
 })
