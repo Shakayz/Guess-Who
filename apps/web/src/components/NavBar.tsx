@@ -60,7 +60,7 @@ export function NavBar() {
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-base">🎭</div>
           <span className="font-bold text-white tracking-tight">Imposter</span>
         </button>
-        <nav className="hidden sm:flex items-center gap-1">
+        <nav className="hidden md:flex items-center gap-1 lg:gap-2">
           {NAV_PATHS.map((path) => {
             const labelKey = path === '/' ? 'nav.play' : path === '/leaderboard' ? 'nav.leaderboard' : path === '/history' ? 'nav.history' : 'nav.friends'
             return (

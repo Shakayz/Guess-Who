@@ -1,6 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
+import crypto from 'crypto'
 import { prisma } from '../config/prisma'
+import { redis } from '../config/redis'
+import { sendPasswordResetEmail } from '../services/email'
 import bcrypt from 'bcryptjs'
 
 const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de'] as const
@@ -15,6 +18,15 @@ const signUpSchema = z.object({
 const signInSchema = z.object({
   identifier: z.string().min(1), // email or username
   password: z.string(),
+})
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+})
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8),
 })
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
@@ -98,6 +110,72 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (err: any) {
       req.log.error({ err }, 'signin error')
       return reply.status(500).send({ error: 'Could not sign in. Please try again.' })
+    }
+  })
+
+  fastify.post('/forgot-password', async (req, reply) => {
+    let body: z.infer<typeof forgotPasswordSchema>
+    try {
+      body = forgotPasswordSchema.parse(req.body)
+    } catch (err: any) {
+      const message = err?.errors?.[0]?.message ?? 'Invalid input'
+      return reply.status(400).send({ error: message })
+    }
+
+    req.log.info('forgot-password attempt')
+
+    try {
+      const user = await prisma.user.findUnique({ where: { email: body.email } })
+      // Always return success to avoid email enumeration
+      if (!user) {
+        req.log.info('forgot-password: email not found (silent)')
+        return reply.send({ message: 'If that email is registered, you will receive a reset link.' })
+      }
+
+      const token = crypto.randomBytes(32).toString('hex')
+      await redis.set(`reset:${token}`, user.id, 'EX', 3600) // 1 hour TTL
+
+      await sendPasswordResetEmail(body.email, token)
+
+      req.log.info({ userId: user.id }, 'forgot-password: reset email sent')
+      return reply.send({ message: 'If that email is registered, you will receive a reset link.' })
+    } catch (err: any) {
+      req.log.error({ err }, 'forgot-password error')
+      return reply.status(500).send({ error: 'Could not process request. Please try again.' })
+    }
+  })
+
+  fastify.post('/reset-password', async (req, reply) => {
+    let body: z.infer<typeof resetPasswordSchema>
+    try {
+      body = resetPasswordSchema.parse(req.body)
+    } catch (err: any) {
+      const message = err?.errors?.[0]?.message ?? 'Invalid input'
+      return reply.status(400).send({ error: message })
+    }
+
+    req.log.info('reset-password attempt')
+
+    try {
+      const userId = await redis.get(`reset:${body.token}`)
+      if (!userId) {
+        req.log.warn('reset-password: invalid or expired token')
+        return reply.status(400).send({ error: 'Invalid or expired reset token' })
+      }
+
+      const hashed = await bcrypt.hash(body.password, 12)
+      await prisma.user.update({
+        where: { id: userId },
+        data: { passwordHash: hashed },
+      })
+
+      await redis.del(`reset:${body.token}`)
+
+      req.log.info({ userId }, 'reset-password: password updated')
+      return reply.send({ message: 'Password has been reset successfully.' })
+    } catch (err: any) {
+      req.log.error({ err }, 'reset-password error')
+      return reply.status(500).send({ error: 'Could not reset password. Please try again.' })
     }
   })
 

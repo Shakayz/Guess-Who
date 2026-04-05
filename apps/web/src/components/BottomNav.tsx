@@ -21,7 +21,7 @@ export function BottomNav() {
   if (hiddenPaths.some((p) => location.pathname.startsWith(p))) return null
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 sm:hidden border-t border-neutral-800 bg-neutral-950/95 backdrop-blur-lg safe-bottom">
+    <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden border-t border-neutral-800 bg-neutral-950/95 backdrop-blur-lg safe-bottom">
       <div className="flex items-center justify-around h-14">
         {TABS.map((tab) => {
           const isActive = tab.path === '/'

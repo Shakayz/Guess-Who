@@ -9,6 +9,7 @@ import { registerRoomHandlers } from './handlers/room'
 import { registerGameHandlers } from './handlers/game'
 import { registerChatHandlers } from './handlers/chat'
 import { registerMatchmakingHandlers, cleanupEmptyQueue } from './handlers/matchmaking'
+import { sendPushNotification } from '../services/push'
 
 const log = pino({ name: 'socket' })
 
@@ -110,7 +111,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     })
 
     // Room invite: invite an online user to a room
-    socket.on('room:invite' as any, (data: { toUserId: string; roomCode: string }) => {
+    socket.on('room:invite' as any, async (data: { toUserId: string; roomCode: string }) => {
       if (!socket.data.userId || !data.toUserId || !data.roomCode) return
       const targetSocketId = onlineUsers.get(data.toUserId)
       if (targetSocketId) {
@@ -120,6 +121,22 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
           roomCode: data.roomCode,
         })
       }
+
+      // Push notification to invited user (even if they're offline)
+      try {
+        const targetUser = await prisma.user.findUnique({
+          where: { id: data.toUserId },
+          select: { pushToken: true },
+        })
+        if (targetUser?.pushToken) {
+          sendPushNotification(
+            targetUser.pushToken,
+            'Room Invite',
+            `${socket.data.username ?? 'A friend'} invited you to join a game!`,
+            { type: 'room_invite', roomCode: data.roomCode },
+          ).catch((err) => log.error({ err }, 'push: room invite notification error'))
+        }
+      } catch {}
     })
 
     // Game chat: send a message in the current game room

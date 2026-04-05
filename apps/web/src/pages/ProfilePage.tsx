@@ -170,7 +170,7 @@ export default function ProfilePage() {
     <div className="min-h-screen flex flex-col">
       <NavBar />
       <main className="flex-1 p-6 pb-24 sm:pb-6">
-        <div className="max-w-xl mx-auto space-y-4 animate-slide-up">
+        <div className="max-w-xl md:max-w-2xl lg:max-w-4xl mx-auto space-y-4 animate-slide-up">
 
           {/* Profile card */}
           <div className="card relative overflow-hidden">
@@ -235,7 +235,7 @@ export default function ProfilePage() {
                         </div>
                       ) : (
                         <>
-                          <h1 className="text-2xl font-extrabold text-white">{me?.username ?? authUser?.username}</h1>
+                          <h1 className="text-2xl md:text-3xl font-extrabold text-white">{me?.username ?? authUser?.username}</h1>
                           <button
                             onClick={() => { setEditingUsername(true); setUsernameInput(me?.username ?? '') }}
                             className="text-neutral-600 hover:text-neutral-400 transition-colors text-sm"
@@ -352,7 +352,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Currency & rank stats grid */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3 md:gap-4">
             {stats.map((s) => (
               <div key={s.label} className="card text-center hover:border-neutral-700 transition-colors">
                 <p className="text-2xl mb-1">{s.icon}</p>
@@ -380,7 +380,7 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                   {[
                     { label: t('profile.gamesPlayed'), value: gameStats.totalGames, icon: '🎮' },
                     { label: t('profile.winRate'), value: `${gameStats.winRate}%`, icon: '🏆' },
@@ -460,7 +460,7 @@ export default function ProfilePage() {
                 <p className="text-neutral-500 text-xs mt-1">{t('profile.playToUnlock')}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {achievements.map((a) => (
                   <div
                     key={a.id}

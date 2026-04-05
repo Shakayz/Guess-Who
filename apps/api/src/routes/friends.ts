@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { prisma } from '../config/prisma'
+import { sendPushNotification } from '../services/push'
 
 export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
 
@@ -88,6 +89,17 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
+    // Push notification to target user
+    if (target.pushToken) {
+      const requesterUser = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } })
+      sendPushNotification(
+        target.pushToken,
+        'New Friend Request',
+        `${requesterUser?.username ?? 'Someone'} sent you a friend request`,
+        { type: 'friend_request', friendshipId: friendship.id },
+      ).catch((err) => req.log.error({ err }, 'push: friend request notification error'))
+    }
+
     return reply.status(201).send({ friendship: { id: friendship.id, status: friendship.status } })
   })
 
@@ -103,11 +115,22 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     req.log.info({ userId, friendshipId: id, requesterId: f.requesterId }, 'friend request accepted')
 
     // Notify requester
+    const accepter = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } })
     const requesterSocketId = (fastify as any).onlineUsers?.get(f.requesterId)
     if (requesterSocketId) {
       const io = (fastify as any).io
-      const accepter = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } })
       io?.to(requesterSocketId).emit('friend:accepted', { friendshipId: id, by: { id: userId, username: accepter?.username } })
+    }
+
+    // Push notification to requester
+    const requester = await prisma.user.findUnique({ where: { id: f.requesterId }, select: { pushToken: true } })
+    if (requester?.pushToken) {
+      sendPushNotification(
+        requester.pushToken,
+        'Friend Request Accepted',
+        `${accepter?.username ?? 'Someone'} accepted your friend request`,
+        { type: 'friend_accepted', friendshipId: id },
+      ).catch((err) => req.log.error({ err }, 'push: friend accepted notification error'))
     }
 
     return reply.send({ friendship: { id: updated.id, status: updated.status } })

@@ -181,7 +181,7 @@ function SettingsPanel({
             >{t('lobby.catNone')}</button>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5 md:gap-2">
           {WORD_CATEGORIES.map((cat) => {
             const selected = settings.categories.includes(cat.key as WordCategory)
             return (
@@ -211,7 +211,7 @@ function SettingsPanel({
       {/* Language */}
       <div>
         <p className="text-xs text-neutral-500 mb-2">{t('lobby.language')}</p>
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-4 md:grid-cols-8 gap-1.5 md:gap-2">
           {LANGUAGE_OPTIONS.map((lang) => (
             <button
               key={lang.value}
@@ -482,13 +482,13 @@ export default function LobbyPage() {
         </div>
       )}
 
-      <main className="flex-1 flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md space-y-4 animate-slide-up">
+      <main id="main-content" role="main" className="flex-1 flex flex-col items-center justify-center p-4 md:p-6 lg:p-8">
+        <div className="w-full max-w-md md:max-w-2xl lg:max-w-4xl space-y-4 animate-slide-up">
 
           <div className="text-center mb-2">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-1">{t('room.roomCode')}</p>
-            <h1 className="text-2xl font-extrabold text-white">{t('lobby.waiting')}</h1>
-            <p className="text-neutral-500 text-sm mt-1">{t('lobby.shareHint')}</p>
+            <p className="text-xs md:text-sm font-semibold uppercase tracking-widest text-neutral-500 mb-1">{t('room.roomCode')}</p>
+            <h1 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-white">{t('lobby.waiting')}</h1>
+            <p className="text-neutral-500 text-sm md:text-base mt-1">{t('lobby.shareHint')}</p>
           </div>
 
           <div className="flex flex-col items-center gap-3">

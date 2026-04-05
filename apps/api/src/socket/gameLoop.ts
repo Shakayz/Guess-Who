@@ -6,6 +6,7 @@ import pino from 'pino'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
 import { onlineUsers } from './onlineUsers'
+import { sendPushNotifications, sendPushNotification } from '../services/push'
 
 const logger = pino({ name: 'game-loop' })
 
@@ -76,6 +77,20 @@ function getWinLpDelta(role: string, winner: string): number {
 function getSurvivalLpDelta(role: string): number {
   const isImposter = role === 'imposter' || role === 'double_agent'
   return isImposter ? LP_REWARDS.SURVIVAL_IMPOSTER_WIN : LP_REWARDS.SURVIVAL_VILLAGER_LOSS
+}
+
+/** Fetch push tokens for a list of user IDs (only returns users with tokens set) */
+async function getPushTokensForUsers(userIds: string[]): Promise<Map<string, string>> {
+  if (userIds.length === 0) return new Map()
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds }, pushToken: { not: null } },
+    select: { id: true, pushToken: true },
+  }).catch(() => [])
+  const map = new Map<string, string>()
+  for (const u of users) {
+    if (u.pushToken) map.set(u.id, u.pushToken)
+  }
+  return map
 }
 
 /** Read + parse Redis state with timer cleanup on loss */
@@ -225,6 +240,21 @@ async function startVoting(io: IO, roomId: string, votingTimeSeconds: number) {
   const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
   io.to(`room:${roomId}`).emit('round:voting-started', { timeSeconds: votingTimeSeconds, players: alivePlayers })
 
+  // Push notification for voting phase
+  const aliveUserIds = alivePlayers.map((p: any) => p.userId)
+  getPushTokensForUsers(aliveUserIds).then((tokenMap) => {
+    if (tokenMap.size > 0) {
+      sendPushNotifications(
+        Array.from(tokenMap.entries()).map(([userId, pushToken]) => ({
+          pushToken,
+          title: 'Time to Vote!',
+          body: 'Cast your vote now.',
+          data: { type: 'voting_phase', roomId },
+        })),
+      ).catch((err) => logger.error({ err, roomId }, 'push: voting notification error'))
+    }
+  }).catch(() => {})
+
   const timer = setTimeout(async () => { try {
     roomTimers.delete(roomId)
     await resolveRound(io, roomId)
@@ -296,6 +326,14 @@ async function _resolveRound(io: IO, roomId: string) {
     }
     currentRound.eliminatedPlayerId = mostVotedId
     currentRound.eliminatedRole = eliminatedRole
+
+    // Push notification to eliminated player
+    getPushTokensForUsers([mostVotedId]).then((tokenMap) => {
+      const token = tokenMap.get(mostVotedId)
+      if (token) {
+        sendPushNotification(token, "You've been eliminated!", 'Better luck next time.', { type: 'eliminated', roomId }).catch(() => {})
+      }
+    }).catch(() => {})
   } else {
     // Tie vote — start tiebreaker clue phase for tied players
     const tiedPlayerIds = getTiedPlayerIds(currentRound.votes ?? [])
@@ -376,6 +414,22 @@ async function _resolveRound(io: IO, roomId: string) {
     if (finishedGame) {
       await prisma.game.update({ where: { id: finishedGame.id }, data: { winnerTeam: winner, endedAt: new Date() } }).catch(() => {})
     }
+
+    // Push notification to all players about game result
+    const allPlayerIds = state.players.map((p: any) => p.userId)
+    getPushTokensForUsers(allPlayerIds).then((tokenMap) => {
+      if (tokenMap.size > 0) {
+        const winnerLabel = winner === 'villagers' ? 'Villagers' : 'Imposters'
+        sendPushNotifications(
+          Array.from(tokenMap.entries()).map(([, pushToken]) => ({
+            pushToken,
+            title: 'Game Over!',
+            body: `${winnerLabel} win!`,
+            data: { type: 'game_finished', roomId, winner },
+          })),
+        ).catch((err) => logger.error({ err, roomId }, 'push: game finished notification error'))
+      }
+    }).catch(() => {})
 
     io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
 

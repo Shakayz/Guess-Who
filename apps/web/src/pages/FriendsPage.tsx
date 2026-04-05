@@ -226,9 +226,9 @@ export default function FriendsPage() {
     <div className="min-h-screen flex flex-col">
       <NavBar />
       <main className="flex-1 p-6">
-        <div className="max-w-xl mx-auto space-y-5 animate-slide-up">
+        <div className="max-w-xl md:max-w-2xl lg:max-w-4xl mx-auto space-y-5 animate-slide-up">
 
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">{t('friends.title')}</h1>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">{t('friends.title')}</h1>
 
           {/* Share the app */}
           <ShareCard />
@@ -300,7 +300,7 @@ export default function FriendsPage() {
                 <p className="text-neutral-500 text-xs mt-1">{t('friends.noFriendsHint')}</p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 lg:grid-cols-3">
                 {friends.map((f) => {
                   const unread = unreadCounts[f.user.id] ?? 0
                   return (

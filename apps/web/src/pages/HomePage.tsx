@@ -175,8 +175,8 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col">
       <NavBar />
 
-      <main className="flex-1 flex flex-col items-center px-4 pt-16 pb-24 sm:pb-16">
-        <div className="w-full max-w-lg animate-slide-up space-y-5">
+      <main id="main-content" role="main" className="flex-1 flex flex-col items-center px-4 pt-16 pb-24 sm:pb-16 md:pt-20 lg:pt-24">
+        <div className="w-full max-w-lg md:max-w-2xl lg:max-w-4xl animate-slide-up space-y-5">
 
           {/* Heading */}
           <div className="text-center mb-6">
@@ -184,10 +184,10 @@ export default function HomePage() {
               <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse-slow" />
               {t('home.tagline')}
             </div>
-            <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight tracking-tight mb-2">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white leading-tight tracking-tight mb-2">
               Play the <span className="text-brand-500">Imposter</span> Game
             </h1>
-            <p className="text-neutral-400 text-base">{t('home.subtitle')}</p>
+            <p className="text-neutral-400 text-base md:text-lg">{t('home.subtitle')}</p>
           </div>
 
           {/* ── Active game card — rejoin / spectate ── */}
@@ -304,6 +304,7 @@ export default function HomePage() {
             <input
               className="input-field flex-1 font-mono uppercase tracking-[0.25em] text-center text-lg h-12 focus:ring-2 focus:ring-brand-600/50 focus:shadow-lg focus:shadow-brand-950/40 transition-all"
               placeholder={t('home.roomCodePlaceholder')}
+              aria-label="Room code"
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
               maxLength={8}
@@ -329,7 +330,7 @@ export default function HomePage() {
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
               {t('home.chooseMode')}
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:gap-4 gap-2.5">
               {MODES.map((mode) => {
                 const active = selectedMode === mode.id
                 return (
@@ -342,13 +343,15 @@ export default function HomePage() {
                       setCategories([])
                       setError(null)
                     }}
+                    aria-label={t(mode.labelKey)}
+                    aria-pressed={active}
                     className={[
                       'flex flex-col items-center gap-1.5 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.97]',
                       active ? mode.color : `bg-neutral-900 text-neutral-400 ${mode.inactive}`,
                     ].join(' ')}
                   >
-                    <span className="text-2xl">{mode.icon}</span>
-                    <span className="text-sm font-bold">{t(mode.labelKey)}</span>
+                    <span className="text-2xl md:text-3xl">{mode.icon}</span>
+                    <span className="text-sm md:text-base font-bold">{t(mode.labelKey)}</span>
                     <span className={['text-[10px] text-center leading-tight', active ? 'opacity-80' : 'text-neutral-600'].join(' ')}>
                       {t(mode.descKey)}
                     </span>
@@ -416,7 +419,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5 md:gap-2">
                 {WORD_CATEGORIES.map((cat) => {
                   const selected = categories.includes(cat.key as WordCategory)
                   const isAll = categories.length === 0
@@ -474,7 +477,7 @@ export default function HomePage() {
                 : t('home.matchmakingStartingSoon')
 
             return (
-              <div className="card animate-slide-up space-y-4">
+              <div className="card animate-slide-up space-y-4" aria-live="polite" role="status">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin flex-shrink-0" />
                   <div>
@@ -562,7 +565,7 @@ export default function HomePage() {
           )}
 
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-950/50 border border-red-800/50 text-red-400 text-sm">
+            <div role="alert" className="flex items-center gap-2 p-3 rounded-xl bg-red-950/50 border border-red-800/50 text-red-400 text-sm">
               <span>⚠</span> {error}
             </div>
           )}
@@ -585,7 +588,7 @@ export default function HomePage() {
             onClick={() => setShowHowToPlay(false)}
           >
             <div
-              className="w-full max-w-md bg-neutral-950 border border-neutral-800 rounded-2xl overflow-hidden"
+              className="w-full max-w-md md:max-w-lg bg-neutral-950 border border-neutral-800 rounded-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}

@@ -6,6 +6,7 @@ import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
 import { startRound, forfeitPlayer } from '../gameLoop'
 import { onlineUsers } from '../onlineUsers'
+import { sendPushNotifications } from '../../services/push'
 
 const log = pino({ name: 'socket:room' })
 
@@ -145,6 +146,25 @@ async function startGameForRoom(
       if (playerData.id && playerData.id !== sid) {
         io.to(playerData.id).emit('game:started', payload)
       }
+    }
+
+    // Send push notifications to all players that the game is starting
+    const playerUserIds = players.map((p: any) => p.userId)
+    const pushUsers = await prisma.user.findMany({
+      where: { id: { in: playerUserIds }, pushToken: { not: null } },
+      select: { id: true, pushToken: true },
+    }).catch(() => [])
+    if (pushUsers.length > 0) {
+      sendPushNotifications(
+        pushUsers
+          .filter((u) => u.pushToken)
+          .map((u) => ({
+            pushToken: u.pushToken!,
+            title: 'Game Starting!',
+            body: 'Your role has been assigned.',
+            data: { type: 'game_start', roomId },
+          })),
+      ).catch((err) => log.error({ err, roomId }, 'push: game start notification error'))
     }
 
     setTimeout(() => {

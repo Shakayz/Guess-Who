@@ -19,7 +19,9 @@ const ProfilePage     = React.lazy(() => import('./pages/ProfilePage'))
 // const PremiumPage     = React.lazy(() => import('./pages/PremiumPage'))  // TODO: re-enable when premium is ready
 const LeaderboardPage = React.lazy(() => import('./pages/LeaderboardPage'))
 const ResultsPage     = React.lazy(() => import('./pages/ResultsPage'))
-const AuthPage        = React.lazy(() => import('./pages/AuthPage'))
+const AuthPage              = React.lazy(() => import('./pages/AuthPage'))
+const ForgotPasswordPage    = React.lazy(() => import('./pages/ForgotPasswordPage'))
+const ResetPasswordPage     = React.lazy(() => import('./pages/ResetPasswordPage'))
 const HistoryPage     = React.lazy(() => import('./pages/HistoryPage'))
 const GameDetailPage  = React.lazy(() => import('./pages/GameDetailPage'))
 const FriendsPage         = React.lazy(() => import('./pages/FriendsPage'))
@@ -297,6 +299,9 @@ function AuthenticatedConnectionStatus() {
 export default function App() {
   return (
     <Suspense fallback={<Spinner />}>
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-indigo-600 focus:text-white focus:px-4 focus:py-2 focus:rounded">
+        Skip to main content
+      </a>
       <ActiveGameRestorer />
       <GlobalSocketListeners />
       <ActiveGameGuard />
@@ -306,6 +311,8 @@ export default function App() {
       <BottomNav />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/offline" element={<OfflinePage />} />
         <Route path="/how-to-play" element={<HowToPlayPage />} />
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />

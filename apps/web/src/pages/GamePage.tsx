@@ -31,8 +31,8 @@ const CircularTimer = memo(({ seconds, total, phase }: { seconds: number; total:
   const urgentGlow = 'rgba(239,68,68,0.6)'
 
   return (
-    <div className="relative flex items-center justify-center w-14 h-14 shrink-0">
-      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 52 52" width="56" height="56">
+    <div className="relative flex items-center justify-center w-14 h-14 shrink-0" role="timer" aria-live="assertive" aria-label={`${seconds} seconds remaining`}>
+      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 52 52" width="56" height="56" aria-hidden="true">
         <circle cx="26" cy="26" r={radius} fill="none" stroke="#262626" strokeWidth="4" />
         <circle
           cx="26" cy="26" r={radius}
@@ -735,7 +735,7 @@ export default function GamePage() {
   const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
+    <div id="main-content" role="main" className="min-h-screen flex flex-col md:flex-row">
       {/* ── Player clue history modal ── */}
       {selectedPlayerId && (
         <PlayerClueHistoryModal
@@ -805,7 +805,7 @@ export default function GamePage() {
       )}
 
       {/* ── Main game area ── */}
-      <div className="relative flex-1 flex flex-col p-4 lg:p-6 gap-4 overflow-y-auto">
+      <div className="relative flex-1 flex flex-col p-4 md:p-6 lg:p-8 gap-4 overflow-y-auto">
 
         {/* Floating emote reactions */}
         {floatingEmotes.map((e) => (
@@ -969,6 +969,8 @@ export default function GamePage() {
                 <input
                   className="input-field flex-1"
                   placeholder={t('game.cluePlaceholder')}
+                  aria-label="Enter your clue"
+                  aria-label="Enter your clue"
                   value={clueText}
                   onChange={(e) => setClueText(e.target.value)}
                   maxLength={200}
@@ -977,6 +979,7 @@ export default function GamePage() {
                 <button
                   type="submit"
                   disabled={!clueText.trim()}
+                  aria-label="Submit clue"
                   className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold disabled:opacity-40 transition-colors"
                 >
                   {t('game.send')}
@@ -1036,6 +1039,7 @@ export default function GamePage() {
               {alivePlayers
                 .filter((p) => p.userId !== user?.id && (!tiebreakerActive || tiebreakerPlayerIds.includes(p.userId)))
                 .map((p) => (
+                    aria-label={`Vote for ${getDisplayName(p.userId, p.username)}`}
                   <button
                     key={p.id}
                     onClick={() => vote(p.userId)}
@@ -1209,7 +1213,7 @@ export default function GamePage() {
       </div>
 
       {/* ── Chat sidebar ── */}
-      <div className="w-full lg:w-72 flex flex-col border-t lg:border-t-0 lg:border-l border-neutral-800/80 h-64 lg:h-screen bg-neutral-950/60 backdrop-blur-sm">
+      <div className="w-full md:w-72 lg:w-80 flex flex-col border-t md:border-t-0 md:border-l border-neutral-800/80 h-64 md:h-screen bg-neutral-950/60 backdrop-blur-sm">
         {/* Players list */}
         <div className="border-b border-neutral-800/70 p-3 bg-neutral-900/30">
           <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">
@@ -1227,7 +1231,7 @@ export default function GamePage() {
               <span>{detectiveRevealUsed ? t('game.detectiveUsed') : t('game.detectiveAvailable')}</span>
             </div>
           )}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" role="list" aria-label="Players">
             {players.map((p) => {
               const canReveal = myRole === 'detective' && !detectiveRevealUsed && p.userId !== user?.id && p.status === 'alive' && (phase === 'clues' || phase === 'voting')
               return (
@@ -1237,6 +1241,7 @@ export default function GamePage() {
                   tabIndex={0}
                   onClick={() => setSelectedPlayerId(p.userId)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedPlayerId(p.userId) }}
+                  aria-label={`${getDisplayName(p.userId, p.username)}, ${p.status}`}
                   title={`View ${getDisplayName(p.userId, p.username)}'s clue history`}
                   className={[
                     'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer select-none border',

@@ -47,12 +47,12 @@ export default function LeaderboardPage() {
     <div className="min-h-screen flex flex-col">
       <NavBar />
       <main className="flex-1 p-6">
-        <div className="max-w-xl mx-auto">
+        <div className="max-w-xl md:max-w-2xl lg:max-w-4xl mx-auto">
 
           {/* Header */}
           <div className="mb-6">
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">{t('leaderboard.title')}</h1>
-            <p className="text-neutral-500 text-sm mt-1">{t('leaderboard.subtitle')}</p>
+            <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">{t('leaderboard.title')}</h1>
+            <p className="text-neutral-500 text-sm md:text-base mt-1">{t('leaderboard.subtitle')}</p>
           </div>
 
           {/* Search */}
@@ -68,14 +68,14 @@ export default function LeaderboardPage() {
 
           {/* Top 3 podium (when data available and no search) */}
           {!isLoading && !search.trim() && users.length >= 3 && (
-            <div className="grid grid-cols-3 gap-3 mb-8">
+            <div className="grid grid-cols-3 gap-3 md:gap-5 mb-8">
               {[users[1], users[0], users[2]].map((u, podiumIdx) => {
                 const realIdx = podiumIdx === 0 ? 1 : podiumIdx === 1 ? 0 : 2
                 const rank = RANK_CONFIG[u.rankTier]
-                const sizes = ['h-24', 'h-32', 'h-20']
+                const sizes = ['h-24 md:h-32', 'h-32 md:h-40', 'h-20 md:h-28']
                 return (
-                  <div key={u.id} className={['card flex flex-col items-center justify-end pb-4 pt-3 transition-colors hover:border-neutral-700', sizes[podiumIdx]].join(' ')}>
-                    <span className="text-2xl mb-1">{MEDAL[realIdx]}</span>
+                  <div key={u.id} className={['card flex flex-col items-center justify-end pb-4 pt-3 md:pb-6 md:pt-4 transition-colors hover:border-neutral-700', sizes[podiumIdx]].join(' ')}>
+                    <span className="text-2xl md:text-3xl mb-1">{MEDAL[realIdx]}</span>
                     <Avatar src={u.avatarUrl} username={u.username} size="sm" className="mb-1" />
                     <p className="text-xs font-semibold text-white truncate max-w-full px-1">{u.username}</p>
                     <p className="text-xs text-neutral-500">{u.rankPoints} LP</p>
@@ -100,12 +100,12 @@ export default function LeaderboardPage() {
               : filtered.map((u, i) => {
                   const rank = RANK_CONFIG[u.rankTier]
                   return (
-                    <div key={u.id} className={['card flex items-center gap-3 transition-colors hover:border-neutral-700', i < 3 ? 'border-neutral-700' : ''].join(' ')}>
+                    <div key={u.id} className={['card flex items-center gap-3 md:gap-4 md:px-5 md:py-4 transition-colors hover:border-neutral-700', i < 3 ? 'border-neutral-700' : ''].join(' ')}>
                       <span className="text-sm w-6 text-right font-mono text-neutral-500">
                         {MEDAL[i] ?? i + 1}
                       </span>
                       <Avatar src={u.avatarUrl} username={u.username} size="sm" />
-                      <span className="flex-1 font-semibold text-white text-sm">{u.username}</span>
+                      <span className="flex-1 font-semibold text-white text-sm md:text-base">{u.username}</span>
                       <Badge variant="rank">{rank.icon} {rank.label}</Badge>
                       <span className="text-sm font-mono text-neutral-400 tabular-nums">{u.rankPoints.toLocaleString()} LP</span>
                     </div>
