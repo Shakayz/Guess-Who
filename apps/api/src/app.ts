@@ -3,6 +3,7 @@ import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
 import cookie from '@fastify/cookie'
 import rateLimit from '@fastify/rate-limit'
+import multipart from '@fastify/multipart'
 import { Server as SocketServer } from 'socket.io'
 import { env } from './config/env'
 import { authRoutes } from './routes/auth'
@@ -37,6 +38,7 @@ export async function buildApp() {
   await app.register(jwt, { secret: env.JWT_SECRET })
   await app.register(cookie)
   await app.register(rateLimit, { max: 100, timeWindow: '1 minute' })
+  await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } })
 
   // Decorate authenticate helper used by protected routes
   app.decorate('authenticate', async function (request: any, reply: any) {

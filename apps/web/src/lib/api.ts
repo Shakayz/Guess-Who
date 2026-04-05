@@ -10,7 +10,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
   // Allow overriding headers (e.g. removing Content-Type for file uploads)
   if (options.headers) {
-    Object.assign(headers, options.headers)
+    for (const [k, v] of Object.entries(options.headers as Record<string, string>)) {
+      if (v === '') {
+        delete headers[k]
+      } else {
+        headers[k] = v
+      }
+    }
   }
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
@@ -32,4 +38,13 @@ export const api = {
   put:    <T>(path: string, body: unknown)        => request<T>(path, { method: 'PUT',    body: JSON.stringify(body) }),
   patch:  <T>(path: string, body: unknown)        => request<T>(path, { method: 'PATCH',  body: JSON.stringify(body) }),
   delete: <T>(path: string)                       => request<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, file: File)           => {
+    const form = new FormData()
+    form.append('avatar', file)
+    return request<T>(path, {
+      method: 'POST',
+      body: form,
+      headers: { 'Content-Type': '' }, // empty string removes the header so browser sets multipart boundary
+    })
+  },
 }

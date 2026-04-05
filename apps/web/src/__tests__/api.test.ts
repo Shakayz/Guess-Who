@@ -130,6 +130,19 @@ describe('api', () => {
     )
   })
 
+  it('upload sends POST with FormData and no Content-Type header', async () => {
+    mockFetch(200, { avatarUrl: 'https://example.com/avatar.jpg' })
+    const { api } = await import('../lib/api')
+    const file = new File(['content'], 'avatar.png', { type: 'image/png' })
+    await api.upload('/users/me/avatar', file)
+    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toBe('/api/users/me/avatar')
+    expect(options.method).toBe('POST')
+    expect(options.body).toBeInstanceOf(FormData)
+    // Content-Type should NOT be set (browser sets multipart boundary)
+    expect(options.headers).not.toHaveProperty('Content-Type')
+  })
+
   it('throws error with fallback message when json() rejects on non-ok response', async () => {
     const response = {
       ok: false,

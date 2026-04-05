@@ -6,10 +6,13 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Image,
+  Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
+import * as ImagePicker from 'expo-image-picker'
 import { useAuthStore } from '../../../store/auth'
 import { api } from '../../../lib/api'
 import { RANK_CONFIG } from '@imposter/shared'
@@ -69,6 +72,8 @@ export default function ProfileScreen() {
   const [draftName, setDraftName] = useState('')
   const [savingName, setSavingName] = useState(false)
 
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+
   const currentLangIndex = LANGUAGES.findIndex((l) => l.code === i18n.language)
 
   const fetchData = useCallback(async () => {
@@ -109,6 +114,77 @@ export default function ProfileScreen() {
     } finally {
       setSavingName(false)
     }
+  }
+
+  const pickAndUploadAvatar = async (source: 'camera' | 'library') => {
+    try {
+      let result: ImagePicker.ImagePickerResult
+      const options: ImagePicker.ImagePickerOptions = {
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+        exif: false,
+      }
+
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync()
+        if (status !== 'granted') {
+          Alert.alert('Permission required', 'Camera access is needed to take a photo.')
+          return
+        }
+        result = await ImagePicker.launchCameraAsync({ ...options, maxWidth: 800, maxHeight: 800 })
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+        if (status !== 'granted') {
+          Alert.alert('Permission required', 'Photo library access is needed to pick a photo.')
+          return
+        }
+        result = await ImagePicker.launchImageLibraryAsync({ ...options, maxWidth: 800, maxHeight: 800 })
+      }
+
+      if (result.canceled || !result.assets?.length) return
+
+      const uri = result.assets[0].uri
+      setUploadingAvatar(true)
+      try {
+        const updated = await api.upload<{ avatarUrl: string }>('/users/me/avatar', uri)
+        setProfile((prev) => (prev ? { ...prev, avatarUrl: updated.avatarUrl } : prev))
+      } catch (err: any) {
+        setError(err.message)
+      } finally {
+        setUploadingAvatar(false)
+      }
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleAvatarPress = () => {
+    Alert.alert('Profile Photo', 'Choose an option', [
+      { text: 'Take Photo', onPress: () => pickAndUploadAvatar('camera') },
+      { text: 'Choose from Library', onPress: () => pickAndUploadAvatar('library') },
+      ...(profile?.avatarUrl
+        ? [
+            {
+              text: 'Remove Photo',
+              style: 'destructive' as const,
+              onPress: async () => {
+                setUploadingAvatar(true)
+                try {
+                  await api.delete('/users/me/avatar')
+                  setProfile((prev) => (prev ? { ...prev, avatarUrl: undefined } : prev))
+                } catch (err: any) {
+                  setError(err.message)
+                } finally {
+                  setUploadingAvatar(false)
+                }
+              },
+            },
+          ]
+        : []),
+      { text: 'Cancel', style: 'cancel' as const },
+    ])
   }
 
   const cycleLanguage = () => {
@@ -177,14 +253,50 @@ export default function ProfileScreen() {
         <View style={contentStyle}>
         {/* Avatar + Name */}
         <View className="items-center pt-8 pb-4" style={{ paddingHorizontal: px + 8 }}>
-          <View
-            className="rounded-full bg-violet-600 items-center justify-center mb-4 overflow-hidden"
-            style={{ width: isTablet ? 100 : 80, height: isTablet ? 100 : 80 }}
+          <TouchableOpacity
+            onPress={handleAvatarPress}
+            disabled={uploadingAvatar}
+            className="mb-4"
+            activeOpacity={0.8}
           >
-            <Text className="text-white font-bold" style={{ fontSize: isTablet ? 40 : 30 }}>
-              {profile.username.charAt(0).toUpperCase()}
-            </Text>
-          </View>
+            <View
+              className="rounded-full bg-violet-600 items-center justify-center overflow-hidden"
+              style={{ width: isTablet ? 100 : 80, height: isTablet ? 100 : 80 }}
+            >
+              {profile.avatarUrl ? (
+                <Image
+                  source={{ uri: profile.avatarUrl }}
+                  style={{ width: isTablet ? 100 : 80, height: isTablet ? 100 : 80 }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text className="text-white font-bold" style={{ fontSize: isTablet ? 40 : 30 }}>
+                  {profile.username.charAt(0).toUpperCase()}
+                </Text>
+              )}
+              {uploadingAvatar && (
+                <View
+                  className="absolute inset-0 items-center justify-center"
+                  style={{
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    width: isTablet ? 100 : 80,
+                    height: isTablet ? 100 : 80,
+                    borderRadius: (isTablet ? 100 : 80) / 2,
+                  }}
+                >
+                  <ActivityIndicator size="small" color="#fff" />
+                </View>
+              )}
+            </View>
+            {!uploadingAvatar && (
+              <View
+                className="absolute bottom-0 right-0 bg-violet-600 rounded-full items-center justify-center border-2 border-neutral-950"
+                style={{ width: 24, height: 24 }}
+              >
+                <Text style={{ fontSize: 12, color: '#fff' }}>✎</Text>
+              </View>
+            )}
+          </TouchableOpacity>
 
           {editingName ? (
             <View className="flex-row items-center gap-2">

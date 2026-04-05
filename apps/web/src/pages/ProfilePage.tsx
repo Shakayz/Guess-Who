@@ -9,6 +9,8 @@ import { RANK_CONFIG } from '@imposter/shared'
 import type { RankTier } from '@imposter/shared'
 import { api } from '../lib/api'
 
+const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/gif,image/webp'
+
 interface MeResponse {
   id: string
   username: string
@@ -67,8 +69,9 @@ export default function ProfilePage() {
   const authUser = useAuthStore((s) => s.user)
   const queryClient = useQueryClient()
   const [editingAvatar, setEditingAvatar] = useState(false)
-  const [avatarInput, setAvatarInput] = useState('')
-  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [editingUsername, setEditingUsername] = useState(false)
   const [usernameInput, setUsernameInput] = useState('')
   const [usernameError, setUsernameError] = useState<string | null>(null)
@@ -92,14 +95,38 @@ export default function ProfilePage() {
     retry: false,
   })
 
-  const avatarMutation = useMutation({
-    mutationFn: (avatarUrl: string) => api.patch('/users/me', { avatarUrl }),
+  const avatarUploadMutation = useMutation({
+    mutationFn: (file: File) => api.upload('/users/me/avatar', file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me'] })
       setEditingAvatar(false)
-      setAvatarInput('')
+      setAvatarPreview(null)
+      setSelectedFile(null)
     },
   })
+
+  const avatarRemoveMutation = useMutation({
+    mutationFn: () => api.delete('/users/me/avatar'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+      setEditingAvatar(false)
+    },
+  })
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSelectedFile(file)
+    const url = URL.createObjectURL(file)
+    setAvatarPreview(url)
+  }
+
+  function cancelAvatarEdit() {
+    setEditingAvatar(false)
+    setAvatarPreview(null)
+    setSelectedFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
   const usernameMutation = useMutation({
     mutationFn: (username: string) => api.patch('/users/me', { username }),
@@ -159,7 +186,10 @@ export default function ProfilePage() {
                     <Avatar username={me?.username ?? authUser?.username ?? '?'} size="xl" />
                   )}
                   <button
-                    onClick={() => { setEditingAvatar(true); setAvatarInput(me?.avatarUrl ?? '') }}
+                    onClick={() => {
+                      setEditingAvatar(true)
+                      setTimeout(() => fileInputRef.current?.click(), 0)
+                    }}
                     className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs text-white font-semibold"
                   >
                     Edit
@@ -252,28 +282,71 @@ export default function ProfilePage() {
 
             {/* Avatar edit form */}
             {editingAvatar && (
-              <div className="mt-4 flex items-center gap-2 animate-slide-up">
+              <div className="mt-4 animate-slide-up space-y-3">
+                {/* Hidden file input */}
                 <input
-                  ref={avatarInputRef}
-                  type="url"
-                  placeholder={t('profile.pasteImageUrl')}
-                  value={avatarInput}
-                  onChange={(e) => setAvatarInput(e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-sm placeholder-neutral-500 focus:outline-none focus:border-brand-600 transition-colors"
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPTED_IMAGE_TYPES}
+                  aria-label={t('profile.chooseImage')}
+                  className="sr-only"
+                  onChange={handleFileChange}
                 />
-                <button
-                  onClick={() => avatarMutation.mutate(avatarInput)}
-                  disabled={!avatarInput.trim() || avatarMutation.isPending}
-                  className="px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
-                >
-                  {t('profile.save')}
-                </button>
-                <button
-                  onClick={() => setEditingAvatar(false)}
-                  className="px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 text-sm font-semibold transition-colors"
-                >
-                  {t('profile.cancel')}
-                </button>
+
+                {/* Preview or prompt */}
+                {avatarPreview ? (
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={avatarPreview}
+                      alt="preview"
+                      className="w-14 h-14 rounded-full object-cover border-2 border-brand-700/60"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs text-neutral-400">{selectedFile?.name}</p>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-xs text-brand-400 hover:text-brand-300 transition-colors text-left"
+                      >
+                        {t('profile.chooseImage')}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-6 rounded-xl border-2 border-dashed border-neutral-700 hover:border-brand-700 text-neutral-500 hover:text-neutral-300 text-sm font-medium transition-colors flex flex-col items-center gap-1"
+                  >
+                    <span className="text-2xl">📷</span>
+                    <span>{t('profile.chooseImage')}</span>
+                    <span className="text-xs text-neutral-600">JPEG, PNG, GIF, WebP</span>
+                  </button>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => selectedFile && avatarUploadMutation.mutate(selectedFile)}
+                    disabled={!selectedFile || avatarUploadMutation.isPending}
+                    className="px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
+                  >
+                    {t('profile.save')}
+                  </button>
+                  {me?.avatarUrl && (
+                    <button
+                      onClick={() => avatarRemoveMutation.mutate()}
+                      disabled={avatarRemoveMutation.isPending}
+                      className="px-3 py-2 rounded-xl bg-red-900/60 hover:bg-red-800/60 text-red-300 text-sm font-semibold transition-colors disabled:opacity-40"
+                    >
+                      {t('profile.removeAvatar')}
+                    </button>
+                  )}
+                  <button
+                    onClick={cancelAvatarEdit}
+                    className="px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 text-sm font-semibold transition-colors"
+                  >
+                    {t('profile.cancel')}
+                  </button>
+                </div>
               </div>
             )}
           </div>

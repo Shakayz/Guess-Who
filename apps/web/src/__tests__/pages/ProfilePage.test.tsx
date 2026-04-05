@@ -22,13 +22,16 @@ vi.mock('../../store/auth', () => ({
 
 const mockApiGet = vi.fn()
 const mockApiPatch = vi.fn()
+const mockApiUpload = vi.fn()
+const mockApiDelete = vi.fn()
 vi.mock('../../lib/api', () => ({
   api: {
     get: (...args: unknown[]) => mockApiGet(...args),
     post: vi.fn().mockResolvedValue({}),
     patch: (...args: unknown[]) => mockApiPatch(...args),
     put: vi.fn().mockResolvedValue({}),
-    delete: vi.fn().mockResolvedValue({}),
+    delete: (...args: unknown[]) => mockApiDelete(...args),
+    upload: (...args: unknown[]) => mockApiUpload(...args),
   },
 }))
 
@@ -97,6 +100,8 @@ describe('ProfilePage', () => {
       return Promise.resolve({})
     })
     mockApiPatch.mockResolvedValue({ ...meResponse, username: 'newuser' })
+    mockApiUpload.mockResolvedValue({ avatarUrl: 'https://example.com/new-avatar.jpg' })
+    mockApiDelete.mockResolvedValue(undefined)
   })
 
   it('renders without crashing', () => {
@@ -233,7 +238,8 @@ describe('ProfilePage', () => {
     await waitFor(() => expect(screen.getByText('Edit')).toBeInTheDocument())
     fireEvent.click(screen.getByText('Edit'))
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('profile.pasteImageUrl')).toBeInTheDocument()
+      // The file input (sr-only) and the choose-image prompt should both appear
+      expect(screen.getByLabelText('profile.chooseImage')).toBeInTheDocument()
     })
   })
 
@@ -243,25 +249,71 @@ describe('ProfilePage', () => {
     })
     await waitFor(() => expect(screen.getByText('Edit')).toBeInTheDocument())
     fireEvent.click(screen.getByText('Edit'))
-    await waitFor(() => expect(screen.getByPlaceholderText('profile.pasteImageUrl')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByLabelText('profile.chooseImage')).toBeInTheDocument())
     fireEvent.click(screen.getByText('profile.cancel'))
-    expect(screen.queryByPlaceholderText('profile.pasteImageUrl')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('profile.chooseImage')).not.toBeInTheDocument()
   })
 
-  it('saves avatar URL when save button clicked with URL entered', async () => {
+  it('uploads avatar file when file selected and save clicked', async () => {
+    // Mock URL.createObjectURL
+    const mockObjectUrl = 'blob:http://localhost/fake-preview'
+    vi.stubGlobal('URL', { createObjectURL: vi.fn().mockReturnValue(mockObjectUrl), revokeObjectURL: vi.fn() })
+
     await act(async () => {
       render(<ProfilePage />, { wrapper })
     })
     await waitFor(() => expect(screen.getByText('Edit')).toBeInTheDocument())
     fireEvent.click(screen.getByText('Edit'))
-    await waitFor(() => expect(screen.getByPlaceholderText('profile.pasteImageUrl')).toBeInTheDocument())
-    fireEvent.change(screen.getByPlaceholderText('profile.pasteImageUrl'), {
-      target: { value: 'https://example.com/avatar.png' },
-    })
+    await waitFor(() => expect(screen.getByLabelText('profile.chooseImage')).toBeInTheDocument())
+
+    const file = new File(['(content)'], 'avatar.png', { type: 'image/png' })
+    const fileInput = screen.getByLabelText('profile.chooseImage') as HTMLInputElement
+    fireEvent.change(fileInput, { target: { files: [file] } })
+
+    await waitFor(() => expect(screen.getByAltText('preview')).toBeInTheDocument())
+
     const saveBtns = screen.getAllByText('profile.save')
     fireEvent.click(saveBtns[saveBtns.length - 1])
     await waitFor(() => {
-      expect(mockApiPatch).toHaveBeenCalledWith('/users/me', expect.objectContaining({ avatarUrl: expect.any(String) }))
+      expect(mockApiUpload).toHaveBeenCalledWith('/users/me/avatar', file)
+    })
+
+    vi.unstubAllGlobals()
+  })
+
+  it('shows remove avatar button when avatarUrl exists and edit is open', async () => {
+    mockApiGet.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.resolve({ ...meResponse, avatarUrl: 'https://example.com/avatar.jpg' })
+      if (path === '/achievements') return Promise.resolve(achievementsResponse)
+      if (path.includes('/profile')) return Promise.resolve(profileStatsResponse)
+      return Promise.resolve({})
+    })
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => expect(screen.getByText('Edit')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('Edit'))
+    await waitFor(() => {
+      expect(screen.getByText('profile.removeAvatar')).toBeInTheDocument()
+    })
+  })
+
+  it('calls delete endpoint when remove avatar button is clicked', async () => {
+    mockApiGet.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.resolve({ ...meResponse, avatarUrl: 'https://example.com/avatar.jpg' })
+      if (path === '/achievements') return Promise.resolve(achievementsResponse)
+      if (path.includes('/profile')) return Promise.resolve(profileStatsResponse)
+      return Promise.resolve({})
+    })
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => expect(screen.getByText('Edit')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('Edit'))
+    await waitFor(() => expect(screen.getByText('profile.removeAvatar')).toBeInTheDocument())
+    await act(async () => { fireEvent.click(screen.getByText('profile.removeAvatar')) })
+    await waitFor(() => {
+      expect(mockApiDelete).toHaveBeenCalledWith('/users/me/avatar')
     })
   })
 

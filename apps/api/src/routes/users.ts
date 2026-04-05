@@ -28,6 +28,53 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(updated)
   })
 
+  // POST /api/users/me/avatar — upload profile picture as base64 data URL
+  fastify.post('/me/avatar', async (req, reply) => {
+    const userId = (req.user as { sub: string }).sub
+
+    const data = await req.file()
+    if (!data) return reply.status(400).send({ error: 'No file uploaded' })
+
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!allowedMimeTypes.includes(data.mimetype)) {
+      return reply.status(400).send({ error: 'Invalid file type. Allowed: jpeg, png, gif, webp' })
+    }
+
+    const chunks: Buffer[] = []
+    for await (const chunk of data.file) {
+      chunks.push(chunk)
+    }
+    const buffer = Buffer.concat(chunks)
+
+    if (buffer.byteLength > 5 * 1024 * 1024) {
+      return reply.status(400).send({ error: 'File too large. Maximum size is 5MB' })
+    }
+
+    const base64 = buffer.toString('base64')
+    const avatarUrl = `data:${data.mimetype};base64,${base64}`
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl },
+      select: { id: true, username: true, avatarUrl: true, locale: true },
+    })
+
+    return reply.send(updated)
+  })
+
+  // DELETE /api/users/me/avatar — remove profile picture
+  fastify.delete('/me/avatar', async (req, reply) => {
+    const userId = (req.user as { sub: string }).sub
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl: null },
+      select: { id: true, username: true, avatarUrl: true, locale: true },
+    })
+
+    return reply.send(updated)
+  })
+
   // POST /api/users/me/push-token — register device push token (mobile)
   fastify.post('/me/push-token', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub

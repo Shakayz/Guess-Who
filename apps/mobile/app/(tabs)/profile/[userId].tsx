@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -117,10 +118,21 @@ export default function PlayerProfileScreen() {
         <View style={contentStyle}>
         {/* Avatar + Name */}
         <View className="items-center pt-8 pb-4" style={{ paddingHorizontal: px + 8 }}>
-          <View className="rounded-full bg-violet-600 items-center justify-center mb-4" style={{ width: isTablet ? 100 : 80, height: isTablet ? 100 : 80 }}>
-            <Text className="text-white text-3xl font-bold">
-              {profile.username.charAt(0).toUpperCase()}
-            </Text>
+          <View
+            className="rounded-full bg-violet-600 items-center justify-center mb-4 overflow-hidden"
+            style={{ width: isTablet ? 100 : 80, height: isTablet ? 100 : 80 }}
+          >
+            {profile.avatarUrl ? (
+              <Image
+                source={{ uri: profile.avatarUrl }}
+                style={{ width: isTablet ? 100 : 80, height: isTablet ? 100 : 80 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <Text className="text-white text-3xl font-bold">
+                {profile.username.charAt(0).toUpperCase()}
+              </Text>
+            )}
           </View>
           <Text className="text-white text-xl font-bold">
             {profile.username}

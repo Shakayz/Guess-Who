@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vites
 import type { FastifyInstance } from 'fastify'
 import Fastify from 'fastify'
 import jwt from '@fastify/jwt'
+import multipart from '@fastify/multipart'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
 import { userRoutes } from '../../routes/users'
@@ -24,6 +25,7 @@ describe('User Routes', () => {
   beforeAll(async () => {
     app = Fastify({ logger: false })
     await app.register(jwt, { secret: 'test-secret-key-that-is-at-least-32-chars-long' })
+    await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } })
     app.decorate('authenticate', async function (request: any, reply: any) {
       try {
         await request.jwtVerify()
@@ -83,6 +85,126 @@ describe('User Routes', () => {
       })
       // Zod throws on invalid enum → Fastify returns 500
       expect(res.statusCode).toBeGreaterThanOrEqual(400)
+    })
+  })
+
+  // ── POST /me/avatar ───────────────────────────────────────────────────────────
+
+  describe('POST /api/users/me/avatar', () => {
+    it('uploads a valid PNG and stores base64 data URL', async () => {
+      mockUser.update.mockResolvedValue({
+        id: 'user-1',
+        username: 'testuser',
+        avatarUrl: 'data:image/png;base64,abc',
+        locale: 'en',
+      })
+
+      // Build a minimal multipart body for a 1x1 PNG (89 bytes)
+      const boundary = 'TestBoundary123'
+      const pngBytes = Buffer.from(
+        '89504e470d0a1a0a0000000d49484452000000010000000108020000009001' +
+        '2e00000000c4944415478016360f8cfc00000000200015e178e5600000000049454e44ae426082',
+        'hex',
+      )
+      const body = Buffer.concat([
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="avatar"; filename="test.png"\r\nContent-Type: image/png\r\n\r\n`),
+        pngBytes,
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      ])
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/users/me/avatar',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+        },
+        payload: body,
+      })
+
+      expect(res.statusCode).toBe(200)
+      const json = res.json()
+      expect(json.avatarUrl).toBe('data:image/png;base64,abc')
+      expect(mockUser.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ avatarUrl: expect.stringMatching(/^data:image\/png;base64,/) }),
+        }),
+      )
+    })
+
+    it('rejects unsupported mime type', async () => {
+      const boundary = 'TestBoundary456'
+      const body = Buffer.concat([
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="avatar"; filename="test.txt"\r\nContent-Type: text/plain\r\n\r\n`),
+        Buffer.from('hello'),
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      ])
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/users/me/avatar',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+        },
+        payload: body,
+      })
+
+      expect(res.statusCode).toBe(400)
+      expect(res.json().error).toMatch(/invalid file type/i)
+    })
+
+    it('returns 400 when no file is attached', async () => {
+      const boundary = 'TestBoundaryEmpty'
+      const body = Buffer.from(`--${boundary}--\r\n`)
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/users/me/avatar',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+        },
+        payload: body,
+      })
+
+      expect(res.statusCode).toBe(400)
+      expect(res.json().error).toMatch(/no file/i)
+    })
+
+    it('returns 401 without token', async () => {
+      const res = await app.inject({ method: 'POST', url: '/api/users/me/avatar', payload: '' })
+      expect(res.statusCode).toBe(401)
+    })
+  })
+
+  // ── DELETE /me/avatar ─────────────────────────────────────────────────────────
+
+  describe('DELETE /api/users/me/avatar', () => {
+    it('sets avatarUrl to null', async () => {
+      mockUser.update.mockResolvedValue({
+        id: 'user-1',
+        username: 'testuser',
+        avatarUrl: null,
+        locale: 'en',
+      })
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/api/users/me/avatar',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json().avatarUrl).toBeNull()
+      expect(mockUser.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { avatarUrl: null } }),
+      )
+    })
+
+    it('returns 401 without token', async () => {
+      const res = await app.inject({ method: 'DELETE', url: '/api/users/me/avatar' })
+      expect(res.statusCode).toBe(401)
     })
   })
 

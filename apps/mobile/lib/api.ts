@@ -19,6 +19,27 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function upload<T>(path: string, uri: string): Promise<T> {
+  const token = useAuthStore.getState().token
+  const formData = new FormData()
+  const filename = uri.split('/').pop() ?? 'avatar.jpg'
+  const ext = filename.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const mimeType = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : 'image/jpeg'
+  formData.append('avatar', { uri, name: filename, type: mimeType } as any)
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any).error ?? `HTTP ${res.status}`)
+  }
+  return res.json() as Promise<T>
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body: unknown) =>
@@ -28,4 +49,5 @@ export const api = {
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, uri: string) => upload<T>(path, uri),
 }
