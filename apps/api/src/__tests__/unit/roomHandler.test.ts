@@ -381,6 +381,23 @@ describe('game:start', () => {
     // findUnique is called but then it returns because hostId !== userId
     expect(io.to).not.toHaveBeenCalled()
   })
+
+  it('emits INTERNAL error and logs when startGameForRoom throws (catch branch)', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    // room.findUnique returns host-1 as host, then startGameForRoom will call redis.get
+    mockPrisma.room.findUnique.mockResolvedValue({ id: 'room-1', code: 'ABCD', hostId: 'host-1' })
+    // Make redis.get throw so startGameForRoom throws
+    mockRedis.get.mockRejectedValueOnce(new Error('redis boom'))
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+
+    expect(consoleSpy).toHaveBeenCalledWith('game:start error', expect.any(Error))
+    expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'INTERNAL' }))
+    consoleSpy.mockRestore()
+  })
 })
 
 // ─── detective:reveal (room handler) ─────────────────────────────────────────
@@ -425,6 +442,19 @@ describe('detective:reveal (room handler)', () => {
 
     expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'DETECTIVE_USED' }))
   })
+
+  it('swallows errors thrown by redis.get in detective:reveal (catch branch)', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    mockRedis.get.mockRejectedValueOnce(new Error('redis error'))
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    registerRoomHandlers(io, socket)
+    await expect(socket._fire('detective:reveal', { targetUserId: 'target-1' })).resolves.not.toThrow()
+
+    expect(consoleSpy).toHaveBeenCalledWith('detective:reveal error', expect.any(Error))
+    consoleSpy.mockRestore()
+  })
 })
 
 // ─── game:forfeit ─────────────────────────────────────────────────────────────
@@ -440,6 +470,22 @@ describe('game:forfeit', () => {
 
     expect(forfeitPlayer).toHaveBeenCalledWith(io, 'room-1', 'host-1')
     expect(socket.leave).toHaveBeenCalledWith('room:room-1')
+  })
+
+  it('swallows errors thrown by forfeitPlayer (catch branch)', async () => {
+    const gameLoopMod = await import('../../socket/gameLoop')
+    ;(gameLoopMod.forfeitPlayer as any).mockRejectedValueOnce(new Error('forfeit fail'))
+
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    registerRoomHandlers(io, socket)
+    // Should not throw
+    await expect(socket._fire('game:forfeit')).resolves.not.toThrow()
+
+    expect(consoleSpy).toHaveBeenCalledWith('game:forfeit error', expect.any(Error))
+    consoleSpy.mockRestore()
   })
 })
 
@@ -487,6 +533,19 @@ describe('game:leave-eliminated', () => {
     await socket._fire('game:leave-eliminated')
 
     expect(socket.leave).toHaveBeenCalledWith('room:room-1')
+  })
+
+  it('swallows errors thrown by redis.get (catch branch)', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    mockRedis.get.mockRejectedValueOnce(new Error('redis error'))
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    registerRoomHandlers(io, socket)
+    await expect(socket._fire('game:leave-eliminated')).resolves.not.toThrow()
+
+    expect(consoleSpy).toHaveBeenCalledWith('game:leave-eliminated error', expect.any(Error))
+    consoleSpy.mockRestore()
   })
 })
 

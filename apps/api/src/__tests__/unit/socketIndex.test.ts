@@ -446,6 +446,33 @@ describe('detective:reveal handler (socket/index.ts)', () => {
     expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'ABILITY_USED' }))
   })
 
+  it('returns target-eliminated error when target is not alive', async () => {
+    const { registerSocketHandlers } = await import('../../socket/index')
+    const io = makeIo()
+    const socket = makeSocket()
+    socket.handshake.auth.token = makeValidToken('user-1', 'Detective')
+    socket.data.userId = 'user-1'
+    socket.data.roomCode = 'ABCD'
+
+    const state = {
+      players: [
+        { userId: 'user-1', role: 'detective', status: 'alive', detectiveRevealUsed: false },
+        { userId: 'user-2', role: 'imposter',  status: 'eliminated', username: 'Dave' },
+      ],
+    }
+    mockPrisma.room.findUnique.mockResolvedValue({ id: 'room-1', code: 'ABCD' })
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerSocketHandlers(io)
+    const next = vi.fn()
+    io._runMiddleware(socket, next)
+    io._fire('connection', socket)
+
+    await socket._fire('detective:reveal', { targetUserId: 'user-2' })
+
+    expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'TARGET_ELIMINATED' }))
+  })
+
   it('emits detective:reveal-result with target role when valid', async () => {
     const { registerSocketHandlers } = await import('../../socket/index')
     const io = makeIo()
@@ -618,6 +645,68 @@ describe('disconnect handler', () => {
     const setCall = mockRedis.set.mock.calls[0]
     const savedState = JSON.parse(setCall[1])
     expect(savedState.players.some((p: any) => p.userId === 'user-1')).toBe(false)
+  })
+
+  it('reassigns host when the disconnecting player was the host in lobby', async () => {
+    const { registerSocketHandlers } = await import('../../socket/index')
+    const io = makeIo()
+    const socket = makeSocket()
+    // user-host is both the socket user and the room host
+    socket.handshake.auth.token = makeValidToken('user-host', 'HostUser')
+    socket.rooms.add('room:room-99')
+
+    const state = {
+      status: 'waiting',
+      players: [
+        { userId: 'user-host', username: 'HostUser', isHost: true, isReady: true },
+        { userId: 'user-2',    username: 'Player2',  isHost: false, isReady: false },
+      ],
+    }
+
+    registerSocketHandlers(io)
+    const next = vi.fn()
+    io._runMiddleware(socket, next)
+    io._fire('connection', socket)
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    mockRedis.set.mockResolvedValue('OK')
+    mockPrisma.room.findUnique.mockResolvedValue({ id: 'room-99', hostId: 'user-host' })
+    mockPrisma.room.update.mockResolvedValue({})
+
+    await socket._fire('disconnect')
+
+    // The room should have been updated with the new host
+    expect(mockPrisma.room.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'room-99' },
+      data: { hostId: 'user-2' },
+    }))
+    // And the event should have been emitted
+    expect(io._emit).toHaveBeenCalledWith('room:host-changed', expect.objectContaining({
+      newHostId: 'user-2',
+    }))
+  })
+
+  it('removes player from matchmaking queue on disconnect', async () => {
+    const { registerSocketHandlers } = await import('../../socket/index')
+    const io = makeIo()
+    const socket = makeSocket()
+    socket.handshake.auth.token = makeValidToken('user-queued', 'QueuedUser')
+
+    // Simulate user being in a matchmaking queue
+    const queueEntry = JSON.stringify({ userId: 'user-queued', socketId: 'socket-abc', lp: 100 })
+    mockRedis.keys = vi.fn().mockResolvedValue(['matchmaking:en:normal'])
+    mockRedis.lrange = vi.fn().mockResolvedValue([queueEntry])
+    mockRedis.lrem = vi.fn().mockResolvedValue(1)
+
+    registerSocketHandlers(io)
+    const next = vi.fn()
+    io._runMiddleware(socket, next)
+    io._fire('connection', socket)
+
+    await socket._fire('disconnect')
+
+    // lrem should have been called to remove the user from the queue
+    expect(mockRedis.lrem).toHaveBeenCalledWith('matchmaking:en:normal', 0, queueEntry)
   })
 })
 
