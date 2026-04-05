@@ -175,7 +175,7 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col">
       <NavBar />
 
-      <main id="main-content" role="main" className="flex-1 flex flex-col items-center px-4 pt-16 pb-24 sm:pb-16 md:pt-20 lg:pt-24">
+      <main id="main-content" role="main" className="flex-1 flex flex-col items-center px-4 pt-16 pb-24 md:pb-16 md:pt-20 lg:pt-24">
         <div className="w-full max-w-lg md:max-w-2xl lg:max-w-4xl animate-slide-up space-y-5">
 
           {/* Heading */}

@@ -169,8 +169,8 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
-      <main className="flex-1 p-6 pb-24 sm:pb-6">
-        <div className="max-w-xl md:max-w-2xl lg:max-w-4xl mx-auto space-y-4 animate-slide-up">
+      <main className="flex-1 p-6 pb-24 md:pb-6">
+        <div className="max-w-xl md:max-w-2xl lg:max-w-4xl mx-auto space-y-4 md:space-y-6 animate-slide-up">
 
           {/* Profile card */}
           <div className="card relative overflow-hidden">

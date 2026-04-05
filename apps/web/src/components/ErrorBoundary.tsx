@@ -18,7 +18,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode; 
       if (this.props.fallback) return this.props.fallback
       return (
         <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-6">
-          <div className="bg-neutral-900 border border-red-500/30 rounded-2xl p-8 max-w-md text-center">
+          <div role="alert" className="bg-neutral-900 border border-red-500/30 rounded-2xl p-8 max-w-md text-center">
             <div className="text-4xl mb-4">💥</div>
             <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
             <p className="text-neutral-400 mb-6 text-sm">{this.state.error?.message || 'An unexpected error occurred'}</p>

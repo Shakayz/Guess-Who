@@ -129,7 +129,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
-      <main className="flex-1 p-6 pb-24 sm:pb-6">
+      <main className="flex-1 p-6 pb-24 md:pb-6 md:p-8">
         <div className="max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto space-y-6 animate-slide-up">
           <h1 className="text-2xl md:text-3xl font-extrabold text-white">Settings</h1>
 

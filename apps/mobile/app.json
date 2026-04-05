@@ -28,6 +28,13 @@
         "backgroundColor": "#09090b"
       },
       "package": "com.imposter.game",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [{ "scheme": "imposter" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",

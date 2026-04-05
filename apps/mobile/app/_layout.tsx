@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useCallback } from 'react'
 import { View, Text, TouchableOpacity, useWindowDimensions } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
+import * as Linking from 'expo-linking'
 import '../i18n'
 import { useAuthStore } from '../store/auth'
 import { useSocialStore } from '../store/social'
@@ -65,6 +66,59 @@ function GlobalSocketListeners() {
       socket.off('dm:receive' as any)
     }
   }, [token])
+
+  return null
+}
+
+function DeepLinkHandler() {
+  const router = useRouter()
+  const token = useAuthStore((s) => s.token)
+
+  const handleDeepLink = useCallback((event: { url: string }) => {
+    const { url } = event
+    if (!url) return
+
+    const parsed = Linking.parse(url)
+    const { hostname, path, queryParams } = parsed
+
+    // Handle imposter://lobby/{code}
+    if (hostname === 'lobby' && path) {
+      const code = path.replace(/^\//, '')
+      if (code && token) {
+        router.push(`/lobby/${code}`)
+      }
+      return
+    }
+
+    // Handle imposter://game/{code}
+    if (hostname === 'game' && path) {
+      const code = path.replace(/^\//, '')
+      if (code && token) {
+        router.push(`/game/${code}`)
+      }
+      return
+    }
+
+    // Handle imposter://reset-password?token=xxx
+    if (hostname === 'reset-password') {
+      const resetToken = queryParams?.token as string | undefined
+      if (resetToken) {
+        router.push(`/reset-password?token=${resetToken}`)
+      }
+      return
+    }
+  }, [router, token])
+
+  useEffect(() => {
+    // Handle URL that opened the app (cold start)
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink({ url })
+    })
+
+    // Handle URLs while the app is already open (warm start)
+    const subscription = Linking.addEventListener('url', handleDeepLink)
+    return () => subscription.remove()
+  }, [handleDeepLink])
 
   return null
 }
@@ -133,6 +187,7 @@ export default function RootLayout() {
     <ErrorBoundary>
       <StatusBar style="light" />
       <AuthGuard>
+        <DeepLinkHandler />
         <GlobalSocketListeners />
         <ConnectionStatus />
         <InviteBanner />
@@ -146,6 +201,8 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="auth" options={{ headerShown: false }} />
+          <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+          <Stack.Screen name="reset-password" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="offline" options={{ title: 'Offline Mode', headerBackTitle: 'Back' }} />
           <Stack.Screen name="how-to-play" options={{ title: 'How to Play', headerBackTitle: 'Back' }} />

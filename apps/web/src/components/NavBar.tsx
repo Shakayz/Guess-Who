@@ -60,13 +60,15 @@ export function NavBar() {
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-base">🎭</div>
           <span className="font-bold text-white tracking-tight">Imposter</span>
         </button>
-        <nav className="hidden md:flex items-center gap-1 lg:gap-2">
+        <nav role="navigation" aria-label="Main navigation" className="hidden md:flex items-center gap-1 lg:gap-2">
           {NAV_PATHS.map((path) => {
             const labelKey = path === '/' ? 'nav.play' : path === '/leaderboard' ? 'nav.leaderboard' : path === '/history' ? 'nav.history' : 'nav.friends'
             return (
               <button
                 key={path}
                 onClick={() => navigate(path)}
+                aria-label={t(labelKey)}
+                aria-current={location.pathname === path ? 'page' : undefined}
                 className={[
                   'px-3 py-1.5 text-sm rounded-lg transition-all',
                   location.pathname === path
@@ -112,7 +114,7 @@ export function NavBar() {
                 <button
                   key={lang.code}
                   onClick={() => handleLangChange(lang.code)}
-                  className={[
+                className={[
                     'w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-left',
                     baseLang === lang.code
                       ? 'bg-neutral-800 text-white'

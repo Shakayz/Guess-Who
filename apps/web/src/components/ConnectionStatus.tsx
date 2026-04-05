@@ -23,7 +23,7 @@ export function ConnectionStatus() {
   if (!showBanner) return null
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-center py-2 px-4 text-sm font-medium transition-colors ${
+    <div role="alert" aria-live="assertive" className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-center py-2 px-4 text-sm font-medium transition-colors ${
       connected ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white animate-pulse'
     }`}>
       {connected ? (

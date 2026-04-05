@@ -476,7 +476,7 @@ export default function LobbyPage() {
       )}
 
       {socketError && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-red-950/90 border border-red-700/60 text-sm text-red-300 font-semibold shadow-xl animate-slide-up flex items-center gap-2">
+        <div role="alert" className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-red-950/90 border border-red-700/60 text-sm text-red-300 font-semibold shadow-xl animate-slide-up flex items-center gap-2">
           <span>⚠</span>
           {socketError}
         </div>
@@ -506,10 +506,10 @@ export default function LobbyPage() {
           </div>
 
           {/* Player list */}
-          <div className="card space-y-2 border-neutral-800/60 bg-neutral-900/60">
+          <div className="card space-y-2 border-neutral-800/60 bg-neutral-900/60" aria-live="polite">
             <div className="flex items-center justify-between mb-1">
               <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">{t('lobby.players')}</p>
-              <span className="text-xs text-neutral-500 tabular-nums bg-neutral-800 px-2 py-0.5 rounded-full">
+              <span role="status" className="text-xs text-neutral-500 tabular-nums bg-neutral-800 px-2 py-0.5 rounded-full">
                 {players.length} / {settings.maxPlayers}
               </span>
             </div>
@@ -683,6 +683,7 @@ export default function LobbyPage() {
             ) : !isHost ? (
               <button
                 onClick={toggleReady}
+                aria-label={isReady ? "Ready, click to unready" : "Click to mark as ready"}
                 className={[
                   'flex-1 py-3 rounded-xl font-semibold transition-all',
                   isReady
@@ -697,6 +698,7 @@ export default function LobbyPage() {
             ) : (
               <button
                 onClick={startGame}
+                aria-label="Start game"
                 disabled={players.length < minPlayers || !allReady}
                 className={[
                   'flex-1 py-3 rounded-xl text-white font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg',

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
@@ -227,7 +227,7 @@ export default function AuthPage() {
               <p className="text-neutral-600 text-xs">3-20 characters — letters, numbers, underscores only</p>
 
               {usernameError && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-950/60 border border-red-800/50 text-red-400 text-sm">
+                <div role="alert" aria-live="assertive" className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-950/60 border border-red-800/50 text-red-400 text-sm">
                   <span className="shrink-0">⚠</span>
                   <span>{usernameError}</span>
                 </div>
@@ -357,6 +357,7 @@ export default function AuthPage() {
                 <input
                   className="input-field pl-8"
                   placeholder={t('auth.username')}
+                  aria-label="Username"
                   value={form.username}
                   onChange={update('username')}
                   minLength={3}
@@ -371,6 +372,7 @@ export default function AuthPage() {
                 className="input-field"
                 type="text"
                 placeholder="Email or username"
+                aria-label="Email or username"
                 value={form.identifier}
                 onChange={update('identifier')}
                 required
@@ -382,6 +384,7 @@ export default function AuthPage() {
                 className="input-field"
                 type="email"
                 placeholder={t('auth.email')}
+                aria-label="Email"
                 value={form.email}
                 onChange={update('email')}
                 required
@@ -392,6 +395,7 @@ export default function AuthPage() {
               className="input-field"
               type="password"
               placeholder={t('auth.password')}
+              aria-label="Password"
               value={form.password}
               onChange={update('password')}
               minLength={mode === 'signup' ? 8 : undefined}
@@ -399,8 +403,19 @@ export default function AuthPage() {
               autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
             />
 
+            {mode === 'signin' && (
+              <div className="text-right -mt-1">
+                <Link
+                  to="/forgot-password"
+                  className="text-brand-500 hover:text-brand-400 transition-colors text-xs font-medium"
+                >
+                  {t('auth.forgotPassword')}
+                </Link>
+              </div>
+            )}
+
             {error && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-950/60 border border-red-800/50 text-red-400 text-sm">
+              <div role="alert" aria-live="assertive" className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-950/60 border border-red-800/50 text-red-400 text-sm">
                 <span className="shrink-0">⚠</span>
                 <span>{error}</span>
               </div>

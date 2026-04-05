@@ -464,6 +464,18 @@ export default function AuthScreen() {
                   />
                 </View>
 
+                {/* Forgot password */}
+                {mode === 'signin' && (
+                  <TouchableOpacity
+                    onPress={() => router.push('/forgot-password')}
+                    className="items-end mb-2"
+                  >
+                    <Text className="text-violet-500 text-xs font-medium">
+                      {t('auth.forgotPassword')}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
                 {/* Error */}
                 {error && (
                   <View className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800 mb-4">

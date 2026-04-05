@@ -970,7 +970,6 @@ export default function GamePage() {
                   className="input-field flex-1"
                   placeholder={t('game.cluePlaceholder')}
                   aria-label="Enter your clue"
-                  aria-label="Enter your clue"
                   value={clueText}
                   onChange={(e) => setClueText(e.target.value)}
                   maxLength={200}
@@ -1039,9 +1038,9 @@ export default function GamePage() {
               {alivePlayers
                 .filter((p) => p.userId !== user?.id && (!tiebreakerActive || tiebreakerPlayerIds.includes(p.userId)))
                 .map((p) => (
-                    aria-label={`Vote for ${getDisplayName(p.userId, p.username)}`}
                   <button
                     key={p.id}
+                    aria-label={`Vote for ${getDisplayName(p.userId, p.username)}`}
                     onClick={() => vote(p.userId)}
                     disabled={!!votedFor}
                     className={[
