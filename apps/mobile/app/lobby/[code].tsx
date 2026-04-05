@@ -534,84 +534,92 @@ export default function LobbyScreen() {
           </View>
 
           {players.length === 0 ? (
-            <View className="items-center py-8">
-              <View className="flex-row gap-2 mb-3">
+            <View className="items-center py-10">
+              <View className="flex-row gap-2 mb-4">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <View
                     key={i}
-                    className="w-8 h-8 rounded-full bg-neutral-800 border-2 border-dashed border-neutral-700"
+                    className="rounded-full bg-neutral-800/60 border-2 border-dashed border-neutral-700/60"
+                    style={{ width: 36, height: 36 }}
                   />
                 ))}
               </View>
-              <Text className="text-neutral-500 text-sm">Waiting for players to join...</Text>
+              <Text className="text-neutral-400 font-semibold" style={{ fontSize: 14 * fontScale }}>Waiting for players...</Text>
               <Text className="text-neutral-600 text-xs mt-1">Need at least {minPlayers} to start</Text>
             </View>
           ) : (
             <View className="gap-2">
-              {players.map((p) => (
-                <View
-                  key={p.id}
-                  className={[
-                    'flex-row items-center gap-3 px-3 py-3 rounded-xl border',
-                    p.userId === user?.id
-                      ? 'border-violet-800/60 bg-violet-950/30'
-                      : 'border-neutral-800 bg-neutral-800/20',
-                  ].join(' ')}
-                >
-                  {/* Alive indicator */}
+              {players.map((p) => {
+                const isReady = p.isReady || p.isHost
+                const isMe = p.userId === user?.id
+                return (
                   <View
+                    key={p.id}
                     className={[
-                      'w-1.5 h-1.5 rounded-full absolute left-0 top-1/2',
-                      p.isReady || p.isHost ? 'bg-emerald-400' : 'bg-neutral-700',
-                    ].join(' ')}
-                    style={{ marginLeft: -1, transform: [{ translateY: -3 }] }}
-                  />
-                  {/* Avatar placeholder */}
-                  <View
-                    className={[
-                      'rounded-full items-center justify-center',
-                      p.isHost ? 'bg-amber-700' : p.userId === user?.id ? 'bg-violet-700' : 'bg-neutral-700',
-                    ].join(' ')}
-                    style={{ width: 34, height: 34 }}
-                  >
-                    <Text className="text-white text-sm font-bold">
-                      {p.username.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View className="flex-1">
-                    <View className="flex-row items-center gap-1.5">
-                      <Text className="text-white font-semibold text-sm">{p.username}</Text>
-                      {p.isHost && (
-                        <View className="px-1.5 py-0.5 rounded bg-amber-900/60 border border-amber-700/40">
-                          <Text className="text-[10px] text-amber-400 font-bold">HOST</Text>
-                        </View>
-                      )}
-                      {p.userId === user?.id && !p.isHost && (
-                        <View className="px-1.5 py-0.5 rounded bg-violet-900/60 border border-violet-700/40">
-                          <Text className="text-[10px] text-violet-400 font-bold">YOU</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                  <View
-                    className={[
-                      'flex-row items-center gap-1 px-2.5 py-1 rounded-full border',
-                      p.isReady || p.isHost
-                        ? 'bg-emerald-950/60 border-emerald-800/40'
-                        : 'bg-neutral-800/60 border-neutral-700/40',
+                      'flex-row items-center gap-3 px-3 py-3 rounded-xl border overflow-hidden',
+                      isMe
+                        ? 'border-violet-700/50 bg-violet-950/25'
+                        : 'border-neutral-800/60 bg-neutral-800/15',
                     ].join(' ')}
                   >
-                    <Text
+                    {/* Left ready indicator stripe */}
+                    <View
+                      className="absolute left-0 top-0 bottom-0 w-0.5"
+                      style={{ backgroundColor: isReady ? '#10b981' : 'transparent' }}
+                    />
+                    {/* Avatar */}
+                    <View
                       className={[
-                        'text-[10px] font-bold',
-                        p.isReady || p.isHost ? 'text-emerald-400' : 'text-neutral-500',
+                        'rounded-full items-center justify-center border',
+                        p.isHost
+                          ? 'bg-amber-800/60 border-amber-700/50'
+                          : isMe
+                          ? 'bg-violet-700/70 border-violet-600/50'
+                          : 'bg-neutral-700 border-neutral-600/50',
+                      ].join(' ')}
+                      style={{ width: 36, height: 36 }}
+                    >
+                      <Text className="text-white font-bold" style={{ fontSize: 14 }}>
+                        {p.username.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-1.5 flex-wrap">
+                        <Text className="text-white font-semibold" style={{ fontSize: 14 * fontScale }}>{p.username}</Text>
+                        {p.isHost && (
+                          <View className="px-1.5 py-0.5 rounded bg-amber-900/60 border border-amber-700/40">
+                            <Text className="text-[9px] text-amber-400 font-bold uppercase">Host</Text>
+                          </View>
+                        )}
+                        {isMe && !p.isHost && (
+                          <View className="px-1.5 py-0.5 rounded bg-violet-900/60 border border-violet-700/40">
+                            <Text className="text-[9px] text-violet-400 font-bold uppercase">You</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    {/* Ready pill */}
+                    <View
+                      className={[
+                        'flex-row items-center gap-1 px-2.5 py-1 rounded-full border',
+                        isReady
+                          ? 'bg-emerald-950/60 border-emerald-700/50'
+                          : 'bg-neutral-800/60 border-neutral-700/40',
                       ].join(' ')}
                     >
-                      {p.isReady || p.isHost ? '✓ Ready' : 'Not Ready'}
-                    </Text>
+                      {isReady && <View className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                      <Text
+                        className={[
+                          'text-[10px] font-bold',
+                          isReady ? 'text-emerald-400' : 'text-neutral-600',
+                        ].join(' ')}
+                      >
+                        {isReady ? 'Ready' : 'Waiting'}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ))}
+                )
+              })}
             </View>
           )}
         </View>

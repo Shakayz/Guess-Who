@@ -211,29 +211,37 @@ export default function HomeScreen() {
                       activeOpacity={0.8}
                     >
                       {/* Active top accent bar */}
+                      <View
+                        className={[
+                          'absolute top-0 left-0 right-0',
+                          active ? 'h-0.5' : 'h-0',
+                          mode.id === 'ranked' ? 'bg-amber-500' : 'bg-violet-500',
+                        ].join(' ')}
+                      />
+                      {/* Active bottom fade */}
                       {active && (
                         <View
-                          className={[
-                            'absolute top-0 left-0 right-0 h-0.5',
-                            mode.id === 'ranked' ? 'bg-amber-500' : 'bg-violet-500',
-                          ].join(' ')}
+                          className="absolute bottom-0 left-0 right-0 h-8"
+                          style={{
+                            backgroundColor: mode.id === 'ranked' ? 'rgba(120,50,0,0.12)' : 'rgba(88,28,235,0.08)',
+                          }}
                         />
                       )}
                       <View
                         className={[
                           'rounded-xl items-center justify-center mb-0.5',
                           active
-                            ? mode.id === 'ranked' ? 'bg-amber-900/40' : 'bg-violet-900/40'
+                            ? mode.id === 'ranked' ? 'bg-amber-900/50 border border-amber-800/40' : 'bg-violet-900/50 border border-violet-800/40'
                             : 'bg-neutral-800',
                         ].join(' ')}
                         style={{ width: isTablet ? 52 : 44, height: isTablet ? 52 : 44 }}
                       >
                         <Text style={{ fontSize: isTablet ? 28 : 22 }}>{mode.icon}</Text>
                       </View>
-                      <Text className={['font-bold', active ? activeText : 'text-neutral-300'].join(' ')} style={{ fontSize: 12 * fontScale }}>
+                      <Text className={['font-extrabold', active ? activeText : 'text-neutral-400'].join(' ')} style={{ fontSize: 12 * fontScale }}>
                         {mode.label}
                       </Text>
-                      <Text className={['text-center leading-tight', active ? 'text-neutral-400' : 'text-neutral-600'].join(' ')} style={{ fontSize: 10 * fontScale }}>
+                      <Text className={['text-center leading-tight', active ? 'text-neutral-400' : 'text-neutral-700'].join(' ')} style={{ fontSize: 10 * fontScale }}>
                         {mode.desc}
                       </Text>
                     </TouchableOpacity>
@@ -269,16 +277,19 @@ export default function HomeScreen() {
                         key={cat.key}
                         onPress={() => toggleCategory(cat.key as WordCategory)}
                         className={[
-                          'flex-row items-center gap-1.5 rounded-xl border',
+                          'flex-row items-center gap-1.5 rounded-xl border overflow-hidden',
                           selected
-                            ? 'bg-violet-950/70 border-violet-600/60'
+                            ? 'bg-violet-900/50 border-violet-600/70'
                             : isAll
-                              ? 'bg-neutral-800/70 border-neutral-700/50'
-                              : 'bg-neutral-900/60 border-neutral-800/60',
+                              ? 'bg-neutral-800/50 border-neutral-700/40'
+                              : 'bg-neutral-900/40 border-neutral-800/40',
                         ].join(' ')}
                         style={{ paddingHorizontal: isTablet ? 12 : 10, paddingVertical: isTablet ? 8 : 7 }}
                         activeOpacity={0.75}
                       >
+                        {selected && (
+                          <View className="absolute top-0 left-0 right-0 h-0.5 bg-violet-500/60" />
+                        )}
                         <Text style={{ fontSize: 13 * fontScale }}>{cat.icon}</Text>
                         <Text className={[
                           'font-semibold',
@@ -286,6 +297,9 @@ export default function HomeScreen() {
                         ].join(' ')} style={{ fontSize: 12 * fontScale }}>
                           {cat.label}
                         </Text>
+                        {selected && (
+                          <Text className="text-violet-500 text-[9px] font-bold">✓</Text>
+                        )}
                       </TouchableOpacity>
                     )
                   })}

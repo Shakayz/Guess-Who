@@ -156,34 +156,56 @@ export default function LeaderboardScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}
         ListHeaderComponent={
           <>
+            {/* Screen header */}
+            <View className="flex-row items-center justify-between pt-5 pb-2" style={{ paddingHorizontal: px, ...contentStyle }}>
+              <Text className="text-white font-extrabold tracking-tight" style={{ fontSize: isTablet ? 26 : 22 }}>
+                Leaderboard
+              </Text>
+              <View className="px-2.5 py-1 rounded-full bg-violet-950/60 border border-violet-800/40">
+                <Text className="text-violet-400 font-bold text-xs">Season 1</Text>
+              </View>
+            </View>
+
+            {/* Podium header */}
+            <View className="items-center pb-2" style={{ paddingHorizontal: px }}>
+              <View className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-700/40 bg-amber-950/20 mb-1">
+                <Text style={{ fontSize: 12 }}>🏆</Text>
+                <Text className="text-amber-400 font-bold text-xs uppercase tracking-widest">Top Players</Text>
+              </View>
+            </View>
+
             {/* Podium */}
             {top3.length > 0 && (
-              <View className="pt-6 pb-4" style={{ paddingHorizontal: px, ...contentStyle }}>
-                <View className="flex-row items-end justify-center gap-3">
+              <View className="pb-4" style={{ paddingHorizontal: px, ...contentStyle }}>
+                <View className="flex-row items-end justify-center gap-4">
                   {podiumOrder.map((player, i) => {
                     if (!player) return null
                     const size = podiumSizes[i]
                     const medal = podiumMedalOrder[i]
                     const rankCfg = RANK_CONFIG[player.rank] ?? RANK_CONFIG.wooden
                     const isFirst = i === 1 && top3.length >= 3
+                    const circleSz = isTablet ? Math.round(size.circle * 1.3) : size.circle
+
+                    // Podium platform heights
+                    const platformH = isFirst ? 56 : i === 0 ? 40 : 28
 
                     return (
                       <TouchableOpacity
                         key={player.id}
                         onPress={() => navigateToPlayer(player.id)}
                         className="items-center"
-                        style={{ marginBottom: isFirst ? 8 : 0 }}
+                        style={{ marginBottom: 0, flex: isFirst ? 1.1 : 1 }}
                         activeOpacity={0.7}
                       >
-                        <Text className="text-2xl mb-1">{medal}</Text>
+                        <Text style={{ fontSize: isFirst ? 28 : 22, marginBottom: 4 }}>{medal}</Text>
                         <View
                           className="rounded-full items-center justify-center mb-2"
                           style={{
-                            width: isTablet ? size.circle * 1.3 : size.circle,
-                            height: isTablet ? size.circle * 1.3 : size.circle,
-                            backgroundColor: isFirst ? '#7c3aed' : '#262626',
+                            width: circleSz,
+                            height: circleSz,
+                            backgroundColor: isFirst ? '#4c1d95' : '#1c1c1c',
                             borderWidth: 2,
-                            borderColor: isFirst ? '#a78bfa' : '#404040',
+                            borderColor: isFirst ? '#8b5cf6' : i === 0 ? '#92400e' : '#374151',
                           }}
                         >
                           <Text
@@ -194,24 +216,37 @@ export default function LeaderboardScreen() {
                           </Text>
                         </View>
                         <Text
-                          className="text-white font-semibold text-sm text-center"
+                          className="text-white font-bold text-center"
                           numberOfLines={1}
-                          style={{ maxWidth: 80 }}
+                          style={{ maxWidth: 80, fontSize: isFirst ? 13 : 11 }}
                         >
                           {player.username}
                         </Text>
-                        <View className="flex-row items-center gap-1 mt-0.5">
-                          <Text className="text-xs">{rankCfg.icon}</Text>
+                        <View className="flex-row items-center gap-0.5 mt-0.5">
+                          <Text style={{ fontSize: 9 }}>{rankCfg.icon}</Text>
                           <Text
-                            className="text-xs font-medium"
-                            style={{ color: rankCfg.color }}
+                            className="font-semibold"
+                            style={{ color: rankCfg.color, fontSize: 9 }}
                           >
                             {rankCfg.label}
                           </Text>
                         </View>
-                        <Text className="text-violet-400 font-bold text-xs mt-0.5">
-                          {player.rankPoints} LP
-                        </Text>
+                        {/* Podium base */}
+                        <View
+                          className={[
+                            'w-full rounded-t-lg mt-2 items-center justify-center',
+                            isFirst ? 'bg-violet-900/50 border border-violet-700/40' : 'bg-neutral-800/60 border border-neutral-700/40',
+                          ].join(' ')}
+                          style={{ height: platformH }}
+                        >
+                          <Text
+                            className={['font-extrabold', isFirst ? 'text-violet-300' : 'text-neutral-400'].join(' ')}
+                            style={{ fontSize: isFirst ? 14 : 12 }}
+                          >
+                            {player.rankPoints}
+                          </Text>
+                          <Text className="text-neutral-600" style={{ fontSize: 9 }}>LP</Text>
+                        </View>
                       </TouchableOpacity>
                     )
                   })}

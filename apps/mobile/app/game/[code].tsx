@@ -1035,7 +1035,6 @@ export default function GameScreen() {
                             : 'border-neutral-700/60 bg-neutral-800/40',
                         ].join(' ')}
                         activeOpacity={0.7}
-                        style={!hasVoted ? { activeOpacity: 0.7 } : undefined}
                       >
                         {isVotedTarget && (
                           <View className="absolute top-0 left-0 right-0 h-0.5 bg-amber-500" />
