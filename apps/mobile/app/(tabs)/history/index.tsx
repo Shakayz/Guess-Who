@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../../lib/api'
 import { useAuthStore } from '../../../store/auth'
+import { useResponsive } from '../../../lib/responsive'
 
 interface GameSummary {
   id: string
@@ -92,6 +93,9 @@ export default function HistoryScreen() {
     fetchPage(nextPage).finally(() => setLoadingMore(false))
   }, [loadingMore, page, totalPages, fetchPage])
 
+  const { isTablet, px, fontScale } = useResponsive()
+  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
+
   const renderGame = useCallback(
     ({ item }: { item: GameSummary }) => {
       const won = didWin(item.winner, item.myRole)
@@ -100,7 +104,8 @@ export default function HistoryScreen() {
       return (
         <TouchableOpacity
           onPress={() => router.push(`/history/${item.id}`)}
-          className="mx-4 mb-3 p-4 rounded-2xl border border-neutral-800 bg-neutral-900"
+          className="mb-3 rounded-2xl border border-neutral-800 bg-neutral-900"
+          style={{ marginHorizontal: px, padding: isTablet ? 20 : 16, ...contentStyle }}
           activeOpacity={0.7}
         >
           <View className="flex-row items-center justify-between mb-2">

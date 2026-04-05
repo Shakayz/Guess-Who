@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { View, Text, TouchableOpacity } from 'react-native'
+import { View, Text, TouchableOpacity, useWindowDimensions } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import '../i18n'
@@ -70,11 +70,14 @@ function GlobalSocketListeners() {
 function InviteBanner() {
   const router = useRouter()
   const { pendingInvite, setPendingInvite } = useSocialStore()
+  const { width } = useWindowDimensions()
+  const isTablet = width >= 768
+  const bannerStyle = isTablet ? { maxWidth: 500, alignSelf: 'center' as const } : {}
 
   if (!pendingInvite) return null
 
   return (
-    <View className="absolute top-14 left-4 right-4 z-50 bg-violet-900 border border-violet-700 rounded-2xl p-4 flex-row items-center gap-3">
+    <View className="absolute top-14 left-4 right-4 z-50 bg-violet-900 border border-violet-700 rounded-2xl p-4 flex-row items-center gap-3" style={bannerStyle}>
       <Text className="text-2xl">🎮</Text>
       <View className="flex-1">
         <Text className="text-white font-semibold text-sm">Game Invite</Text>
@@ -101,11 +104,14 @@ function InviteBanner() {
 
 function FriendRequestBanner() {
   const { pendingFriendRequest, setPendingFriendRequest } = useSocialStore()
+  const { width } = useWindowDimensions()
+  const isTablet = width >= 768
+  const bannerStyle = isTablet ? { maxWidth: 500, alignSelf: 'center' as const } : {}
 
   if (!pendingFriendRequest) return null
 
   return (
-    <View className="absolute top-14 left-4 right-4 z-50 bg-emerald-900 border border-emerald-700 rounded-2xl p-4 flex-row items-center gap-3">
+    <View className="absolute top-14 left-4 right-4 z-50 bg-emerald-900 border border-emerald-700 rounded-2xl p-4 flex-row items-center gap-3" style={bannerStyle}>
       <Text className="text-2xl">👋</Text>
       <View className="flex-1">
         <Text className="text-white font-semibold text-sm">Friend Request</Text>

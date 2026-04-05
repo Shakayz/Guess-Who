@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../../../lib/api'
 import { RANK_CONFIG } from '@imposter/shared'
 import type { RankTier } from '@imposter/shared'
+import { useResponsive } from '../../../lib/responsive'
 
 interface PlayerProfile {
   id: string
@@ -88,6 +89,9 @@ export default function PlayerProfileScreen() {
     )
   }
 
+  const { isTablet, px } = useResponsive()
+  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
+
   if (!profile) return null
 
   const rankCfg = RANK_CONFIG[profile.rank] ?? RANK_CONFIG.wooden
@@ -110,9 +114,10 @@ export default function PlayerProfileScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
+        <View style={contentStyle}>
         {/* Avatar + Name */}
-        <View className="items-center pt-8 pb-4 px-6">
-          <View className="w-20 h-20 rounded-full bg-violet-600 items-center justify-center mb-4">
+        <View className="items-center pt-8 pb-4" style={{ paddingHorizontal: px + 8 }}>
+          <View className="rounded-full bg-violet-600 items-center justify-center mb-4" style={{ width: isTablet ? 100 : 80, height: isTablet ? 100 : 80 }}>
             <Text className="text-white text-3xl font-bold">
               {profile.username.charAt(0).toUpperCase()}
             </Text>
@@ -123,7 +128,7 @@ export default function PlayerProfileScreen() {
         </View>
 
         {/* Rank */}
-        <View className="mx-4 mb-4 p-4 rounded-2xl border border-neutral-800 bg-neutral-900 items-center">
+        <View className="mb-4 p-4 rounded-2xl border border-neutral-800 bg-neutral-900 items-center" style={{ marginHorizontal: px }}>
           <Text className="text-3xl mb-1">{rankCfg.icon}</Text>
           <Text className="text-lg font-bold" style={{ color: rankCfg.color }}>
             {rankCfg.label}
@@ -134,12 +139,12 @@ export default function PlayerProfileScreen() {
         </View>
 
         {/* Stats Grid */}
-        <View className="flex-row flex-wrap mx-4 mb-4 gap-2">
+        <View className="flex-row flex-wrap mb-4 gap-2" style={{ marginHorizontal: px }}>
           {stats.map((stat) => (
             <View
               key={stat.label}
-              className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 items-center"
-              style={{ width: '48%' }}
+              className="bg-neutral-900 border border-neutral-800 rounded-2xl items-center"
+              style={{ width: isTablet ? '23%' : '48%', padding: isTablet ? 20 : 16 }}
             >
               <Text className="text-white text-2xl font-bold">
                 {stat.value}
@@ -152,7 +157,7 @@ export default function PlayerProfileScreen() {
         </View>
 
         {/* Add Friend */}
-        <View className="mx-4 mt-4">
+        <View className="mt-4" style={{ marginHorizontal: px }}>
           <TouchableOpacity
             onPress={handleAddFriend}
             disabled={friendRequested || sendingRequest}
@@ -178,10 +183,11 @@ export default function PlayerProfileScreen() {
 
         {/* Error */}
         {error && (
-          <View className="mx-4 mt-4 flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800">
+          <View className="mt-4 flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800" style={{ marginHorizontal: px }}>
             <Text className="text-red-400 text-sm">{error}</Text>
           </View>
         )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   )

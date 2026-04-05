@@ -15,6 +15,7 @@ import { api } from '../../../lib/api'
 import { RANK_CONFIG } from '@imposter/shared'
 import type { RankTier } from '@imposter/shared'
 import i18n from '../../../i18n'
+import { useResponsive } from '../../../lib/responsive'
 
 interface UserProfile {
   id: string
@@ -142,6 +143,9 @@ export default function ProfileScreen() {
     )
   }
 
+  const { isTablet, px, fontScale } = useResponsive()
+  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
+
   if (!profile) return null
 
   const rankCfg = RANK_CONFIG[profile.rank] ?? RANK_CONFIG.wooden
@@ -170,21 +174,17 @@ export default function ProfileScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
+        <View style={contentStyle}>
         {/* Avatar + Name */}
-        <View className="items-center pt-8 pb-4 px-6">
-          {profile.avatarUrl ? (
-            <View className="w-20 h-20 rounded-full bg-violet-600 items-center justify-center mb-4 overflow-hidden">
-              <Text className="text-white text-3xl font-bold">
-                {profile.username.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          ) : (
-            <View className="w-20 h-20 rounded-full bg-violet-600 items-center justify-center mb-4">
-              <Text className="text-white text-3xl font-bold">
-                {profile.username.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
+        <View className="items-center pt-8 pb-4" style={{ paddingHorizontal: px + 8 }}>
+          <View
+            className="rounded-full bg-violet-600 items-center justify-center mb-4 overflow-hidden"
+            style={{ width: isTablet ? 100 : 80, height: isTablet ? 100 : 80 }}
+          >
+            <Text className="text-white font-bold" style={{ fontSize: isTablet ? 40 : 30 }}>
+              {profile.username.charAt(0).toUpperCase()}
+            </Text>
+          </View>
 
           {editingName ? (
             <View className="flex-row items-center gap-2">
@@ -249,12 +249,12 @@ export default function ProfileScreen() {
         </View>
 
         {/* Stats Grid */}
-        <View className="flex-row flex-wrap mx-4 mb-4 gap-2">
+        <View className="flex-row flex-wrap mb-4 gap-2" style={{ marginHorizontal: px }}>
           {stats.map((stat) => (
             <View
               key={stat.label}
-              className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 items-center"
-              style={{ width: '48%' }}
+              className="bg-neutral-900 border border-neutral-800 rounded-2xl items-center"
+              style={{ width: isTablet ? '23%' : '48%', padding: isTablet ? 20 : 16 }}
             >
               <Text className="text-white text-2xl font-bold">
                 {stat.value}
@@ -344,15 +344,17 @@ export default function ProfileScreen() {
         )}
 
         {/* Sign Out */}
-        <View className="mx-4 mt-4">
+        <View className="mt-4" style={{ marginHorizontal: px }}>
           <TouchableOpacity
             onPress={handleSignOut}
-            className="py-4 rounded-2xl items-center border border-red-900 bg-red-950/40"
+            className="rounded-2xl items-center border border-red-900 bg-red-950/40"
+            style={{ paddingVertical: isTablet ? 18 : 16 }}
           >
-            <Text className="text-red-400 font-bold text-base">
+            <Text className="text-red-400 font-bold" style={{ fontSize: 16 * fontScale }}>
               {t('profile.signOut', 'Sign Out')}
             </Text>
           </TouchableOpacity>
+        </View>
         </View>
       </ScrollView>
     </SafeAreaView>

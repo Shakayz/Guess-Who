@@ -19,6 +19,7 @@ import { connectSocket, getSocket } from '../../lib/socket'
 import { api } from '../../lib/api'
 import { WORD_CATEGORIES } from '@imposter/shared'
 import type { Room, GameMode, WordCategory } from '@imposter/shared'
+import { useResponsive } from '../../lib/responsive'
 
 // ─── NumStepper ──────────────────────────────────────────────────────────────
 
@@ -318,6 +319,7 @@ export default function LobbyScreen() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const { room, setRoom, setRoleAndWord, setRound } = useGameStore()
+  const { isTablet, px, fontScale } = useResponsive()
 
   const [isReady, setIsReady] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -471,25 +473,29 @@ export default function LobbyScreen() {
   const activeCats =
     settings.categories.length > 0 ? settings.categories.length : WORD_CATEGORIES.length
 
+  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
+
   return (
     <SafeAreaView className="flex-1 bg-neutral-950" edges={['bottom']}>
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <ScrollView className="flex-1" contentContainerStyle={{ padding: px, gap: isTablet ? 16 : 12 }}>
 
+        <View style={contentStyle}>
         {/* Header */}
         <View className="items-center mb-2">
-          <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-1">Room</Text>
-          <Text className="text-2xl font-extrabold text-white">Waiting for players</Text>
-          <Text className="text-neutral-500 text-sm mt-1">Share the code below to invite friends</Text>
+          <Text className="font-semibold uppercase tracking-widest text-neutral-500 mb-1" style={{ fontSize: 12 * fontScale }}>Room</Text>
+          <Text className="font-extrabold text-white" style={{ fontSize: (isTablet ? 28 : 24) }}>Waiting for players</Text>
+          <Text className="text-neutral-500 mt-1" style={{ fontSize: 14 * fontScale }}>Share the code below to invite friends</Text>
         </View>
 
         {/* Room code + share */}
         <TouchableOpacity
           onPress={copyRoomCode}
-          className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 items-center"
+          className="bg-neutral-900 border border-neutral-800 rounded-2xl items-center"
+          style={{ padding: isTablet ? 24 : 20 }}
         >
-          <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">Room Code</Text>
-          <Text className="text-4xl font-black font-mono text-white tracking-[0.2em]">{code}</Text>
-          <Text className="text-xs text-neutral-600 mt-2">
+          <Text className="font-semibold uppercase tracking-widest text-neutral-500 mb-2" style={{ fontSize: 12 * fontScale }}>Room Code</Text>
+          <Text className="font-black font-mono text-white tracking-[0.2em]" style={{ fontSize: (isTablet ? 48 : 36) }}>{code}</Text>
+          <Text className="text-neutral-600 mt-2" style={{ fontSize: 12 * fontScale }}>
             {codeCopied ? '✓ Copied!' : 'Tap to copy'}
           </Text>
         </TouchableOpacity>
@@ -779,10 +785,11 @@ export default function LobbyScreen() {
         </View>
 
         {isHost && !allReady && players.length >= minPlayers && (
-          <Text className="text-xs text-neutral-500 text-center">
+          <Text className="text-neutral-500 text-center" style={{ fontSize: 12 * fontScale }}>
             Waiting for all players to be ready
           </Text>
         )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   )

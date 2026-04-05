@@ -8,6 +8,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { api } from '../lib/api'
@@ -42,6 +43,9 @@ export default function DmChatModal({
   const flatListRef = useRef<FlatList<DmMessage>>(null)
   const user = useAuthStore((s) => s.user)
   const clearUnread = useSocialStore((s) => s.clearUnread)
+  const { width: screenWidth } = useWindowDimensions()
+  const isTablet = screenWidth >= 768
+  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
   // Load message history on open
   useEffect(() => {
@@ -170,7 +174,7 @@ export default function DmChatModal({
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
           {/* Header */}
-          <View className="flex-row items-center justify-between px-4 py-3 border-b border-neutral-800">
+          <View className="flex-row items-center justify-between py-3 border-b border-neutral-800" style={{ paddingHorizontal: isTablet ? 32 : 16, ...contentStyle }}>
             <View className="flex-row items-center gap-3">
               <View className="w-9 h-9 rounded-full bg-violet-700 items-center justify-center">
                 <Text className="text-white text-sm font-bold">
@@ -219,7 +223,7 @@ export default function DmChatModal({
           )}
 
           {/* Input bar */}
-          <View className="flex-row items-end gap-2 px-4 py-3 border-t border-neutral-800 bg-neutral-950">
+          <View className="flex-row items-end gap-2 py-3 border-t border-neutral-800 bg-neutral-950" style={{ paddingHorizontal: isTablet ? 32 : 16, ...contentStyle }}>
             <TextInput
               className="flex-1 bg-neutral-800 text-white px-4 py-3 rounded-2xl border border-neutral-700 text-sm max-h-24"
               placeholder="Type a message..."

@@ -11,6 +11,7 @@ import { useLocalSearchParams } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../../lib/api'
 import { useAuthStore } from '../../../store/auth'
+import { useResponsive } from '../../../lib/responsive'
 
 interface PlayerInfo {
   username: string
@@ -119,6 +120,9 @@ export default function GameDetailScreen() {
     )
   }
 
+  const { isTablet, px } = useResponsive()
+  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
+
   const me = game.players.find((p) => p.username === user?.username)
   const won = me ? didWin(game.winner, me.role) : game.winner === 'villagers'
 
@@ -129,13 +133,15 @@ export default function GameDetailScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
+        <View style={contentStyle}>
         {/* Outcome Banner */}
         <View
-          className={`mx-4 mt-4 p-5 rounded-2xl border items-center ${
+          className={`mt-4 p-5 rounded-2xl border items-center ${
             won
               ? 'bg-emerald-950/50 border-emerald-800'
               : 'bg-red-950/50 border-red-800'
           }`}
+          style={{ marginHorizontal: px }}
         >
           <Text className="text-3xl mb-2">{won ? '🏆' : '💀'}</Text>
           <Text
@@ -156,7 +162,7 @@ export default function GameDetailScreen() {
         </View>
 
         {/* Players Section */}
-        <View className="mx-4 mt-5">
+        <View className="mt-5" style={{ marginHorizontal: px }}>
           <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3 px-1">
             {t('common.players')}
           </Text>
@@ -219,7 +225,7 @@ export default function GameDetailScreen() {
         </View>
 
         {/* Rounds Section */}
-        <View className="mx-4 mt-5">
+        <View className="mt-5" style={{ marginHorizontal: px }}>
           <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3 px-1">
             Rounds
           </Text>
@@ -345,6 +351,7 @@ export default function GameDetailScreen() {
               )
             })}
           </View>
+        </View>
         </View>
       </ScrollView>
     </SafeAreaView>

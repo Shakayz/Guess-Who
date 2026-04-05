@@ -19,6 +19,7 @@ import * as Crypto from 'expo-crypto'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
 import i18n from '../i18n'
+import { useResponsive } from '../lib/responsive'
 
 WebBrowser.maybeCompleteAuthSession()
 
@@ -50,6 +51,7 @@ export default function AuthScreen() {
   const { t } = useTranslation()
   const router = useRouter()
   const setAuth = useAuthStore((s) => s.setAuth)
+  const { isTablet, fontScale } = useResponsive()
 
   const [mode, setMode] = useState<Mode>('signin')
   const [form, setForm] = useState({ email: '', password: '', username: '' })
@@ -233,12 +235,12 @@ export default function AuthScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <View className="flex-1 items-center justify-center p-6">
-            <View className="w-full max-w-sm">
+            <View style={{ width: '100%', maxWidth: isTablet ? 480 : 380, alignSelf: 'center' }}>
               <View className="items-center mb-10">
-                <View className="w-16 h-16 rounded-2xl bg-violet-700 items-center justify-center mb-5">
-                  <Text className="text-3xl">🎭</Text>
+                <View className="rounded-2xl bg-violet-700 items-center justify-center mb-5" style={{ width: isTablet ? 80 : 64, height: isTablet ? 80 : 64 }}>
+                  <Text style={{ fontSize: isTablet ? 40 : 30 }}>🎭</Text>
                 </View>
-                <Text className="text-2xl font-extrabold text-white tracking-tight">
+                <Text className="font-extrabold text-white tracking-tight" style={{ fontSize: isTablet ? 28 : 24 }}>
                   Choose a Username
                 </Text>
                 <Text className="text-neutral-500 text-sm mt-1.5">
@@ -327,15 +329,15 @@ export default function AuthScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View className="flex-1 items-center justify-center p-6">
-            <View className="w-full max-w-sm">
+            <View style={{ width: '100%', maxWidth: isTablet ? 480 : 380, alignSelf: 'center' }}>
 
               {/* Logo */}
               <View className="items-center mb-10">
-                <View className="w-16 h-16 rounded-2xl bg-violet-700 items-center justify-center mb-5">
-                  <Text className="text-3xl">🎭</Text>
+                <View className="rounded-2xl bg-violet-700 items-center justify-center mb-5" style={{ width: isTablet ? 80 : 64, height: isTablet ? 80 : 64 }}>
+                  <Text style={{ fontSize: isTablet ? 40 : 30 }}>🎭</Text>
                 </View>
-                <Text className="text-3xl font-extrabold text-white tracking-tight">Imposter Game</Text>
-                <Text className="text-neutral-500 text-sm mt-1.5">Deceive. Detect. Dominate.</Text>
+                <Text className="font-extrabold text-white tracking-tight" style={{ fontSize: isTablet ? 36 : 30 }}>Imposter Game</Text>
+                <Text className="text-neutral-500 mt-1.5" style={{ fontSize: 14 * fontScale }}>Deceive. Detect. Dominate.</Text>
               </View>
 
               {/* OAuth buttons */}

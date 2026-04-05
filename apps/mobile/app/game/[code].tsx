@@ -18,6 +18,7 @@ import { getSocket } from '../../lib/socket'
 import RoleRevealScreen from '../../components/RoleRevealScreen'
 import EliminationOverlay from '../../components/EliminationOverlay'
 import type { Clue } from '@imposter/shared'
+import { useResponsive } from '../../lib/responsive'
 
 type Phase = 'speaking' | 'voting' | 'reveal'
 
@@ -138,6 +139,8 @@ export default function GameScreen() {
     reset,
   } = useGameStore()
   const user = useAuthStore((s) => s.user)
+  const { isTablet, px, fontScale } = useResponsive()
+  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
   // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -634,10 +637,11 @@ export default function GameScreen() {
       >
         <ScrollView
           className="flex-1"
-          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 32 }}
+          contentContainerStyle={{ padding: px, gap: isTablet ? 16 : 12, paddingBottom: 32 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={contentStyle}>
           {/* ─── Top bar ───────────────────────────────────────────────────── */}
           <View className="gap-2">
             <View className="flex-row items-center justify-between">
@@ -1248,6 +1252,7 @@ export default function GameScreen() {
               )}
             </>
           )}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
