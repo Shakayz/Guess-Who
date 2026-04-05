@@ -61,6 +61,11 @@ const PhaseIndicator = memo(({ currentPhase }: { currentPhase: Phase }) => {
     reveal: t('game.phaseReveal'),
   }
   const currentIdx = PHASE_STEP_IDS.indexOf(currentPhase)
+  const PHASE_ACTIVE_STYLES: Record<Phase, string> = {
+    clues: 'bg-purple-950/70 text-purple-400 border border-purple-700/50 shadow-sm shadow-purple-900/40',
+    voting: 'bg-amber-950/70 text-amber-400 border border-amber-700/50 shadow-sm shadow-amber-900/40',
+    reveal: 'bg-emerald-950/70 text-emerald-400 border border-emerald-700/50 shadow-sm shadow-emerald-900/40',
+  }
   return (
     <div className="flex items-center gap-1">
       {PHASE_STEP_IDS.map((id, i) => {
@@ -73,7 +78,7 @@ const PhaseIndicator = memo(({ currentPhase }: { currentPhase: Phase }) => {
             )}
             <div className={[
               'flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold transition-all',
-              isActive ? 'bg-brand-950/60 text-brand-400 border border-brand-700/40' :
+              isActive ? PHASE_ACTIVE_STYLES[id] :
               isDone ? 'text-brand-600' :
               'text-neutral-600',
             ].join(' ')}>
@@ -859,8 +864,8 @@ export default function GamePage() {
         </div>
 
         {/* Word card */}
-        <div className="card relative overflow-hidden border-neutral-700/50 bg-neutral-900/40">
-          <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-neutral-500 to-transparent" />
+        <div className="card relative overflow-hidden border-brand-800/40 bg-neutral-900/60 shadow-lg shadow-brand-950/30 ring-1 ring-brand-700/20">
+          <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-brand-500 to-transparent" />
           {myVillagerWord ? (
             /* Double agent: two word chips */
             <div className="relative">
@@ -871,27 +876,27 @@ export default function GamePage() {
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-xl bg-emerald-950/40 border border-emerald-800/40 p-3">
+                <div className="rounded-xl bg-emerald-950/40 border border-emerald-800/40 p-3 shadow-sm shadow-emerald-950/40">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-1">{t('game.villagerWord')}</p>
-                  <p className="text-xl font-extrabold text-emerald-200">{myVillagerWord}</p>
+                  <p className="text-2xl font-extrabold text-emerald-200">{myVillagerWord}</p>
                 </div>
-                <div className="rounded-xl bg-orange-950/40 border border-orange-800/40 p-3">
+                <div className="rounded-xl bg-orange-950/40 border border-orange-800/40 p-3 shadow-sm shadow-orange-950/40">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-orange-500 mb-1">{t('game.imposterWord')}</p>
-                  <p className="text-xl font-extrabold text-orange-200">{myWord}</p>
+                  <p className="text-2xl font-extrabold text-orange-200">{myWord}</p>
                 </div>
               </div>
               <p className="text-xs text-neutral-600 mt-2">{t('game.giveClueHint')}</p>
             </div>
           ) : (
             <div className="relative flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0 bg-neutral-800/60">
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl shrink-0 bg-brand-950/50 border border-brand-800/40 shadow-sm shadow-brand-950/40">
                 🔤
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-0.5">
                   {t('game.yourWordLabel')}
                 </p>
-                <p className="text-2xl font-extrabold tracking-tight text-white">
+                <p className="text-3xl font-extrabold tracking-tight text-white" style={{ textShadow: '0 0 20px rgba(139,92,246,0.3)' }}>
                   {myWord ?? '???'}
                 </p>
                 <p className="text-xs text-neutral-600 mt-0.5">
@@ -1009,10 +1014,10 @@ export default function GamePage() {
                     className={[
                       'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-left',
                       votedFor === p.userId
-                        ? 'border-amber-600/50 bg-amber-950/30'
+                        ? 'border-amber-600/60 bg-gradient-to-r from-amber-950/50 to-amber-900/20 shadow-sm shadow-amber-950/40'
                         : votedFor
                         ? 'border-neutral-800 bg-neutral-900/40 opacity-50'
-                        : 'border-neutral-800 bg-neutral-900/40 hover:border-neutral-700 hover:bg-neutral-800/60',
+                        : 'border-neutral-800 bg-neutral-900/40 hover:border-amber-700/50 hover:bg-gradient-to-r hover:from-amber-950/30 hover:to-neutral-900/40 hover:shadow-sm hover:shadow-amber-950/30',
                     ].join(' ')}
                   >
                     <Avatar username={p.username} size="sm" />
@@ -1133,12 +1138,12 @@ export default function GamePage() {
                   <div
                     key={i}
                     className={[
-                      'flex items-start gap-2.5 px-3 py-2.5 rounded-xl border transition-all animate-scale-in',
+                      'flex items-start gap-2.5 px-3 py-2.5 rounded-xl border transition-all animate-scale-in border-l-2',
                       clue.flaggedForWord
-                        ? 'ring-1 ring-amber-500/40 bg-amber-950/20 border-amber-700/40'
+                        ? 'ring-1 ring-amber-500/40 bg-amber-950/20 border-amber-700/40 border-l-amber-500'
                         : isMe
-                          ? 'bg-brand-950/30 border-brand-800/30'
-                          : 'bg-neutral-800/30 border-neutral-800/50',
+                          ? 'bg-brand-950/30 border-brand-800/30 border-l-brand-500'
+                          : 'bg-neutral-800/30 border-neutral-800/50 border-l-emerald-700',
                     ].join(' ')}
                     style={{ animationDelay: `${i * 0.05}s` }}
                   >

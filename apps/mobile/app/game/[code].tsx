@@ -65,10 +65,10 @@ function CountdownBar({
 // ─── PhaseIndicator ──────────────────────────────────────────────────────────
 
 function PhaseIndicator({ currentPhase }: { currentPhase: Phase }) {
-  const phases: { id: Phase; icon: string; label: string }[] = [
-    { id: 'speaking', icon: '✏️', label: 'Clues' },
-    { id: 'voting', icon: '🗳', label: 'Vote' },
-    { id: 'reveal', icon: '📋', label: 'Reveal' },
+  const phases: { id: Phase; icon: string; label: string; activeColor: string; activeBg: string; activeBorder: string }[] = [
+    { id: 'speaking', icon: '✏️', label: 'Clues', activeColor: 'text-violet-300', activeBg: 'bg-violet-900/70', activeBorder: 'border-violet-600/60' },
+    { id: 'voting', icon: '🗳', label: 'Vote', activeColor: 'text-amber-300', activeBg: 'bg-amber-900/70', activeBorder: 'border-amber-600/60' },
+    { id: 'reveal', icon: '📋', label: 'Reveal', activeColor: 'text-emerald-300', activeBg: 'bg-emerald-900/70', activeBorder: 'border-emerald-600/60' },
   ]
   const currentIdx = phases.findIndex((p) => p.id === currentPhase)
 
@@ -82,24 +82,24 @@ function PhaseIndicator({ currentPhase }: { currentPhase: Phase }) {
             {i > 0 && (
               <View
                 className={[
-                  'h-0.5 w-3 rounded-full',
-                  isDone ? 'bg-violet-500' : 'bg-neutral-800',
+                  'h-px w-3 rounded-full',
+                  isDone ? 'bg-violet-600' : 'bg-neutral-700',
                 ].join(' ')}
               />
             )}
             <View
               className={[
-                'flex-row items-center gap-1 px-2 py-1 rounded-full',
+                'flex-row items-center gap-1 px-2.5 py-1 rounded-full border',
                 isActive
-                  ? 'bg-violet-950/60 border border-violet-700/40'
-                  : '',
+                  ? `${p.activeBg} ${p.activeBorder}`
+                  : 'bg-transparent border-transparent',
               ].join(' ')}
             >
-              <Text className="text-xs">{p.icon}</Text>
+              <Text style={{ fontSize: 10 }}>{p.icon}</Text>
               <Text
                 className={[
-                  'text-[10px] font-semibold',
-                  isActive ? 'text-violet-400' : isDone ? 'text-violet-600' : 'text-neutral-600',
+                  'text-[10px] font-bold tracking-wide',
+                  isActive ? p.activeColor : isDone ? 'text-neutral-600' : 'text-neutral-700',
                 ].join(' ')}
               >
                 {p.label}
@@ -674,59 +674,71 @@ export default function GameScreen() {
           {/* ─── Role + Word card ──────────────────────────────────────────── */}
           {myVillagerWord ? (
             /* Double Agent: show both words */
-            <View className="rounded-2xl border border-red-800 bg-red-950/20 p-4 overflow-hidden">
-              <View className="absolute top-0 left-0 right-0 h-0.5 bg-red-500" style={{ opacity: 0.6 }} />
+            <View className="rounded-2xl border-2 border-orange-700/60 bg-orange-950/20 p-4 overflow-hidden">
+              <View className="absolute top-0 left-0 right-0 h-0.5 bg-orange-500" />
+              {/* Glow effect */}
+              <View className="absolute inset-0 rounded-2xl" style={{ shadowColor: '#f97316', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 0 }} />
               <View className="flex-row items-center gap-2 mb-3">
-                <Text className="text-lg">🎭</Text>
-                <Text className="text-xs font-semibold uppercase tracking-widest text-orange-500">
+                <View className="w-8 h-8 rounded-lg bg-orange-900/60 border border-orange-700/40 items-center justify-center">
+                  <Text className="text-base">🎭</Text>
+                </View>
+                <Text className="text-xs font-bold uppercase tracking-widest text-orange-400">
                   Double Agent
                 </Text>
               </View>
               <View className="flex-row gap-2">
-                <View className="flex-1 rounded-xl bg-emerald-950/40 border border-emerald-800/40 p-3">
-                  <Text className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-1">
+                <View className="flex-1 rounded-xl bg-emerald-950/50 border border-emerald-700/50 p-3">
+                  <Text className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-1.5">
                     Villager Word
                   </Text>
-                  <Text className="text-lg font-extrabold text-emerald-200">{myVillagerWord}</Text>
+                  <Text className="text-xl font-extrabold text-emerald-200">{myVillagerWord}</Text>
                 </View>
-                <View className="flex-1 rounded-xl bg-orange-950/40 border border-orange-800/40 p-3">
-                  <Text className="text-[10px] font-bold uppercase tracking-widest text-orange-500 mb-1">
+                <View className="flex-1 rounded-xl bg-orange-950/50 border border-orange-700/50 p-3">
+                  <Text className="text-[10px] font-bold uppercase tracking-widest text-orange-500 mb-1.5">
                     Imposter Word
                   </Text>
-                  <Text className="text-lg font-extrabold text-orange-200">{myWord}</Text>
+                  <Text className="text-xl font-extrabold text-orange-200">{myWord}</Text>
                 </View>
               </View>
-              <Text className="text-xs text-neutral-600 mt-2">
-                You know both words -- use this to your advantage
+              <Text className="text-xs text-neutral-500 mt-2.5">
+                You know both words — use this to your advantage
               </Text>
             </View>
           ) : (
             <View
               className={[
-                'rounded-2xl border p-4 overflow-hidden',
-                isImposter ? 'border-red-800 bg-red-950/20' : 'border-violet-800 bg-violet-950/20',
+                'rounded-2xl border-2 p-5 overflow-hidden',
+                isImposter
+                  ? 'border-red-700/60 bg-red-950/25'
+                  : myRole === 'detective'
+                  ? 'border-sky-700/60 bg-sky-950/25'
+                  : 'border-violet-700/60 bg-violet-950/25',
               ].join(' ')}
             >
+              {/* Top accent */}
               <View
                 className={[
                   'absolute top-0 left-0 right-0 h-0.5',
-                  isImposter ? 'bg-red-500' : 'bg-violet-500',
+                  isImposter ? 'bg-red-500' : myRole === 'detective' ? 'bg-sky-500' : 'bg-violet-500',
                 ].join(' ')}
-                style={{ opacity: 0.6 }}
               />
               <View className="flex-row items-center gap-4">
                 <View
                   className={[
-                    'w-12 h-12 rounded-xl items-center justify-center',
-                    isImposter ? 'bg-red-950' : myRole === 'detective' ? 'bg-sky-950' : 'bg-violet-950',
+                    'w-14 h-14 rounded-2xl items-center justify-center border',
+                    isImposter
+                      ? 'bg-red-900/50 border-red-700/40'
+                      : myRole === 'detective'
+                      ? 'bg-sky-900/50 border-sky-700/40'
+                      : 'bg-violet-900/50 border-violet-700/40',
                   ].join(' ')}
                 >
-                  <Text className="text-2xl">
+                  <Text style={{ fontSize: 28 }}>
                     {isImposter ? '🎭' : myRole === 'detective' ? '🔍' : '🏘️'}
                   </Text>
                 </View>
                 <View className="flex-1">
-                  <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-0.5">
+                  <Text className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 mb-1">
                     {isImposter
                       ? 'You are the Imposter'
                       : myRole === 'detective'
@@ -735,13 +747,14 @@ export default function GameScreen() {
                   </Text>
                   <Text
                     className={[
-                      'text-2xl font-extrabold tracking-tight',
-                      isImposter ? 'text-red-400' : myRole === 'detective' ? 'text-sky-400' : 'text-violet-400',
+                      'font-extrabold tracking-tight',
+                      isImposter ? 'text-red-300' : myRole === 'detective' ? 'text-sky-300' : 'text-violet-300',
                     ].join(' ')}
+                    style={{ fontSize: 28 }}
                   >
                     {myWord ?? '???'}
                   </Text>
-                  <Text className="text-xs text-neutral-600 mt-0.5">
+                  <Text className="text-xs text-neutral-500 mt-1 leading-relaxed">
                     {isImposter
                       ? "Blend in — don't reveal you have a different word"
                       : myRole === 'detective'
