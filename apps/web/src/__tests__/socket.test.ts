@@ -1,0 +1,88 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+// ---- Mock socket.io-client ----
+const mockConnect = vi.fn()
+const mockDisconnect = vi.fn()
+const mockRemoveAllListeners = vi.fn()
+
+const mockSocketInstance = {
+  connected: false,
+  auth: {} as Record<string, unknown>,
+  connect: mockConnect,
+  disconnect: mockDisconnect,
+  removeAllListeners: mockRemoveAllListeners,
+}
+
+const mockIo = vi.fn(() => mockSocketInstance)
+
+vi.mock('socket.io-client', () => ({
+  io: mockIo,
+}))
+
+// ---- Mock auth store ----
+vi.mock('../store/auth', () => ({
+  useAuthStore: {
+    getState: vi.fn(() => ({ token: 'mock-token' })),
+  },
+}))
+
+// ---- Mock shared types (used as type-only import in socket.ts) ----
+vi.mock('@imposter/shared', () => ({}))
+
+describe('socket', () => {
+  beforeEach(() => {
+    // Reset mocks and clear the module cache so the singleton `socket` is null
+    vi.resetModules()
+    mockIo.mockClear()
+    mockConnect.mockClear()
+    mockDisconnect.mockClear()
+    mockRemoveAllListeners.mockClear()
+    mockSocketInstance.connected = false
+    mockSocketInstance.auth = {}
+  })
+
+  afterEach(() => {
+    vi.resetModules()
+  })
+
+  it('getSocket creates a socket.io instance on first call', async () => {
+    const { getSocket } = await import('../lib/socket')
+    const socket = getSocket()
+    expect(mockIo).toHaveBeenCalledTimes(1)
+    expect(socket).toBe(mockSocketInstance)
+  })
+
+  it('getSocket returns the same instance on subsequent calls (singleton)', async () => {
+    const { getSocket } = await import('../lib/socket')
+    const s1 = getSocket()
+    const s2 = getSocket()
+    expect(mockIo).toHaveBeenCalledTimes(1)
+    expect(s1).toBe(s2)
+  })
+
+  it('connectSocket calls connect() when socket is not connected', async () => {
+    const { connectSocket } = await import('../lib/socket')
+    mockSocketInstance.connected = false
+    connectSocket()
+    expect(mockConnect).toHaveBeenCalledTimes(1)
+  })
+
+  it('connectSocket updates socket auth with the current token', async () => {
+    const { connectSocket } = await import('../lib/socket')
+    connectSocket()
+    expect(mockSocketInstance.auth).toEqual({ token: 'mock-token' })
+  })
+
+  it('disconnectSocket removes listeners, disconnects, and nulls the singleton', async () => {
+    const { getSocket, disconnectSocket } = await import('../lib/socket')
+    // Initialise the singleton
+    getSocket()
+    disconnectSocket()
+    expect(mockRemoveAllListeners).toHaveBeenCalledTimes(1)
+    expect(mockDisconnect).toHaveBeenCalledTimes(1)
+    // After disconnect a fresh getSocket() should create a new instance
+    mockIo.mockClear()
+    getSocket()
+    expect(mockIo).toHaveBeenCalledTimes(1)
+  })
+})

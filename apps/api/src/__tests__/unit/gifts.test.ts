@@ -1,0 +1,202 @@
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest'
+import type { FastifyInstance } from 'fastify'
+import Fastify from 'fastify'
+import jwt from '@fastify/jwt'
+import { prisma } from '../../config/prisma'
+
+// Mock the socket/onlineUsers module before importing giftsRoutes
+vi.mock('../../socket/onlineUsers', () => ({
+  onlineUsers: new Map<string, string>(),
+}))
+
+import { giftsRoutes } from '../../routes/gifts'
+
+const mockPrismaUser = prisma.user as any
+
+// Patch prisma mock with models used by gifts routes
+const mockFriendship = {
+  findFirst: vi.fn(),
+}
+const mockGift = {
+  findMany: vi.fn(),
+  findUnique: vi.fn(),
+  create: vi.fn(),
+  updateMany: vi.fn(),
+}
+;(prisma as any).friendship = (prisma as any).friendship ?? mockFriendship
+;(prisma as any).gift = mockGift
+
+describe('Gifts Routes', () => {
+  let app: FastifyInstance
+  let token: string
+
+  beforeAll(async () => {
+    app = Fastify({ logger: false })
+    await app.register(jwt, { secret: 'test-secret-key-that-is-at-least-32-chars-long' })
+    app.decorate('authenticate', async function (request: any, reply: any) {
+      try {
+        await request.jwtVerify()
+      } catch (err) {
+        reply.status(401).send({ error: 'Unauthorized' })
+      }
+    })
+    await app.register(giftsRoutes, { prefix: '/api/gifts' })
+    await app.ready()
+
+    token = app.jwt.sign({ sub: 'user-1', username: 'testuser' })
+  })
+
+  afterAll(async () => {
+    await app.close()
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // ── GET /inbox ────────────────────────────────────────────────────────────────
+
+  describe('GET /api/gifts/inbox', () => {
+    it('returns unclaimed gifts for the user', async () => {
+      mockGift.findMany.mockResolvedValue([
+        {
+          id: 'gift-1',
+          senderId: 'user-2',
+          receiverId: 'user-1',
+          coinAmount: 50,
+          cosmeticId: null,
+          message: 'For you!',
+          claimed: false,
+          createdAt: new Date(),
+          sender: { id: 'user-2', username: 'alice', avatarUrl: null },
+        },
+      ])
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/gifts/inbox',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      const body = res.json()
+      expect(body).toHaveLength(1)
+      expect(body[0].sender.username).toBe('alice')
+      expect(body[0].coinAmount).toBe(50)
+    })
+
+    it('returns 401 without auth token', async () => {
+      const res = await app.inject({ method: 'GET', url: '/api/gifts/inbox' })
+      expect(res.statusCode).toBe(401)
+    })
+  })
+
+  // ── POST /send ────────────────────────────────────────────────────────────────
+
+  describe('POST /api/gifts/send', () => {
+    it('sends a coin gift to a friend', async () => {
+      mockPrismaUser.findUnique
+        .mockResolvedValueOnce({ id: 'user-2', username: 'alice' }) // receiver lookup
+        .mockResolvedValueOnce({ id: 'user-1', starCoins: 500 })    // sender balance check
+      ;(prisma as any).friendship.findFirst.mockResolvedValue({ id: 'fs-1', status: 'accepted' })
+      ;(prisma.$transaction as any).mockImplementation(async (fn: any) => {
+        const tx = {
+          user: { update: vi.fn() },
+          gift: {
+            create: vi.fn().mockResolvedValue({
+              id: 'gift-1',
+              senderId: 'user-1',
+              receiverId: 'user-2',
+              coinAmount: 100,
+              cosmeticId: null,
+              message: 'Enjoy!',
+              sender: { id: 'user-1', username: 'testuser', avatarUrl: null },
+            }),
+          },
+        }
+        return fn(tx)
+      })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/send',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { receiverUsername: 'alice', coinAmount: 100, message: 'Enjoy!' },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json().success).toBe(true)
+      expect(res.json().gift.coinAmount).toBe(100)
+    })
+
+    it('returns 404 when receiver does not exist', async () => {
+      mockPrismaUser.findUnique.mockResolvedValue(null)
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/send',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { receiverUsername: 'ghost', coinAmount: 50 },
+      })
+
+      expect(res.statusCode).toBe(404)
+    })
+
+    it('returns 403 when receiver is not a friend', async () => {
+      mockPrismaUser.findUnique.mockResolvedValue({ id: 'user-3', username: 'stranger' })
+      ;(prisma as any).friendship.findFirst.mockResolvedValue(null)
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/send',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { receiverUsername: 'stranger', coinAmount: 50 },
+      })
+
+      expect(res.statusCode).toBe(403)
+      expect(res.json().error).toBe('You can only gift friends')
+    })
+
+    it('returns 400 when sender has insufficient coins', async () => {
+      mockPrismaUser.findUnique
+        .mockResolvedValueOnce({ id: 'user-2', username: 'alice' })
+        .mockResolvedValueOnce({ id: 'user-1', starCoins: 10 })
+      ;(prisma as any).friendship.findFirst.mockResolvedValue({ id: 'fs-1', status: 'accepted' })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/send',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { receiverUsername: 'alice', coinAmount: 500 },
+      })
+
+      expect(res.statusCode).toBe(400)
+      expect(res.json().error).toBe('Insufficient star coins')
+    })
+
+    it('returns 400 when no gift content provided', async () => {
+      mockPrismaUser.findUnique.mockResolvedValue({ id: 'user-2', username: 'alice' })
+      ;(prisma as any).friendship.findFirst.mockResolvedValue({ id: 'fs-1', status: 'accepted' })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/send',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { receiverUsername: 'alice', coinAmount: 0 },
+      })
+
+      expect(res.statusCode).toBe(400)
+      expect(res.json().error).toBe('Must provide coinAmount or cosmeticId')
+    })
+
+    it('returns 401 without auth token', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/send',
+        payload: { receiverUsername: 'alice', coinAmount: 50 },
+      })
+
+      expect(res.statusCode).toBe(401)
+    })
+  })
+})
