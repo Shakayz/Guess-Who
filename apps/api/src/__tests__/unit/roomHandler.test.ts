@@ -1,0 +1,480 @@
+/**
+ * roomHandler.test.ts
+ *
+ * Tests for src/socket/handlers/room.ts — room:join, room:leave, room:ready,
+ * room:settings, game:start, detective:reveal, game:forfeit, game:leave-eliminated.
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { redis } from '../../config/redis'
+import { prisma } from '../../config/prisma'
+
+const mockRedis = redis as any
+const mockPrisma = prisma as any
+
+// Extra prisma models used by room handler
+;(mockPrisma as any).game = { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() }
+;(mockPrisma as any).round = { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() }
+;(mockPrisma as any).gameParticipation = {
+  findFirst: vi.fn(),
+  createMany: vi.fn(),
+  updateMany: vi.fn(),
+}
+;(mockPrisma as any).wordPack = { findFirst: vi.fn(), findUnique: vi.fn() }
+
+// Mock gameLoop exports to avoid timer side-effects
+vi.mock('../../socket/gameLoop', () => ({
+  startRound: vi.fn().mockResolvedValue(undefined),
+  forfeitPlayer: vi.fn().mockResolvedValue(undefined),
+}))
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function makeIo() {
+  const emitFn = vi.fn()
+  return {
+    to: vi.fn(() => ({ emit: emitFn })),
+    _emit: emitFn,
+  } as any
+}
+
+function makeSocket(userId = 'host-1', username = 'Host', extraRooms: string[] = []) {
+  const listeners: Record<string, Function> = {}
+  const rooms = new Set<string>(['socket-id', ...extraRooms])
+  return {
+    id: 'socket-id',
+    data: { userId, username, roomCode: undefined as string | undefined },
+    rooms,
+    emit: vi.fn(),
+    join: vi.fn(async (r: string) => rooms.add(r)),
+    leave: vi.fn(async (r: string) => rooms.delete(r)),
+    on: vi.fn((event: string, cb: Function) => { listeners[event] = cb }),
+    _fire: (event: string, ...args: any[]) => listeners[event]?.(...args),
+    userId,
+    username,
+  } as any
+}
+
+const defaultRoom = {
+  id: 'room-1',
+  code: 'ABCD',
+  hostId: 'host-1',
+  status: 'waiting',
+  maxPlayers: 8,
+  imposterCount: 1,
+  speakingTimeSeconds: 30,
+  votingTimeSeconds: 30,
+  wordPackId: null,
+  isPrivate: false,
+  language: 'en',
+  createdAt: new Date(),
+}
+
+const waitingState = {
+  status: 'waiting',
+  gameMode: 'normal',
+  players: [],
+  currentRound: 0,
+  maxRounds: 5,
+  categories: [],
+  enableDetective: false,
+  enableDoubleAgent: false,
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  mockRedis.get.mockResolvedValue(null)
+  mockRedis.set.mockResolvedValue('OK')
+  mockRedis.del.mockResolvedValue(1)
+
+  mockPrisma.room.findUnique.mockResolvedValue({ ...defaultRoom })
+  mockPrisma.room.update.mockResolvedValue({ ...defaultRoom })
+  mockPrisma.user.findUnique.mockResolvedValue({ id: 'host-1', locale: 'en' })
+  mockPrisma.game.findFirst.mockResolvedValue(null)
+  mockPrisma.game.create.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+  mockPrisma.round.create.mockResolvedValue({ id: 'round-1', roundNumber: 1 })
+  mockPrisma.gameParticipation.findFirst.mockResolvedValue(null)
+  mockPrisma.gameParticipation.createMany.mockResolvedValue({})
+  mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+  mockPrisma.wordPack.findFirst.mockResolvedValue(null)
+  mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+    fn({ game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
+         round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
+         gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+       }),
+  )
+})
+
+import { registerRoomHandlers } from '../../socket/handlers/room'
+
+// ─── room:join ────────────────────────────────────────────────────────────────
+
+describe('room:join', () => {
+  it('emits ROOM_NOT_FOUND when room does not exist', async () => {
+    const io = makeIo()
+    const socket = makeSocket()
+    mockPrisma.room.findUnique.mockResolvedValue(null)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:join', { roomCode: 'XXXX' })
+
+    expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'ROOM_NOT_FOUND' }))
+  })
+
+  it('emits LANGUAGE_MISMATCH when player locale differs from room language', async () => {
+    const io = makeIo()
+    const socket = makeSocket('other-user', 'Other')
+    mockPrisma.room.findUnique.mockResolvedValue({ ...defaultRoom, language: 'fr' })
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'other-user', locale: 'en' })
+
+    // Need to make the set NX call return 'OK' for lock
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+    mockRedis.get.mockResolvedValue(JSON.stringify(waitingState))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:join', { roomCode: 'ABCD' })
+
+    expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'LANGUAGE_MISMATCH' }))
+  })
+
+  it('adds player to room and emits room:updated on successful join', async () => {
+    const io = makeIo()
+    const socket = makeSocket()
+    // Set NX to simulate lock acquired
+    ;(mockRedis as any).set = vi.fn().mockImplementation((key: string, ...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(waitingState))
+    mockRedis.del.mockResolvedValue(1)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:join', { roomCode: 'ABCD' })
+
+    expect(socket.join).toHaveBeenCalledWith('room:room-1')
+    expect(io.to).toHaveBeenCalledWith('room:room-1')
+  })
+
+  it('emits GAME_IN_PROGRESS when joining a room mid-game', async () => {
+    const io = makeIo()
+    const socket = makeSocket('new-user', 'Newcomer')
+    const inProgressState = { ...waitingState, status: 'in_progress', players: [{ userId: 'host-1' }] }
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(inProgressState))
+    mockRedis.del.mockResolvedValue(1)
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'new-user', locale: 'en' })
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:join', { roomCode: 'ABCD' })
+
+    expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'GAME_IN_PROGRESS' }))
+  })
+
+  it('emits ROOM_FULL when room is at capacity', async () => {
+    const io = makeIo()
+    const socket = makeSocket('new-user', 'Newcomer')
+    const fullState = {
+      ...waitingState,
+      players: Array.from({ length: 8 }, (_, i) => ({ userId: `u${i}` })),
+    }
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(fullState))
+    mockRedis.del.mockResolvedValue(1)
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'new-user', locale: 'en' })
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:join', { roomCode: 'ABCD' })
+
+    expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'ROOM_FULL' }))
+  })
+
+  it('sends reconnect payload to existing player who rejoins mid-game', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host')
+    const inProgressState = {
+      ...waitingState,
+      status: 'in_progress',
+      currentRound: 1,
+      villagerWord: 'Apple',
+      imposterWord: 'Pear',
+      phaseStartedAt: Date.now() - 5000,
+      phaseDurationSeconds: 30,
+      rounds: [{ roundNumber: 1, speakingOrder: ['host-1'], clues: [], votes: [] }],
+      players: [{ userId: 'host-1', role: 'villager', status: 'alive', id: 'old-socket' }],
+    }
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(inProgressState))
+    mockRedis.del.mockResolvedValue(1)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:join', { roomCode: 'ABCD' })
+
+    expect(socket.emit).toHaveBeenCalledWith('game:started', expect.objectContaining({ yourRole: 'villager' }))
+    expect(socket.emit).toHaveBeenCalledWith('game:sync', expect.any(Object))
+  })
+})
+
+// ─── room:leave ───────────────────────────────────────────────────────────────
+
+describe('room:leave', () => {
+  it('removes player from lobby state when leaving a waiting room', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = {
+      ...waitingState,
+      players: [
+        { userId: 'host-1', username: 'Host', isHost: false, isReady: true },
+        { userId: 'other-1', username: 'Other', isHost: false, isReady: true },
+      ],
+    }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    mockPrisma.room.findUnique.mockResolvedValue({ ...defaultRoom, hostId: 'other-1' })
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:leave')
+
+    const setCall = mockRedis.set.mock.calls[0]
+    const savedState = JSON.parse(setCall[1])
+    expect(savedState.players.find((p: any) => p.userId === 'host-1')).toBeUndefined()
+  })
+
+  it('calls forfeitPlayer when leaving a room mid-game', async () => {
+    const { forfeitPlayer } = await import('../../socket/gameLoop')
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = {
+      ...waitingState,
+      status: 'in_progress',
+      players: [{ userId: 'host-1', username: 'Host', status: 'alive' }],
+    }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:leave')
+
+    expect(forfeitPlayer).toHaveBeenCalledWith(io, 'room-1', 'host-1')
+  })
+
+  it('reassigns host when host leaves the lobby', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = {
+      ...waitingState,
+      players: [
+        { userId: 'host-1', username: 'Host', isHost: true, isReady: true },
+        { userId: 'player-2', username: 'Player2', isHost: false, isReady: true },
+      ],
+    }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    mockPrisma.room.findUnique.mockResolvedValue({ ...defaultRoom, hostId: 'host-1' })
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:leave')
+
+    expect(mockPrisma.room.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ hostId: 'player-2' }),
+    }))
+  })
+})
+
+// ─── player:ready ─────────────────────────────────────────────────────────────
+
+describe('player:ready', () => {
+  it('updates player ready state and emits room:updated', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = {
+      ...waitingState,
+      players: [{ userId: 'host-1', username: 'Host', isReady: false }],
+    }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('player:ready', true)
+
+    const setCall = mockRedis.set.mock.calls[0]
+    const savedState = JSON.parse(setCall[1])
+    expect(savedState.players[0].isReady).toBe(true)
+    expect(io.to).toHaveBeenCalledWith('room:room-1')
+  })
+})
+
+// ─── room:settings ────────────────────────────────────────────────────────────
+
+describe('room:settings', () => {
+  it('updates gameMode in state and persists numeric settings', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = { ...waitingState }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:settings', { gameMode: 'special', maxPlayers: 6, imposterCount: 2 })
+
+    expect(mockPrisma.room.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ maxPlayers: 6, imposterCount: 2 }),
+    }))
+    expect(io.to).toHaveBeenCalledWith('room:room-1')
+  })
+
+  it('force-disables special roles when gameMode is normal', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = { ...waitingState, gameMode: 'special', enableDetective: true, enableDoubleAgent: true }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:settings', { gameMode: 'normal' })
+
+    const setCall = mockRedis.set.mock.calls[0]
+    const savedState = JSON.parse(setCall[1])
+    expect(savedState.enableDetective).toBe(false)
+    expect(savedState.enableDoubleAgent).toBe(false)
+  })
+
+  it('does nothing if socket is not in a room', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host') // no room: rooms
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:settings', { gameMode: 'normal' })
+    expect(mockPrisma.room.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('does nothing if requestor is not the host', async () => {
+    const io = makeIo()
+    const socket = makeSocket('other-user', 'Other', ['room:room-1'])
+    const state = { ...waitingState }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:settings', { gameMode: 'special' })
+
+    expect(mockPrisma.room.update).not.toHaveBeenCalled()
+  })
+})
+
+// ─── game:start ───────────────────────────────────────────────────────────────
+
+describe('game:start', () => {
+  it('does nothing when socket is not in a room', async () => {
+    const io = makeIo()
+    const socket = makeSocket() // no room: rooms
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+    expect(mockPrisma.room.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when requestor is not the host', async () => {
+    const io = makeIo()
+    const socket = makeSocket('other-user', 'Other', ['room:room-1'])
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+    // findUnique is called but then it returns because hostId !== userId
+    expect(io.to).not.toHaveBeenCalled()
+  })
+})
+
+// ─── detective:reveal (room handler) ─────────────────────────────────────────
+
+describe('detective:reveal (room handler)', () => {
+  it('emits detective:result with target role for valid detective', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = {
+      ...waitingState,
+      status: 'in_progress',
+      players: [
+        { userId: 'host-1', role: 'detective', status: 'alive', detectiveRevealUsed: false },
+        { userId: 'target-1', role: 'imposter', status: 'alive', username: 'Villain' },
+      ],
+    }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    mockRedis.set.mockResolvedValue('OK')
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('detective:reveal', { targetUserId: 'target-1' })
+
+    expect(socket.emit).toHaveBeenCalledWith('detective:result', expect.objectContaining({
+      targetUserId: 'target-1',
+      role: 'imposter',
+    }))
+  })
+
+  it('emits DETECTIVE_USED error when reveal already used', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = {
+      ...waitingState,
+      players: [
+        { userId: 'host-1', role: 'detective', status: 'alive', detectiveRevealUsed: true },
+      ],
+    }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('detective:reveal', { targetUserId: 'target-1' })
+
+    expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'DETECTIVE_USED' }))
+  })
+})
+
+// ─── game:forfeit ─────────────────────────────────────────────────────────────
+
+describe('game:forfeit', () => {
+  it('calls forfeitPlayer and leaves the room', async () => {
+    const { forfeitPlayer } = await import('../../socket/gameLoop')
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:forfeit')
+
+    expect(forfeitPlayer).toHaveBeenCalledWith(io, 'room-1', 'host-1')
+    expect(socket.leave).toHaveBeenCalledWith('room:room-1')
+  })
+})
+
+// ─── game:leave-eliminated ────────────────────────────────────────────────────
+
+describe('game:leave-eliminated', () => {
+  it('allows eliminated player to leave room', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = {
+      ...waitingState,
+      status: 'in_progress',
+      players: [{ userId: 'host-1', status: 'eliminated' }],
+    }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:leave-eliminated')
+
+    expect(socket.leave).toHaveBeenCalledWith('room:room-1')
+  })
+
+  it('does not allow alive player to leave via game:leave-eliminated', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+    const state = {
+      ...waitingState,
+      status: 'in_progress',
+      players: [{ userId: 'host-1', status: 'alive' }],
+    }
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:leave-eliminated')
+
+    expect(socket.leave).not.toHaveBeenCalled()
+  })
+})

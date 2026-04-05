@@ -214,5 +214,72 @@ describe('Season Pass Routes', () => {
       const res = await app.inject({ method: 'POST', url: '/api/season-pass/claim/tier-1' })
       expect(res.statusCode).toBe(401)
     })
+
+    it('returns 404 when user is not found during claim', async () => {
+      mockSeasonTier.findUnique.mockResolvedValue(activeTier)
+      mockPrismaUser.findUnique.mockResolvedValue(null)
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/season-pass/claim/tier-1',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(404)
+      expect(res.json().error).toBe('User not found')
+    })
+
+    it('claims a goldCoins reward (goldCoins branch is skipped but no error)', async () => {
+      const goldTier = {
+        ...activeTier,
+        rewardType: 'goldCoins',
+        rewardValue: '50',
+      }
+      mockSeasonTier.findUnique.mockResolvedValue(goldTier)
+      mockPrismaUser.findUnique.mockResolvedValue({ seasonXp: 500, goldCoins: 0 })
+      mockSeasonPassClaim.findUnique.mockResolvedValue(null)
+      ;(prisma.$transaction as any).mockImplementation(async (fn: any) => fn({
+        seasonPassClaim: { create: vi.fn().mockResolvedValue({}) },
+        user: { update: vi.fn().mockResolvedValue({}) },
+      }))
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/season-pass/claim/tier-1',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json().rewardType).toBe('goldCoins')
+    })
+
+    it('claims a cosmetic reward (upserts userCosmetic)', async () => {
+      const cosmeticTier = {
+        ...activeTier,
+        rewardType: 'cosmetic',
+        rewardValue: 'hat-cosmetic-123',
+      }
+      mockSeasonTier.findUnique.mockResolvedValue(cosmeticTier)
+      mockPrismaUser.findUnique.mockResolvedValue({ seasonXp: 500, goldCoins: 0 })
+      mockSeasonPassClaim.findUnique.mockResolvedValue(null)
+      const mockUpsert = vi.fn().mockResolvedValue({})
+      ;(prisma.$transaction as any).mockImplementation(async (fn: any) => fn({
+        seasonPassClaim: { create: vi.fn().mockResolvedValue({}) },
+        user: { update: vi.fn().mockResolvedValue({}) },
+        userCosmetic: { upsert: mockUpsert },
+      }))
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/season-pass/claim/tier-1',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json().rewardType).toBe('cosmetic')
+      expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({ cosmeticId: 'hat-cosmetic-123' }),
+      }))
+    })
   })
 })

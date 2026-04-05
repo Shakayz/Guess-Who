@@ -133,6 +133,84 @@ describe('Auth Routes - Unit Tests', () => {
 
       expect(response.statusCode).toBe(400)
     })
+
+    it('returns 409 when username is already taken (after email check)', async () => {
+      // First findUnique returns null (email not taken), second returns user (username taken)
+      mockPrismaUser.findUnique
+        .mockResolvedValueOnce(null) // email check
+        .mockResolvedValueOnce({ id: 'other-user', username: 'testuser' }) // username check
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/signup',
+        payload: {
+          username: 'testuser',
+          email: 'new@example.com',
+          password: 'securepassword123',
+        },
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json().error).toBe('Username already taken')
+    })
+
+    it('returns 409 with P2002 error on email field', async () => {
+      mockPrismaUser.findUnique.mockResolvedValue(null)
+      mockPrismaUser.create.mockRejectedValue(
+        Object.assign(new Error('Unique constraint'), { code: 'P2002', meta: { target: ['email'] } })
+      )
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/signup',
+        payload: {
+          username: 'testuser',
+          email: 'taken@example.com',
+          password: 'securepassword123',
+        },
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json().error).toBe('Email already in use')
+    })
+
+    it('returns 409 with P2002 error on username field', async () => {
+      mockPrismaUser.findUnique.mockResolvedValue(null)
+      mockPrismaUser.create.mockRejectedValue(
+        Object.assign(new Error('Unique constraint'), { code: 'P2002', meta: { target: ['username'] } })
+      )
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/signup',
+        payload: {
+          username: 'takenuser',
+          email: 'new@example.com',
+          password: 'securepassword123',
+        },
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json().error).toBe('Username already taken')
+    })
+
+    it('returns 500 on unexpected error during signup', async () => {
+      mockPrismaUser.findUnique.mockResolvedValue(null)
+      mockPrismaUser.create.mockRejectedValue(new Error('DB connection lost'))
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/signup',
+        payload: {
+          username: 'testuser',
+          email: 'test@example.com',
+          password: 'securepassword123',
+        },
+      })
+
+      expect(response.statusCode).toBe(500)
+      expect(response.json().error).toBe('Could not create account. Please try again.')
+    })
   })
 
   // ── Signin Tests ─────────────────────────────────────────────────────────────
@@ -222,6 +300,53 @@ describe('Auth Routes - Unit Tests', () => {
       const body = response.json()
       expect(body.error).toBe('Invalid credentials')
     })
+
+    it('returns 400 when identifier field is missing in signin', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/signin',
+        payload: { password: 'somepassword' },
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('returns 500 on unexpected database error during signin', async () => {
+      mockPrismaUser.findUnique.mockRejectedValue(new Error('DB unavailable'))
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/signin',
+        payload: {
+          identifier: 'user@example.com',
+          password: 'securepassword123',
+        },
+      })
+
+      expect(response.statusCode).toBe(500)
+      expect(response.json().error).toBe('Could not sign in. Please try again.')
+    })
+
+    it('returns 401 when user has no passwordHash (OAuth-only account)', async () => {
+      mockPrismaUser.findUnique.mockResolvedValue({
+        id: 'user-oauth',
+        username: 'oauthuser',
+        email: 'oauth@gmail.com',
+        passwordHash: null,
+      })
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/signin',
+        payload: {
+          identifier: 'oauth@gmail.com',
+          password: 'anypassword',
+        },
+      })
+
+      expect(response.statusCode).toBe(401)
+      expect(response.json().error).toBe('Invalid credentials')
+    })
   })
 
   // ── /me Tests ────────────────────────────────────────────────────────────────
@@ -234,6 +359,22 @@ describe('Auth Routes - Unit Tests', () => {
       })
 
       expect(response.statusCode).toBe(401)
+    })
+
+    it('returns 404 when user is not found', async () => {
+      const token = app.jwt.sign({ sub: 'deleted-user', username: 'gone' })
+      mockPrismaUser.findUnique.mockResolvedValue(null)
+      const mockHonor = prisma.honor as any
+      mockHonor.groupBy.mockResolvedValue([])
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/auth/me',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(response.statusCode).toBe(404)
+      expect(response.json().error).toBe('User not found')
     })
 
     it('returns user profile with valid token', async () => {

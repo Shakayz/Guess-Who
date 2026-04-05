@@ -290,5 +290,93 @@ describe('User Routes', () => {
 
       expect(res.statusCode).toBe(404)
     })
+
+    it('computes didWin correctly for all roles', async () => {
+      mockUser.findUnique.mockResolvedValue({
+        id: 'user-2',
+        username: 'alice',
+        avatarUrl: null,
+        rankTier: 'gold',
+        rankPoints: 2000,
+        honorPoints: 20,
+        createdAt: new Date('2025-01-01'),
+      })
+      mockGameParticipation.count
+        .mockResolvedValueOnce(4)   // totalGames
+        .mockResolvedValueOnce(2)   // wins
+        .mockResolvedValueOnce(2)   // asVillager
+        .mockResolvedValueOnce(2)   // asImposter
+        .mockResolvedValueOnce(2)   // survived
+
+      mockGameParticipation.findMany.mockResolvedValue([
+        {
+          role: 'villager',
+          survived: true,
+          game: { id: 'g1', winnerTeam: 'villagers', startedAt: new Date(), _count: { rounds: 2 } },
+        },
+        {
+          role: 'imposter',
+          survived: false,
+          game: { id: 'g2', winnerTeam: 'imposters', startedAt: new Date(), _count: { rounds: 3 } },
+        },
+        {
+          role: 'detective',
+          survived: true,
+          game: { id: 'g3', winnerTeam: 'villagers', startedAt: new Date(), _count: { rounds: 1 } },
+        },
+        {
+          role: 'double_agent',
+          survived: false,
+          game: { id: 'g4', winnerTeam: 'imposters', startedAt: new Date(), _count: { rounds: 2 } },
+        },
+      ])
+      mockHonor.groupBy.mockResolvedValue([])
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/users/user-2/profile',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      const body = res.json()
+      expect(body.recentGames).toHaveLength(4)
+
+      const g1 = body.recentGames.find((g: any) => g.gameId === 'g1')
+      expect(g1.didWin).toBe(true) // villager + villagers win
+
+      const g2 = body.recentGames.find((g: any) => g.gameId === 'g2')
+      expect(g2.didWin).toBe(true) // imposter + imposters win
+
+      const g3 = body.recentGames.find((g: any) => g.gameId === 'g3')
+      expect(g3.didWin).toBe(true) // detective + villagers win
+
+      const g4 = body.recentGames.find((g: any) => g.gameId === 'g4')
+      expect(g4.didWin).toBe(true) // double_agent + imposters win
+    })
+
+    it('returns winRate as 0 when totalGames is 0', async () => {
+      mockUser.findUnique.mockResolvedValue({
+        id: 'user-new',
+        username: 'newbie',
+        avatarUrl: null,
+        rankTier: 'wooden',
+        rankPoints: 0,
+        honorPoints: 0,
+        createdAt: new Date(),
+      })
+      mockGameParticipation.count.mockResolvedValue(0)
+      mockGameParticipation.findMany.mockResolvedValue([])
+      mockHonor.groupBy.mockResolvedValue([])
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/users/user-new/profile',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json().stats.winRate).toBe(0)
+    })
   })
 })

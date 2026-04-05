@@ -44,6 +44,139 @@ describe('Room Lifecycle - Integration Tests', () => {
     vi.clearAllMocks()
   })
 
+  describe('GET /api/rooms/active', () => {
+    it('returns active: false when user is not in any active game', async () => {
+      ;(prisma as any).gameParticipation = { findFirst: vi.fn().mockResolvedValue(null) }
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/rooms/active',
+        headers: { authorization: `Bearer ${authToken}` },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json().active).toBe(false)
+    })
+
+    it('returns active: false when Redis state is missing', async () => {
+      const mockParticipation = {
+        game: {
+          room: {
+            id: 'room-1', code: 'ABC123', hostId: 'host-user-1',
+            maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30,
+            votingTimeSeconds: 30, wordPackId: 'default', isPrivate: false,
+            language: 'en', createdAt: new Date('2025-01-01'),
+          },
+        },
+      }
+      ;(prisma as any).gameParticipation = { findFirst: vi.fn().mockResolvedValue(mockParticipation) }
+      mockRedis.get.mockResolvedValue(null) // no Redis state
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/rooms/active',
+        headers: { authorization: `Bearer ${authToken}` },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json().active).toBe(false)
+    })
+
+    it('returns active: false when Redis state is not in_progress or voting', async () => {
+      const mockParticipation = {
+        game: {
+          room: {
+            id: 'room-1', code: 'ABC123', hostId: 'host-user-1',
+            maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30,
+            votingTimeSeconds: 30, wordPackId: 'default', isPrivate: false,
+            language: 'en', createdAt: new Date('2025-01-01'),
+          },
+        },
+      }
+      ;(prisma as any).gameParticipation = { findFirst: vi.fn().mockResolvedValue(mockParticipation) }
+      mockRedis.get.mockResolvedValue(JSON.stringify({ status: 'waiting', players: [] }))
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/rooms/active',
+        headers: { authorization: `Bearer ${authToken}` },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json().active).toBe(false)
+    })
+
+    it('returns active room when game is in_progress', async () => {
+      const room = {
+        id: 'room-1', code: 'ABC123', hostId: 'host-user-1',
+        maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30,
+        votingTimeSeconds: 30, wordPackId: 'default', isPrivate: false,
+        language: 'en', createdAt: new Date('2025-01-01'),
+      }
+      const mockParticipation = { game: { room } }
+      ;(prisma as any).gameParticipation = { findFirst: vi.fn().mockResolvedValue(mockParticipation) }
+      mockRedis.get.mockResolvedValue(JSON.stringify({
+        status: 'in_progress',
+        players: [{ id: 'host-user-1', username: 'hostplayer' }],
+        currentRound: 1,
+        maxRounds: 3,
+        gameMode: 'normal',
+        categories: ['animals'],
+        enableDetective: false,
+        enableDoubleAgent: false,
+      }))
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/rooms/active',
+        headers: { authorization: `Bearer ${authToken}` },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = response.json()
+      expect(body.active).toBe(true)
+      expect(body.roomCode).toBe('ABC123')
+      expect(body.room.status).toBe('in_progress')
+      expect(body.room.players).toHaveLength(1)
+    })
+
+    it('returns active room when game is in voting state', async () => {
+      const room = {
+        id: 'room-2', code: 'XYZ789', hostId: 'host-user-1',
+        maxPlayers: 8, imposterCount: 1, speakingTimeSeconds: 60,
+        votingTimeSeconds: 30, wordPackId: 'default', isPrivate: true,
+        language: 'fr', createdAt: new Date('2025-01-01'),
+      }
+      const mockParticipation = { game: { room } }
+      ;(prisma as any).gameParticipation = { findFirst: vi.fn().mockResolvedValue(mockParticipation) }
+      mockRedis.get.mockResolvedValue(JSON.stringify({
+        status: 'voting',
+        players: [],
+        gameMode: 'ranked',
+        categories: [],
+      }))
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/rooms/active',
+        headers: { authorization: `Bearer ${authToken}` },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = response.json()
+      expect(body.active).toBe(true)
+      expect(body.room.settings.isPrivate).toBe(true)
+    })
+
+    it('returns 401 without auth', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/rooms/active',
+      })
+      expect(response.statusCode).toBe(401)
+    })
+  })
+
   describe('POST /api/rooms', () => {
     it('creates a room with default settings', async () => {
       mockPrismaUser.findUnique.mockResolvedValue({ locale: 'en' })

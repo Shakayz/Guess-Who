@@ -14,7 +14,11 @@ vi.mock('socket.io', () => ({
 // Mock all route plugins to isolate app builder tests
 vi.mock('../../routes/auth', () => ({ authRoutes: async () => {} }))
 vi.mock('../../routes/oauth', () => ({ oauthRoutes: async () => {} }))
-vi.mock('../../routes/rooms', () => ({ roomRoutes: async () => {} }))
+vi.mock('../../routes/rooms', () => ({
+  roomRoutes: async (fastify: any) => {
+    fastify.get('/active', { preHandler: [fastify.authenticate] }, async () => ({ active: false }))
+  },
+}))
 vi.mock('../../routes/users', () => ({ userRoutes: async () => {} }))
 vi.mock('../../routes/shop', () => ({ shopRoutes: async () => {} }))
 vi.mock('../../routes/friends', () => ({ friendsRoutes: async () => {} }))
@@ -80,5 +84,30 @@ describe('App Builder', () => {
 
     expect(response.headers['access-control-allow-origin']).toBe('http://localhost:3000')
     expect(response.headers['access-control-allow-credentials']).toBe('true')
+  })
+
+  it('authenticate decorator rejects requests without a JWT', async () => {
+    // Build a minimal app with a protected route to test the authenticate decorator
+    const Fastify2 = (await import('fastify')).default
+    const jwt2 = (await import('@fastify/jwt')).default
+    const { buildApp: build } = await import('../../app')
+    const testApp = await build()
+    await testApp.ready()
+
+    // The /api/auth routes use authenticate; make a request without token
+    const response = await testApp.inject({
+      method: 'GET',
+      url: '/api/rooms/active',
+    })
+
+    // Should be 401 (authenticate hook rejects)
+    expect(response.statusCode).toBe(401)
+    await testApp.close()
+  })
+
+  it('registers Socket.IO on the server', async () => {
+    const { Server: MockSocketServer } = await import('socket.io')
+    // Socket.IO server was constructed during buildApp()
+    expect(MockSocketServer).toHaveBeenCalled()
   })
 })

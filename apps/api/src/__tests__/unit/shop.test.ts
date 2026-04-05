@@ -166,5 +166,33 @@ describe('Shop Routes', () => {
       const res = await app.inject({ method: 'POST', url: '/api/shop/packs/some-pack/checkout' })
       expect(res.statusCode).toBe(503)
     })
+
+    it('POST /api/shop/webhook returns 503', async () => {
+      const res = await app.inject({ method: 'POST', url: '/api/shop/webhook' })
+      expect(res.statusCode).toBe(503)
+      expect(res.json().error).toMatch(/temporarily disabled/i)
+    })
+
+    it('GET /api/shop/purchases returns 503', async () => {
+      const res = await app.inject({ method: 'GET', url: '/api/shop/purchases' })
+      expect(res.statusCode).toBe(503)
+      expect(res.json().error).toMatch(/temporarily unavailable/i)
+    })
+  })
+
+  describe('POST /api/shop/cosmetics/:id/purchase - edge cases', () => {
+    it('returns 404 when user is not found', async () => {
+      mockCosmetic.findUnique.mockResolvedValue({ id: 'c1', name: 'Blue Hat', currency: 'star', price: 100 })
+      mockPrismaUser.findUnique.mockResolvedValue(null)
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/shop/cosmetics/c1/purchase',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(404)
+      expect(res.json().error).toBe('User not found')
+    })
   })
 })

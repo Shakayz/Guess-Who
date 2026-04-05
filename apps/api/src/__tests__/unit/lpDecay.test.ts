@@ -118,6 +118,33 @@ describe('lpDecay – decay logic', () => {
     )
     expect(call[0].data).not.toHaveProperty('rankTier')
   })
+
+  it('registers a failed event handler on the worker', () => {
+    prismaMock.user.findMany.mockResolvedValue([])
+    const worker = startLpDecayWorker() as any
+    expect(worker.on).toHaveBeenCalledWith('failed', expect.any(Function))
+  })
+
+  it('logs error when worker job fails', () => {
+    prismaMock.user.findMany.mockResolvedValue([])
+    const worker = startLpDecayWorker() as any
+
+    // Extract the 'failed' handler and call it
+    const failedHandler = worker.on.mock.calls.find(
+      (c: any) => c[0] === 'failed'
+    )?.[1]
+
+    expect(failedHandler).toBeDefined()
+
+    // Call the handler with a mock job and error
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    failedHandler({ id: 'job-123' }, new Error('something broke'))
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('job-123'),
+      'something broke'
+    )
+    consoleSpy.mockRestore()
+  })
 })
 
 describe('scheduleLpDecayJob', () => {

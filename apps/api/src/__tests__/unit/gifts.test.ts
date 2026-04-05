@@ -198,5 +198,192 @@ describe('Gifts Routes', () => {
 
       expect(res.statusCode).toBe(401)
     })
+
+    it('returns 400 when sending to yourself', async () => {
+      // token is sub='user-1', receiver also has id='user-1'
+      mockPrismaUser.findUnique.mockResolvedValue({ id: 'user-1', username: 'testuser' })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/send',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { receiverUsername: 'testuser', coinAmount: 50 },
+      })
+
+      expect(res.statusCode).toBe(400)
+      expect(res.json().error).toBe('Cannot gift yourself')
+    })
+
+    it('emits socket event when receiver is online', async () => {
+      const mockEmit = vi.fn()
+      const mockTo = vi.fn().mockReturnValue({ emit: mockEmit })
+      ;(app as any).io = { to: mockTo }
+
+      // Patch the onlineUsers map used by the gifts route
+      const onlineUsersModule = await import('../../socket/onlineUsers')
+      ;(onlineUsersModule.onlineUsers as any).set('user-2', 'socket-id-for-user2')
+
+      mockPrismaUser.findUnique
+        .mockResolvedValueOnce({ id: 'user-2', username: 'alice' })
+        .mockResolvedValueOnce({ id: 'user-1', starCoins: 500 })
+      ;(prisma as any).friendship.findFirst.mockResolvedValue({ id: 'fs-1', status: 'accepted' })
+      ;(prisma.$transaction as any).mockImplementation(async (fn: any) => {
+        const tx = {
+          user: { update: vi.fn() },
+          gift: {
+            create: vi.fn().mockResolvedValue({
+              id: 'gift-notif',
+              senderId: 'user-1',
+              receiverId: 'user-2',
+              coinAmount: 50,
+              cosmeticId: null,
+              message: null,
+              sender: { id: 'user-1', username: 'testuser', avatarUrl: null },
+            }),
+          },
+        }
+        return fn(tx)
+      })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/send',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { receiverUsername: 'alice', coinAmount: 50 },
+      })
+
+      ;(app as any).io = undefined
+      ;(onlineUsersModule.onlineUsers as any).delete('user-2')
+
+      expect(res.statusCode).toBe(200)
+      expect(mockTo).toHaveBeenCalledWith('socket-id-for-user2')
+      expect(mockEmit).toHaveBeenCalledWith('gift:received', expect.objectContaining({ giftId: 'gift-notif' }))
+    })
+  })
+
+  // ── POST /:id/claim ───────────────────────────────────────────────────────────
+
+  describe('POST /api/gifts/:id/claim', () => {
+    it('claims a valid pending gift', async () => {
+      mockGift.findUnique.mockResolvedValue({
+        id: 'gift-1',
+        receiverId: 'user-1',
+        coinAmount: 50,
+        cosmeticId: null,
+        claimed: false,
+      })
+      ;(prisma.$transaction as any).mockImplementation(async (fn: any) => {
+        const tx = {
+          gift: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+          user: { update: vi.fn().mockResolvedValue({}) },
+          userCosmetic: { upsert: vi.fn().mockResolvedValue({}) },
+        }
+        return fn(tx)
+      })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/gift-1/claim',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json().success).toBe(true)
+    })
+
+    it('returns 404 when gift does not exist', async () => {
+      mockGift.findUnique.mockResolvedValue(null)
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/nonexistent/claim',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(404)
+      expect(res.json().error).toBe('Gift not found')
+    })
+
+    it('returns 403 when gift belongs to another user', async () => {
+      mockGift.findUnique.mockResolvedValue({
+        id: 'gift-2',
+        receiverId: 'user-99',
+        coinAmount: 10,
+        claimed: false,
+      })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/gift-2/claim',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(403)
+      expect(res.json().error).toBe('Forbidden')
+    })
+
+    it('returns 409 when gift already claimed (concurrent claim)', async () => {
+      mockGift.findUnique.mockResolvedValue({
+        id: 'gift-1',
+        receiverId: 'user-1',
+        coinAmount: 50,
+        claimed: false,
+      })
+      ;(prisma.$transaction as any).mockImplementation(async (fn: any) => {
+        const tx = {
+          gift: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) }, // already claimed
+          user: { update: vi.fn() },
+          userCosmetic: { upsert: vi.fn() },
+        }
+        return fn(tx)
+      })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/gift-1/claim',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(409)
+      expect(res.json().error).toBe('Already claimed')
+    })
+
+    it('claims a cosmetic gift and upserts userCosmetic', async () => {
+      mockGift.findUnique.mockResolvedValue({
+        id: 'gift-cos',
+        receiverId: 'user-1',
+        coinAmount: 0,
+        cosmeticId: 'hat-1',
+        claimed: false,
+      })
+      const mockUpsert = vi.fn().mockResolvedValue({})
+      ;(prisma.$transaction as any).mockImplementation(async (fn: any) => {
+        const tx = {
+          gift: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+          user: { update: vi.fn().mockResolvedValue({}) },
+          userCosmetic: { upsert: mockUpsert },
+        }
+        return fn(tx)
+      })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/gift-cos/claim',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({ cosmeticId: 'hat-1' }),
+      }))
+    })
+
+    it('returns 401 without auth token', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/gift-1/claim',
+      })
+      expect(res.statusCode).toBe(401)
+    })
   })
 })

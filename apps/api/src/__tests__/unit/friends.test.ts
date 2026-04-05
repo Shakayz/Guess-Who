@@ -175,6 +175,51 @@ describe('Friends Routes', () => {
       expect(res.statusCode).toBe(400)
       expect(res.json().error).toBe('Request already sent')
     })
+
+    it('returns 400 when trying to add yourself', async () => {
+      // The token is signed with sub='user-1', target also has id='user-1'
+      mockUser.findUnique.mockResolvedValue({ id: 'user-1', username: 'testuser' })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/friends/request',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { username: 'testuser' },
+      })
+      expect(res.statusCode).toBe(400)
+      expect(res.json().error).toBe('Cannot add yourself')
+    })
+
+    it('sends socket notification when target is online', async () => {
+      const mockEmit = vi.fn()
+      const mockTo = vi.fn().mockReturnValue({ emit: mockEmit })
+      const mockIo = { to: mockTo }
+
+      // Attach mock io and onlineUsers to the app
+      ;(app as any).io = mockIo
+      ;(app as any).onlineUsers = new Map([['user-2', 'socket-id-2']])
+
+      mockUser.findUnique
+        .mockResolvedValueOnce({ id: 'user-2', username: 'alice' }) // target lookup
+        .mockResolvedValueOnce({ username: 'testuser', avatarUrl: null }) // requester lookup
+      mockFriendship.findFirst.mockResolvedValue(null)
+      mockFriendship.create.mockResolvedValue({ id: 'fs-notify', status: 'pending' })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/friends/request',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { username: 'alice' },
+      })
+
+      // Cleanup
+      ;(app as any).io = undefined
+      ;(app as any).onlineUsers = undefined
+
+      expect(res.statusCode).toBe(201)
+      expect(mockTo).toHaveBeenCalledWith('socket-id-2')
+      expect(mockEmit).toHaveBeenCalledWith('friend:request', expect.objectContaining({ friendshipId: 'fs-notify' }))
+    })
   })
 
   // ── PUT /:id/accept ───────────────────────────────────────────────────────────
@@ -224,6 +269,35 @@ describe('Friends Routes', () => {
         headers: { authorization: `Bearer ${token}` },
       })
       expect(res.statusCode).toBe(400)
+    })
+
+    it('emits socket event when requester is online upon accept', async () => {
+      const mockEmit = vi.fn()
+      const mockTo = vi.fn().mockReturnValue({ emit: mockEmit })
+      ;(app as any).io = { to: mockTo }
+      ;(app as any).onlineUsers = new Map([['user-3', 'socket-id-3']])
+
+      mockFriendship.findUnique.mockResolvedValue({
+        id: 'fs-2',
+        requesterId: 'user-3',
+        addresseeId: 'user-1',
+        status: 'pending',
+      })
+      mockFriendship.update.mockResolvedValue({ id: 'fs-2', status: 'accepted' })
+      mockUser.findUnique.mockResolvedValue({ username: 'testuser' })
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/api/friends/fs-2/accept',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      ;(app as any).io = undefined
+      ;(app as any).onlineUsers = undefined
+
+      expect(res.statusCode).toBe(200)
+      expect(mockTo).toHaveBeenCalledWith('socket-id-3')
+      expect(mockEmit).toHaveBeenCalledWith('friend:accepted', expect.objectContaining({ friendshipId: 'fs-2' }))
     })
   })
 

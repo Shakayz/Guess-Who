@@ -136,8 +136,8 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
     const { identityToken, name } = req.body as { identityToken?: string; name?: string }
     if (!identityToken) return reply.status(400).send({ error: 'Missing identityToken' })
 
-    const payload = await verifyAppleToken(identityToken)
-    if (!payload) {
+    let verifiedPayload = await verifyAppleToken(identityToken)
+    if (!verifiedPayload) {
       // In development without Apple credentials, accept any token and use sub claim directly
       if (env.NODE_ENV !== 'development') {
         return reply.status(401).send({ error: 'Invalid Apple token' })
@@ -145,11 +145,11 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
       // Dev fallback: decode without verifying
       const decoded = jwt.decode(identityToken) as { sub?: string; email?: string } | null
       if (!decoded?.sub) return reply.status(401).send({ error: 'Invalid Apple token' })
-      Object.assign(payload ?? {}, decoded)
+      verifiedPayload = decoded as { sub: string; email?: string }
     }
 
-    const appleId = (payload as any).sub as string
-    const email = (payload as any).email as string | undefined
+    const appleId = verifiedPayload.sub
+    const email = verifiedPayload.email
     const displayName = name ?? email?.split('@')[0] ?? 'user'
 
     let user = await prisma.user.findFirst({ where: { appleId } })

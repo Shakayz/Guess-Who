@@ -162,5 +162,79 @@ describe('History Routes', () => {
 
       expect(res.statusCode).toBe(404)
     })
+
+    it('returns 404 when game record is missing after participation found', async () => {
+      mockGameParticipation.findUnique.mockResolvedValue({
+        gameId: 'game-orphan',
+        userId: 'user-1',
+        role: 'villager',
+        survived: true,
+        starCoinsEarned: 0,
+      })
+      mockGame.findUnique.mockResolvedValue(null)
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/history/game-orphan',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(404)
+      expect(res.json().error).toBe('Game not found')
+    })
+
+    it('returns game details including rounds and chat messages', async () => {
+      mockGameParticipation.findUnique.mockResolvedValue({
+        gameId: 'game-2',
+        userId: 'user-1',
+        role: 'imposter',
+        survived: false,
+        starCoinsEarned: 10,
+      })
+      mockGame.findUnique.mockResolvedValue({
+        id: 'game-2',
+        startedAt: new Date('2025-06-01T10:00:00Z'),
+        endedAt: new Date('2025-06-01T10:30:00Z'),
+        winnerTeam: 'villagers',
+        participations: [
+          {
+            userId: 'user-1',
+            role: 'imposter',
+            survived: false,
+            starCoinsEarned: 10,
+            user: { id: 'user-1', username: 'testuser', avatarUrl: null },
+          },
+        ],
+        rounds: [
+          {
+            id: 'round-1',
+            roundNumber: 1,
+            villagerWord: 'apple',
+            imposterWord: 'fruit',
+            eliminatedId: 'user-1',
+            eliminatedRole: 'imposter',
+            clues: [{ playerId: 'user-1', text: 'juicy', createdAt: new Date() }],
+            votes: [{ voterId: 'user-2', targetId: 'user-1' }],
+          },
+        ],
+        chatMessages: [
+          { id: 'msg-1', userId: 'user-1', text: 'hello', createdAt: new Date() },
+        ],
+      })
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/history/game-2',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      const body = res.json()
+      expect(body.id).toBe('game-2')
+      expect(body.rounds).toHaveLength(1)
+      expect(body.rounds[0].clues).toHaveLength(1)
+      expect(body.rounds[0].votes).toHaveLength(1)
+      expect(body.chatMessages).toHaveLength(1)
+    })
   })
 })
