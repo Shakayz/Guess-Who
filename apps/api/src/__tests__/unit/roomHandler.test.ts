@@ -845,3 +845,286 @@ describe('room:leave — edge cases', () => {
     expect(mockRedis.set).not.toHaveBeenCalled()
   })
 })
+
+// ─── Coverage gap: room.ts line 203 — lock never acquired (ROOM_BUSY) ────────
+
+describe('room:join — ROOM_BUSY when lock cannot be acquired (line 203)', () => {
+  it('emits ROOM_BUSY error when all 15 lock attempts fail', async () => {
+    const io = makeIo()
+    const socket = makeSocket('new-user', 'Newcomer')
+    mockPrisma.room.findUnique.mockResolvedValue({ ...defaultRoom, hostId: 'someone-else', language: 'en' })
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'new-user', locale: 'en' })
+
+    // All set() calls return null (lock never acquired), including the NX lock calls
+    ;(mockRedis as any).set = vi.fn().mockResolvedValue(null)
+    mockRedis.del.mockResolvedValue(1)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:join', { roomCode: 'ABCD' })
+
+    expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'ROOM_BUSY' }))
+  })
+})
+
+// ─── Coverage gap: room.ts line 274 — phaseStartedAt is null/undefined ────────
+
+describe('room:join — phaseStartedAt null branch (line 274)', () => {
+  it('uses elapsedSeconds = 0 when phaseStartedAt is null during reconnect', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host')
+    const inProgressState = {
+      ...waitingState,
+      status: 'in_progress',
+      currentRound: 1,
+      villagerWord: 'Apple',
+      imposterWord: 'Pear',
+      phaseStartedAt: null,          // null → elapsedSeconds = 0 (line 274 ':0' branch)
+      phaseDurationSeconds: 30,
+      rounds: [{ roundNumber: 1, speakingOrder: ['host-1'], clues: [], votes: [] }],
+      players: [{ userId: 'host-1', role: 'villager', status: 'alive', id: 'old-socket' }],
+    }
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(inProgressState))
+    mockRedis.del.mockResolvedValue(1)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:join', { roomCode: 'ABCD' })
+
+    // game:sync should be emitted with timeRemainingSeconds = phaseDurationSeconds (30)
+    expect(socket.emit).toHaveBeenCalledWith('game:sync', expect.objectContaining({
+      timeRemainingSeconds: 30,
+    }))
+  })
+})
+
+// ─── Coverage gap: room.ts lines 346-348 — outer catch in room:join ──────────
+
+describe('room:join — outer catch (lines 346-348)', () => {
+  it('emits INTERNAL error and logs when prisma.room.findUnique throws', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host')
+    // Make the very first DB call throw an uncaught exception
+    mockPrisma.room.findUnique.mockRejectedValueOnce(new Error('DB connection lost'))
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('room:join', { roomCode: 'ABCD' })
+
+    expect(consoleSpy).toHaveBeenCalledWith('room:join error', expect.any(Error))
+    expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'INTERNAL' }))
+    consoleSpy.mockRestore()
+  })
+})
+
+// ─── Coverage gap: room.ts line 54 — detective role assignment ───────────────
+
+describe('game:start — detective role assigned (line 54)', () => {
+  it('assigns detective role and sets detectiveRevealUsed when enableDetective is true', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    const gameState = {
+      ...waitingState,
+      enableDetective: true,
+      enableDoubleAgent: false,
+      players: [
+        { userId: 'host-1', username: 'Host', role: undefined, status: 'alive', isHost: true, isReady: true, honorGiven: false },
+        { userId: 'p2',     username: 'P2',   role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p3',     username: 'P3',   role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p4',     username: 'P4',   role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p5',     username: 'P5',   role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+      ],
+    }
+
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+    // A detective will be assigned (imposterCount=1 from defaultRoom, detective is index 1)
+    mockPrisma.wordPack.findFirst.mockResolvedValue(null)
+    mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+      fn({
+        game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
+        round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
+        gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+      })
+    )
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+    await vi.advanceTimersByTimeAsync(3100)
+
+    expect(io.to).toHaveBeenCalledWith('room:room-1')
+    vi.useRealTimers()
+  })
+})
+
+// ─── Coverage gap: room.ts lines 68-71 — wordPackId findUnique path ───────────
+
+describe('game:start — specific wordPack lookup by ID (lines 68-71)', () => {
+  it('uses findUnique when room has a specific wordPackId', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    const gameState = {
+      ...waitingState,
+      players: [
+        { userId: 'host-1', username: 'Host', role: undefined, status: 'alive', isHost: true, isReady: true, honorGiven: false },
+        { userId: 'p2', username: 'P2', role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p3', username: 'P3', role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p4', username: 'P4', role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+      ],
+    }
+
+    // Room with a specific wordPackId (non-null, non-'default') → findUnique path
+    mockPrisma.room.findUnique.mockResolvedValue({ ...defaultRoom, wordPackId: 'pack-123', language: 'en' })
+
+    // findUnique returns a pack with word pairs → lines 77-79 also covered
+    mockPrisma.wordPack.findUnique.mockResolvedValue({
+      id: 'pack-123',
+      pairs: [{ wordA: 'Cat', wordB: 'Dog' }],
+    })
+
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+
+    mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+      fn({
+        game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
+        round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
+        gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+      })
+    )
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+    await vi.advanceTimersByTimeAsync(3100)
+
+    // findUnique should have been called (not findFirst)
+    expect(mockPrisma.wordPack.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'pack-123' },
+    }))
+    vi.useRealTimers()
+  })
+})
+
+// ─── Coverage gap: room.ts lines 83-85 — word swap (Math.random < 0.5) ───────
+
+describe('game:start — word swap branch (line 83-85)', () => {
+  it('swaps word pair when Math.random returns less than 0.5', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    const gameState = {
+      ...waitingState,
+      players: [
+        { userId: 'host-1', username: 'Host',  role: undefined, status: 'alive', isHost: true, isReady: true, honorGiven: false },
+        { userId: 'p2',     username: 'P2',    role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p3',     username: 'P3',    role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p4',     username: 'P4',    role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+      ],
+    }
+
+    // Force Math.random to return < 0.5 to trigger the word-swap branch (lines 83-85)
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.1)
+
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+
+    mockPrisma.wordPack.findFirst.mockResolvedValue(null)
+    mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+      fn({
+        game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
+        round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
+        gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+      })
+    )
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+    await vi.advanceTimersByTimeAsync(3100)
+
+    expect(io.to).toHaveBeenCalledWith('room:room-1')
+    randomSpy.mockRestore()
+    vi.useRealTimers()
+  })
+})
+
+// ─── Coverage gap: room.ts lines 142-144 — socket ID fallback in startGameForRoom
+
+describe('game:start — socket ID fallback emit (lines 142-144)', () => {
+  it('emits game:started to stored socket ID when it differs from online socket', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    // Player has an old socket ID stored in state that differs from onlineUsers entry.
+    // playerData.id = 'old-socket-id', but onlineUsers.get('host-1') = 'new-socket-id'.
+    // Condition: playerData.id && playerData.id !== sid → true → lines 142-144 execute.
+    // We use the real onlineUsers Map (not mocked in roomHandler tests) and populate it.
+    const { onlineUsers: ou } = await import('../../socket/onlineUsers')
+    // Populate the map with a DIFFERENT socket ID than what's stored in state
+    ou.set('host-1', 'new-socket-id')
+    ou.set('p2', 'new-sock-p2')
+    ou.set('p3', 'sock-p3')
+    ou.set('p4', 'current-socket-p4')
+
+    const gameState = {
+      ...waitingState,
+      players: [
+        { userId: 'host-1', username: 'Host',  id: 'old-socket-id',     role: undefined, status: 'alive', isHost: true, isReady: true, honorGiven: false },
+        { userId: 'p2',     username: 'P2',    id: 'old-socket-p2',     role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p3',     username: 'P3',    id: null,                role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p4',     username: 'P4',    id: 'current-socket-p4', role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+      ],
+    }
+
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+
+    mockPrisma.wordPack.findFirst.mockResolvedValue(null)
+    mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+      fn({
+        game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
+        round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
+        gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+      })
+    )
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+    await vi.advanceTimersByTimeAsync(3100)
+
+    // io.to should be called with 'old-socket-id' (fallback) for host-1 (sid !== id)
+    expect(io.to).toHaveBeenCalledWith('old-socket-id')
+    // And with 'old-socket-p2' for p2 (sid !== id)
+    expect(io.to).toHaveBeenCalledWith('old-socket-p2')
+
+    // Cleanup
+    ou.delete('host-1')
+    ou.delete('p2')
+    ou.delete('p3')
+    ou.delete('p4')
+    vi.useRealTimers()
+  })
+})

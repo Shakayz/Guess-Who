@@ -568,3 +568,105 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
     expect(io.to).toHaveBeenCalled()
   })
 })
+
+// ─── Coverage gap: lines 151-152 — stopMatchmakingWindow when queue empties after match
+
+describe('executeMatch — stops window when queue empties after match (lines 151-152)', () => {
+  it('stops the matchmaking window when queue is empty after executing match [locale:fi]', async () => {
+    const io = makeIo()
+    const socket = makeSocket('user-fi1')
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-fi1', locale: 'fi' })
+      .mockResolvedValueOnce({ id: 'user-fi1', rankPoints: 0 })
+
+    const entries = Array.from({ length: 10 }, (_, i) =>
+      JSON.stringify({ userId: `user-fi${i}`, socketId: `sock-fi${i}`, categories: [], locale: 'fi', rankPoints: 0, joinedAt: Date.now() })
+    )
+    let popCount = 0
+    ;(mockRedis as any).lpop.mockImplementation(() => {
+      const e = entries[popCount]
+      popCount++
+      return Promise.resolve(e ?? null)
+    })
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    // First llen (during join status emit) returns 10
+    // Second llen (after executeMatch for remaining check) returns 0 → stopMatchmakingWindow
+    ;(mockRedis as any).llen
+      .mockResolvedValueOnce(10)  // initial status
+      .mockResolvedValueOnce(10)  // threshold check
+      .mockResolvedValueOnce(0)   // after match: queue empty → stopMatchmakingWindow
+
+    mockPrisma.room.create.mockResolvedValue({
+      id: 'room-fi', code: 'ABCF', hostId: 'user-fi0',
+      maxPlayers: 10, imposterCount: 2,
+      speakingTimeSeconds: 30, votingTimeSeconds: 30,
+      isPrivate: false, language: 'fi', createdAt: new Date(),
+    })
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'normal', categories: [] })
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(mockPrisma.room.create).toHaveBeenCalled()
+  })
+})
+
+// ─── Coverage gap: lines 165-167 — normal queue empty stops window ────────────
+// tickMatchmakingQueue calls stopMatchmakingWindow when llen returns 0.
+
+describe('tickMatchmakingQueue — stops window when queue is empty (lines 165-167)', () => {
+  it('stops the normal matchmaking window when queue empties between ticks [locale:nl]', async () => {
+    const io = makeIo()
+    const socket = makeSocket('user-nl1')
+
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-nl1', locale: 'nl' })
+      .mockResolvedValueOnce({ id: 'user-nl1', rankPoints: 0 })
+
+    // Player joins but queue appears empty on the first tick (queue drained)
+    ;(mockRedis as any).llen.mockResolvedValue(1)  // non-zero so join succeeds
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'normal', categories: [] })
+
+    // Now make llen return 0 so the next tick fires the empty-queue path
+    ;(mockRedis as any).llen.mockResolvedValue(0)
+
+    // Advance past TICK_INTERVAL_MS (1000ms) to trigger the normal queue tick
+    await vi.advanceTimersByTimeAsync(2000)
+
+    // stopMatchmakingWindow should have been called — no room created
+    expect(mockPrisma.room.create).not.toHaveBeenCalled()
+  })
+})
+
+// ─── Coverage gap: lines 215-217 — ranked queue empty stops window ────────────
+// tickRankedQueue calls stopMatchmakingWindow when lrange returns no entries.
+
+describe('tickRankedQueue — stops window when queue is empty (lines 215-217)', () => {
+  it('stops the ranked matchmaking window when queue empties between ticks [locale:sv]', async () => {
+    const io = makeIo()
+    const socket = makeSocket('user-sv1')
+
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-sv1', locale: 'sv' })
+      .mockResolvedValueOnce({ id: 'user-sv1', rankPoints: 500 })
+
+    // After joining, the queue will appear empty on the ranked tick
+    ;(mockRedis as any).llen.mockResolvedValue(1)
+    // lrange returns empty — simulates queue draining between join and tick
+    ;(mockRedis as any).lrange.mockResolvedValue([])
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'ranked', categories: [] })
+
+    // Advance past RANKED_TICK_MS (2000ms) to trigger the ranked interval tick
+    await vi.advanceTimersByTimeAsync(4000)
+
+    // stopMatchmakingWindow should be called — no room created
+    expect(mockPrisma.room.create).not.toHaveBeenCalled()
+  })
+})

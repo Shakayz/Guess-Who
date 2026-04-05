@@ -1310,3 +1310,371 @@ describe('checkAndUnlockAchievements — error catch path', () => {
     vi.useRealTimers()
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coverage gap: lines 382-383 — applyRankedLP when villagers win via regular vote
+// In resolveRound (winner path, ranked mode), LP is applied for ranked games.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('resolveRound — ranked LP applied when villagers win via regular vote (lines 382-383)', () => {
+  it('calls applyRankedLP when ranked game ends via normal vote elimination', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // Ranked game: all 4 vote out the imposter → villagers win
+    const state = makeState({
+      status: 'voting',
+      gameMode: 'ranked',
+      rounds: [{
+        id: 'round-1', roundNumber: 1,
+        votes: [
+          { voterId: 'u1', targetId: 'u4' },
+          { voterId: 'u2', targetId: 'u4' },
+          { voterId: 'u3', targetId: 'u4' },
+          { voterId: 'u4', targetId: 'u1' },
+        ],
+        clues: [],
+        speakingOrder: ['u1', 'u2', 'u3', 'u4'],
+      }],
+    })
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    ;(mockRedis as any).set.mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+
+    mockPrisma.round.findUnique.mockResolvedValue({ id: 'round-1', villagerWord: 'Apple', imposterWord: 'Pear' })
+    mockPrisma.roundVote.createMany.mockResolvedValue({})
+    mockPrisma.round.update.mockResolvedValue({})
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.game.update.mockResolvedValue({})
+    mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+    mockPrisma.achievement.findMany.mockResolvedValue([])
+    mockPrisma.gameParticipation.findMany.mockResolvedValue([])
+    mockPrisma.room.update.mockResolvedValue({})
+
+    // Ranked LP mocks for applyRankedLP (lines 381-383)
+    mockPrisma.user.findMany.mockResolvedValue([
+      { id: 'u1', rankPoints: 1000, rankTier: 'Gold' },
+      { id: 'u2', rankPoints: 1000, rankTier: 'Gold' },
+      { id: 'u3', rankPoints: 1000, rankTier: 'Gold' },
+      { id: 'u4', rankPoints: 500,  rankTier: 'Silver' },
+    ])
+    mockPrisma.user.update = vi.fn().mockResolvedValue({})
+
+    await tryEarlyResolve(io, 'room-1')
+    await vi.advanceTimersByTimeAsync(5000)
+
+    // user.update should be called for ranked LP (lines 382-383)
+    expect(mockPrisma.user.update).toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coverage gap: line 598 — startTiebreakerVoting setTimeout fires resolveTiebreaker
+// This covers the branch where eligible voters exist and the tiebreaker voting
+// period expires, causing the timer to call resolveTiebreaker.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('startTiebreakerVoting — timer fires resolveTiebreaker (line 598)', () => {
+  it('calls resolveTiebreaker when tiebreaker voting timer expires', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // u3 and u4 are tied; u1 and u2 are eligible voters but haven't voted yet.
+    // This ensures eligibleVoters.length > 0, so startTiebreakerVoting goes
+    // past the "no voters" check and sets the votingTimeSeconds timer (line 596-599).
+    const state = makeState({
+      status: 'in_progress',
+      tiebreakerActive: true,
+      tiebreakerPhase: 'clue',
+      tiebreakerPlayerIds: ['u3', 'u4'],
+      tiebreakerClues: [
+        { playerId: 'u3', text: 'a' },
+        { playerId: 'u4', text: 'b' },
+      ],
+      tiebreakerVotes: [],
+      votingTimeSeconds: 30,
+    })
+
+    // mockRedis.get always returns the same state so all getState() calls succeed
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    mockRedis.set.mockResolvedValue('OK')
+
+    // resolveTiebreaker path — no votes cast → no clear winner → next round
+    mockPrisma.room.findUnique.mockResolvedValue({ id: 'room-1', speakingTimeSeconds: 30, votingTimeSeconds: 30 })
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.round.findUnique.mockResolvedValue(null) // currentRound is null (see rounds below)
+    mockPrisma.round.create.mockResolvedValue({ id: 'round-2', roundNumber: 2 })
+
+    // Fire tryEarlyTiebreakerVoting → sets 1500ms timer → startTiebreakerVoting
+    // In startTiebreakerVoting, eligible voters exist → sets votingTimeSeconds timer (line 596)
+    await tryEarlyTiebreakerVoting(io, 'room-1')
+
+    // Advance past 1500ms (startTiebreakerVoting timer) + votingTimeSeconds*1000 (30000ms)
+    await vi.advanceTimersByTimeAsync(35000)
+
+    // The timer on line 596-599 should have fired, calling resolveTiebreaker
+    // resolveTiebreaker will try to call getState and process
+    expect(mockRedis.get).toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coverage gap: line 615 — resolveRoundNoElimination with null currentRound
+// When state.rounds is empty, currentRound is undefined → ternary takes ':null' branch.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('resolveRoundNoElimination — null currentRound branch (line 615)', () => {
+  it('uses null dbRound when state has no rounds', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // All alive players tied, no rounds in state → currentRound = undefined → line 615 fires
+    const state = {
+      status: 'in_progress',
+      gameMode: 'normal',
+      currentRound: 1,
+      maxRounds: 5,
+      tiebreakerActive: true,
+      tiebreakerPhase: 'clue',
+      tiebreakerPlayerIds: ['u1', 'u2', 'u3', 'u4'], // all alive players tied
+      tiebreakerClues: [
+        { playerId: 'u1', text: 'a' },
+        { playerId: 'u2', text: 'b' },
+        { playerId: 'u3', text: 'c' },
+        { playerId: 'u4', text: 'd' },
+      ],
+      votingTimeSeconds: 30,
+      players: [
+        { userId: 'u1', username: 'Alice', role: 'villager', status: 'alive' },
+        { userId: 'u2', username: 'Bob',   role: 'villager', status: 'alive' },
+        { userId: 'u3', username: 'Carol', role: 'villager', status: 'alive' },
+        { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'alive' },
+      ],
+      villagerWord: 'Apple',
+      imposterWord: 'Pear',
+      rounds: [], // empty — state.rounds?.[0] = undefined → line 615 (': null') branch
+    }
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    mockRedis.set.mockResolvedValue('OK')
+
+    mockPrisma.room.findUnique.mockResolvedValue({ id: 'room-1', speakingTimeSeconds: 30, votingTimeSeconds: 30 })
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.round.create.mockResolvedValue({ id: 'round-2', roundNumber: 2 })
+
+    await tryEarlyTiebreakerVoting(io, 'room-1')
+    // 1500ms startTiebreakerVoting timer + 5000ms startRound timer
+    await vi.advanceTimersByTimeAsync(8000)
+
+    // round.findUnique should NOT be called (currentRound is null → ': null' branch)
+    expect(mockPrisma.round.findUnique).not.toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coverage gap: line 691 — resolveTiebreaker with eliminatedId but null currentRound
+// When tiebreaker votes elect a player but state has no rounds,
+// currentRound is undefined → ternary ':null' branch at line 691.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('resolveTiebreaker — eliminatedId present but null currentRound (line 691)', () => {
+  it('uses null dbRound when state has no rounds and a player is eliminated', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // u3 and u4 are tied; u1 and u2 vote for u4 (imposter) → eliminated
+    // But state.rounds is empty → currentRound is null → line 691 (': null') fires
+    const state = {
+      status: 'voting',
+      gameMode: 'normal',
+      currentRound: 1,
+      maxRounds: 5,
+      tiebreakerActive: true,
+      tiebreakerPhase: 'vote',
+      tiebreakerPlayerIds: ['u3', 'u4'],
+      tiebreakerVotes: [
+        { voterId: 'u1', targetId: 'u4' },
+        { voterId: 'u2', targetId: 'u4' },
+      ],
+      players: [
+        { userId: 'u1', username: 'Alice', role: 'villager', status: 'alive' },
+        { userId: 'u2', username: 'Bob',   role: 'villager', status: 'alive' },
+        { userId: 'u3', username: 'Carol', role: 'villager', status: 'alive' },
+        { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'alive' },
+      ],
+      villagerWord: 'Apple',
+      imposterWord: 'Pear',
+      rounds: [], // empty → currentRound = undefined → line 691 ':null' branch
+    }
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    mockRedis.set.mockResolvedValue('OK')
+
+    // Imposter (u4) gets eliminated → villagers win
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.game.update.mockResolvedValue({})
+    mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+    mockPrisma.achievement.findMany.mockResolvedValue([])
+    mockPrisma.gameParticipation.findMany.mockResolvedValue([])
+    mockPrisma.room.update.mockResolvedValue({})
+
+    await tryEarlyTiebreakerResolve(io, 'room-1')
+    await vi.advanceTimersByTimeAsync(5000)
+
+    // round.findUnique should NOT be called (currentRound is null)
+    expect(mockPrisma.round.findUnique).not.toHaveBeenCalled()
+    // Game should end (villagers win)
+    const calls = emitFn.mock.calls.map((c: any[]) => c[0])
+    expect(calls).toContain('game:finished')
+
+    vi.useRealTimers()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coverage gap: line 741 — resolveTiebreaker else branch (no winner) with null currentRound
+// When tiebreaker resolves without a winner and state.rounds is empty,
+// currentRound is null → ternary ':null' branch at line 741.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coverage gap: lines 468-469 — applyRankedLP for ranked survival win
+// When imposters win by surviving all rounds in a ranked game, ranked LP is applied.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('resolveRound — ranked survival win applies LP (lines 468-469)', () => {
+  it('calls applyRankedLP when imposters win by surviving all rounds in ranked mode', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // Ranked game: imposter survives all rounds (maxRounds=3, now round 3)
+    const state = {
+      status: 'voting',
+      gameMode: 'ranked',  // ranked → lines 467-469 (applyRankedLP) execute
+      currentRound: 3,
+      maxRounds: 3,
+      players: [
+        { userId: 'u1', username: 'Alice', role: 'villager', status: 'alive' },
+        { userId: 'u2', username: 'Bob',   role: 'villager', status: 'alive' },
+        { userId: 'u3', username: 'Carol', role: 'villager', status: 'eliminated' },
+        { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'alive' },
+      ],
+      villagerWord: 'Apple',
+      imposterWord: 'Pear',
+      rounds: [
+        { id: 'round-1', roundNumber: 1, votes: [], clues: [], speakingOrder: [] },
+        { id: 'round-2', roundNumber: 2, votes: [], clues: [], speakingOrder: [] },
+        {
+          id: 'round-3', roundNumber: 3,
+          votes: [
+            { voterId: 'u1', targetId: 'u3' },
+            { voterId: 'u2', targetId: 'u3' },
+            { voterId: 'u4', targetId: 'u3' },
+          ],
+          clues: [],
+          speakingOrder: ['u1', 'u2', 'u4'],
+        },
+      ],
+    }
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    ;(mockRedis as any).set.mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+
+    mockPrisma.round.findUnique.mockResolvedValue({ id: 'round-3', villagerWord: 'Apple', imposterWord: 'Pear' })
+    mockPrisma.roundVote.createMany.mockResolvedValue({})
+    mockPrisma.round.update.mockResolvedValue({})
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.game.update.mockResolvedValue({})
+    mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+    mockPrisma.room.update.mockResolvedValue({})
+
+    // Ranked LP mocks for applyRankedLP call (lines 467-469)
+    mockPrisma.user.findMany.mockResolvedValue([
+      { id: 'u1', rankPoints: 1000, rankTier: 'Gold' },
+      { id: 'u2', rankPoints: 1000, rankTier: 'Gold' },
+      { id: 'u4', rankPoints: 1200, rankTier: 'Gold' },
+    ])
+    mockPrisma.user.update = vi.fn().mockResolvedValue({})
+
+    await tryEarlyResolve(io, 'room-1')
+    await vi.advanceTimersByTimeAsync(10000)
+
+    // user.update should be called (applyRankedLP) for the ranked survival win
+    expect(mockPrisma.user.update).toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
+})
+
+describe('resolveTiebreaker — no winner, null currentRound branch (line 741)', () => {
+  it('uses null dbRound when state has no rounds and tiebreaker eliminates a villager', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const emitFn = vi.fn()
+    io.to.mockReturnValue({ emit: emitFn })
+
+    // u3 (villager) and u4 (imposter) tied; u1 and u2 vote for u3 → villager eliminated
+    // Imposter survives → no winner. state.rounds is empty → line 741 ':null' fires.
+    const state = {
+      status: 'voting',
+      gameMode: 'normal',
+      currentRound: 1,
+      maxRounds: 5,
+      tiebreakerActive: true,
+      tiebreakerPhase: 'vote',
+      tiebreakerPlayerIds: ['u3', 'u4'],
+      tiebreakerVotes: [
+        { voterId: 'u1', targetId: 'u3' },
+        { voterId: 'u2', targetId: 'u3' },
+      ],
+      players: [
+        { userId: 'u1', username: 'Alice', role: 'villager', status: 'alive' },
+        { userId: 'u2', username: 'Bob',   role: 'villager', status: 'alive' },
+        { userId: 'u3', username: 'Carol', role: 'villager', status: 'alive' },
+        { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'alive' },
+      ],
+      villagerWord: 'Apple',
+      imposterWord: 'Pear',
+      rounds: [], // empty → currentRound = undefined → line 741 ':null' branch
+    }
+
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    mockRedis.set.mockResolvedValue('OK')
+
+    // No winner yet — start next round
+    mockPrisma.room.findUnique.mockResolvedValue({ id: 'room-1', speakingTimeSeconds: 30, votingTimeSeconds: 30 })
+    mockPrisma.game.findFirst.mockResolvedValue({ id: 'game-1', roomId: 'room-1' })
+    mockPrisma.gameParticipation.updateMany.mockResolvedValue({})
+    mockPrisma.round.create.mockResolvedValue({ id: 'round-2', roundNumber: 2 })
+
+    await tryEarlyTiebreakerResolve(io, 'room-1')
+    await vi.advanceTimersByTimeAsync(8000)
+
+    // round.findUnique should NOT be called (currentRound is null → ':null' branch)
+    expect(mockPrisma.round.findUnique).not.toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
+})

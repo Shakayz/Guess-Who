@@ -112,6 +112,33 @@ describe('App Builder', () => {
   })
 })
 
+// ─── authenticate decorator — success path (covers line 44 try branch) ────────
+// The /api/rooms/active route is protected by authenticate (from the mocked roomRoutes).
+// Sending a valid JWT exercises the try branch (line 44: request.jwtVerify() succeeds).
+
+describe('App Builder — authenticate success path (line 44)', () => {
+  it('allows access to protected route when valid JWT is provided', async () => {
+    // buildApp() uses env.JWT_SECRET = 'test-secret-key-that-is-at-least-32-chars-long'
+    // The mocked roomRoutes adds: GET /api/rooms/active with preHandler authenticate
+    // We sign a valid token with the same secret so jwtVerify succeeds on line 44.
+    const testApp = await (await import('../../app')).buildApp()
+    await testApp.ready()
+
+    const validToken = testApp.jwt.sign({ sub: 'user-valid', username: 'validuser' })
+
+    const response = await testApp.inject({
+      method: 'GET',
+      url: '/api/rooms/active',
+      headers: { authorization: `Bearer ${validToken}` },
+    })
+
+    // jwtVerify succeeds (line 44 covered) → route handler runs → 200
+    expect(response.statusCode).toBe(200)
+
+    await testApp.close()
+  })
+})
+
 // ─── Development mode transport (covers line 27) ──────────────────────────────
 
 describe('App Builder — development mode', () => {

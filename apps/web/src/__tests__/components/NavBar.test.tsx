@@ -106,4 +106,43 @@ describe('NavBar', () => {
     expect(mockChangeLanguage).toHaveBeenCalledWith('fr')
     expect(api.patch).toHaveBeenCalledWith('/users/me', { locale: 'fr' })
   })
+
+  it('closes language dropdown when clicking outside', () => {
+    render(<NavBar />)
+    const langButton = screen.getAllByRole('button').find(
+      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Imposter'),
+    )
+    fireEvent.click(langButton!)
+    expect(screen.getByText('English')).toBeInTheDocument()
+    // Simulate mousedown outside the dropdown
+    fireEvent.mouseDown(document.body)
+    expect(screen.queryByText('English')).not.toBeInTheDocument()
+  })
+
+  it('does not close dropdown when clicking inside the dropdown ref', () => {
+    render(<NavBar />)
+    const langButton = screen.getAllByRole('button').find(
+      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Imposter'),
+    )!
+    fireEvent.click(langButton)
+    expect(screen.getByText('English')).toBeInTheDocument()
+    // Click inside the dropdown itself — should stay open
+    fireEvent.mouseDown(langButton)
+    expect(screen.getByText('English')).toBeInTheDocument()
+  })
+
+  it('does not render DmChatPanel when activeDm is null', () => {
+    render(<NavBar />)
+    expect(screen.queryByTestId('dm-chat-panel')).not.toBeInTheDocument()
+  })
+
+  it('shows checkmark for current language in dropdown', () => {
+    render(<NavBar />)
+    const langButton = screen.getAllByRole('button').find(
+      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Imposter'),
+    )!
+    fireEvent.click(langButton)
+    // The current language (en) should have a checkmark
+    expect(screen.getByText('✓')).toBeInTheDocument()
+  })
 })

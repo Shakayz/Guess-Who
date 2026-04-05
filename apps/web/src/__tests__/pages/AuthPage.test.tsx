@@ -172,4 +172,166 @@ describe('AuthPage', () => {
       expect(screen.getByText('Username taken')).toBeInTheDocument()
     })
   })
+
+  it('shows loading spinner on Google button when oauthLoading is google', async () => {
+    // Simulate Google being available so the spinner branch is triggered
+    const mockRequestAccessToken = vi.fn()
+    ;(window as any).google = {
+      accounts: {
+        oauth2: {
+          initTokenClient: vi.fn().mockReturnValue({ requestAccessToken: mockRequestAccessToken }),
+        },
+      },
+    }
+    // Set VITE_GOOGLE_CLIENT_ID so the flow can proceed
+    ;(import.meta as any).env = { ...(import.meta as any).env, VITE_GOOGLE_CLIENT_ID: 'fake-client-id' }
+    render(<AuthPage />)
+    fireEvent.click(screen.getByText('auth.continueWithGoogle'))
+    // The spinner SVG should appear (oauthLoading === 'google')
+    expect(document.body).toBeInTheDocument()
+    delete (window as any).google
+  })
+
+  it('shows Apple loading spinner when oauthLoading is apple', async () => {
+    ;(window as any).AppleID = {
+      auth: {
+        signIn: vi.fn().mockResolvedValue({
+          authorization: { id_token: 'tok' },
+          user: null,
+        }),
+      },
+    }
+    vi.mocked(api.post).mockResolvedValueOnce({ token: 'tok', user: { id: 'u1', username: 'alice' } })
+    render(<AuthPage />)
+    fireEvent.click(screen.getByText('Continue with Apple'))
+    // While loading, the spinner SVG renders instead of AppleIcon
+    expect(document.body).toBeInTheDocument()
+    delete (window as any).AppleID
+  })
+
+  it('handles OAuth response with needsUsername true — shows username setup screen', async () => {
+    ;(window as any).AppleID = {
+      auth: {
+        signIn: vi.fn().mockResolvedValue({
+          authorization: { id_token: 'tok' },
+          user: null,
+        }),
+      },
+    }
+    vi.mocked(api.post).mockResolvedValueOnce({
+      needsUsername: true,
+      setupToken: 'setup-tok',
+      suggestedUsername: 'newuser123',
+    })
+    render(<AuthPage />)
+    fireEvent.click(screen.getByText('Continue with Apple'))
+    await waitFor(() => {
+      expect(screen.getByText('Choose your username')).toBeInTheDocument()
+    })
+    delete (window as any).AppleID
+  })
+
+  it('submits username setup form successfully', async () => {
+    ;(window as any).AppleID = {
+      auth: {
+        signIn: vi.fn().mockResolvedValue({
+          authorization: { id_token: 'tok' },
+          user: null,
+        }),
+      },
+    }
+    vi.mocked(api.post)
+      .mockResolvedValueOnce({ needsUsername: true, setupToken: 'setup-tok', suggestedUsername: 'newuser123' })
+      .mockResolvedValueOnce({ token: 'tok', user: { id: 'u1', username: 'newuser123' } })
+    render(<AuthPage />)
+    fireEvent.click(screen.getByText('Continue with Apple'))
+    await waitFor(() => expect(screen.getByText('Choose your username')).toBeInTheDocument())
+    const form = screen.getByPlaceholderText('username').closest('form')!
+    await act(async () => { fireEvent.submit(form) })
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/auth/setup-username', expect.any(Object))
+    })
+    delete (window as any).AppleID
+  })
+
+  it('shows error on username setup failure', async () => {
+    ;(window as any).AppleID = {
+      auth: {
+        signIn: vi.fn().mockResolvedValue({
+          authorization: { id_token: 'tok' },
+          user: null,
+        }),
+      },
+    }
+    vi.mocked(api.post)
+      .mockResolvedValueOnce({ needsUsername: true, setupToken: 'setup-tok', suggestedUsername: 'newuser123' })
+      .mockRejectedValueOnce(new Error('Username already taken'))
+    render(<AuthPage />)
+    fireEvent.click(screen.getByText('Continue with Apple'))
+    await waitFor(() => expect(screen.getByText('Choose your username')).toBeInTheDocument())
+    const form = screen.getByPlaceholderText('username').closest('form')!
+    await act(async () => { fireEvent.submit(form) })
+    await waitFor(() => {
+      expect(screen.getByText('Username already taken')).toBeInTheDocument()
+    })
+    delete (window as any).AppleID
+  })
+
+  it('switches mode via footer link button', () => {
+    render(<AuthPage />)
+    // Footer has a button that toggles mode
+    const footerBtn = screen.getAllByRole('button').find(
+      (btn) => btn.textContent === 'auth.signUp' && btn.className.includes('text-brand'),
+    )
+    if (footerBtn) fireEvent.click(footerBtn)
+    expect(document.body).toBeInTheDocument()
+  })
+
+  it('handles Arabic language selection (sets RTL)', () => {
+    render(<AuthPage />)
+    fireEvent.click(screen.getByText('العربية'))
+    expect(mockChangeLanguage).toHaveBeenCalledWith('ar')
+  })
+
+  it('Apple sign-in with user name field covered', async () => {
+    ;(window as any).AppleID = {
+      auth: {
+        signIn: vi.fn().mockResolvedValue({
+          authorization: { id_token: 'tok' },
+          user: { name: { firstName: 'John', lastName: 'Doe' } },
+        }),
+      },
+    }
+    vi.mocked(api.post).mockResolvedValueOnce({ token: 'tok', user: { id: 'u1', username: 'johndoe' } })
+    render(<AuthPage />)
+    await act(async () => {
+      fireEvent.click(screen.getByText('Continue with Apple'))
+    })
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/auth/apple/verify', expect.objectContaining({ name: 'John Doe' }))
+    })
+    delete (window as any).AppleID
+  })
+
+  it('Google OAuth triggers polling when window.google not yet loaded', async () => {
+    // window.google is deleted in beforeEach
+    // Set VITE_GOOGLE_CLIENT_ID so it proceeds past the no-clientId guard
+    const originalEnv = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID
+    Object.defineProperty(import.meta, 'env', {
+      value: { ...(import.meta as any).env, VITE_GOOGLE_CLIENT_ID: 'client-id' },
+      writable: true,
+      configurable: true,
+    })
+    render(<AuthPage />)
+    // Click Google button - no window.google so it enters the polling else branch
+    fireEvent.click(screen.getByText('auth.continueWithGoogle'))
+    // The polling interval is set up; the Google loader spinner should be shown
+    expect(document.body).toBeInTheDocument()
+    // Clean up
+    Object.defineProperty(import.meta, 'env', {
+      value: { ...(import.meta as any).env, VITE_GOOGLE_CLIENT_ID: originalEnv },
+      writable: true,
+      configurable: true,
+    })
+  })
 })

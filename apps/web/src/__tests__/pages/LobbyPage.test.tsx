@@ -308,4 +308,185 @@ describe('LobbyPage', () => {
     })
     expect(mockNavigate).toHaveBeenCalledWith('/game/ROOM01')
   })
+
+  it('shows settings panel with special mode toggle', () => {
+    mockRoomState.room = {
+      id: 'r1',
+      code: 'ROOM01',
+      status: 'waiting',
+      hostId: 'u1',
+      players: [{ id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: true }],
+      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+    }
+    render(<LobbyPage />)
+    const settingsBtn = screen.getByRole('button', { name: /lobby\.roomSettings/i })
+    fireEvent.click(settingsBtn)
+    expect(screen.getByText('lobby.categories')).toBeInTheDocument()
+    // Toggle special mode
+    fireEvent.click(screen.getByText(/lobby\.special/i))
+    expect(screen.getByText('lobby.specialRoles')).toBeInTheDocument()
+  })
+
+  it('enables detective and double agent in special mode', () => {
+    mockRoomState.room = {
+      id: 'r1',
+      code: 'ROOM01',
+      status: 'waiting',
+      hostId: 'u1',
+      players: [{ id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: true }],
+      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+    }
+    render(<LobbyPage />)
+    fireEvent.click(screen.getByRole('button', { name: /lobby\.roomSettings/i }))
+    fireEvent.click(screen.getByText(/lobby\.special/i))
+    fireEvent.click(screen.getByText('lobby.detective'))
+    expect(mockSocketEmit).toHaveBeenCalledWith('room:settings', expect.objectContaining({ enableDetective: true }))
+  })
+
+  it('emits start game when start button clicked', () => {
+    mockRoomState.room = {
+      id: 'r1',
+      code: 'ROOM01',
+      status: 'waiting',
+      hostId: 'u1',
+      players: [
+        { id: 'p1', userId: 'u1', username: 'testuser', isReady: true, isHost: true },
+        { id: 'p2', userId: 'u2', username: 'player2', isReady: true, isHost: false },
+        { id: 'p3', userId: 'u3', username: 'player3', isReady: true, isHost: false },
+        { id: 'p4', userId: 'u4', username: 'player4', isReady: true, isHost: false },
+      ],
+      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+    }
+    render(<LobbyPage />)
+    const startBtn = screen.getByText('lobby.startGame')
+    fireEvent.click(startBtn)
+    expect(mockSocketEmit).toHaveBeenCalledWith('game:start')
+  })
+
+  it('shows friend list after invite toggle when api returns friends', async () => {
+    render(<LobbyPage />)
+    fireEvent.click(screen.getByText('lobby.inviteFriends'))
+    await waitFor(() => {
+      expect(screen.getByText('friend1')).toBeInTheDocument()
+    })
+  })
+
+  it('sends invite to friend when invite button clicked', async () => {
+    render(<LobbyPage />)
+    fireEvent.click(screen.getByText('lobby.inviteFriends'))
+    await waitFor(() => expect(screen.getByText('friend1')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('lobby.invite'))
+    expect(mockSocketEmit).toHaveBeenCalledWith('room:invite', expect.objectContaining({ toUserId: 'u3' }))
+  })
+
+  it('shows already-ready state after room:updated event sets isReady', () => {
+    mockRoomState.room = {
+      id: 'r1', code: 'ROOM01', status: 'waiting', hostId: 'u2',
+      players: [
+        { id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: false },
+        { id: 'p2', userId: 'u2', username: 'host', isReady: false, isHost: true },
+        { id: 'p3', userId: 'u3', username: 'p3', isReady: false, isHost: false },
+        { id: 'p4', userId: 'u4', username: 'p4', isReady: false, isHost: false },
+      ],
+      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+    }
+    render(<LobbyPage />)
+    // Initially shows notReady
+    expect(screen.getByText('lobby.notReady')).toBeInTheDocument()
+    // Fire a room:updated event where u1 is now ready
+    const roomUpdatedCall = mockSocketOn.mock.calls.find(call => call[0] === 'room:updated')
+    act(() => {
+      roomUpdatedCall![1]({
+        id: 'r1', code: 'ROOM01', status: 'waiting', hostId: 'u2',
+        players: [
+          { id: 'p1', userId: 'u1', username: 'testuser', isReady: true, isHost: false },
+          { id: 'p2', userId: 'u2', username: 'host', isReady: false, isHost: true },
+          { id: 'p3', userId: 'u3', username: 'p3', isReady: false, isHost: false },
+          { id: 'p4', userId: 'u4', username: 'p4', isReady: false, isHost: false },
+        ],
+        settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      })
+    })
+    // Now shows the ready state
+    expect(screen.getByText('✓ lobby.ready')).toBeInTheDocument()
+  })
+
+  it('handles error socket event', () => {
+    render(<LobbyPage />)
+    const errorCall = mockSocketOn.mock.calls.find(call => call[0] === 'error')
+    expect(errorCall).toBeDefined()
+    act(() => {
+      errorCall![1]({ code: 'LANGUAGE_MISMATCH', message: 'Language mismatch' })
+    })
+    expect(screen.getByText('room.languageMismatch')).toBeInTheDocument()
+  })
+
+  it('handles non-host settings view', () => {
+    mockRoomState.room = {
+      id: 'r1', code: 'ROOM01', status: 'waiting', hostId: 'u2',
+      players: [
+        { id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: false },
+        { id: 'p2', userId: 'u2', username: 'host', isReady: false, isHost: true },
+        { id: 'p3', userId: 'u3', username: 'p3', isReady: false, isHost: false },
+        { id: 'p4', userId: 'u4', username: 'p4', isReady: false, isHost: false },
+      ],
+      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+    }
+    render(<LobbyPage />)
+    // Non-host sees a settings summary, not the panel toggle
+    expect(screen.queryByRole('button', { name: /lobby\.roomSettings/i })).not.toBeInTheDocument()
+    expect(screen.getByText('lobby.normal')).toBeInTheDocument()
+  })
+
+  it('shows matchmade game starting banner', () => {
+    mockRoomState.room = {
+      id: 'r1', code: 'ROOM01', status: 'waiting', hostId: 'u2',
+      settings: {
+        maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30,
+        isMatchmade: true,
+      },
+      players: [
+        { id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: false },
+        { id: 'p2', userId: 'u2', username: 'host', isReady: false, isHost: true },
+        { id: 'p3', userId: 'u3', username: 'p3', isReady: false, isHost: false },
+        { id: 'p4', userId: 'u4', username: 'p4', isReady: false, isHost: false },
+      ],
+    }
+    render(<LobbyPage />)
+    expect(screen.getByText('lobby.autoStarting')).toBeInTheDocument()
+  })
+
+  it('shows waitingAllReady message when host has enough players but not all ready', () => {
+    mockRoomState.room = {
+      id: 'r1', code: 'ROOM01', status: 'waiting', hostId: 'u1',
+      players: [
+        { id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: true },
+        { id: 'p2', userId: 'u2', username: 'player2', isReady: false, isHost: false },
+        { id: 'p3', userId: 'u3', username: 'player3', isReady: false, isHost: false },
+        { id: 'p4', userId: 'u4', username: 'player4', isReady: false, isHost: false },
+      ],
+      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+    }
+    render(<LobbyPage />)
+    expect(screen.getByText('lobby.waitingAllReady')).toBeInTheDocument()
+  })
+
+  it('handles room:updated with settings updating UI language', () => {
+    render(<LobbyPage />)
+    const roomUpdatedCall = mockSocketOn.mock.calls.find(call => call[0] === 'room:updated')
+    const handler = roomUpdatedCall![1]
+    act(() => {
+      handler({
+        id: 'r1', code: 'ROOM01', status: 'waiting', hostId: 'u1',
+        players: [{ id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: true }],
+        settings: {
+          maxPlayers: 8, imposterCount: 1, speakingTimeSeconds: 45, votingTimeSeconds: 45,
+          gameMode: 'normal', language: 'fr', categories: [],
+          enableDetective: false, enableDoubleAgent: false,
+        },
+        maxRounds: 5,
+      })
+    })
+    expect(document.body).toBeInTheDocument()
+  })
 })

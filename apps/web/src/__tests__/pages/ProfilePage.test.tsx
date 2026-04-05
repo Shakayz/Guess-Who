@@ -206,4 +206,192 @@ describe('ProfilePage', () => {
     render(<ProfilePage />, { wrapper })
     expect(document.body).toBeInTheDocument()
   })
+
+  it('shows rank progress bar when data loaded', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Bronze')).toBeInTheDocument()
+    })
+  })
+
+  it('renders honor counts when they are positive', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      // honorTeamplayer: 3
+      expect(screen.getByText('3')).toBeInTheDocument()
+    })
+  })
+
+  it('shows avatar edit form when edit button is clicked', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => expect(screen.getByText('Edit')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('Edit'))
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('profile.pasteImageUrl')).toBeInTheDocument()
+    })
+  })
+
+  it('cancels avatar edit when cancel button clicked', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => expect(screen.getByText('Edit')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('Edit'))
+    await waitFor(() => expect(screen.getByPlaceholderText('profile.pasteImageUrl')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('profile.cancel'))
+    expect(screen.queryByPlaceholderText('profile.pasteImageUrl')).not.toBeInTheDocument()
+  })
+
+  it('saves avatar URL when save button clicked with URL entered', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => expect(screen.getByText('Edit')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('Edit'))
+    await waitFor(() => expect(screen.getByPlaceholderText('profile.pasteImageUrl')).toBeInTheDocument())
+    fireEvent.change(screen.getByPlaceholderText('profile.pasteImageUrl'), {
+      target: { value: 'https://example.com/avatar.png' },
+    })
+    const saveBtns = screen.getAllByText('profile.save')
+    fireEvent.click(saveBtns[saveBtns.length - 1])
+    await waitFor(() => {
+      expect(mockApiPatch).toHaveBeenCalledWith('/users/me', expect.objectContaining({ avatarUrl: expect.any(String) }))
+    })
+  })
+
+  it('shows username edit input when pencil button is clicked', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => expect(screen.getByTitle('profile.editUsername')).toBeInTheDocument())
+    // The pencil button has title "profile.editUsername"
+    const pencilBtn = screen.getByTitle('profile.editUsername')
+    fireEvent.click(pencilBtn)
+    await waitFor(() => {
+      const inputEl = document.querySelector('input[placeholder="testuser"]')
+      expect(inputEl).toBeInTheDocument()
+    })
+  })
+
+  it('cancels username edit when X button is clicked', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => expect(screen.getByTitle('profile.editUsername')).toBeInTheDocument())
+    fireEvent.click(screen.getByTitle('profile.editUsername'))
+    await waitFor(() => expect(document.querySelector('input[placeholder="testuser"]')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('✕'))
+    await waitFor(() => {
+      expect(document.querySelector('input[placeholder="testuser"]')).not.toBeInTheDocument()
+    })
+  })
+
+  it('saves username when save is clicked with valid username', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => expect(screen.getByTitle('profile.editUsername')).toBeInTheDocument())
+    fireEvent.click(screen.getByTitle('profile.editUsername'))
+    await waitFor(() => expect(document.querySelector('input[placeholder="testuser"]')).toBeInTheDocument())
+    const usernameInput = document.querySelector('input[placeholder="testuser"]') as HTMLInputElement
+    fireEvent.change(usernameInput, { target: { value: 'newusername' } })
+    fireEvent.click(screen.getByText('profile.save'))
+    await waitFor(() => {
+      expect(mockApiPatch).toHaveBeenCalledWith('/users/me', { username: 'newusername' })
+    })
+  })
+
+  it('shows minChars error when saving username with less than 2 chars', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => expect(screen.getByTitle('profile.editUsername')).toBeInTheDocument())
+    fireEvent.click(screen.getByTitle('profile.editUsername'))
+    await waitFor(() => expect(document.querySelector('input[placeholder="testuser"]')).toBeInTheDocument())
+    const usernameInput = document.querySelector('input[placeholder="testuser"]') as HTMLInputElement
+    fireEvent.change(usernameInput, { target: { value: 'a' } })
+    fireEvent.click(screen.getByText('profile.save'))
+    await waitFor(() => {
+      expect(screen.getByText('profile.minChars')).toBeInTheDocument()
+    })
+  })
+
+  it('shows game stats when profileStats loaded', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('profile.gamesPlayed')).toBeInTheDocument()
+    })
+  })
+
+  it('renders recent games section', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('profile.recentGames')).toBeInTheDocument()
+    })
+  })
+
+  it('renders joined date when me.createdAt is set', async () => {
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getByText(/profile.joinedDate/)).toBeInTheDocument()
+    })
+  })
+
+  it('renders avatar image when me.avatarUrl is set', async () => {
+    mockApiGet.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.resolve({ ...meResponse, avatarUrl: 'https://example.com/avatar.jpg' })
+      if (path === '/achievements') return Promise.resolve(achievementsResponse)
+      if (path.includes('/profile')) return Promise.resolve(profileStatsResponse)
+      return Promise.resolve({})
+    })
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(document.querySelector('img[alt="avatar"]')).toBeInTheDocument()
+    })
+  })
+
+  it('shows no achievements message when achievements array is empty', async () => {
+    mockApiGet.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.resolve(meResponse)
+      if (path === '/achievements') return Promise.resolve([])
+      if (path.includes('/profile')) return Promise.resolve(profileStatsResponse)
+      return Promise.resolve({})
+    })
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('profile.noAchievements')).toBeInTheDocument()
+    })
+  })
+
+  it('shows usernameTaken error when username mutation fails', async () => {
+    mockApiPatch.mockRejectedValueOnce(new Error('conflict'))
+    await act(async () => {
+      render(<ProfilePage />, { wrapper })
+    })
+    await waitFor(() => expect(screen.getByTitle('profile.editUsername')).toBeInTheDocument())
+    fireEvent.click(screen.getByTitle('profile.editUsername'))
+    await waitFor(() => expect(document.querySelector('input[placeholder="testuser"]')).toBeInTheDocument())
+    const usernameInput = document.querySelector('input[placeholder="testuser"]') as HTMLInputElement
+    fireEvent.change(usernameInput, { target: { value: 'newusername' } })
+    await act(async () => { fireEvent.click(screen.getByText('profile.save')) })
+    await waitFor(() => {
+      expect(screen.getByText('profile.usernameTaken')).toBeInTheDocument()
+    })
+  })
 })

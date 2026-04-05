@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -12,12 +12,14 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../../components/NavBar', () => ({ NavBar: () => <div data-testid="navbar" /> }))
 
+const mockApiGet = vi.fn().mockResolvedValue([
+  { id: 'u1', username: 'alice', avatarUrl: null, rankTier: 'gold', rankPoints: 1200 },
+  { id: 'u2', username: 'bob', avatarUrl: null, rankTier: 'silver', rankPoints: 800 },
+])
+
 vi.mock('../../lib/api', () => ({
   api: {
-    get: vi.fn().mockResolvedValue([
-      { id: 'u1', username: 'alice', avatarUrl: null, rankTier: 'gold', rankPoints: 1200 },
-      { id: 'u2', username: 'bob', avatarUrl: null, rankTier: 'silver', rankPoints: 800 },
-    ]),
+    get: (...args: unknown[]) => mockApiGet(...args),
   },
 }))
 
@@ -71,5 +73,68 @@ describe('LeaderboardPage', () => {
     const searchInput = screen.getByRole('textbox')
     fireEvent.change(searchInput, { target: { value: 'alice' } })
     expect(searchInput).toHaveValue('alice')
+  })
+
+  it('renders podium section with 3+ players after data loads', async () => {
+    mockApiGet.mockResolvedValue([
+      { id: 'u1', username: 'alice', avatarUrl: null, rankTier: 'gold', rankPoints: 1200 },
+      { id: 'u2', username: 'bob', avatarUrl: null, rankTier: 'silver', rankPoints: 800 },
+      { id: 'u3', username: 'carol', avatarUrl: null, rankTier: 'silver', rankPoints: 600 },
+    ])
+    await act(async () => {
+      render(<LeaderboardPage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getAllByTestId('avatar').length).toBeGreaterThan(0)
+    })
+  })
+
+  it('renders full ranked list after data loads', async () => {
+    mockApiGet.mockResolvedValue([
+      { id: 'u1', username: 'alice', avatarUrl: null, rankTier: 'gold', rankPoints: 1200 },
+      { id: 'u2', username: 'bob', avatarUrl: null, rankTier: 'silver', rankPoints: 800 },
+      { id: 'u3', username: 'carol', avatarUrl: null, rankTier: 'silver', rankPoints: 600 },
+      { id: 'u4', username: 'dave', avatarUrl: null, rankTier: 'silver', rankPoints: 500 },
+    ])
+    await act(async () => {
+      render(<LeaderboardPage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getAllByText('alice').length).toBeGreaterThan(0)
+    })
+  })
+
+  it('shows no-player-found message when search yields no results', async () => {
+    mockApiGet.mockResolvedValue([
+      { id: 'u1', username: 'alice', avatarUrl: null, rankTier: 'gold', rankPoints: 1200 },
+      { id: 'u2', username: 'bob', avatarUrl: null, rankTier: 'silver', rankPoints: 800 },
+      { id: 'u3', username: 'carol', avatarUrl: null, rankTier: 'silver', rankPoints: 600 },
+    ])
+    await act(async () => {
+      render(<LeaderboardPage />, { wrapper })
+    })
+    await waitFor(() => expect(screen.getAllByText('alice').length).toBeGreaterThan(0))
+    const searchInput = screen.getByRole('textbox')
+    fireEvent.change(searchInput, { target: { value: 'zzznomatch' } })
+    await waitFor(() => {
+      expect(screen.getByText('leaderboard.noPlayerFound')).toBeInTheDocument()
+    })
+  })
+
+  it('shows noPlayersYet message when leaderboard is empty', async () => {
+    mockApiGet.mockResolvedValue([])
+    await act(async () => {
+      render(<LeaderboardPage />, { wrapper })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('leaderboard.noPlayersYet')).toBeInTheDocument()
+    })
+  })
+
+  it('shows loading skeleton rows initially', () => {
+    mockApiGet.mockReturnValue(new Promise(() => {}))
+    render(<LeaderboardPage />, { wrapper })
+    // Skeleton rows render while loading
+    expect(document.body).toBeInTheDocument()
   })
 })

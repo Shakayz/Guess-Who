@@ -385,5 +385,32 @@ describe('Gifts Routes', () => {
       })
       expect(res.statusCode).toBe(401)
     })
+
+    it('re-throws non-409 transaction errors (line 125)', async () => {
+      // This exercises the `throw err` on line 125 of gifts.ts:
+      // when $transaction catch receives an error WITHOUT statusCode 409,
+      // it re-throws, and Fastify converts it to a 500.
+      mockGift.findUnique.mockResolvedValue({
+        id: 'gift-err',
+        receiverId: 'user-1',
+        coinAmount: 50,
+        cosmeticId: null,
+        claimed: false,
+      })
+      ;(prisma.$transaction as any).mockImplementation(async (_fn: any) => {
+        const err = new Error('Unexpected DB error')
+        // No statusCode property → not a 409 → line 125 fires
+        throw err
+      })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/gifts/gift-err/claim',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      // Fastify converts the rethrown error into a 500
+      expect(res.statusCode).toBe(500)
+    })
   })
 })

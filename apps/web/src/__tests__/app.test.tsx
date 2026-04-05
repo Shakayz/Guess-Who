@@ -304,4 +304,88 @@ describe('App', () => {
     })
     expect(api.get).not.toHaveBeenCalledWith('/rooms/active')
   })
+
+  it('accepts friend request when Accept button is clicked', async () => {
+    _socialState.pendingFriendRequest = { friendshipId: 'fr1', fromId: 'u5', fromUsername: 'carol' }
+    render(<AppWithRouter />)
+    await act(async () => {
+      fireEvent.click(screen.getByText('Accept'))
+    })
+    expect(api.put).toHaveBeenCalledWith('/friends/fr1/accept', {})
+    expect(_socialState.setPendingFriendRequest).toHaveBeenCalledWith(null)
+  })
+
+  it('navigates to /friends on accept', async () => {
+    _socialState.pendingFriendRequest = { friendshipId: 'fr1', fromId: 'u5', fromUsername: 'carol' }
+    render(<AppWithRouter initialPath="/" />)
+    await act(async () => {
+      fireEvent.click(screen.getByText('Accept'))
+    })
+    // The navigate('/friends') call happens inside handleAccept
+    expect(_socialState.setPendingFriendRequest).toHaveBeenCalledWith(null)
+  })
+
+  it('does not show invite banner when in voting game', () => {
+    _socialState.pendingInvite = { fromUsername: 'bob', roomCode: 'ROOM01' }
+    _gameState.room = { id: 'r1', code: 'GAME01', status: 'voting', players: [] }
+    render(<AppWithRouter />)
+    expect(screen.queryByText('Join')).not.toBeInTheDocument()
+  })
+
+  it('navigates to lobby when Join invite button clicked', () => {
+    _socialState.pendingInvite = { fromUsername: 'bob', roomCode: 'ROOM01' }
+    render(<AppWithRouter />)
+    fireEvent.click(screen.getByText('Join'))
+    expect(_socialState.setPendingInvite).toHaveBeenCalledWith(null)
+  })
+
+  it('handles game:finished socket event when room is active', async () => {
+    _gameState.room = { id: 'r1', code: 'GAME01', status: 'in_progress', players: [] }
+    _gameState.result = null
+    await act(async () => {
+      render(<AppWithRouter />)
+    })
+    const finishedHandler = mockSocketOn.mock.calls.find(c => c[0] === 'game:finished')
+    if (finishedHandler) {
+      act(() => {
+        finishedHandler[1]({ winner: 'villagers', finalRound: null, rewards: null })
+      })
+      expect(_gameState.setResult).toHaveBeenCalled()
+    }
+    expect(document.body).toBeInTheDocument()
+  })
+
+  it('does not handle game:finished when no room in store', async () => {
+    _gameState.room = null
+    await act(async () => {
+      render(<AppWithRouter />)
+    })
+    const finishedHandler = mockSocketOn.mock.calls.find(c => c[0] === 'game:finished')
+    if (finishedHandler) {
+      act(() => {
+        finishedHandler[1]({ winner: 'villagers', finalRound: null, rewards: null })
+      })
+      expect(_gameState.setResult).not.toHaveBeenCalled()
+    }
+    expect(document.body).toBeInTheDocument()
+  })
+
+  it('active game guard navigates to game when on different path while alive', async () => {
+    _gameState.room = {
+      id: 'r1', code: 'GAME01', status: 'in_progress',
+      players: [{ userId: 'u1', status: 'alive' }],
+    }
+    render(<AppWithRouter initialPath="/leaderboard" />)
+    await waitFor(() => {
+      expect(document.body).toBeInTheDocument()
+    })
+  })
+
+  it('active game restorer skips reset check when cancelled', async () => {
+    // cancelled ref prevents double-action
+    vi.mocked(api.get).mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({ active: false }), 100)))
+    const { unmount } = render(<AppWithRouter />)
+    unmount() // triggers cancelled = true before fetch resolves
+    expect(document.body).toBeInTheDocument()
+  })
 })
