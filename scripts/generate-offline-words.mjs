@@ -29,13 +29,26 @@ const PAIR_COUNT = 380
 // Invariant pools (proper nouns, same in every locale).
 // ---------------------------------------------------------------------------
 
+// MANGAS: 30-item pool mixing iconic characters, techniques, places,
+// transformations, and artifacts from famous manga/anime.
+// Any two items share the "anime universe" theme, so every C(30,2) pair is
+// plausible — an imposter describing "Rasengan" can blend with clues about
+// "Kamehameha" (both are iconic energy attacks), while "Konoha" pairs well
+// with "Marineford" (both are iconic manga locations).
 const MANGAS = [
-  'Naruto', 'Sasuke', 'Sakura', 'Minato', 'Kakashi',
-  'Itachi', 'Goku', 'Vegeta', 'Piccolo', 'Frieza',
-  'Luffy', 'Zoro', 'Sanji', 'Nami', 'Ace',
-  'Ichigo', 'Rukia', 'Light', 'L', 'Eren',
-  'Mikasa', 'Levi', 'Tanjiro', 'Nezuko', 'Saitama',
-  'Killua', 'Edward', 'Alphonse', 'Bakugo', 'Deku',
+  // Iconic characters (10)
+  'Naruto', 'Goku', 'Luffy', 'Ichigo', 'Light Yagami',
+  'Eren', 'Tanjiro', 'Saitama', 'Gon', 'Deku',
+  // Iconic techniques (8)
+  'Rasengan', 'Kamehameha', 'Sharingan', 'Bankai', 'Gear Second',
+  'Ultra Instinct', 'Nen', 'Stand',
+  // Iconic places & groups (6)
+  'Konoha', 'Marineford', 'Soul Society', 'Survey Corps', 'UA High',
+  'Akatsuki',
+  // Iconic transformations (3)
+  'Super Saiyan', 'Titan Shift', 'Hollow Form',
+  // Iconic artifacts (3)
+  'Death Note', 'Devil Fruit', 'Zanpakuto',
 ]
 
 const CELEBRITIES = [
