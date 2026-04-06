@@ -8,7 +8,7 @@ import type { WordCategory } from '@imposter/shared'
 
 type Phase = 'setup' | 'dealing' | 'playing' | 'results'
 type GameMode = 'normal' | 'special'
-type PlayerRoleType = 'villager' | 'imposter' | 'detective' | 'doubleAgent'
+type PlayerRoleType = 'villager' | 'imposter' | 'detective' | 'doubleAgent' | 'guardian'
 
 interface PlayerRole {
   name: string
@@ -27,6 +27,7 @@ interface GameSettings {
   imposterCount: number
   detectiveCount: number
   doubleAgentCount: number
+  guardianCount: number
   categories: WordCategory[]
   gameMode: GameMode
 }
@@ -39,6 +40,7 @@ function getRoleConfig(t: (key: string) => string): Record<PlayerRoleType, { lab
     imposter:    { label: t('offline.imposter'),     icon: '🔴', color: 'red',     bgClass: 'bg-red-950/70',     borderClass: 'border-red-700/60',     textClass: 'text-red-400',     badgeClass: 'text-red-500' },
     detective:   { label: t('offline.detective'),    icon: '🔍', color: 'blue',    bgClass: 'bg-blue-950/70',    borderClass: 'border-blue-700/60',    textClass: 'text-blue-400',    badgeClass: 'text-blue-500' },
     doubleAgent: { label: t('offline.doubleAgent'),  icon: '🕵️', color: 'amber',   bgClass: 'bg-amber-950/70',   borderClass: 'border-amber-700/60',   textClass: 'text-amber-400',   badgeClass: 'text-amber-500' },
+    guardian:    { label: t('offline.guardian'),     icon: '🛡️', color: 'yellow',  bgClass: 'bg-yellow-950/70',  borderClass: 'border-yellow-700/60',  textClass: 'text-yellow-400',  badgeClass: 'text-yellow-500' },
   }
 }
 
@@ -46,24 +48,44 @@ function isEvilRole(role: PlayerRoleType) {
   return role === 'imposter' || role === 'doubleAgent'
 }
 
+const LANGUAGES = [
+  { code: 'en', label: 'English', flag: 'gb' },
+  { code: 'fr', label: 'Français', flag: 'fr' },
+  { code: 'ar', label: 'العربية', flag: 'sa' },
+  { code: 'es', label: 'Español', flag: 'es' },
+  { code: 'it', label: 'Italiano', flag: 'it' },
+  { code: 'pt', label: 'Português', flag: 'br' },
+  { code: 'zh', label: '中文', flag: 'cn' },
+  { code: 'de', label: 'Deutsch', flag: 'de' },
+]
+
 // ─── Sub-component: Setup Phase ──────────────────────────────────────────────
 
 interface SetupPhaseProps {
   initialSettings: GameSettings | null
-  onStart: (names: string[], imposterCount: number, detectiveCount: number, doubleAgentCount: number, categories: WordCategory[], gameMode: GameMode) => void
+  onStart: (names: string[], imposterCount: number, detectiveCount: number, doubleAgentCount: number, guardianCount: number, categories: WordCategory[], gameMode: GameMode) => void
 }
 
 function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [names, setNames] = useState<string[]>(initialSettings?.names ?? ['', '', ''])
   const [imposterCount, setImposterCount] = useState(initialSettings?.imposterCount ?? 1)
   const [detectiveCount, setDetectiveCount] = useState(initialSettings?.detectiveCount ?? 1)
   const [doubleAgentCount, setDoubleAgentCount] = useState(initialSettings?.doubleAgentCount ?? 0)
+  const [guardianCount, setGuardianCount] = useState(initialSettings?.guardianCount ?? 0)
   const [categories, setCategories] = useState<WordCategory[]>(initialSettings?.categories ?? [])
   const [gameMode, setGameMode] = useState<GameMode>(initialSettings?.gameMode ?? 'normal')
 
   const filledCount = names.filter((n) => n.trim().length > 0).length
-  const canStart = filledCount >= 3
+  const minPlayers = gameMode === 'special' ? 5 : 3
+  const canStart = filledCount >= minPlayers
+
+  // Auto-add player slots when switching to special mode (minimum 5)
+  useEffect(() => {
+    if (gameMode === 'special' && names.length < 5) {
+      setNames((prev) => [...prev, ...Array(5 - prev.length).fill('')])
+    }
+  }, [gameMode])
 
   // Auto-adjust imposter count suggestion based on player count (only if no initial settings)
   useEffect(() => {
@@ -107,16 +129,48 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
   const handleStart = () => {
     const validNames = names.map((n) => n.trim()).filter((n) => n.length > 0)
     if (validNames.length < 3) return
-    onStart(validNames, imposterCount, gameMode === 'special' ? detectiveCount : 0, gameMode === 'special' ? doubleAgentCount : 0, categories, gameMode)
+    onStart(validNames, imposterCount, gameMode === 'special' ? detectiveCount : 0, gameMode === 'special' ? doubleAgentCount : 0, gameMode === 'special' ? guardianCount : 0, categories, gameMode)
   }
 
   // Max special roles based on player count
   const maxSpecialTotal = Math.max(0, filledCount - imposterCount - 1) // at least 1 villager
   const maxDetectives = Math.min(3, maxSpecialTotal)
   const maxDoubleAgents = Math.min(2, Math.max(0, maxSpecialTotal - detectiveCount))
+  const maxGuardians = Math.min(2, Math.max(0, maxSpecialTotal - detectiveCount - doubleAgentCount))
 
   return (
     <div className="space-y-6 animate-slide-up">
+      {/* Language selector */}
+      <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">
+          {t('offline.language')}
+        </p>
+        <div className="grid grid-cols-4 gap-1.5">
+          {LANGUAGES.map((lang) => (
+            <button
+              key={lang.code}
+              onClick={() => {
+                i18n.changeLanguage(lang.code)
+                document.documentElement.dir = lang.code === 'ar' ? 'rtl' : 'ltr'
+              }}
+              className={[
+                'flex flex-col items-center gap-1 px-2 py-2 rounded-xl border text-xs font-medium transition-all',
+                i18n.language?.startsWith(lang.code)
+                  ? 'bg-brand-950/60 border-brand-600/60 text-brand-400 shadow-md shadow-brand-950/30'
+                  : 'bg-neutral-800/40 border-neutral-700/40 text-neutral-400 hover:border-neutral-600/60 hover:text-neutral-300',
+              ].join(' ')}
+            >
+              <img
+                src={`https://flagcdn.com/24x18/${lang.flag}.png`}
+                alt={lang.label}
+                className="w-6 h-4 rounded-sm object-cover"
+              />
+              <span className="truncate w-full text-center text-[10px]">{lang.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Header */}
       <div className="text-center">
         <div className="text-5xl mb-3">🎭</div>
@@ -178,6 +232,11 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
               <span className="text-amber-400 font-semibold">{t('offline.doubleAgent')}</span>
               <span className="text-neutral-500">— {t('offline.doubleAgentInfo')}</span>
             </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span>🛡️</span>
+              <span className="text-yellow-400 font-semibold">{t('offline.guardian')}</span>
+              <span className="text-neutral-500">— {t('offline.guardianInfo')}</span>
+            </div>
           </div>
         )}
       </div>
@@ -193,7 +252,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
               <span className="text-neutral-600 text-sm w-5 text-right shrink-0">{i + 1}.</span>
               <input
                 className="flex-1 bg-neutral-800/60 border border-neutral-700/60 rounded-xl px-3 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-brand-600/50 focus:border-brand-600/50 transition-all"
-                placeholder={`Player ${i + 1}`}
+                placeholder={t('offline.playerPlaceholder', { n: i + 1 })}
                 value={name}
                 onChange={(e) => updateName(i, e.target.value)}
                 maxLength={24}
@@ -295,6 +354,30 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
               ))}
             </div>
           </div>
+
+          {/* Guardian count */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">
+              🛡️ {t('offline.guardianCount')}
+            </p>
+            <div className="flex gap-2">
+              {[0, 1, 2].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => { if (n <= maxGuardians) setGuardianCount(n) }}
+                  className={[
+                    'flex-1 py-3 rounded-xl border font-bold text-lg transition-all',
+                    n > maxGuardians ? 'opacity-30 cursor-not-allowed bg-neutral-900 border-neutral-800 text-neutral-600' :
+                    guardianCount === n
+                      ? 'bg-yellow-950/60 border-yellow-700/60 text-yellow-400 shadow-md shadow-yellow-950/30'
+                      : 'bg-neutral-800/60 border-neutral-700/40 text-neutral-400 hover:border-neutral-600/60 hover:text-neutral-300',
+                  ].join(' ')}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -359,9 +442,80 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
 
       {!canStart && (
         <p className="text-center text-neutral-600 text-xs">
-          {t('offline.needPlayers')}
+          {gameMode === 'special' ? t('offline.needPlayersSpecial') : t('offline.needPlayers')}
         </p>
       )}
+
+      {/* How to play */}
+      <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+          {t('offline.howToPlay')}
+        </p>
+
+        {/* Normal mode */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🎲</span>
+            <span className="text-sm font-bold text-brand-400">{t('offline.normal')}</span>
+            <span className="text-[10px] text-neutral-600 px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700/40">{t('offline.htpMinPlayers', { count: 3 })}</span>
+          </div>
+          <p className="text-xs text-neutral-400 leading-relaxed">{t('offline.htpNormalDesc')}</p>
+          <div className="space-y-1 ml-1">
+            <div className="flex items-center gap-2 text-xs">
+              <span>🟢</span>
+              <span className="text-emerald-400 font-semibold">{t('offline.villager')}</span>
+              <span className="text-neutral-500">— {t('offline.htpVillagerDesc')}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span>🔴</span>
+              <span className="text-red-400 font-semibold">{t('offline.imposter')}</span>
+              <span className="text-neutral-500">— {t('offline.htpImposterDesc')}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-neutral-800/60" />
+
+        {/* Special mode */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">⚡</span>
+            <span className="text-sm font-bold text-amber-400">{t('offline.special')}</span>
+            <span className="text-[10px] text-neutral-600 px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700/40">{t('offline.htpMinPlayers', { count: 5 })}</span>
+          </div>
+          <p className="text-xs text-neutral-400 leading-relaxed">{t('offline.htpSpecialDesc')}</p>
+          <div className="space-y-1 ml-1">
+            <div className="flex items-center gap-2 text-xs">
+              <span>🔍</span>
+              <span className="text-blue-400 font-semibold">{t('offline.detective')}</span>
+              <span className="text-neutral-500">— {t('offline.htpDetectiveDesc')}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span>🕵️</span>
+              <span className="text-amber-400 font-semibold">{t('offline.doubleAgent')}</span>
+              <span className="text-neutral-500">— {t('offline.htpDoubleAgentDesc')}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span>🛡️</span>
+              <span className="text-yellow-400 font-semibold">{t('offline.guardian')}</span>
+              <span className="text-neutral-500">— {t('offline.htpGuardianDesc')}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-neutral-800/60" />
+
+        {/* How it works */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-neutral-300">{t('offline.htpHowItWorks')}</p>
+          <ol className="space-y-1 ml-1 list-decimal list-inside text-xs text-neutral-500 leading-relaxed">
+            <li>{t('offline.htpStep1')}</li>
+            <li>{t('offline.htpStep2')}</li>
+            <li>{t('offline.htpStep3')}</li>
+            <li>{t('offline.htpStep4')}</li>
+          </ol>
+        </div>
+      </div>
     </div>
   )
 }
@@ -371,10 +525,11 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
 interface DealingPhaseProps {
   players: PlayerRole[]
   gameMode: GameMode
+  wordPair: { villagerWord: string; imposterWord: string }
   onDone: () => void
 }
 
-function DealingPhase({ players, gameMode, onDone }: DealingPhaseProps) {
+function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps) {
   const { t } = useTranslation()
   const ROLES = getRoleConfig(t)
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -406,6 +561,7 @@ function DealingPhase({ players, gameMode, onDone }: DealingPhaseProps) {
       case 'villager': return t('offline.roleInstructionVillager')
       case 'detective': return t('offline.roleInstructionDetective')
       case 'doubleAgent': return t('offline.roleInstructionDoubleAgent')
+      case 'guardian': return t('offline.roleInstructionGuardian')
     }
   }
 
@@ -420,10 +576,12 @@ function DealingPhase({ players, gameMode, onDone }: DealingPhaseProps) {
   const wordGlow = rc.color === 'emerald' ? 'drop-shadow-[0_0_12px_rgba(52,211,153,0.5)]'
     : rc.color === 'red' ? 'drop-shadow-[0_0_12px_rgba(239,68,68,0.5)]'
     : rc.color === 'blue' ? 'drop-shadow-[0_0_12px_rgba(96,165,250,0.5)]'
+    : rc.color === 'yellow' ? 'drop-shadow-[0_0_12px_rgba(250,204,21,0.5)]'
     : 'drop-shadow-[0_0_12px_rgba(251,191,36,0.5)]'
   const btnBg = rc.color === 'emerald' ? 'bg-emerald-700 hover:bg-emerald-600'
     : rc.color === 'red' ? 'bg-red-700 hover:bg-red-600'
     : rc.color === 'blue' ? 'bg-blue-700 hover:bg-blue-600'
+    : rc.color === 'yellow' ? 'bg-yellow-700 hover:bg-yellow-600'
     : 'bg-amber-700 hover:bg-amber-600'
   const btnShadow = `shadow-${rc.color}-950/40`
   const instructionColor = `text-${rc.color}-600/70`
@@ -483,14 +641,35 @@ function DealingPhase({ players, gameMode, onDone }: DealingPhaseProps) {
               </p>
             </div>
 
-            <div className={`px-6 py-4 rounded-2xl border ${wordBg} ${wordBorder}`}>
-              <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${wordLabelColor}`}>
-                {t('offline.yourWord')}
-              </p>
-              <p className={`text-3xl font-black tracking-tight ${wordValueColor} ${wordGlow}`}>
-                {current.word}
-              </p>
-            </div>
+            {current.role === 'doubleAgent' ? (
+              <div className="space-y-3">
+                <div className={`px-6 py-3 rounded-2xl border bg-emerald-900/30 border-emerald-800/40`}>
+                  <p className="text-xs font-semibold uppercase tracking-widest mb-1 text-emerald-600">
+                    {t('offline.villagerWord')}
+                  </p>
+                  <p className="text-2xl font-black tracking-tight text-emerald-300 drop-shadow-[0_0_12px_rgba(52,211,153,0.5)]">
+                    {wordPair.villagerWord}
+                  </p>
+                </div>
+                <div className={`px-6 py-3 rounded-2xl border bg-red-900/30 border-red-800/40`}>
+                  <p className="text-xs font-semibold uppercase tracking-widest mb-1 text-red-600">
+                    {t('offline.imposterWord')}
+                  </p>
+                  <p className="text-2xl font-black tracking-tight text-red-300 drop-shadow-[0_0_12px_rgba(239,68,68,0.5)]">
+                    {wordPair.imposterWord}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className={`px-6 py-4 rounded-2xl border ${wordBg} ${wordBorder}`}>
+                <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${wordLabelColor}`}>
+                  {t('offline.yourWord')}
+                </p>
+                <p className={`text-3xl font-black tracking-tight ${wordValueColor} ${wordGlow}`}>
+                  {current.word}
+                </p>
+              </div>
+            )}
 
             {current.role === 'detective' && (
               <div className="bg-blue-900/20 border border-blue-800/30 rounded-xl px-4 py-2.5 text-xs text-blue-400/80 font-medium">
@@ -501,6 +680,12 @@ function DealingPhase({ players, gameMode, onDone }: DealingPhaseProps) {
             {current.role === 'doubleAgent' && (
               <div className="bg-amber-900/20 border border-amber-800/30 rounded-xl px-4 py-2.5 text-xs text-amber-400/80 font-medium">
                 {t('offline.doubleAgentTip')}
+              </div>
+            )}
+
+            {current.role === 'guardian' && (
+              <div className="bg-yellow-900/20 border border-yellow-800/30 rounded-xl px-4 py-2.5 text-xs text-yellow-400/80 font-medium">
+                {t('offline.guardianTip')}
               </div>
             )}
 
@@ -647,19 +832,32 @@ function SpeakingTimer({ defaultSeconds = 30 }: SpeakingTimerProps) {
 
 interface VotePhaseProps {
   alivePlayers: PlayerRole[]
+  detectiveUsedSet: Set<string>
+  revealedRoles: Record<string, PlayerRoleType>
+  protectedPlayers: Set<string>
+  onDetectiveReveal: (detectiveName: string, targetName: string, targetRole: PlayerRoleType) => void
+  onGuardianProtect: (guardianName: string, targetName: string) => void
   onVotesDone: (votes: VoteRecord[], eliminated: PlayerRole | null) => void
   onCancel: () => void
 }
 
 type VoteStep = 'pass' | 'voting'
 
-function VotePhase({ alivePlayers, onVotesDone, onCancel }: VotePhaseProps) {
+function VotePhase({ alivePlayers, detectiveUsedSet, revealedRoles, protectedPlayers, onDetectiveReveal, onGuardianProtect, onVotesDone, onCancel }: VotePhaseProps) {
   const { t } = useTranslation()
+  const ROLES = getRoleConfig(t)
   const [voterIndex, setVoterIndex] = useState(0)
   const [step, setStep] = useState<VoteStep>('pass')
   const [votes, setVotes] = useState<VoteRecord[]>([])
+  // Track which guardians have protected this round (within VotePhase)
+  const [guardianProtectedThisRound, setGuardianProtectedThisRound] = useState<Set<string>>(new Set())
 
   const voter = alivePlayers[voterIndex]
+
+  const isDetective = voter?.role === 'detective'
+  const isGuardian = voter?.role === 'guardian'
+  const canInvestigate = isDetective && !detectiveUsedSet.has(voter.name)
+  const canProtect = isGuardian && !guardianProtectedThisRound.has(voter.name)
 
   const castVote = (targetName: string) => {
     const newVotes = [...votes, { voterName: voter.name, targetName }]
@@ -683,6 +881,15 @@ function VotePhase({ alivePlayers, onVotesDone, onCancel }: VotePhaseProps) {
       setVoterIndex(nextIndex)
       setStep('pass')
     }
+  }
+
+  const handleDetectiveInvestigate = (target: PlayerRole) => {
+    onDetectiveReveal(voter.name, target.name, target.role)
+  }
+
+  const handleGuardianProtect = (targetName: string) => {
+    onGuardianProtect(voter.name, targetName)
+    setGuardianProtectedThisRound((prev) => new Set(prev).add(voter.name))
   }
 
   const otherPlayers = alivePlayers.filter((p) => p.name !== voter.name)
@@ -717,19 +924,63 @@ function VotePhase({ alivePlayers, onVotesDone, onCancel }: VotePhaseProps) {
               {t('offline.whoIsImposter', { name: voter.name })}
             </p>
             <div className="space-y-2">
-              {otherPlayers.map((p) => (
-                <button
-                  key={p.name}
-                  onClick={() => castVote(p.name)}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/60 border border-neutral-700/40 hover:border-neutral-600/60 text-white text-sm font-semibold transition-all active:scale-[0.98]"
-                >
-                  <span className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center text-base shrink-0">
-                    {p.name[0].toUpperCase()}
-                  </span>
-                  {p.name}
-                  <span className="ml-auto text-neutral-500 text-xs">{t('offline.voteArrow')}</span>
-                </button>
-              ))}
+              {otherPlayers.map((p) => {
+                const revealed = revealedRoles[p.name]
+                const revealedRc = revealed ? ROLES[revealed] : null
+                return (
+                  <div
+                    key={p.name}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl bg-neutral-800/60 border border-neutral-700/40"
+                  >
+                    <span className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center text-base shrink-0">
+                      {p.name[0].toUpperCase()}
+                    </span>
+                    <span className="text-white text-sm font-semibold flex-1 min-w-0 truncate">
+                      {p.name}
+                      {isDetective && revealedRc && (
+                        <span className={`ml-2 text-xs ${revealedRc.textClass}`}>
+                          {revealedRc.icon} {revealedRc.label}
+                        </span>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Detective investigate button */}
+                      {canInvestigate && !revealed && (
+                        <button
+                          onClick={() => handleDetectiveInvestigate(p)}
+                          className="w-9 h-9 rounded-lg bg-blue-900/40 hover:bg-blue-800/60 border border-blue-700/40 flex items-center justify-center text-blue-400 transition-all active:scale-90"
+                          title={t('offline.investigate')}
+                        >
+                          🔍
+                        </button>
+                      )}
+                      {/* Guardian protect button */}
+                      {canProtect && !protectedPlayers.has(p.name) && (
+                        <button
+                          onClick={() => handleGuardianProtect(p.name)}
+                          className="w-9 h-9 rounded-lg bg-yellow-900/40 hover:bg-yellow-800/60 border border-yellow-700/40 flex items-center justify-center text-yellow-400 transition-all active:scale-90"
+                          title={t('offline.protect')}
+                        >
+                          🛡️
+                        </button>
+                      )}
+                      {/* Protected indicator */}
+                      {isGuardian && protectedPlayers.has(p.name) && (
+                        <span className="w-9 h-9 rounded-lg bg-yellow-900/20 border border-yellow-800/30 flex items-center justify-center text-yellow-500/50">
+                          🛡️
+                        </span>
+                      )}
+                      {/* Vote button */}
+                      <button
+                        onClick={() => castVote(p.name)}
+                        className="px-3 h-9 rounded-lg bg-neutral-700/60 hover:bg-neutral-600/60 border border-neutral-600/40 hover:border-neutral-500/60 text-neutral-300 hover:text-white text-xs font-bold transition-all active:scale-95"
+                      >
+                        {t('offline.voteArrow')}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -750,10 +1001,11 @@ function VotePhase({ alivePlayers, onVotesDone, onCancel }: VotePhaseProps) {
 interface VoteResultProps {
   votes: VoteRecord[]
   eliminated: PlayerRole | null
+  protectedPlayerName?: string | null
   onContinue: () => void
 }
 
-function VoteResult({ votes, eliminated, onContinue }: VoteResultProps) {
+function VoteResult({ votes, eliminated, protectedPlayerName, onContinue }: VoteResultProps) {
   const { t } = useTranslation()
   const ROLES = getRoleConfig(t)
   const tally: Record<string, number> = {}
@@ -767,14 +1019,25 @@ function VoteResult({ votes, eliminated, onContinue }: VoteResultProps) {
   return (
     <div className="space-y-5 animate-slide-up">
       <div className="text-center space-y-2">
-        <div className="text-4xl">{eliminated ? '🗳️' : '🤷'}</div>
-        <h2 className="text-xl font-extrabold text-white">
-          {eliminated ? t('offline.wasEliminated', { name: eliminated.name }) : t('offline.noOneEliminated')}
-        </h2>
-        {eliminated && eliminatedRc && (
-          <p className={`text-sm font-semibold ${eliminatedRc.textClass}`}>
-            {t('offline.theyWere')} {eliminatedRc.icon} {eliminatedRc.label}
-          </p>
+        {protectedPlayerName ? (
+          <>
+            <div className="text-4xl">🛡️</div>
+            <h2 className="text-xl font-extrabold text-yellow-400">
+              {t('offline.protectionTriggered', { name: protectedPlayerName })}
+            </h2>
+          </>
+        ) : (
+          <>
+            <div className="text-4xl">{eliminated ? '🗳️' : '🤷'}</div>
+            <h2 className="text-xl font-extrabold text-white">
+              {eliminated ? t('offline.wasEliminated', { name: eliminated.name }) : t('offline.noOneEliminated')}
+            </h2>
+            {eliminated && eliminatedRc && (
+              <p className={`text-sm font-semibold ${eliminatedRc.textClass}`}>
+                {t('offline.theyWere')} {eliminatedRc.icon} {eliminatedRc.label}
+              </p>
+            )}
+          </>
         )}
       </div>
 
@@ -820,26 +1083,73 @@ type PlayingSubPhase = 'main' | 'voting' | 'voteResult'
 
 function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRoles }: PlayingPhaseProps) {
   const { t } = useTranslation()
-  const ROLES = getRoleConfig(t)
   const [players, setPlayers] = useState<PlayerRole[]>(initialPlayers)
   const [subPhase, setSubPhase] = useState<PlayingSubPhase>('main')
   const [lastVotes, setLastVotes] = useState<VoteRecord[]>([])
   const [lastEliminated, setLastEliminated] = useState<PlayerRole | null>(null)
 
+  // Detective state: once per game per detective, revealed roles persist across rounds
+  const [detectiveUsedSet, setDetectiveUsedSet] = useState<Set<string>>(new Set())
+  const [revealedRoles, setRevealedRoles] = useState<Record<string, PlayerRoleType>>({})
+
+  // Guardian state: resets each round
+  const [protectedPlayers, setProtectedPlayers] = useState<Set<string>>(new Set())
+  const [protectionTriggeredName, setProtectionTriggeredName] = useState<string | null>(null)
+
   const alivePlayers = players.filter((p) => !p.isEliminated)
+
+  const handleStartVote = () => {
+    setProtectedPlayers(new Set())
+    setSubPhase('voting')
+  }
+
+  const handleDetectiveReveal = (detectiveName: string, targetName: string, targetRole: PlayerRoleType) => {
+    setDetectiveUsedSet((prev) => new Set(prev).add(detectiveName))
+    setRevealedRoles((prev) => ({ ...prev, [targetName]: targetRole }))
+  }
+
+  const handleGuardianProtect = (_guardianName: string, targetName: string) => {
+    setProtectedPlayers((prev) => new Set(prev).add(targetName))
+  }
 
   const handleVotesDone = (votes: VoteRecord[], eliminated: PlayerRole | null) => {
     setLastVotes(votes)
-    setLastEliminated(eliminated)
-    if (eliminated) {
-      setPlayers((prev) =>
-        prev.map((p) => (p.name === eliminated.name ? { ...p, isEliminated: true } : p)),
-      )
+    if (eliminated && protectedPlayers.has(eliminated.name)) {
+      setLastEliminated(null)
+      setProtectionTriggeredName(eliminated.name)
+    } else {
+      setLastEliminated(eliminated)
+      setProtectionTriggeredName(null)
+      if (eliminated) {
+        setPlayers((prev) =>
+          prev.map((p) => (p.name === eliminated.name ? { ...p, isEliminated: true } : p)),
+        )
+      }
     }
     setSubPhase('voteResult')
   }
 
   const handleContinueAfterVote = () => {
+    setProtectedPlayers(new Set())
+    setProtectionTriggeredName(null)
+
+    // Check win conditions
+    const updatedPlayers = players // players state already updated in handleVotesDone
+    const alive = updatedPlayers.filter((p) => !p.isEliminated)
+    const aliveEvil = alive.filter((p) => isEvilRole(p.role))
+    const aliveGood = alive.filter((p) => !isEvilRole(p.role))
+
+    if (aliveEvil.length === 0) {
+      // All imposters/double agents eliminated — villagers win
+      onRevealRoles(updatedPlayers)
+      return
+    }
+    if (aliveEvil.length >= aliveGood.length) {
+      // Evil team equals or outnumbers village — imposters win
+      onRevealRoles(updatedPlayers)
+      return
+    }
+
     setSubPhase('main')
   }
 
@@ -847,6 +1157,11 @@ function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRol
     return (
       <VotePhase
         alivePlayers={alivePlayers}
+        detectiveUsedSet={detectiveUsedSet}
+        revealedRoles={revealedRoles}
+        protectedPlayers={protectedPlayers}
+        onDetectiveReveal={handleDetectiveReveal}
+        onGuardianProtect={handleGuardianProtect}
         onVotesDone={handleVotesDone}
         onCancel={() => setSubPhase('main')}
       />
@@ -858,6 +1173,7 @@ function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRol
       <VoteResult
         votes={lastVotes}
         eliminated={lastEliminated}
+        protectedPlayerName={protectionTriggeredName}
         onContinue={handleContinueAfterVote}
       />
     )
@@ -919,7 +1235,7 @@ function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRol
       <div className="space-y-3">
         {alivePlayers.length >= 3 && (
           <button
-            onClick={() => setSubPhase('voting')}
+            onClick={handleStartVote}
             className="w-full py-4 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-base transition-all active:scale-[0.98] shadow-xl shadow-amber-600/20"
           >
             {t('offline.startVote')}
@@ -1001,6 +1317,7 @@ function ResultsPhase({ players, gameMode, wordPair, onPlayAgain, onHome }: Resu
             <div className="flex items-center gap-2"><span>🔴</span><span className="text-red-400">{t('offline.imposter')}</span></div>
             <div className="flex items-center gap-2"><span>🔍</span><span className="text-blue-400">{t('offline.detective')}</span></div>
             <div className="flex items-center gap-2"><span>🕵️</span><span className="text-amber-400">{t('offline.doubleAgent')}</span></div>
+            <div className="flex items-center gap-2"><span>🛡️</span><span className="text-yellow-400">{t('offline.guardian')}</span></div>
           </div>
         </div>
       )}
@@ -1020,6 +1337,8 @@ function ResultsPhase({ players, gameMode, wordPair, onPlayAgain, onHome }: Resu
                   ? 'bg-red-950/30 border-red-800/30'
                   : p.role === 'detective'
                     ? 'bg-blue-950/20 border-blue-800/20'
+                    : p.role === 'guardian'
+                    ? 'bg-yellow-950/20 border-yellow-800/20'
                     : 'bg-emerald-950/20 border-emerald-800/20',
               ].join(' ')}
             >
@@ -1065,7 +1384,7 @@ function ResultsPhase({ players, gameMode, wordPair, onPlayAgain, onHome }: Resu
 
 export default function OfflinePage() {
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const [phase, setPhase] = useState<Phase>('setup')
   const [players, setPlayers] = useState<PlayerRole[]>([])
@@ -1078,19 +1397,23 @@ export default function OfflinePage() {
   const [lastSettings, setLastSettings] = useState<GameSettings | null>(null)
 
   const handleStart = useCallback(
-    (names: string[], imposterCount: number, detectiveCount: number, doubleAgentCount: number, categories: WordCategory[], mode: GameMode) => {
+    (names: string[], imposterCount: number, detectiveCount: number, doubleAgentCount: number, guardianCount: number, categories: WordCategory[], mode: GameMode) => {
       // Save settings for Play Again
-      setLastSettings({ names, imposterCount, detectiveCount, doubleAgentCount, categories, gameMode: mode })
+      setLastSettings({ names, imposterCount, detectiveCount, doubleAgentCount, guardianCount, categories, gameMode: mode })
       setGameMode(mode)
 
-      const pair = pickRandomWordPair(categories, shuffleArray)
+      const rawPair = pickRandomWordPair(categories, shuffleArray, i18n.language)
+      // Randomly swap which word goes to villagers vs imposters
+      const pair = Math.random() < 0.5
+        ? { villagerWord: rawPair.imposterWord, imposterWord: rawPair.villagerWord }
+        : rawPair
       const playerOrder = shuffleArray([...names])
       const totalPlayers = playerOrder.length
 
       let roles: PlayerRole[]
 
-      if (mode === 'special' && (detectiveCount > 0 || doubleAgentCount > 0)) {
-        // Special mode: assign detectives + double agents + imposters + villagers
+      if (mode === 'special' && (detectiveCount > 0 || doubleAgentCount > 0 || guardianCount > 0)) {
+        // Special mode: assign detectives + double agents + guardians + imposters + villagers
         roles = playerOrder.map((name, i) => {
           let role: PlayerRoleType
           let word: string
@@ -1102,6 +1425,9 @@ export default function OfflinePage() {
             word = pair.villagerWord
           } else if (i < imposterCount + detectiveCount + doubleAgentCount) {
             role = 'doubleAgent'
+            word = pair.villagerWord
+          } else if (i < imposterCount + detectiveCount + doubleAgentCount + guardianCount) {
+            role = 'guardian'
             word = pair.villagerWord
           } else {
             role = 'villager'
@@ -1175,7 +1501,7 @@ export default function OfflinePage() {
           <SetupPhase initialSettings={lastSettings} onStart={handleStart} />
         )}
         {phase === 'dealing' && (
-          <DealingPhase players={players} gameMode={gameMode} onDone={handleDealingDone} />
+          <DealingPhase players={players} gameMode={gameMode} wordPair={wordPair} onDone={handleDealingDone} />
         )}
         {phase === 'playing' && (
           <PlayingPhase

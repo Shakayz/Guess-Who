@@ -34,7 +34,7 @@ export default function HowToPlayPage() {
           </p>
           <ul className="space-y-2 mt-3">
             {[
-              { icon: '👥', text: '4–10 players per game' },
+              { icon: '👥', text: '3–20 players per game' },
               { icon: '🔒', text: 'Roles are hidden — only you know yours' },
               { icon: '📝', text: 'Your word is the clue to your identity' },
               { icon: '🎯', text: 'Goal: uncover impostors before they take over' },
@@ -89,6 +89,14 @@ export default function HowToPlayPage() {
               badgeColor: 'bg-amber-950/60 text-amber-400 border-amber-800/40',
               desc: 'You know both the villager and imposter words. Work with the imposters while appearing innocent. The ultimate deceiver.',
               accent: 'border-amber-800/30 bg-amber-950/10',
+            },
+            {
+              icon: '🛡️',
+              name: 'Guardian',
+              badge: 'Special Mode',
+              badgeColor: 'bg-yellow-950/60 text-yellow-400 border-yellow-800/40',
+              desc: 'Plays on the villager team. Each round during voting, you can protect one player from elimination. You cannot protect yourself.',
+              accent: 'border-yellow-800/30 bg-yellow-950/10',
             },
           ].map((role) => (
             <div

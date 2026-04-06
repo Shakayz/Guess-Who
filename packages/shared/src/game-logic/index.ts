@@ -3,7 +3,7 @@ import type { Player, Round, Vote, PlayerStatus } from '../types'
 export function countAlive(players: Player[]): { villagers: number; imposters: number } {
   const alive = players.filter((p) => p.status === 'alive')
   return {
-    villagers: alive.filter((p) => p.role === 'villager' || p.role === 'detective').length,
+    villagers: alive.filter((p) => p.role === 'villager' || p.role === 'detective' || p.role === 'guardian').length,
     imposters: alive.filter((p) => p.role === 'imposter' || p.role === 'double_agent').length,
   }
 }

@@ -153,7 +153,7 @@ export function registerGameHandlers(
     const role: string = player.role ?? 'villager'
     const forbidden: string[] =
       role === 'double_agent' ? [state.villagerWord ?? '', state.imposterWord ?? ''] :
-      (role === 'villager' || role === 'detective') ? [state.villagerWord ?? ''] :
+      (role === 'villager' || role === 'detective' || role === 'guardian') ? [state.villagerWord ?? ''] :
       [state.imposterWord ?? '']
 
     const saidWord = forbidden.some((w) => containsWord(sanitized, w))

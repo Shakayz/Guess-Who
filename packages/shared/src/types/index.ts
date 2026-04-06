@@ -102,7 +102,7 @@ export interface RoomSettings {
 
 // ─── Player ──────────────────────────────────────────────────────────────────
 
-export type PlayerRole = 'villager' | 'imposter' | 'detective' | 'double_agent'
+export type PlayerRole = 'villager' | 'imposter' | 'detective' | 'double_agent' | 'guardian'
 export type PlayerStatus = 'alive' | 'eliminated' | 'spectating' | 'forfeited'
 
 export interface Player {

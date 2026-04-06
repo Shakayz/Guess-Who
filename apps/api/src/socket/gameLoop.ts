@@ -33,6 +33,7 @@ function buildResetState(state: any): any {
     maxRounds:         state.maxRounds ?? 0,
     detectiveCount:    state.detectiveCount   ?? (state.enableDetective ? 1 : 0),
     doubleAgentCount:  state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
+    guardianCount:     state.guardianCount ?? 0,
     // Clear the player list — players rejoin via room:join when they
     // navigate back to the lobby. Keeping old players here causes
     // "ghost players" from the previous game to appear in the lobby.
@@ -319,21 +320,37 @@ async function _resolveRound(io: IO, roomId: string) {
   let eliminatedRole: string | null = null
 
   if (mostVotedId) {
-    const player = state.players.find((p: any) => p.userId === mostVotedId)
-    if (player) {
-      player.status = 'eliminated'
-      eliminatedRole = player.role ?? null
-    }
-    currentRound.eliminatedPlayerId = mostVotedId
-    currentRound.eliminatedRole = eliminatedRole
+    const targetPlayer = state.players.find((p: any) => p.userId === mostVotedId)
 
-    // Push notification to eliminated player
-    getPushTokensForUsers([mostVotedId]).then((tokenMap) => {
-      const token = tokenMap.get(mostVotedId)
-      if (token) {
-        sendPushNotification(token, "You've been eliminated!", 'Better luck next time.', { type: 'eliminated', roomId }).catch(() => {})
+    // ── Guardian protection check ──────────────────────────────────────────────
+    if (targetPlayer && targetPlayer.guardianProtected) {
+      // Protection triggered — cancel elimination
+      targetPlayer.guardianProtected = false
+      currentRound.eliminatedPlayerId = null
+      currentRound.eliminatedRole = null
+      currentRound.guardianProtectionTriggered = true
+      currentRound.guardianProtectedPlayerId = mostVotedId
+      io.to(`room:${roomId}`).emit('guardian:protection-triggered' as any, {
+        protectedUserId: mostVotedId,
+        protectedUsername: targetPlayer.username,
+      })
+    } else {
+      // Normal elimination
+      if (targetPlayer) {
+        targetPlayer.status = 'eliminated'
+        eliminatedRole = targetPlayer.role ?? null
       }
-    }).catch(() => {})
+      currentRound.eliminatedPlayerId = mostVotedId
+      currentRound.eliminatedRole = eliminatedRole
+
+      // Push notification to eliminated player
+      getPushTokensForUsers([mostVotedId]).then((tokenMap) => {
+        const token = tokenMap.get(mostVotedId)
+        if (token) {
+          sendPushNotification(token, "You've been eliminated!", 'Better luck next time.', { type: 'eliminated', roomId }).catch(() => {})
+        }
+      }).catch(() => {})
+    }
   } else {
     // Tie vote — start tiebreaker clue phase for tied players
     const tiedPlayerIds = getTiedPlayerIds(currentRound.votes ?? [])
@@ -1046,7 +1063,7 @@ async function checkAndUnlockAchievements(
     for (const p of participants) {
       const userId = p.userId
       const isWinner =
-        (winner === 'villagers' && (p.role === 'villager' || p.role === 'detective')) ||
+        (winner === 'villagers' && (p.role === 'villager' || p.role === 'detective' || p.role === 'guardian')) ||
         (winner === 'imposters' && (p.role === 'imposter' || p.role === 'double_agent'))
       const isImposter = p.role === 'imposter' || p.role === 'double_agent'
       const survived = p.survived
@@ -1056,6 +1073,7 @@ async function checkAndUnlockAchievements(
         prisma.gameParticipation.count({ where: { userId, game: { winnerTeam: { not: null } },
           OR: [{ role: 'villager', game: { winnerTeam: 'villagers' } },
                { role: 'detective', game: { winnerTeam: 'villagers' } },
+               { role: 'guardian', game: { winnerTeam: 'villagers' } },
                { role: 'imposter', game: { winnerTeam: 'imposters' } },
                { role: 'double_agent', game: { winnerTeam: 'imposters' } }] } }),
         prisma.gameParticipation.count({ where: { userId,

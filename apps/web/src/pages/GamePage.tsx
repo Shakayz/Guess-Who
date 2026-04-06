@@ -150,6 +150,7 @@ const PlayerClueHistoryModal = memo(({
     imposter:     { icon: '🔪', color: 'text-red-400',     label: t('game.roleImposter', 'Imposter') },
     detective:    { icon: '🔍', color: 'text-blue-400',    label: t('game.roleDetective', 'Detective') },
     double_agent: { icon: '🎭', color: 'text-orange-400',  label: t('game.roleDoubleAgent', 'Double Agent') },
+    guardian:     { icon: '🛡️', color: 'text-yellow-400',  label: t('game.roleGuardian', 'Guardian') },
   }
   const roleInfo = player.role ? ROLE_CONFIG[player.role] : null
 
@@ -288,7 +289,7 @@ export default function GamePage() {
   const { code } = useParams<{ code: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { room, currentRound, completedRounds, myRole, myWord, myVillagerWord, detectiveRevealUsed, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
+  const { room, currentRound, completedRounds, myRole, myWord, myVillagerWord, detectiveRevealUsed, guardianProtectUsed, guardianProtectedPlayer, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setGuardianProtectUsed, setGuardianProtectedPlayer, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
   const user = useAuthStore((s) => s.user)
   const [clueText, setClueText] = useState('')
   const [clues, setClues] = useState<Clue[]>([])
@@ -567,6 +568,13 @@ export default function GamePage() {
       setRevealedPlayer({ userId: targetUserId, username: targetUsername, role })
       setTimeout(() => setRevealedPlayer(null), 5000)
     })
+    socket.on('guardian:protect-ack' as any, ({ targetUserId, targetUsername }: any) => {
+      setGuardianProtectUsed({ userId: targetUserId, username: targetUsername })
+    })
+    socket.on('guardian:protection-triggered' as any, ({ protectedUserId, protectedUsername }: any) => {
+      setGuardianProtectedPlayer({ userId: protectedUserId, username: protectedUsername })
+      setTimeout(() => setGuardianProtectedPlayer(null), 5000)
+    })
     socket.on('round:word-said' as any, ({ playerId, username, role }: any) => {
       if (room) {
         setRoom({
@@ -641,6 +649,8 @@ export default function GamePage() {
       socket.off('deadchat:message' as any)
       socket.off('emote:receive' as any)
       socket.off('detective:result')
+      socket.off('guardian:protect-ack' as any)
+      socket.off('guardian:protection-triggered' as any)
       socket.off('round:word-said' as any)
       socket.off('vote:update' as any)
       socket.off('vote:all-cast' as any)
@@ -731,6 +741,7 @@ export default function GamePage() {
     imposter:     { icon: '🔪', label: t('game.roleImposter', 'Imposter'),     color: 'text-red-400',     bg: 'from-red-900/40' },
     detective:    { icon: '🔍', label: t('game.roleDetective', 'Detective'),    color: 'text-blue-400',    bg: 'from-blue-900/40' },
     double_agent: { icon: '🎭', label: t('game.roleDoubleAgent', 'Double Agent'), color: 'text-orange-400',  bg: 'from-orange-900/40' },
+    guardian:     { icon: '🛡️', label: t('game.roleGuardian', 'Guardian'),      color: 'text-yellow-400',  bg: 'from-yellow-900/40' },
   }
   const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
 
@@ -832,8 +843,20 @@ export default function GamePage() {
                 {revealedPlayer.role === 'imposter' ? t('game.roleImposter') :
                  revealedPlayer.role === 'double_agent' ? t('game.roleDoubleAgent') :
                  revealedPlayer.role === 'detective' ? t('game.roleDetective') :
+                 revealedPlayer.role === 'guardian' ? t('game.roleGuardian') :
                  t('game.roleVillager')}
               </span>
+            </div>
+          </div>
+        )}
+
+        {/* Guardian protection triggered — small non-blocking toast */}
+        {guardianProtectedPlayer && (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-slide-up">
+            <div className="px-4 py-3 rounded-xl border text-center"
+              style={{ backgroundColor: 'rgba(8,8,20,0.95)', borderColor: '#eab308', boxShadow: '0 0 20px rgba(234,179,8,0.3)' }}>
+              <span className="text-yellow-400 font-bold text-sm">🛡️ {guardianProtectedPlayer.username} </span>
+              <span className="text-sm font-bold text-yellow-300">{t('game.guardianProtectionTriggered')}</span>
             </div>
           </div>
         )}
@@ -1119,6 +1142,7 @@ export default function GamePage() {
                       {eliminated.role === 'imposter' ? t('game.roleImposter')
                         : eliminated.role === 'double_agent' ? t('game.roleDoubleAgent')
                         : eliminated.role === 'detective' ? t('game.roleDetective')
+                        : eliminated.role === 'guardian' ? t('game.roleGuardian')
                         : t('game.roleVillager')}
                     </p>
                     {isImposterElim && (
@@ -1230,9 +1254,22 @@ export default function GamePage() {
               <span>{detectiveRevealUsed ? t('game.detectiveUsed') : t('game.detectiveAvailable')}</span>
             </div>
           )}
+          {/* Guardian ability banner */}
+          {myRole === 'guardian' && (
+            <div className={[
+              'flex items-center gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold',
+              guardianProtectUsed
+                ? 'bg-neutral-900/40 border-neutral-800 text-neutral-600'
+                : 'bg-yellow-950/40 border-yellow-800/40 text-yellow-400',
+            ].join(' ')}>
+              <span>🛡️</span>
+              <span>{guardianProtectUsed ? t('game.guardianUsed') : t('game.guardianAvailable')}</span>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2" role="list" aria-label="Players">
             {players.map((p) => {
               const canReveal = myRole === 'detective' && !detectiveRevealUsed && p.userId !== user?.id && p.status === 'alive' && (phase === 'clues' || phase === 'voting')
+              const canProtect = myRole === 'guardian' && !guardianProtectUsed && p.status === 'alive' && phase === 'voting'
               return (
                 <div
                   key={p.id}
@@ -1263,6 +1300,15 @@ export default function GamePage() {
                       title={t('game.detectiveRevealBtn')}
                     >
                       🔍
+                    </button>
+                  )}
+                  {canProtect && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); getSocket().emit('guardian:protect' as any, { targetUserId: p.userId }) }}
+                      className="ml-0.5 text-yellow-400 hover:text-yellow-300 text-[10px] font-bold border border-yellow-800/50 rounded px-1 transition-colors"
+                      title={t('game.guardianProtectBtn')}
+                    >
+                      🛡️
                     </button>
                   )}
                 </div>

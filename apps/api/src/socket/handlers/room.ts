@@ -46,6 +46,7 @@ async function startGameForRoom(
     const imposterCount = Math.min(room.imposterCount, Math.floor(players.length / 3))
     const detectiveCount   = Math.max(0, state.detectiveCount   ?? (state.enableDetective   ? 1 : 0))
     const doubleAgentCount = Math.max(0, state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0))
+    const guardianCount    = Math.max(0, state.guardianCount ?? 0)
 
     let roleIdx = 0
     players.forEach((p) => {
@@ -56,6 +57,9 @@ async function startGameForRoom(
       } else if (roleIdx < imposterCount + doubleAgentCount + detectiveCount) {
         p.role = 'detective'
         p.detectiveRevealUsed = false
+      } else if (roleIdx < imposterCount + doubleAgentCount + detectiveCount + guardianCount) {
+        p.role = 'guardian'
+        p.guardianProtectUsed = false
       } else {
         p.role = 'villager'
       }
@@ -130,6 +134,7 @@ async function startGameForRoom(
         wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0), doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
+        guardianCount: state.guardianCount ?? 0,
       },
     } as any)
 
@@ -341,6 +346,7 @@ export function registerRoomHandlers(
           categories: state.categories ?? [],
           detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
           doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
+          guardianCount: state.guardianCount ?? 0,
           isMatchmade: state.isMatchmade ?? false,
         },
       }
@@ -393,9 +399,11 @@ export function registerRoomHandlers(
     if (state.gameMode === 'normal') {
       state.detectiveCount   = 0
       state.doubleAgentCount = 0
+      state.guardianCount    = 0
     } else {
       if (newSettings.detectiveCount   !== undefined) state.detectiveCount   = Math.max(0, Math.min(3, newSettings.detectiveCount))
       if (newSettings.doubleAgentCount !== undefined) state.doubleAgentCount = Math.max(0, Math.min(2, newSettings.doubleAgentCount))
+      if (newSettings.guardianCount    !== undefined) state.guardianCount    = Math.max(0, Math.min(2, newSettings.guardianCount))
     }
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
@@ -424,6 +432,7 @@ export function registerRoomHandlers(
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
         doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
+        guardianCount: state.guardianCount ?? 0,
         isMatchmade: state.isMatchmade ?? false,
       },
     }
@@ -461,6 +470,7 @@ export function registerRoomHandlers(
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
         doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
+        guardianCount: state.guardianCount ?? 0,
         isMatchmade: state.isMatchmade ?? false,
       },
     }
@@ -515,6 +525,42 @@ export function registerRoomHandlers(
       })
     } catch (err) {
       log.error({ err, userId }, 'detective:reveal error')
+    }
+  })
+
+  // ── Guardian: protect a player from elimination (one-time ability) ───────────
+  socket.on('guardian:protect' as any, async ({ targetUserId }: { targetUserId: string }) => {
+    try {
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      const guardian = state.players.find((p: any) => p.userId === userId)
+      if (!guardian || guardian.role !== 'guardian') return
+
+      if (guardian.guardianProtectUsed) {
+        socket.emit('error', { code: 'GUARDIAN_USED', message: 'Protection already used' })
+        return
+      }
+
+      // Can only protect during voting phase
+      if (state.status !== 'voting') return
+
+      const target = state.players.find((p: any) => p.userId === targetUserId && p.status === 'alive')
+      if (!target) return
+
+      guardian.guardianProtectUsed = true
+      target.guardianProtected = true
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+
+      socket.emit('guardian:protect-ack' as any, { targetUserId, targetUsername: target.username })
+      log.info({ userId, roomId, targetUserId }, 'guardian:protect used')
+    } catch (err) {
+      log.error({ err, userId }, 'guardian:protect error')
     }
   })
 

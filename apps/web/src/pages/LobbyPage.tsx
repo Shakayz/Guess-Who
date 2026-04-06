@@ -40,6 +40,7 @@ interface Settings {
   categories: WordCategory[]
   detectiveCount: number
   doubleAgentCount: number
+  guardianCount: number
   maxRounds: number
   language: Locale
 }
@@ -89,6 +90,7 @@ function SettingsPanel({
       gameMode: mode,
       detectiveCount: mode === 'normal' ? 0 : settings.detectiveCount,
       doubleAgentCount: mode === 'normal' ? 0 : settings.doubleAgentCount,
+      guardianCount: mode === 'normal' ? 0 : settings.guardianCount,
     })
   }
 
@@ -182,6 +184,32 @@ function SettingsPanel({
             </div>
             {settings.doubleAgentCount > 0 && (
               <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.doubleAgentDesc')}</p>
+            )}
+          </div>
+
+          {/* Guardian count */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+              {t('lobby.guardianCount')}
+            </p>
+            <div className="flex gap-1.5">
+              {[0, 1, 2].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => onChange({ ...settings, guardianCount: n })}
+                  className={[
+                    'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                    settings.guardianCount === n
+                      ? 'bg-yellow-950/60 border-yellow-700/50 text-yellow-400'
+                      : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                  ].join(' ')}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            {settings.guardianCount > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.guardianDesc')}</p>
             )}
           </div>
         </div>
@@ -308,6 +336,7 @@ export default function LobbyPage() {
     categories: [],
     detectiveCount: 0,
     doubleAgentCount: 0,
+    guardianCount: 0,
     maxRounds: 0,
     language: (i18n.language.split('-')[0] as Locale) || 'en',
   })
@@ -320,6 +349,7 @@ export default function LobbyPage() {
       categories: s.categories,
       detectiveCount: s.detectiveCount,
       doubleAgentCount: s.doubleAgentCount,
+      guardianCount: s.guardianCount,
       maxRounds: s.maxRounds,
       maxPlayers: s.maxPlayers,
       imposterCount: s.imposterCount,
@@ -387,6 +417,7 @@ export default function LobbyPage() {
           categories: serverCats,
           detectiveCount: (r.settings as any).detectiveCount ?? ((r.settings as any).enableDetective ? 1 : 0),
           doubleAgentCount: (r.settings as any).doubleAgentCount ?? ((r.settings as any).enableDoubleAgent ? 1 : 0),
+          guardianCount: (r.settings as any).guardianCount ?? 0,
           maxRounds: r.maxRounds ?? 0,
           language: roomLang,
         }))
@@ -655,6 +686,9 @@ export default function LobbyPage() {
               )}
               {settings.gameMode === 'special' && settings.doubleAgentCount > 0 && (
                 <><span>·</span><span>{settings.doubleAgentCount} {t('lobby.doubleAgentCount').toLowerCase()}</span></>
+              )}
+              {settings.gameMode === 'special' && settings.guardianCount > 0 && (
+                <><span>·</span><span>{settings.guardianCount} {t('lobby.guardianCount').toLowerCase()}</span></>
               )}
               {settings.categories.length > 0 && (
                 <><span>·</span><span>{settings.categories.length} {t('lobby.categories').toLowerCase()}</span></>

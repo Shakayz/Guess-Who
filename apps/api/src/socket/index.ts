@@ -261,6 +261,42 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       }
     })
 
+    // Guardian: protect a player from elimination (one-time ability, voting phase only)
+    socket.on('guardian:protect' as any, async (data: { targetUserId: string }) => {
+      if (!socket.data.userId || !data.targetUserId) return
+      const roomCode = socket.data.roomCode
+      if (!roomCode) return
+      log.info({ userId: socket.data.userId, targetUserId: data.targetUserId, roomCode }, 'guardian:protect attempt')
+      try {
+        const room = await prisma.room.findUnique({ where: { code: roomCode } }).catch(() => null)
+        if (!room) return
+        const stateRaw = await redis.get(`room:${room.id}:state`)
+        if (!stateRaw) return
+        const state = JSON.parse(stateRaw)
+
+        if (state.status !== 'voting') return
+
+        const guardian = state.players.find((p: any) => p.userId === userId && p.role === 'guardian')
+        if (!guardian) return
+        if (guardian.guardianProtectUsed) {
+          socket.emit('error', { code: 'ABILITY_USED', message: 'Guardian protection already used' })
+          return
+        }
+
+        const target = state.players.find((p: any) => p.userId === data.targetUserId && p.status === 'alive')
+        if (!target) return
+
+        guardian.guardianProtectUsed = true
+        target.guardianProtected = true
+        await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
+
+        log.info({ userId: socket.data.userId, targetUserId: data.targetUserId }, 'guardian:protect result sent')
+        socket.emit('guardian:protect-ack' as any, { targetUserId: data.targetUserId, targetUsername: target.username })
+      } catch (err) {
+        log.error({ err, userId: socket.data.userId }, 'guardian:protect error')
+      }
+    })
+
     // Honor: give an honor to a player after a game (once per target per game)
     socket.on('honor:give' as any, async (data: { targetUserId: string; honorType: string; gameId?: string }) => {
       if (!socket.data.userId || !data.targetUserId || !data.honorType) return

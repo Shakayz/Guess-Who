@@ -25,6 +25,8 @@ interface GameState {
   myWord: string | null
   myVillagerWord: string | null
   detectiveRevealUsed: boolean
+  guardianProtectUsed: boolean
+  guardianProtectedPlayer: { userId: string; username: string } | null
   revealedPlayer: RevealedPlayer | null
   messages: ChatMessage[]
   result: GameResult | null
@@ -37,6 +39,8 @@ interface GameState {
   addCompletedRound: (round: Round) => void
   setRoleAndWord: (role: string, word: string, villagerWord?: string) => void
   setDetectiveRevealUsed: () => void
+  setGuardianProtectUsed: (target: { userId: string; username: string }) => void
+  setGuardianProtectedPlayer: (p: { userId: string; username: string } | null) => void
   setRevealedPlayer: (p: RevealedPlayer | null) => void
   addMessage: (msg: ChatMessage) => void
   setResult: (result: GameResult) => void
@@ -54,6 +58,8 @@ export const useGameStore = create<GameState>()(
       myWord: null,
       myVillagerWord: null,
       detectiveRevealUsed: false,
+      guardianProtectUsed: false,
+      guardianProtectedPlayer: null,
       revealedPlayer: null,
       messages: [],
       result: null,
@@ -75,6 +81,8 @@ export const useGameStore = create<GameState>()(
         set({ myRole, myWord, myVillagerWord: villagerWord ?? null })
       },
       setDetectiveRevealUsed: () => set({ detectiveRevealUsed: true }),
+      setGuardianProtectUsed: (target) => set({ guardianProtectUsed: true, guardianProtectedPlayer: target }),
+      setGuardianProtectedPlayer: (guardianProtectedPlayer) => set({ guardianProtectedPlayer }),
       setRevealedPlayer: (revealedPlayer) => set({ revealedPlayer }),
       addMessage: (msg) => set((s) => {
         const msgs = s.messages.length >= 100
@@ -89,7 +97,7 @@ export const useGameStore = create<GameState>()(
       setGameFinished: (gameFinished) => set({ gameFinished }),
       reset: () => {
         log.info('game state reset')
-        set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, detectiveRevealUsed: false, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() })
+        set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, detectiveRevealUsed: false, guardianProtectUsed: false, guardianProtectedPlayer: null, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() })
       },
     }),
     {
@@ -104,6 +112,7 @@ export const useGameStore = create<GameState>()(
         myWord: state.myWord,
         myVillagerWord: state.myVillagerWord,
         detectiveRevealUsed: state.detectiveRevealUsed,
+        guardianProtectUsed: state.guardianProtectUsed,
         result: state.result,
         gameFinished: state.gameFinished,
         lastResetAt: state.lastResetAt,
