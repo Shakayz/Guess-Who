@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import { EXTENDED_PAIRS } from './extended-pairs'
 
 const prisma = new PrismaClient()
 
@@ -5037,15 +5038,17 @@ const ZH: PairData[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 // Pack definitions — one per locale
 // ─────────────────────────────────────────────────────────────────────────────
+const extFor = (loc: string): PairData[] => EXTENDED_PAIRS.filter((p) => p.locale === loc)
+
 const LANGUAGE_PACKS = [
-  { locale: 'en', name: 'General',   description: 'General word pack (English) — 50 pairs per category',                           pairs: EN },
-  { locale: 'fr', name: 'Général',   description: 'Pack de mots général (Français) — 50 paires par catégorie',                     pairs: FR },
-  { locale: 'es', name: 'General',   description: 'Pack de palabras general (Español) — 50 pares por categoría',                   pairs: ES },
-  { locale: 'de', name: 'Allgemein', description: 'Allgemeines Wortpaket (Deutsch) — 50 Paare pro Kategorie',                      pairs: DE },
-  { locale: 'ar', name: 'عام',       description: 'حزمة الكلمات العامة (العربية) — 50 زوجاً لكل فئة',                             pairs: AR },
-  { locale: 'it', name: 'Generale',  description: 'Pacchetto di parole generale (Italiano) — 50 coppie per categoria',              pairs: IT },
-  { locale: 'pt', name: 'Geral',     description: 'Pacote de palavras geral (Português) — 50 pares por categoria',                  pairs: PT },
-  { locale: 'zh', name: '通用',      description: '通用词包 (中文) — 每类50对',                                                       pairs: ZH },
+  { locale: 'en', name: 'General',   description: 'General word pack (English) — 100 pairs per category',                          pairs: [...EN, ...extFor('en')] },
+  { locale: 'fr', name: 'Général',   description: 'Pack de mots général (Français) — 100 paires par catégorie',                    pairs: [...FR, ...extFor('fr')] },
+  { locale: 'es', name: 'General',   description: 'Pack de palabras general (Español) — 100 pares por categoría',                  pairs: [...ES, ...extFor('es')] },
+  { locale: 'de', name: 'Allgemein', description: 'Allgemeines Wortpaket (Deutsch) — 100 Paare pro Kategorie',                     pairs: [...DE, ...extFor('de')] },
+  { locale: 'ar', name: 'عام',       description: 'حزمة الكلمات العامة (العربية) — 100 زوج لكل فئة',                             pairs: [...AR, ...extFor('ar')] },
+  { locale: 'it', name: 'Generale',  description: 'Pacchetto di parole generale (Italiano) — 100 coppie per categoria',            pairs: [...IT, ...extFor('it')] },
+  { locale: 'pt', name: 'Geral',     description: 'Pacote de palavras geral (Português) — 100 pares por categoria',                pairs: [...PT, ...extFor('pt')] },
+  { locale: 'zh', name: '通用',      description: '通用词包 (中文) — 每类100对',                                                      pairs: [...ZH, ...extFor('zh')] },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
