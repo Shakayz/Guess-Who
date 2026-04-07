@@ -95,6 +95,10 @@ services:
       # Hot-reload: mount source so Vite HMR sees file changes
       - ./apps/web/src:/app/apps/web/src
       - ./apps/web/public:/app/apps/web/public
+      # Shared package source — after editing, rebuild dist with
+      #   docker exec imposter-web-dev pnpm --filter @imposter/shared build
+      # then restart imposter-web-dev so Vite reloads the bundle.
+      - ./packages/shared/src:/app/packages/shared/src
     depends_on:
       - api
     restart: unless-stopped
