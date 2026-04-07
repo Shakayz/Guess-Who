@@ -3815,6 +3815,7 @@ const PT: PairData[] = [
   { wordA: 'Samurai X', wordB: 'Yu Yu Hakusho', difficulty: 'medium', category: 'mangas', locale: 'pt' },
   { wordA: 'Shun', wordB: 'Hyoga', difficulty: 'medium', category: 'mangas', locale: 'pt' },
   { wordA: 'Goldrak', wordB: 'Mazinger Z', difficulty: 'medium', category: 'mangas', locale: 'pt' },
+  { wordA: 'Natsu', wordB: 'Gray', difficulty: 'medium', category: 'mangas', locale: 'pt' },
   // hard (15)
   { wordA: 'Griffith', wordB: 'Guts', difficulty: 'hard', category: 'mangas', locale: 'pt' },
   { wordA: 'Lelouch', wordB: 'Suzaku', difficulty: 'hard', category: 'mangas', locale: 'pt' },
