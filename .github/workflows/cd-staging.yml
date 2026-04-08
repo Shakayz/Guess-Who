@@ -96,6 +96,15 @@ jobs:
           chmod 600 ~/.ssh/deploy
           ssh-keyscan -H ${{ env.VM_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Sync compose file & Caddyfile to VM
+        run: |
+          scp -i ~/.ssh/deploy deploy/docker-compose.staging.yml ubuntu@${{ env.VM_HOST }}:/tmp/docker-compose.staging.yml
+          scp -i ~/.ssh/deploy deploy/Caddyfile ubuntu@${{ env.VM_HOST }}:/tmp/Caddyfile
+          ssh -i ~/.ssh/deploy ubuntu@${{ env.VM_HOST }} \
+            "sudo mkdir -p /opt/imposter \
+             && sudo mv /tmp/docker-compose.staging.yml /opt/imposter/docker-compose.staging.yml \
+             && sudo mv /tmp/Caddyfile /opt/imposter/Caddyfile"
+
       - name: Get ECR password
         id: ecr
         run: echo "pw=$(aws ecr get-login-password --region eu-west-3)" >> $GITHUB_OUTPUT
