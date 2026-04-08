@@ -112,16 +112,20 @@ jobs:
       - name: Deploy to VM
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          ALLOWED_ORIGINS: https://staging.aghazzaf.com
           ECR_PW: ${{ steps.ecr.outputs.pw }}
         run: |
           ssh -i ~/.ssh/deploy ubuntu@${{ env.VM_HOST }} \
             "cd /opt/imposter \
              && sudo touch .env && sudo chmod 600 .env \
-             && if sudo grep -q '^GOOGLE_CLIENT_ID=' .env; then \
-                  sudo sed -i 's|^GOOGLE_CLIENT_ID=.*|GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}|' .env; \
-                else \
-                  echo 'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}' | sudo tee -a .env >/dev/null; \
-                fi \
+             && for kv in 'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}' 'ALLOWED_ORIGINS=${ALLOWED_ORIGINS}'; do \
+                  key=\${kv%%=*}; \
+                  if sudo grep -q \"^\${key}=\" .env; then \
+                    sudo sed -i \"s|^\${key}=.*|\${kv}|\" .env; \
+                  else \
+                    echo \"\${kv}\" | sudo tee -a .env >/dev/null; \
+                  fi; \
+                done \
              && echo '${ECR_PW}' | sudo docker login --username AWS --password-stdin 700672899544.dkr.ecr.eu-west-3.amazonaws.com \
              && sudo docker compose -f docker-compose.staging.yml pull api \
              && sudo docker compose -f docker-compose.staging.yml up -d --no-deps api \
