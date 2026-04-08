@@ -250,11 +250,14 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         detective.detectiveRevealUsed = true
         await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 86400)
 
-        log.info({ userId: socket.data.userId, targetUserId: data.targetUserId, role: target.role }, 'detective:reveal result sent')
+        // Infiltrator dissimulation — see detective:reveal handler in room.ts
+        const revealedRole = target.role === 'infiltrator' ? 'villager' : target.role
+
+        log.info({ userId: socket.data.userId, targetUserId: data.targetUserId, role: revealedRole }, 'detective:reveal result sent')
         socket.emit('detective:reveal-result' as any, {
           targetUserId: data.targetUserId,
           targetUsername: target.username,
-          role: target.role,
+          role: revealedRole,
         })
       } catch (err) {
         log.error({ err, userId: socket.data.userId }, 'detective:reveal error')

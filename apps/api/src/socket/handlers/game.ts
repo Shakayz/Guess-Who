@@ -35,9 +35,22 @@ export function registerGameHandlers(
     const currentRound = state.rounds?.[state.currentRound - 1]
     if (!currentRound || state.status !== 'voting') return
 
-    // ── Validate voter is alive ───────────────────────────────────────────────
-    const voter = state.players.find((p: any) => p.userId === userId && p.status === 'alive')
-    if (!voter) return
+    // ── Validate voter is alive OR a revenant with post-mortem votes left ─────
+    // Revenants continue to vote for up to 2 rounds after their elimination.
+    // Their votes are weighted just like live votes in tallyVotes (mayor +
+    // corruptor + inverter all still apply). They are an "invisible bonus
+    // voter" — they do NOT count toward the eligible-voters-for-early-resolve
+    // tally, so their silence never blocks early resolution.
+    const selfPlayer = state.players.find((p: any) => p.userId === userId)
+    const isAliveVoter = !!(selfPlayer && selfPlayer.status === 'alive')
+    const isRevenantVoter = !!(
+      selfPlayer &&
+      selfPlayer.role === 'revenant' &&
+      selfPlayer.status === 'eliminated' &&
+      typeof selfPlayer.revenantVotesRemaining === 'number' &&
+      selfPlayer.revenantVotesRemaining > 0
+    )
+    if (!isAliveVoter && !isRevenantVoter) return
 
     // ── Cannot vote for yourself ──────────────────────────────────────────────
     if (targetPlayerId === userId) return
@@ -45,7 +58,9 @@ export function registerGameHandlers(
     // ── TIEBREAKER vote path ──────────────────────────────────────────────────
     if (state.tiebreakerActive && state.tiebreakerPhase === 'vote') {
       const tiebreakerPlayerIds: string[] = state.tiebreakerPlayerIds ?? []
-      // Tied players cannot vote — only non-tied alive players decide
+      // Tied players cannot vote — only non-tied alive players (or revenants with
+      // votes left) decide. Revenants cannot be in the tied set anyway since
+      // they're eliminated, so no need for a separate check.
       if (tiebreakerPlayerIds.includes(userId)) return
       // Target must be one of the tied players
       if (!tiebreakerPlayerIds.includes(targetPlayerId)) return
@@ -69,6 +84,8 @@ export function registerGameHandlers(
     }
 
     // ── Validate target exists and is alive ───────────────────────────────────
+    // Same for alive voters and revenant post-mortem voters — both must
+    // target a currently-alive player.
     const target = state.players.find((p: any) => p.userId === targetPlayerId && p.status === 'alive')
     if (!target) return
 
@@ -151,9 +168,18 @@ export function registerGameHandlers(
 
     // ── Word detection — check BEFORE writing to Redis so we only write once ─
     const role: string = player.role ?? 'villager'
+    // Roles that MUST avoid the villager word:
+    //   - all villager-side roles (judge, revenant, mayor, guardian, detective)
+    //   - twin_villager (villager-side)
+    //   - infiltrator (imposter team but holds villager word to blend in)
+    //   - jester (holds villager word, loses if he says it)
+    const villagerWordRoles = new Set([
+      'villager', 'detective', 'guardian', 'mayor', 'infiltrator', 'jester',
+      'judge', 'revenant', 'twin_villager',
+    ])
     const forbidden: string[] =
       role === 'double_agent' ? [state.villagerWord ?? '', state.imposterWord ?? ''] :
-      (role === 'villager' || role === 'detective' || role === 'guardian') ? [state.villagerWord ?? ''] :
+      villagerWordRoles.has(role)  ? [state.villagerWord ?? ''] :
       [state.imposterWord ?? '']
 
     const saidWord = forbidden.some((w) => containsWord(sanitized, w))

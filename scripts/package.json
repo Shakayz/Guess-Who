@@ -1,0 +1,17 @@
+{
+  "name": "guess-who-scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone dev/test scripts. NOT part of the pnpm workspace — install locally with `npm install` inside this folder.",
+  "scripts": {
+    "bots": "node dev-bots.mjs",
+    "bots:help": "node dev-bots.mjs --help"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

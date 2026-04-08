@@ -6,9 +6,15 @@ import { createLogger } from '../lib/logger'
 const log = createLogger('game')
 
 interface GameResult {
-  winner: 'villagers' | 'imposters' | 'draw'
+  winner: 'villagers' | 'imposters' | 'jester' | 'evil_twins' | 'draw'
   finalRound: Round
   rewards: RewardSummary
+}
+
+interface TwinPartner {
+  twinUserId: string
+  twinUsername: string
+  twinRole: string
 }
 
 interface RevealedPlayer {
@@ -27,6 +33,20 @@ interface GameState {
   detectiveRevealUsed: boolean
   guardianProtectUsed: boolean
   guardianProtectedPlayer: { userId: string; username: string } | null
+  /** Mayor: double-vote permanently consumed for this game */
+  mayorDoubleVoteUsed: boolean
+  /** Mayor: double-vote active for the current voting phase (resets at round end) */
+  mayorDoubleActive: boolean
+  /** Inverter: tally-flip permanently consumed for this game */
+  inverterUsed: boolean
+  /** Inverter: flip active for the current voting phase (resets at round end) */
+  inverterActive: boolean
+  /** Corruptor: userId of picked target (one-shot, for the whole game) */
+  corruptorTargetUserId: string | null
+  /** Twin partner info (set once at game:started via twin:partner event) */
+  twinPartner: TwinPartner | null
+  /** Revenant: post-mortem votes remaining (sent by server on elimination) */
+  revenantVotesRemaining: number
   revealedPlayer: RevealedPlayer | null
   messages: ChatMessage[]
   result: GameResult | null
@@ -41,6 +61,13 @@ interface GameState {
   setDetectiveRevealUsed: () => void
   setGuardianProtectUsed: (target: { userId: string; username: string }) => void
   setGuardianProtectedPlayer: (p: { userId: string; username: string } | null) => void
+  setMayorDoubleActive: () => void
+  resetMayorDoubleActive: () => void
+  setInverterActive: () => void
+  resetInverterActive: () => void
+  setCorruptorTarget: (userId: string) => void
+  setTwinPartner: (partner: TwinPartner | null) => void
+  setRevenantVotesRemaining: (n: number) => void
   setRevealedPlayer: (p: RevealedPlayer | null) => void
   addMessage: (msg: ChatMessage) => void
   setResult: (result: GameResult) => void
@@ -60,6 +87,13 @@ export const useGameStore = create<GameState>()(
       detectiveRevealUsed: false,
       guardianProtectUsed: false,
       guardianProtectedPlayer: null,
+      mayorDoubleVoteUsed: false,
+      mayorDoubleActive: false,
+      inverterUsed: false,
+      inverterActive: false,
+      corruptorTargetUserId: null,
+      twinPartner: null,
+      revenantVotesRemaining: 0,
       revealedPlayer: null,
       messages: [],
       result: null,
@@ -83,6 +117,13 @@ export const useGameStore = create<GameState>()(
       setDetectiveRevealUsed: () => set({ detectiveRevealUsed: true }),
       setGuardianProtectUsed: (target) => set({ guardianProtectUsed: true, guardianProtectedPlayer: target }),
       setGuardianProtectedPlayer: (guardianProtectedPlayer) => set({ guardianProtectedPlayer }),
+      setMayorDoubleActive: () => set({ mayorDoubleVoteUsed: true, mayorDoubleActive: true }),
+      resetMayorDoubleActive: () => set({ mayorDoubleActive: false }),
+      setInverterActive: () => set({ inverterUsed: true, inverterActive: true }),
+      resetInverterActive: () => set({ inverterActive: false }),
+      setCorruptorTarget: (corruptorTargetUserId) => set({ corruptorTargetUserId }),
+      setTwinPartner: (twinPartner) => set({ twinPartner }),
+      setRevenantVotesRemaining: (revenantVotesRemaining) => set({ revenantVotesRemaining }),
       setRevealedPlayer: (revealedPlayer) => set({ revealedPlayer }),
       addMessage: (msg) => set((s) => {
         const msgs = s.messages.length >= 100
@@ -97,7 +138,7 @@ export const useGameStore = create<GameState>()(
       setGameFinished: (gameFinished) => set({ gameFinished }),
       reset: () => {
         log.info('game state reset')
-        set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, detectiveRevealUsed: false, guardianProtectUsed: false, guardianProtectedPlayer: null, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() })
+        set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, detectiveRevealUsed: false, guardianProtectUsed: false, guardianProtectedPlayer: null, mayorDoubleVoteUsed: false, mayorDoubleActive: false, inverterUsed: false, inverterActive: false, corruptorTargetUserId: null, twinPartner: null, revenantVotesRemaining: 0, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() })
       },
     }),
     {
@@ -113,6 +154,13 @@ export const useGameStore = create<GameState>()(
         myVillagerWord: state.myVillagerWord,
         detectiveRevealUsed: state.detectiveRevealUsed,
         guardianProtectUsed: state.guardianProtectUsed,
+        mayorDoubleVoteUsed: state.mayorDoubleVoteUsed,
+        mayorDoubleActive: state.mayorDoubleActive,
+        inverterUsed: state.inverterUsed,
+        inverterActive: state.inverterActive,
+        corruptorTargetUserId: state.corruptorTargetUserId,
+        twinPartner: state.twinPartner,
+        revenantVotesRemaining: state.revenantVotesRemaining,
         result: state.result,
         gameFinished: state.gameFinished,
         lastResetAt: state.lastResetAt,

@@ -44,6 +44,12 @@ interface Settings {
   mayorCount: number
   infiltratorCount: number
   jesterCount: number
+  judgeCount: number
+  revenantCount: number
+  kamikazeCount: number
+  corruptorCount: number
+  inverterCount: number
+  evilTwinsEnabled: number
   maxRounds: number
   language: Locale
 }
@@ -97,6 +103,12 @@ function SettingsPanel({
       mayorCount:       mode === 'normal' ? 0 : settings.mayorCount,
       infiltratorCount: mode === 'normal' ? 0 : settings.infiltratorCount,
       jesterCount:      mode === 'normal' ? 0 : settings.jesterCount,
+      judgeCount:       mode === 'normal' ? 0 : settings.judgeCount,
+      revenantCount:    mode === 'normal' ? 0 : settings.revenantCount,
+      kamikazeCount:    mode === 'normal' ? 0 : settings.kamikazeCount,
+      corruptorCount:   mode === 'normal' ? 0 : settings.corruptorCount,
+      inverterCount:    mode === 'normal' ? 0 : settings.inverterCount,
+      evilTwinsEnabled: mode === 'normal' ? 0 : settings.evilTwinsEnabled,
     })
   }
 
@@ -138,18 +150,37 @@ function SettingsPanel({
 
       {/* Special roles */}
       {settings.gameMode === 'special' && (() => {
-        // Evil team (imposter + double_agent + infiltrator) must stay ≤ floor(N/3).
+        // Evil team (imposter + double_agent + infiltrator + kamikaze + corruptor
+        // + inverter + twin_imposter) must stay ≤ floor(N/3).
         // N here is maxPlayers because we don't yet know how many players
         // will actually join — we validate against the worst case.
         const evilCap = Math.max(1, Math.floor(settings.maxPlayers / 3))
-        const currentEvil = settings.imposterCount + settings.doubleAgentCount + (settings.infiltratorCount ?? 0)
+        const evilExtras =
+          (settings.kamikazeCount ?? 0) +
+          (settings.corruptorCount ?? 0) +
+          (settings.inverterCount ?? 0) +
+          (settings.evilTwinsEnabled ?? 0) // twin_imposter counts as 1 imposter slot
+        const currentEvil =
+          settings.imposterCount +
+          settings.doubleAgentCount +
+          (settings.infiltratorCount ?? 0) +
+          evilExtras
         const evilHeadroom = Math.max(0, evilCap - currentEvil)
-        const maxDoubleAgentsLobby = Math.max(0, evilCap - settings.imposterCount - (settings.infiltratorCount ?? 0))
-        const maxInfiltratorsLobby = Math.max(0, evilCap - settings.imposterCount - settings.doubleAgentCount)
-        // Villager side leaves at least 1 pure villager
-        const maxSpecialTotal = Math.max(0, settings.maxPlayers - currentEvil - 1)
+        const maxDoubleAgentsLobby = Math.max(0, evilCap - settings.imposterCount - (settings.infiltratorCount ?? 0) - evilExtras)
+        const maxInfiltratorsLobby = Math.max(0, evilCap - settings.imposterCount - settings.doubleAgentCount - evilExtras)
+        const maxKamikazeLobby = Math.max(0, evilCap - settings.imposterCount - settings.doubleAgentCount - (settings.infiltratorCount ?? 0) - (settings.corruptorCount ?? 0) - (settings.inverterCount ?? 0) - (settings.evilTwinsEnabled ?? 0))
+        const maxCorruptorLobby = Math.max(0, evilCap - settings.imposterCount - settings.doubleAgentCount - (settings.infiltratorCount ?? 0) - (settings.kamikazeCount ?? 0) - (settings.inverterCount ?? 0) - (settings.evilTwinsEnabled ?? 0))
+        const maxInverterLobby = Math.max(0, evilCap - settings.imposterCount - settings.doubleAgentCount - (settings.infiltratorCount ?? 0) - (settings.kamikazeCount ?? 0) - (settings.corruptorCount ?? 0) - (settings.evilTwinsEnabled ?? 0))
+        // Villager side leaves at least 1 pure villager. The twin_villager also
+        // takes a villager-side slot when evilTwinsEnabled.
+        const twinVillagerSlot = settings.evilTwinsEnabled ?? 0
+        const maxSpecialTotal = Math.max(0, settings.maxPlayers - currentEvil - twinVillagerSlot - 1)
         const maxDetectivesLobby = Math.min(3, maxSpecialTotal)
         const maxGuardiansLobby = Math.min(2, Math.max(0, maxSpecialTotal - settings.detectiveCount))
+        const maxJudgeLobby = Math.min(1, Math.max(0, maxSpecialTotal - settings.detectiveCount - settings.guardianCount - (settings.mayorCount ?? 0)))
+        const maxRevenantLobby = Math.min(1, Math.max(0, maxSpecialTotal - settings.detectiveCount - settings.guardianCount - (settings.mayorCount ?? 0) - (settings.judgeCount ?? 0)))
+        // Evil Twins requires ≥1 slot on each side, so disable if either side is saturated.
+        const evilTwinsAllowed = (settings.evilTwinsEnabled ?? 0) === 1 || (evilHeadroom >= 1 && maxSpecialTotal >= 1)
         // silence unused warning when evilHeadroom isn't read directly in JSX
         void evilHeadroom
         return (
@@ -333,6 +364,198 @@ function SettingsPanel({
             </div>
             {settings.jesterCount > 0 && (
               <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.jesterDesc')}</p>
+            )}
+          </div>
+
+          {/* Judge count — villager side, max 1 */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+              {t('lobby.judgeCount')}
+            </p>
+            <div className="flex gap-1.5">
+              {[0, 1].map((n) => {
+                const allowed = n <= maxJudgeLobby
+                return (
+                  <button
+                    key={n}
+                    disabled={!allowed}
+                    onClick={() => { if (allowed) onChange({ ...settings, judgeCount: n }) }}
+                    className={[
+                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                      !allowed
+                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
+                        : settings.judgeCount === n
+                        ? 'bg-emerald-950/60 border-emerald-700/50 text-emerald-400'
+                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                    ].join(' ')}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
+            </div>
+            {settings.judgeCount > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.judgeDesc')}</p>
+            )}
+          </div>
+
+          {/* Revenant count — villager side, max 1 */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+              {t('lobby.revenantCount')}
+            </p>
+            <div className="flex gap-1.5">
+              {[0, 1].map((n) => {
+                const allowed = n <= maxRevenantLobby
+                return (
+                  <button
+                    key={n}
+                    disabled={!allowed}
+                    onClick={() => { if (allowed) onChange({ ...settings, revenantCount: n }) }}
+                    className={[
+                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                      !allowed
+                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
+                        : settings.revenantCount === n
+                        ? 'bg-teal-950/60 border-teal-700/50 text-teal-400'
+                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                    ].join(' ')}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
+            </div>
+            {settings.revenantCount > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.revenantDesc')}</p>
+            )}
+          </div>
+
+          {/* Kamikaze count — imposter side, max 1 */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+              {t('lobby.kamikazeCount')}
+            </p>
+            <div className="flex gap-1.5">
+              {[0, 1].map((n) => {
+                const allowed = n <= maxKamikazeLobby
+                return (
+                  <button
+                    key={n}
+                    disabled={!allowed}
+                    onClick={() => { if (allowed) onChange({ ...settings, kamikazeCount: n }) }}
+                    className={[
+                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                      !allowed
+                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
+                        : settings.kamikazeCount === n
+                        ? 'bg-red-950/60 border-red-700/50 text-red-400'
+                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                    ].join(' ')}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
+            </div>
+            {settings.kamikazeCount > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.kamikazeDesc')}</p>
+            )}
+          </div>
+
+          {/* Corruptor count — imposter side, max 1 */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+              {t('lobby.corruptorCount')}
+            </p>
+            <div className="flex gap-1.5">
+              {[0, 1].map((n) => {
+                const allowed = n <= maxCorruptorLobby
+                return (
+                  <button
+                    key={n}
+                    disabled={!allowed}
+                    onClick={() => { if (allowed) onChange({ ...settings, corruptorCount: n }) }}
+                    className={[
+                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                      !allowed
+                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
+                        : settings.corruptorCount === n
+                        ? 'bg-orange-950/60 border-orange-700/50 text-orange-400'
+                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                    ].join(' ')}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
+            </div>
+            {settings.corruptorCount > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.corruptorDesc')}</p>
+            )}
+          </div>
+
+          {/* Inverter count — imposter side, max 1 */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+              {t('lobby.inverterCount')}
+            </p>
+            <div className="flex gap-1.5">
+              {[0, 1].map((n) => {
+                const allowed = n <= maxInverterLobby
+                return (
+                  <button
+                    key={n}
+                    disabled={!allowed}
+                    onClick={() => { if (allowed) onChange({ ...settings, inverterCount: n }) }}
+                    className={[
+                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                      !allowed
+                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
+                        : settings.inverterCount === n
+                        ? 'bg-rose-950/60 border-rose-700/50 text-rose-400'
+                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                    ].join(' ')}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
+            </div>
+            {settings.inverterCount > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.inverterDesc')}</p>
+            )}
+          </div>
+
+          {/* Evil Twins — pair (twin_villager + twin_imposter), max 1 pair */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+              {t('lobby.evilTwinsCount')}
+            </p>
+            <div className="flex gap-1.5">
+              {[0, 1].map((n) => {
+                const allowed = n === 0 || evilTwinsAllowed
+                return (
+                  <button
+                    key={n}
+                    disabled={!allowed}
+                    onClick={() => { if (allowed) onChange({ ...settings, evilTwinsEnabled: n }) }}
+                    className={[
+                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                      !allowed
+                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
+                        : settings.evilTwinsEnabled === n
+                        ? 'bg-purple-950/60 border-purple-700/50 text-purple-400'
+                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                    ].join(' ')}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
+            </div>
+            {settings.evilTwinsEnabled > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.evilTwinsDesc')}</p>
             )}
           </div>
         </div>
@@ -528,6 +751,12 @@ export default function LobbyPage() {
     mayorCount: 0,
     infiltratorCount: 0,
     jesterCount: 0,
+    judgeCount: 0,
+    revenantCount: 0,
+    kamikazeCount: 0,
+    corruptorCount: 0,
+    inverterCount: 0,
+    evilTwinsEnabled: 0,
     maxRounds: 0,
     language: (i18n.language.split('-')[0] as Locale) || 'en',
   })
@@ -544,6 +773,12 @@ export default function LobbyPage() {
       mayorCount: s.mayorCount,
       infiltratorCount: s.infiltratorCount,
       jesterCount: s.jesterCount,
+      judgeCount: s.judgeCount,
+      revenantCount: s.revenantCount,
+      kamikazeCount: s.kamikazeCount,
+      corruptorCount: s.corruptorCount,
+      inverterCount: s.inverterCount,
+      evilTwinsEnabled: s.evilTwinsEnabled,
       maxRounds: s.maxRounds,
       maxPlayers: s.maxPlayers,
       imposterCount: s.imposterCount,
@@ -615,6 +850,12 @@ export default function LobbyPage() {
           mayorCount: (r.settings as any).mayorCount ?? 0,
           infiltratorCount: (r.settings as any).infiltratorCount ?? 0,
           jesterCount: (r.settings as any).jesterCount ?? 0,
+          judgeCount: (r.settings as any).judgeCount ?? 0,
+          revenantCount: (r.settings as any).revenantCount ?? 0,
+          kamikazeCount: (r.settings as any).kamikazeCount ?? 0,
+          corruptorCount: (r.settings as any).corruptorCount ?? 0,
+          inverterCount: (r.settings as any).inverterCount ?? 0,
+          evilTwinsEnabled: (r.settings as any).evilTwinsEnabled ?? 0,
           maxRounds: r.maxRounds ?? 0,
           language: roomLang,
         }))
@@ -895,6 +1136,24 @@ export default function LobbyPage() {
               )}
               {settings.gameMode === 'special' && settings.jesterCount > 0 && (
                 <><span>·</span><span>{settings.jesterCount} {t('lobby.jesterCount').toLowerCase()}</span></>
+              )}
+              {settings.gameMode === 'special' && settings.judgeCount > 0 && (
+                <><span>·</span><span>{settings.judgeCount} {t('lobby.judgeCount').toLowerCase()}</span></>
+              )}
+              {settings.gameMode === 'special' && settings.revenantCount > 0 && (
+                <><span>·</span><span>{settings.revenantCount} {t('lobby.revenantCount').toLowerCase()}</span></>
+              )}
+              {settings.gameMode === 'special' && settings.kamikazeCount > 0 && (
+                <><span>·</span><span>{settings.kamikazeCount} {t('lobby.kamikazeCount').toLowerCase()}</span></>
+              )}
+              {settings.gameMode === 'special' && settings.corruptorCount > 0 && (
+                <><span>·</span><span>{settings.corruptorCount} {t('lobby.corruptorCount').toLowerCase()}</span></>
+              )}
+              {settings.gameMode === 'special' && settings.inverterCount > 0 && (
+                <><span>·</span><span>{settings.inverterCount} {t('lobby.inverterCount').toLowerCase()}</span></>
+              )}
+              {settings.gameMode === 'special' && settings.evilTwinsEnabled > 0 && (
+                <><span>·</span><span>{t('lobby.evilTwins')}</span></>
               )}
               {settings.categories.length > 0 && (
                 <><span>·</span><span>{settings.categories.length} {t('lobby.categories').toLowerCase()}</span></>

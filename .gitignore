@@ -51,3 +51,6 @@ ios/
 # Prisma — migrations must be committed for production deploys
 # prisma/migrations/
 deploy/.env*
+
+# Dev scripts — local bot credentials contain valid JWTs
+scripts/.bots.json

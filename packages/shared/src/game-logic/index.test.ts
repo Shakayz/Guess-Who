@@ -6,6 +6,10 @@ import {
   getTiedPlayerIds,
   shuffleArray,
   generateRoomCode,
+  tallyVotes,
+  isVillagerSideRole,
+  isImposterSideRole,
+  isJesterRole,
 } from './index'
 import type { Player, Vote } from '../types'
 
@@ -33,7 +37,7 @@ function makeVote(voterId: string, targetId: string): Vote {
 
 describe('countAlive', () => {
   it('returns zeros for an empty array', () => {
-    expect(countAlive([])).toEqual({ villagers: 0, imposters: 0 })
+    expect(countAlive([])).toEqual({ villagers: 0, imposters: 0, jesters: 0 })
   })
 
   it('counts alive villagers only', () => {
@@ -41,14 +45,14 @@ describe('countAlive', () => {
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'alive' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 2, imposters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 2, imposters: 0, jesters: 0 })
   })
 
   it('counts alive imposters only', () => {
     const players = [
       makePlayer({ id: '1', role: 'imposter', status: 'alive' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 0, imposters: 1 })
+    expect(countAlive(players)).toEqual({ villagers: 0, imposters: 1, jesters: 0 })
   })
 
   it('ignores eliminated players', () => {
@@ -57,7 +61,7 @@ describe('countAlive', () => {
       makePlayer({ id: '2', role: 'villager', status: 'eliminated' }),
       makePlayer({ id: '3', role: 'imposter', status: 'eliminated' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 1, imposters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 1, imposters: 0, jesters: 0 })
   })
 
   it('counts detective as villager', () => {
@@ -65,7 +69,7 @@ describe('countAlive', () => {
       makePlayer({ id: '1', role: 'detective', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'alive' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 2, imposters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 2, imposters: 0, jesters: 0 })
   })
 
   it('counts double_agent as imposter', () => {
@@ -73,7 +77,32 @@ describe('countAlive', () => {
       makePlayer({ id: '1', role: 'double_agent', status: 'alive' }),
       makePlayer({ id: '2', role: 'imposter', status: 'alive' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 0, imposters: 2 })
+    expect(countAlive(players)).toEqual({ villagers: 0, imposters: 2, jesters: 0 })
+  })
+
+  it('counts mayor as villager-side', () => {
+    const players = [
+      makePlayer({ id: '1', role: 'mayor', status: 'alive' }),
+      makePlayer({ id: '2', role: 'villager', status: 'alive' }),
+    ]
+    expect(countAlive(players)).toEqual({ villagers: 2, imposters: 0, jesters: 0 })
+  })
+
+  it('counts infiltrator as imposter-side', () => {
+    const players = [
+      makePlayer({ id: '1', role: 'infiltrator', status: 'alive' }),
+      makePlayer({ id: '2', role: 'imposter', status: 'alive' }),
+    ]
+    expect(countAlive(players)).toEqual({ villagers: 0, imposters: 2, jesters: 0 })
+  })
+
+  it('counts jester as its own team', () => {
+    const players = [
+      makePlayer({ id: '1', role: 'jester', status: 'alive' }),
+      makePlayer({ id: '2', role: 'villager', status: 'alive' }),
+      makePlayer({ id: '3', role: 'imposter', status: 'alive' }),
+    ]
+    expect(countAlive(players)).toEqual({ villagers: 1, imposters: 1, jesters: 1 })
   })
 
   it('counts a mixed roster correctly', () => {
@@ -85,7 +114,7 @@ describe('countAlive', () => {
       makePlayer({ id: '5', role: 'villager', status: 'eliminated' }),
       makePlayer({ id: '6', role: 'imposter', status: 'eliminated' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 2, imposters: 2 })
+    expect(countAlive(players)).toEqual({ villagers: 2, imposters: 2, jesters: 0 })
   })
 
   it('handles all players eliminated', () => {
@@ -93,7 +122,43 @@ describe('countAlive', () => {
       makePlayer({ id: '1', role: 'villager', status: 'eliminated' }),
       makePlayer({ id: '2', role: 'imposter', status: 'eliminated' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 0, imposters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 0, imposters: 0, jesters: 0 })
+  })
+})
+
+// ─── team helpers ───────────────────────────────────────────────────────────
+
+describe('team role helpers', () => {
+  it('isVillagerSideRole returns true for villager, detective, guardian, mayor', () => {
+    expect(isVillagerSideRole('villager')).toBe(true)
+    expect(isVillagerSideRole('detective')).toBe(true)
+    expect(isVillagerSideRole('guardian')).toBe(true)
+    expect(isVillagerSideRole('mayor')).toBe(true)
+  })
+
+  it('isVillagerSideRole returns false for imposter-side and jester', () => {
+    expect(isVillagerSideRole('imposter')).toBe(false)
+    expect(isVillagerSideRole('double_agent')).toBe(false)
+    expect(isVillagerSideRole('infiltrator')).toBe(false)
+    expect(isVillagerSideRole('jester')).toBe(false)
+  })
+
+  it('isImposterSideRole returns true for imposter, double_agent, infiltrator', () => {
+    expect(isImposterSideRole('imposter')).toBe(true)
+    expect(isImposterSideRole('double_agent')).toBe(true)
+    expect(isImposterSideRole('infiltrator')).toBe(true)
+  })
+
+  it('isImposterSideRole returns false for villager-side and jester', () => {
+    expect(isImposterSideRole('villager')).toBe(false)
+    expect(isImposterSideRole('mayor')).toBe(false)
+    expect(isImposterSideRole('jester')).toBe(false)
+  })
+
+  it('isJesterRole returns true only for jester', () => {
+    expect(isJesterRole('jester')).toBe(true)
+    expect(isJesterRole('villager')).toBe(false)
+    expect(isJesterRole('imposter')).toBe(false)
   })
 })
 
@@ -121,10 +186,20 @@ describe('checkWinCondition', () => {
     expect(checkWinCondition(players)).toBe('villagers')
   })
 
-  it('returns "imposters" when imposters equal villagers', () => {
+  it('returns "imposters" when 1 imposter equals 1 villager', () => {
     const players = [
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
       makePlayer({ id: '2', role: 'imposter', status: 'alive' }),
+    ]
+    expect(checkWinCondition(players)).toBe('imposters')
+  })
+
+  it('returns "imposters" when 2 imposters equal 2 villagers', () => {
+    const players = [
+      makePlayer({ id: '1', role: 'villager', status: 'alive' }),
+      makePlayer({ id: '2', role: 'villager', status: 'alive' }),
+      makePlayer({ id: '3', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '4', role: 'imposter', status: 'alive' }),
     ]
     expect(checkWinCondition(players)).toBe('imposters')
   })
@@ -147,12 +222,12 @@ describe('checkWinCondition', () => {
     expect(checkWinCondition(players)).toBeNull()
   })
 
-  it('handles detective and double_agent roles correctly', () => {
+  it('handles detective and double_agent roles correctly (1v1 → imposters win)', () => {
     const players = [
       makePlayer({ id: '1', role: 'detective', status: 'alive' }),
       makePlayer({ id: '2', role: 'double_agent', status: 'alive' }),
     ]
-    // 1 villager (detective), 1 imposter (double_agent) => imposters >= villagers
+    // 1 villager-side (detective) vs 1 imposter-side (double_agent) → imposters reach parity
     expect(checkWinCondition(players)).toBe('imposters')
   })
 
@@ -172,6 +247,47 @@ describe('checkWinCondition', () => {
     ]
     // 0 imposters => villagers win
     expect(checkWinCondition(players)).toBe('villagers')
+  })
+
+  it('counts mayor in villager team for win condition', () => {
+    const players = [
+      makePlayer({ id: '1', role: 'mayor', status: 'alive' }),
+      makePlayer({ id: '2', role: 'villager', status: 'alive' }),
+      makePlayer({ id: '3', role: 'imposter', status: 'eliminated' }),
+    ]
+    expect(checkWinCondition(players)).toBe('villagers')
+  })
+
+  it('counts infiltrator in imposter team for win condition', () => {
+    const players = [
+      makePlayer({ id: '1', role: 'villager', status: 'alive' }),
+      makePlayer({ id: '2', role: 'infiltrator', status: 'alive' }),
+      makePlayer({ id: '3', role: 'imposter', status: 'alive' }),
+    ]
+    // 1 villager vs 2 imposter-side → imposters win
+    expect(checkWinCondition(players)).toBe('imposters')
+  })
+
+  it('ignores jester alive when checking win condition', () => {
+    const players = [
+      makePlayer({ id: '1', role: 'villager', status: 'alive' }),
+      makePlayer({ id: '2', role: 'villager', status: 'alive' }),
+      makePlayer({ id: '3', role: 'jester', status: 'alive' }),
+      makePlayer({ id: '4', role: 'imposter', status: 'eliminated' }),
+    ]
+    // Jester is ignored — villagers win because imposters = 0
+    expect(checkWinCondition(players)).toBe('villagers')
+  })
+
+  it('jester alive does not block imposter majority win', () => {
+    const players = [
+      makePlayer({ id: '1', role: 'villager', status: 'alive' }),
+      makePlayer({ id: '2', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '3', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '4', role: 'jester', status: 'alive' }),
+    ]
+    // 1 villager vs 2 imposters → imposters win (jester doesn't pad villager team)
+    expect(checkWinCondition(players)).toBe('imposters')
   })
 })
 
@@ -326,6 +442,201 @@ describe('shuffleArray', () => {
 })
 
 // ─── generateRoomCode ───────────────────────────────────────────────────────
+
+// ─── tallyVotes (mayor weighted votes) ──────────────────────────────────────
+
+describe('tallyVotes', () => {
+  it('returns nulls for empty votes', () => {
+    expect(tallyVotes([], [])).toEqual({ mostVotedId: null, tiedIds: [], weightedTally: {}, inverted: false })
+  })
+
+  it('behaves like getMostVoted when no mayor is active', () => {
+    const players = [
+      makePlayer({ id: 'a', role: 'villager' }),
+      makePlayer({ id: 'b', role: 'villager' }),
+      makePlayer({ id: 'c', role: 'imposter' }),
+    ]
+    const votes = [makeVote('a', 'c'), makeVote('b', 'c')]
+    const result = tallyVotes(votes, players)
+    expect(result.mostVotedId).toBe('c')
+    expect(result.tiedIds).toEqual(['c'])
+    expect(result.weightedTally).toEqual({ c: 2 })
+  })
+
+  it('doubles the vote of a mayor with mayorDoubleActive=true', () => {
+    const players = [
+      makePlayer({ id: 'mayor', role: 'mayor', mayorDoubleActive: true }),
+      makePlayer({ id: 'v1', role: 'villager' }),
+      makePlayer({ id: 'imp', role: 'imposter' }),
+    ]
+    // mayor votes 'imp' (weight 2), v1 votes 'mayor' (weight 1)
+    const votes = [makeVote('mayor', 'imp'), makeVote('v1', 'mayor')]
+    const result = tallyVotes(votes, players)
+    expect(result.weightedTally).toEqual({ imp: 2, mayor: 1 })
+    expect(result.mostVotedId).toBe('imp')
+  })
+
+  it('does NOT double the mayor vote when mayorDoubleActive is false', () => {
+    const players = [
+      makePlayer({ id: 'mayor', role: 'mayor', mayorDoubleActive: false }),
+      makePlayer({ id: 'v1', role: 'villager' }),
+      makePlayer({ id: 'imp', role: 'imposter' }),
+    ]
+    const votes = [makeVote('mayor', 'imp'), makeVote('v1', 'mayor')]
+    const result = tallyVotes(votes, players)
+    expect(result.weightedTally).toEqual({ imp: 1, mayor: 1 })
+    expect(result.mostVotedId).toBeNull()
+    expect(result.tiedIds).toHaveLength(2)
+  })
+
+  it('mayor double-vote breaks a tie', () => {
+    const players = [
+      makePlayer({ id: 'mayor', role: 'mayor', mayorDoubleActive: true }),
+      makePlayer({ id: 'v1', role: 'villager' }),
+      makePlayer({ id: 'v2', role: 'villager' }),
+      makePlayer({ id: 'imp', role: 'imposter' }),
+    ]
+    // Without mayor boost: 2-2 tie between imp and mayor
+    const votes = [
+      makeVote('mayor', 'imp'),
+      makeVote('v1', 'imp'),
+      makeVote('v2', 'mayor'),
+      makeVote('imp', 'mayor'),
+    ]
+    const result = tallyVotes(votes, players)
+    // mayor's vote for 'imp' counts 2 → imp: 3, mayor: 2
+    expect(result.weightedTally).toEqual({ imp: 3, mayor: 2 })
+    expect(result.mostVotedId).toBe('imp')
+  })
+
+  it('returns tied ids when top count is shared', () => {
+    const players = [
+      makePlayer({ id: 'a', role: 'villager' }),
+      makePlayer({ id: 'b', role: 'villager' }),
+    ]
+    const votes = [makeVote('a', 'x'), makeVote('b', 'y')]
+    const result = tallyVotes(votes, players)
+    expect(result.mostVotedId).toBeNull()
+    expect(result.tiedIds.sort()).toEqual(['x', 'y'])
+  })
+
+  it('ignores mayor flag on non-mayor players (defensive)', () => {
+    const players = [
+      // Misconfigured: villager with mayorDoubleActive — must be ignored
+      makePlayer({ id: 'fake', role: 'villager', mayorDoubleActive: true } as any),
+      makePlayer({ id: 'v', role: 'villager' }),
+    ]
+    const votes = [makeVote('fake', 'x'), makeVote('v', 'y')]
+    const result = tallyVotes(votes, players)
+    expect(result.weightedTally).toEqual({ x: 1, y: 1 })
+  })
+
+  // ─── Corruptor: silent vote drop ────────────────────────────────────────────
+  it('silently drops votes from a corrupted voter', () => {
+    const players = [
+      makePlayer({ id: 'corruptor', role: 'corruptor' }),
+      makePlayer({ id: 'target', role: 'villager', corrupted: true }),
+      makePlayer({ id: 'v1', role: 'villager' }),
+      makePlayer({ id: 'v2', role: 'villager' }),
+    ]
+    // corrupted target votes 'corruptor' (dropped), v1+v2 vote 'corruptor'
+    const votes = [
+      makeVote('target', 'v1'),
+      makeVote('v1', 'corruptor'),
+      makeVote('v2', 'corruptor'),
+    ]
+    const result = tallyVotes(votes, players)
+    expect(result.weightedTally).toEqual({ corruptor: 2 })
+    expect(result.mostVotedId).toBe('corruptor')
+  })
+
+  // ─── Inverter: flip the winner ──────────────────────────────────────────────
+  it('flips the tally when inverterActive is set', () => {
+    const players = [
+      makePlayer({ id: 'inv', role: 'inverter', inverterActive: true }),
+      makePlayer({ id: 'v1', role: 'villager' }),
+      makePlayer({ id: 'v2', role: 'villager' }),
+      makePlayer({ id: 'imp', role: 'imposter' }),
+    ]
+    const votes = [
+      makeVote('v1', 'imp'),
+      makeVote('v2', 'imp'),
+      makeVote('inv', 'v1'),
+      makeVote('imp', 'v1'),
+    ]
+    // Normal tally: imp=2, v1=2 → tie; but inverter flips, so LEAST votes wins.
+    // All targets have votes (v1=2, imp=2). No entry has 0. The least tied is 2.
+    // So both imp and v1 are the "least voted" (tied).
+    const result = tallyVotes(votes, players)
+    expect(result.inverted).toBe(true)
+    expect(result.weightedTally).toEqual({ imp: 2, v1: 2 })
+    expect(result.mostVotedId).toBeNull()
+    expect(result.tiedIds.sort()).toEqual(['imp', 'v1'])
+  })
+
+  it('inverter picks the least-voted target (non-tied)', () => {
+    const players = [
+      makePlayer({ id: 'inv', role: 'inverter', inverterActive: true }),
+      makePlayer({ id: 'v1', role: 'villager' }),
+      makePlayer({ id: 'v2', role: 'villager' }),
+      makePlayer({ id: 'v3', role: 'villager' }),
+    ]
+    // Most votes on 'v1' (3), one vote on 'v2' (1) → invert → v2 wins
+    const votes = [
+      makeVote('v2', 'v1'),
+      makeVote('v3', 'v1'),
+      makeVote('inv', 'v1'),
+      makeVote('v1', 'v2'),
+    ]
+    const result = tallyVotes(votes, players)
+    expect(result.inverted).toBe(true)
+    expect(result.mostVotedId).toBe('v2')
+  })
+})
+
+// ─── Evil twins override ────────────────────────────────────────────────────
+
+describe('checkWinCondition — evil twins', () => {
+  it('overrides imposter win when both twins alive', () => {
+    const players = [
+      makePlayer({ id: 'tv', role: 'twin_villager', twinPartnerUserId: 'ti' }),
+      makePlayer({ id: 'ti', role: 'twin_imposter', twinPartnerUserId: 'tv' }),
+      makePlayer({ id: 'imp', role: 'imposter', status: 'eliminated' }),
+    ]
+    // 1 villager-side (tv) vs 1 imposter-side (ti) → imposters >= villagers
+    // BUT both twins alive → evil_twins wins
+    expect(checkWinCondition(players)).toBe('evil_twins')
+  })
+
+  it('falls back to villagers when twin_imposter is dead', () => {
+    const players = [
+      makePlayer({ id: 'tv', role: 'twin_villager', twinPartnerUserId: 'ti' }),
+      makePlayer({ id: 'ti', role: 'twin_imposter', twinPartnerUserId: 'tv', status: 'eliminated' }),
+      makePlayer({ id: 'v1', role: 'villager' }),
+    ]
+    // imposters=0 → villagers win (but twin_villager is individually a loser per game rules)
+    expect(checkWinCondition(players)).toBe('villagers')
+  })
+
+  it('falls back to imposters when twin_villager is dead', () => {
+    const players = [
+      makePlayer({ id: 'tv', role: 'twin_villager', twinPartnerUserId: 'ti', status: 'eliminated' }),
+      makePlayer({ id: 'ti', role: 'twin_imposter', twinPartnerUserId: 'tv' }),
+      makePlayer({ id: 'v1', role: 'villager' }),
+    ]
+    // 1 villager vs 1 imposter → imposters win (standard parity)
+    expect(checkWinCondition(players)).toBe('imposters')
+  })
+
+  it('does not trigger evil_twins if twin pairing is broken', () => {
+    const players = [
+      makePlayer({ id: 'tv', role: 'twin_villager' /* no twinPartnerUserId */ }),
+      makePlayer({ id: 'ti', role: 'twin_imposter' /* no twinPartnerUserId */ }),
+    ]
+    // Unpaired twins → standard rule applies (1v1 → imposters)
+    expect(checkWinCondition(players)).toBe('imposters')
+  })
+})
 
 describe('generateRoomCode', () => {
   it('returns a string of length 6', () => {

@@ -1,9 +1,13 @@
 import type { Server } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
 import {
-  getMostVoted,
   getTiedPlayerIds,
   checkWinCondition,
+  tallyVotes,
+  isImposterSideRole,
+  isVillagerSideRole,
+  isJesterRole,
+  isTwinRole,
   computeRankUpdate,
   LP_REWARDS,
   XP_REWARDS,
@@ -12,6 +16,9 @@ import {
   levelFromXp,
   xpProgressInLevel,
 } from '@imposter/shared'
+
+/** Final winner label used across all end-game branches. */
+type Winner = 'villagers' | 'imposters' | 'jester' | 'evil_twins' | 'draw'
 import type { RankTier } from '@imposter/shared'
 import pino from 'pino'
 import { redis } from '../config/redis'
@@ -25,6 +32,18 @@ type IO = Server<ClientToServerEvents, ServerToClientEvents>
 
 // Per-room active timers
 const roomTimers = new Map<string, NodeJS.Timeout>()
+
+const STALEMATE_ROUNDS = 3
+
+/** Returns how many trailing rounds in a row had no elimination. */
+function countConsecutiveNoElimRounds(rounds: any[]): number {
+  let count = 0
+  for (let i = rounds.length - 1; i >= 0; i--) {
+    if (!rounds[i].eliminatedPlayerId) count++
+    else break
+  }
+  return count
+}
 
 function clearRoomTimer(roomId: string) {
   const t = roomTimers.get(roomId)
@@ -45,6 +64,9 @@ function buildResetState(state: any): any {
     detectiveCount:    state.detectiveCount   ?? (state.enableDetective ? 1 : 0),
     doubleAgentCount:  state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
     guardianCount:     state.guardianCount ?? 0,
+    mayorCount:        state.mayorCount ?? 0,
+    infiltratorCount:  state.infiltratorCount ?? 0,
+    jesterCount:       state.jesterCount ?? 0,
     // Clear the player list — players rejoin via room:join when they
     // navigate back to the lobby. Keeping old players here causes
     // "ghost players" from the previous game to appear in the lobby.
@@ -79,15 +101,104 @@ function buildRoundPayload(round: any) {
 
 /** Shared LP delta calculator — avoids 4x duplication */
 function getWinLpDelta(role: string, winner: string): number {
-  const isImposter = role === 'imposter' || role === 'double_agent'
+  const r = role as any
+  const isImposter = isImposterSideRole(r)
+  const isJester = isJesterRole(r)
+  const isTwin = isTwinRole(r)
+
+  // Jester wins are only ranked from a lore standpoint — ranked mode does not
+  // include jester roles, so this is defensive. We reuse the villager-loss
+  // constant so a jester win doesn't leak extra LP into ranked stats.
+  if (winner === 'jester') {
+    return isJester ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS
+  }
+  // Evil twins co-win — both twins get imposter-size LP gain; everyone else loses.
+  if (winner === 'evil_twins') {
+    return isTwin ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS
+  }
   if (winner === 'villagers') {
     return isImposter ? LP_REWARDS.IMPOSTER_LOSS : LP_REWARDS.VILLAGER_WIN
   }
   return isImposter ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS
 }
 
+/**
+ * Twin loss override: a surviving twin whose partner died at game end is an
+ * individual LOSER even if their natural team won — because the twin pair
+ * failed its co-win condition. Returns a fresh LP delta when override kicks
+ * in, otherwise `null` (caller should use the base delta).
+ */
+function twinLossOverride(player: any, players: any[], winner: string): number | null {
+  if (!isTwinRole(player.role)) return null
+  if (winner === 'evil_twins') return null  // twin pair already won
+  if (player.status !== 'alive') return null  // only applies to survivors
+  const partner = players.find((p: any) => p.userId === player.twinPartnerUserId)
+  if (partner && partner.status === 'alive') return null  // pair intact
+  return LP_REWARDS.VILLAGER_LOSS
+}
+
+/**
+ * Reset all per-round ability flags that expire at round end:
+ *   - Mayor's double-vote active flag
+ *   - Inverter's vote-flip active flag
+ */
+function resetAbilityFlagsAtRoundEnd(state: any): void {
+  for (const p of state.players as any[]) {
+    if (p.role === 'mayor' && p.mayorDoubleActive) p.mayorDoubleActive = false
+    if (p.role === 'inverter' && p.inverterActive) p.inverterActive = false
+  }
+}
+
+/**
+ * Post-elimination bookkeeping that must run whenever a player is removed
+ * from the alive pool (either via vote, tiebreaker, kamikaze target, or
+ * judge's decision). This handles:
+ *   - Corruptor death → free their corruption target
+ *   - Revenant death → grant post-mortem voting window (2 rounds)
+ */
+function onPlayerEliminated(state: any, eliminatedUserId: string): void {
+  const eliminated = state.players.find((p: any) => p.userId === eliminatedUserId)
+  if (!eliminated) return
+
+  // ── Corruptor death frees their target ──
+  if (eliminated.role === 'corruptor' && eliminated.corruptorTargetUserId) {
+    const target = state.players.find((p: any) => p.userId === eliminated.corruptorTargetUserId)
+    if (target) target.corrupted = false
+  }
+
+  // ── Revenant gets post-mortem voting window ──
+  if (eliminated.role === 'revenant') {
+    eliminated.revenantVotesRemaining = 2
+  }
+}
+
+/**
+ * At the end of a round (including tiebreakers), decrement the post-mortem
+ * vote counter for any already-eliminated revenants who voted this round.
+ * When the counter reaches 0 they are "fully dead" and can access dead-chat.
+ */
+function tickRevenantVotes(state: any, currentRound: any): void {
+  if (!currentRound) return
+  const votersThisRound: string[] = [
+    ...((currentRound.votes ?? []) as any[]).map((v: any) => v.voterId),
+    ...((state.tiebreakerVotes ?? []) as any[]).map((v: any) => v.voterId),
+  ]
+  const voterSet = new Set(votersThisRound)
+  for (const p of state.players as any[]) {
+    if (
+      p.role === 'revenant' &&
+      p.status === 'eliminated' &&
+      typeof p.revenantVotesRemaining === 'number' &&
+      p.revenantVotesRemaining > 0 &&
+      voterSet.has(p.userId)
+    ) {
+      p.revenantVotesRemaining -= 1
+    }
+  }
+}
+
 function getSurvivalLpDelta(role: string): number {
-  const isImposter = role === 'imposter' || role === 'double_agent'
+  const isImposter = isImposterSideRole(role as any)
   return isImposter ? LP_REWARDS.SURVIVAL_IMPOSTER_WIN : LP_REWARDS.SURVIVAL_VILLAGER_LOSS
 }
 
@@ -126,7 +237,7 @@ async function applyRankedLP(
   io: IO,
   roomId: string,
   players: any[],
-  getLpDelta: (role: string) => number,
+  getLpDelta: (player: any, allPlayers: any[]) => number,
 ): Promise<void> {
   const userIds: string[] = players.map((p: any) => p.userId)
 
@@ -144,7 +255,7 @@ async function applyRankedLP(
       // Forfeited players always get the maximum loss, regardless of team result
       const lpDelta = player.status === 'forfeited'
         ? LP_REWARDS.IMPOSTER_LOSS
-        : getLpDelta(player.role ?? '')
+        : getLpDelta(player, players)
       const { newLP, newTier, promoted, demoted } = computeRankUpdate(user.rankPoints, lpDelta)
       const oldTier            = user.rankTier as RankTier
       const tierChanged        = newTier !== oldTier
@@ -178,7 +289,7 @@ async function applyRankedLP(
 async function applyXpAndLevel(
   io: IO,
   players: any[],
-  winner: 'villagers' | 'imposters' | 'draw',
+  winner: Winner,
   isRanked: boolean,
 ): Promise<void> {
   const userIds: string[] = players.map((p: any) => p.userId).filter(Boolean)
@@ -204,11 +315,19 @@ async function applyXpAndLevel(
       if (player.status === 'forfeited') return  // forfeited → 0 XP
 
       // Determine win for this player based on role + team winner
-      const isImposter = player.role === 'imposter' || player.role === 'double_agent'
-      const isWinner =
+      const role = player.role as any
+      let isWinner =
         winner === 'draw'
           ? false
-          : (winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter)
+          : (winner === 'villagers' && isVillagerSideRole(role)) ||
+            (winner === 'imposters' && isImposterSideRole(role)) ||
+            (winner === 'jester'    && isJesterRole(role)) ||
+            (winner === 'evil_twins' && isTwinRole(role))
+      // Twin loss override: a surviving twin whose partner died does NOT win
+      // with their natural team — the pair failed the twin co-win condition.
+      if (isWinner && twinLossOverride(player, players, winner) !== null) {
+        isWinner = false
+      }
 
       let xpGain: number
       if (winner === 'draw') xpGain = XP_REWARDS.DRAW
@@ -273,6 +392,105 @@ async function applyXpAndLevel(
       }
     })
   )
+}
+
+// ─── Consolidated end-of-game path (used by every winner branch) ───────────
+
+/**
+ * Centralised end-of-game finalization. Called from every code path that
+ * determines a final winner (standard vote resolution, tiebreaker,
+ * said-word instant win, kamikaze/judge fallout, forfeit, round-cap, etc.).
+ *
+ * Emits `round:ended`, persists winner to DB, applies LP + XP,
+ * then schedules the delayed `game:finished` broadcast + room reset.
+ */
+async function finishGameWithWinner(
+  io: IO,
+  roomId: string,
+  state: any,
+  winner: Winner,
+  roundPayload: any,
+): Promise<void> {
+  logger.info({ roomId, winner }, '[finishGameWithWinner] finalising')
+
+  state.status = 'finished'
+  await saveState(roomId, state)
+  await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
+
+  const finishedGame = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
+  if (finishedGame) {
+    await prisma.game.update({
+      where: { id: finishedGame.id },
+      data:  { winnerTeam: winner, endedAt: new Date() },
+    }).catch(() => {})
+  }
+
+  // Push notification for all players
+  const allPlayerIds = state.players.map((p: any) => p.userId)
+  getPushTokensForUsers(allPlayerIds).then((tokenMap) => {
+    if (tokenMap.size > 0) {
+      const winnerLabel =
+        winner === 'villagers'  ? 'Villagers' :
+        winner === 'imposters'  ? 'Imposters' :
+        winner === 'jester'     ? 'The Jester' :
+        winner === 'evil_twins' ? 'The Evil Twins' :
+        'Draw'
+      sendPushNotifications(
+        Array.from(tokenMap.entries()).map(([, pushToken]) => ({
+          pushToken,
+          title: 'Game Over!',
+          body: winner === 'draw' ? "It's a draw!" : `${winnerLabel} win!`,
+          data: { type: 'game_finished', roomId, winner },
+        })),
+      ).catch((err) => logger.error({ err, roomId }, 'push: game finished notification error'))
+    }
+  }).catch(() => {})
+
+  if (roundPayload) {
+    io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
+  }
+
+  // Achievement triggers — skipped on draw (no winning team)
+  if (winner !== 'draw') {
+    await checkAndUnlockAchievements(io, roomId, winner, state, finishedGame?.id ?? null)
+  }
+
+  const isRanked = state.gameMode === 'ranked'
+
+  // Persist LP per-player role
+  if (isRanked) {
+    await applyRankedLP(io, roomId, state.players, (player, all) => {
+      const baseDelta = getWinLpDelta(player.role ?? '', winner)
+      const override = twinLossOverride(player, all, winner)
+      return override !== null ? override : baseDelta
+    })
+  }
+  // Award lifetime XP + recompute level
+  await applyXpAndLevel(io, state.players, winner, isRanked)
+
+  // Representative delta for broadcast RewardSummary (villager perspective)
+  const lpChange = isRanked
+    ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS)
+    : 0
+
+  const starCoinsEarned =
+    winner === 'villagers'  ? 50 :
+    winner === 'imposters'  ? 80 :
+    winner === 'jester'     ? 60 :
+    winner === 'evil_twins' ? 90 :
+    20 // draw
+  const xpEarned = winner === 'draw' ? 60 : 120
+
+  const rewards = { starCoinsEarned, xpEarned, lpChange, achievements: [] }
+
+  setTimeout(async () => { try {
+    io.to(`room:${roomId}`).emit('game:finished', {
+      winner: winner as any,
+      finalRound: roundPayload as any,
+      rewards,
+    })
+    await resetRoomAfterGame(roomId, state)
+  } catch (err) { logger.error({ err }, '[finishGameWithWinner] emit error') } }, 3000)
 }
 
 // ─── Entry point called after game:start ─────────────────────────────────────
@@ -439,9 +657,17 @@ async function _resolveRound(io: IO, roomId: string) {
 
   logger.info({ roomId, round: state.currentRound }, 'resolving round')
 
-  // Find most-voted player (by userId)
-  const mostVotedId = getMostVoted(currentRound.votes ?? [])
+  // Find most-voted player (by userId). Uses the weighted tally helper so the
+  // Mayor's one-shot double vote + Corruptor silent drop + Inverter flip are honored.
+  const { mostVotedId, tiedIds: weightedTiedIds } = tallyVotes(
+    currentRound.votes ?? [],
+    state.players,
+  )
   let eliminatedRole: string | null = null
+  // Flag that the jester won this round; drives the immediate end-of-game path below.
+  let jesterWonThisRound = false
+  // Flag that the kamikaze was eliminated by vote and owes us a target pick.
+  let kamikazePending = false
 
   if (mostVotedId) {
     const targetPlayer = state.players.find((p: any) => p.userId === mostVotedId)
@@ -463,6 +689,17 @@ async function _resolveRound(io: IO, roomId: string) {
       if (targetPlayer) {
         targetPlayer.status = 'eliminated'
         eliminatedRole = targetPlayer.role ?? null
+        // ── Post-elimination housekeeping (corruptor freeing, revenant start) ──
+        onPlayerEliminated(state, mostVotedId)
+        // ── Jester solo-win check ──
+        // Eliminated by vote (not said_word) → jester wins alone immediately.
+        if (targetPlayer.role === 'jester') {
+          jesterWonThisRound = true
+        }
+        // ── Kamikaze: gets one last target pick before we proceed ──
+        if (targetPlayer.role === 'kamikaze') {
+          kamikazePending = true
+        }
       }
       currentRound.eliminatedPlayerId = mostVotedId
       currentRound.eliminatedRole = eliminatedRole
@@ -477,7 +714,9 @@ async function _resolveRound(io: IO, roomId: string) {
     }
   } else {
     // Tie vote — start tiebreaker clue phase for tied players
-    const tiedPlayerIds = getTiedPlayerIds(currentRound.votes ?? [])
+    const tiedPlayerIds = weightedTiedIds.length > 0
+      ? weightedTiedIds
+      : getTiedPlayerIds(currentRound.votes ?? [])
     currentRound.eliminatedPlayerId = null
     currentRound.eliminatedRole = null
 
@@ -506,6 +745,49 @@ async function _resolveRound(io: IO, roomId: string) {
     }, 3000)
     roomTimers.set(roomId, t)
     return   // Do NOT fall through to round:ended — tiebreaker handles that
+  }
+
+  // ── Kamikaze pending: stop here and wait for their target pick ─────────────
+  // The kamikaze's elimination is already applied, and they owe a target
+  // choice before the round truly ends. We persist the pending marker,
+  // prompt the kamikaze via socket, and return without advancing.
+  // The kamikaze:pick-target handler will call resolveKamikazeSelection()
+  // which re-enters the round-finalisation flow.
+  if (kamikazePending && mostVotedId) {
+    state.kamikazePendingUserId = mostVotedId
+    state.kamikazePendingRoundNumber = state.currentRound
+    // Update DB so an eventual reconnect sees the elimination
+    const dbRoundForKamikaze = await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
+    if (dbRoundForKamikaze) {
+      await prisma.round.update({
+        where: { id: dbRoundForKamikaze.id },
+        data: { eliminatedId: mostVotedId, eliminatedRole },
+      }).catch(() => {})
+    }
+    await saveState(roomId, state)
+
+    // Build a short-list of alive player IDs (kamikaze cannot pick themselves)
+    const candidateIds = state.players
+      .filter((p: any) => p.status === 'alive' && p.userId !== mostVotedId)
+      .map((p: any) => p.userId)
+
+    const KAMIKAZE_PICK_SECONDS = 15
+    io.to(`room:${roomId}`).emit('kamikaze:select-prompt' as any, {
+      candidateUserIds: candidateIds,
+      timeSeconds: KAMIKAZE_PICK_SECONDS,
+    })
+
+    // Timeout: no choice → auto-pick random candidate (excluding kamikaze itself)
+    clearRoomTimer(roomId)
+    const t = setTimeout(async () => {
+      roomTimers.delete(roomId)
+      const fallback = candidateIds[Math.floor(Math.random() * candidateIds.length)]
+      if (fallback) {
+        await resolveKamikazeSelection(io, roomId, mostVotedId, fallback)
+      }
+    }, KAMIKAZE_PICK_SECONDS * 1000)
+    roomTimers.set(roomId, t)
+    return
   }
 
   // Add word reveal from DB
@@ -541,68 +823,21 @@ async function _resolveRound(io: IO, roomId: string) {
     }
   }
 
+  // ── Decrement revenant post-mortem vote counters ──
+  tickRevenantVotes(state, currentRound)
+
+  // ── Reset per-round ability flags (mayor double-vote + inverter flip) ─────
+  resetAbilityFlagsAtRoundEnd(state)
+
   const roundPayload = buildRoundPayload(currentRound)
 
-  // Check win condition
-  const winner = checkWinCondition(state.players as any)
+  // Check win condition. Jester solo-win short-circuits the standard check;
+  // evil_twins override lives inside checkWinCondition itself.
+  const winner: Winner | null =
+    jesterWonThisRound ? 'jester' : checkWinCondition(state.players as any)
 
   if (winner) {
-    logger.info({ roomId, winner, round: state.currentRound }, 'game finished')
-    state.status = 'finished'
-    await saveState(roomId, state)
-    await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
-    const finishedGame = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
-    if (finishedGame) {
-      await prisma.game.update({ where: { id: finishedGame.id }, data: { winnerTeam: winner, endedAt: new Date() } }).catch(() => {})
-    }
-
-    // Push notification to all players about game result
-    const allPlayerIds = state.players.map((p: any) => p.userId)
-    getPushTokensForUsers(allPlayerIds).then((tokenMap) => {
-      if (tokenMap.size > 0) {
-        const winnerLabel = winner === 'villagers' ? 'Villagers' : 'Imposters'
-        sendPushNotifications(
-          Array.from(tokenMap.entries()).map(([, pushToken]) => ({
-            pushToken,
-            title: 'Game Over!',
-            body: `${winnerLabel} win!`,
-            data: { type: 'game_finished', roomId, winner },
-          })),
-        ).catch((err) => logger.error({ err, roomId }, 'push: game finished notification error'))
-      }
-    }).catch(() => {})
-
-    io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
-
-    // ── Achievement triggers ─────────────────────────────────────────────────
-    const unlockedByPlayer = await checkAndUnlockAchievements(io, roomId, winner, state, finishedGame?.id ?? null)
-
-    const isRanked = state.gameMode === 'ranked'
-
-    // ── Persist LP per-role + sync rankTier ──────────────────────────────────
-    if (isRanked) {
-      await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, winner))
-    }
-    // ── Award lifetime XP + recompute level (every game, ranked or not) ──────
-    await applyXpAndLevel(io, state.players, winner, isRanked)
-
-    // Representative delta for the broadcast RewardSummary (villager perspective)
-    const lpChange = isRanked ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS) : 0
-
-    const rewards = {
-      starCoinsEarned: winner === 'villagers' ? 50 : 80,
-      xpEarned: 120,
-      lpChange,
-      achievements: [],
-    }
-    setTimeout(async () => { try {
-      io.to(`room:${roomId}`).emit('game:finished', {
-        winner,
-        finalRound: roundPayload as any,
-        rewards,
-      })
-      await resetRoomAfterGame(roomId, state)
-    } catch (err) { logger.error({ err }, '[game:finished] emit error') } }, 3000)
+    await finishGameWithWinner(io, roomId, state, winner, roundPayload)
   } else {
     // Start next round
     const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
@@ -620,19 +855,7 @@ async function _resolveRound(io: IO, roomId: string) {
 
     // ── Hard 30-round cap → draw ─────────────────────────────────────────────
     if (nextRoundNumber > HARD_MAX_ROUNDS) {
-      state.status = 'finished'
-      await saveState(roomId, state)
-      await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
-      if (game) {
-        await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: 'draw', endedAt: new Date() } }).catch(() => {})
-      }
-      io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
-      await applyXpAndLevel(io, state.players, 'draw', state.gameMode === 'ranked')
-      const drawRewards = { starCoinsEarned: 20, xpEarned: 60, lpChange: 0, achievements: [] }
-      setTimeout(async () => { try {
-        io.to(`room:${roomId}`).emit('game:finished', { winner: 'draw' as any, finalRound: roundPayload as any, rewards: drawRewards })
-        await resetRoomAfterGame(roomId, state)
-      } catch (err) { logger.error({ err }, '[draw:game:finished] emit error') } }, 3000)
+      await finishGameWithWinner(io, roomId, state, 'draw', roundPayload)
       return
     }
 
@@ -641,38 +864,21 @@ async function _resolveRound(io: IO, roomId: string) {
     if (maxRounds > 0 && nextRoundNumber > maxRounds) {
       const finalWinner = checkWinCondition(state.players as any)
       if (finalWinner && finalWinner !== 'imposters') {
-        // Villagers won on the last round — fall through to normal winner logic above
-        // by re-invoking the winner branch inline
-        state.status = 'finished'
-        await saveState(roomId, state)
-        await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
-        if (game) {
-          await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: finalWinner, endedAt: new Date() } }).catch(() => {})
-        }
-        io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
-        await checkAndUnlockAchievements(io, roomId, finalWinner, state, game?.id ?? null)
-        const isRankedFinal = state.gameMode === 'ranked'
-        if (isRankedFinal) {
-          await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, finalWinner))
-        }
-        await applyXpAndLevel(io, state.players, finalWinner, isRankedFinal)
-        const lpChangeFinal = isRankedFinal ? LP_REWARDS.VILLAGER_WIN : 0
-        setTimeout(async () => { try {
-          io.to(`room:${roomId}`).emit('game:finished', { winner: finalWinner, finalRound: roundPayload as any, rewards: { starCoinsEarned: 50, xpEarned: 120, lpChange: lpChangeFinal, achievements: [] } })
-          await resetRoomAfterGame(roomId, state)
-        } catch (err) { logger.error({ err }, '[game:finished] emit error') } }, 3000)
+        await finishGameWithWinner(io, roomId, state, finalWinner, roundPayload)
         return
       }
-
+      // Survival win for imposters — uses the lighter survival LP rewards
+      // instead of the standard delta. Inlined here to keep the special LP table.
       state.status = 'finished'
       await saveState(roomId, state)
       await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
+      if (game) {
+        await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: 'imposters', endedAt: new Date() } }).catch(() => {})
+      }
       io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
       const isRankedSurvival = state.gameMode === 'ranked'
-
-      // ── Persist LP per-role + sync rankTier (survival win) ─────────────────
       if (isRankedSurvival) {
-        await applyRankedLP(io, roomId, state.players, (role) => getSurvivalLpDelta(role))
+        await applyRankedLP(io, roomId, state.players, (player) => getSurvivalLpDelta(player.role ?? ''))
       }
       await applyXpAndLevel(io, state.players, 'imposters', isRankedSurvival)
       const survivalLpChange = isRankedSurvival ? LP_REWARDS.SURVIVAL_VILLAGER_LOSS : 0
@@ -680,7 +886,7 @@ async function _resolveRound(io: IO, roomId: string) {
       setTimeout(async () => { try {
         io.to(`room:${roomId}`).emit('game:finished', { winner: 'imposters', finalRound: roundPayload as any, rewards })
         await resetRoomAfterGame(roomId, state)
-      } catch (err) { logger.error({ err }, '[game:finished] emit error') } }, 3000)
+      } catch (err) { logger.error({ err }, '[survival:game:finished] emit error') } }, 3000)
       return
     }
     const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
@@ -789,6 +995,44 @@ async function startTiebreakerVoting(io: IO, roomId: string) {
     return
   }
 
+  // ── Judge override ────────────────────────────────────────────────────────
+  // If an alive judge exists who is NOT in the tied set, they decide unilaterally.
+  // The tiebreaker clue phase already ran (so tied players had their say); now
+  // instead of a normal vote, we prompt the judge to pick one of the tied players.
+  // The judge cannot save themselves if they are in the tied set (falls through
+  // to a normal tiebreaker vote in that case).
+  const judge = alivePlayers.find((p: any) => p.role === 'judge' && !tiedPlayerIds.includes(p.userId))
+  if (judge) {
+    state.tiebreakerPhase = 'judge'
+    state.status = 'in_progress'
+    state.judgeDecisionPendingUserId = judge.userId
+    state.phaseStartedAt = Date.now()
+    const JUDGE_DECIDE_SECONDS = 20
+    state.phaseDurationSeconds = JUDGE_DECIDE_SECONDS
+    await saveState(roomId, state)
+
+    const candidateUsernames = tiedPlayerIds.map((id: string) =>
+      state.players.find((p: any) => p.userId === id)?.username ?? id,
+    )
+    const judgeSocketId = onlineUsers.get(judge.userId)
+    if (judgeSocketId) {
+      io.to(judgeSocketId).emit('judge:decide-prompt' as any, {
+        candidateUserIds: tiedPlayerIds,
+        candidateUsernames,
+        timeSeconds: JUDGE_DECIDE_SECONDS,
+      })
+    }
+    // Timeout: no decision → auto-pick a random tied player
+    clearRoomTimer(roomId)
+    const t = setTimeout(async () => {
+      roomTimers.delete(roomId)
+      const fallback = tiedPlayerIds[Math.floor(Math.random() * tiedPlayerIds.length)]
+      if (fallback) await resolveJudgeDecision(io, roomId, judge.userId, fallback)
+    }, JUDGE_DECIDE_SECONDS * 1000)
+    roomTimers.set(roomId, t)
+    return
+  }
+
   state.tiebreakerPhase = 'vote'
   state.status = 'voting'
   state.phaseStartedAt = Date.now()
@@ -816,6 +1060,12 @@ async function resolveRoundNoElimination(io: IO, roomId: string, state: any) {
   const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
   const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
   if (!room || !game) return
+
+  // ── Stalemate check: 3 consecutive rounds with no elimination → draw ─────────
+  if (countConsecutiveNoElimRounds(state.rounds) >= STALEMATE_ROUNDS) {
+    await finishGameWithWinner(io, roomId, state, 'draw', roundPayload)
+    return
+  }
 
   const nextRoundNumber = state.currentRound + 1
   const dbRound = currentRound
@@ -862,25 +1112,34 @@ async function resolveTiebreaker(io: IO, roomId: string) {
   if (!state) return
 
   const tiebreakerVotes: any[] = state.tiebreakerVotes ?? []
-  const tiedPlayerIds: string[] = state.tiebreakerPlayerIds ?? []
+  // (tiedPlayerIds no longer needed — tally honors them implicitly)
 
   // Clear tiebreaker state
   state.tiebreakerActive = false
   state.tiebreakerPhase = null
   state.status = 'in_progress'
 
-  // Find who to eliminate from tiebreaker votes
-  let eliminatedId: string | null = null
-  if (tiebreakerVotes.length > 0) {
-    const tally: Record<string, number> = {}
-    for (const v of tiebreakerVotes) {
-      tally[v.targetId] = (tally[v.targetId] ?? 0) + 1
-    }
-    const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1])
-    if (sorted.length === 1 || sorted[0][1] !== sorted[1][1]) {
-      eliminatedId = sorted[0][0]
-    }
-  }
+  // Find who to eliminate from tiebreaker votes (honor mayor double-vote)
+  const { mostVotedId: eliminatedId } = tallyVotes(tiebreakerVotes, state.players)
+
+  await finalizeTiebreakerElimination(io, roomId, state, eliminatedId)
+}
+
+/**
+ * Shared finalization for tiebreaker rounds — used by both the normal vote
+ * path and the judge-decision path. Applies the elimination, runs housekeeping
+ * (revenant tick, corruptor free, mayor/inverter flag reset), checks for
+ * jester solo-win and kamikaze pending, and either ends the game via
+ * finishGameWithWinner or advances to the next round.
+ */
+async function finalizeTiebreakerElimination(
+  io: IO,
+  roomId: string,
+  state: any,
+  eliminatedId: string | null,
+): Promise<void> {
+  let jesterWonTiebreaker = false
+  let kamikazePending = false
 
   const currentRound = state.rounds?.[state.currentRound - 1]
 
@@ -892,6 +1151,10 @@ async function resolveTiebreaker(io: IO, roomId: string) {
         currentRound.eliminatedPlayerId = eliminatedId
         currentRound.eliminatedRole = player.role ?? null
       }
+      // Housekeeping: corruptor free + revenant setup
+      onPlayerEliminated(state, eliminatedId)
+      if (player.role === 'jester') jesterWonTiebreaker = true
+      if (player.role === 'kamikaze') kamikazePending = true
     }
     // Persist elimination to DB
     const dbRound = currentRound
@@ -912,37 +1175,55 @@ async function resolveTiebreaker(io: IO, roomId: string) {
     }
   }
 
+  // ── Kamikaze pending: stop here, prompt for their target pick ─────────────
+  if (kamikazePending && eliminatedId) {
+    state.kamikazePendingUserId = eliminatedId
+    state.kamikazePendingRoundNumber = state.currentRound
+    await saveState(roomId, state)
+
+    const candidateIds = state.players
+      .filter((p: any) => p.status === 'alive' && p.userId !== eliminatedId)
+      .map((p: any) => p.userId)
+    const KAMIKAZE_PICK_SECONDS = 15
+    io.to(`room:${roomId}`).emit('kamikaze:select-prompt' as any, {
+      candidateUserIds: candidateIds,
+      timeSeconds: KAMIKAZE_PICK_SECONDS,
+    })
+
+    clearRoomTimer(roomId)
+    const t = setTimeout(async () => {
+      roomTimers.delete(roomId)
+      const fallback = candidateIds[Math.floor(Math.random() * candidateIds.length)]
+      if (fallback) await resolveKamikazeSelection(io, roomId, eliminatedId, fallback)
+    }, KAMIKAZE_PICK_SECONDS * 1000)
+    roomTimers.set(roomId, t)
+    return
+  }
+
+  // Decrement revenant post-mortem vote counters
+  tickRevenantVotes(state, currentRound)
+  // Reset per-round ability flags (mayor double-vote + inverter flip)
+  resetAbilityFlagsAtRoundEnd(state)
   await saveState(roomId, state)
 
-  // Check win condition
-  const winner = checkWinCondition(state.players as any)
+  // Check win condition — jester short-circuit, then standard (+ evil_twins override)
+  const winner: Winner | null =
+    jesterWonTiebreaker ? 'jester' : checkWinCondition(state.players as any)
   const roundPayload = currentRound ? buildRoundPayload(currentRound) : null
 
   if (winner) {
-    state.status = 'finished'
-    await saveState(roomId, state)
-    await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
-    const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
-    if (game) {
-      await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: winner, endedAt: new Date() } }).catch(() => {})
-    }
-    if (roundPayload) io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
-    const isRanked = state.gameMode === 'ranked'
-    if (isRanked) {
-      await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, winner))
-    }
-    await applyXpAndLevel(io, state.players, winner, isRanked)
-    const lpChange = isRanked ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS) : 0
-    const rewards = { starCoinsEarned: winner === 'villagers' ? 50 : 80, xpEarned: 120, lpChange, achievements: [] }
-    setTimeout(async () => { try {
-      io.to(`room:${roomId}`).emit('game:finished', { winner, finalRound: roundPayload as any, rewards })
-      await resetRoomAfterGame(roomId, state)
-    } catch (err) { logger.error({ err }, '[tiebreaker:game:finished] emit error') } }, 3000)
+    await finishGameWithWinner(io, roomId, state, winner, roundPayload)
   } else {
     // No winner yet — start next round
     const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
     const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
     if (!room || !game) return
+
+    // ── Stalemate check: 3 consecutive rounds with no elimination → draw ───────
+    if (countConsecutiveNoElimRounds(state.rounds) >= STALEMATE_ROUNDS) {
+      await finishGameWithWinner(io, roomId, state, 'draw', roundPayload)
+      return
+    }
 
     const nextRoundNumber = state.currentRound + 1
     const dbRound = currentRound
@@ -1026,6 +1307,200 @@ export async function tryEarlyTiebreakerResolve(io: IO, roomId: string) {
   }
 }
 
+// ─── Kamikaze target resolution ───────────────────────────────────────────────
+
+/**
+ * Called when the kamikaze has picked a target (or the timeout fallback fires).
+ * The kamikaze itself is already eliminated at this point; we apply the target
+ * elimination, run post-elimination housekeeping, then continue the round's
+ * finalisation (win check → next round or game end).
+ */
+export async function resolveKamikazeSelection(
+  io: IO,
+  roomId: string,
+  kamikazeUserId: string,
+  targetUserId: string,
+): Promise<void> {
+  const state = await getState(roomId)
+  if (!state) return
+  // Idempotency: only resolve if we're still waiting on this exact kamikaze
+  if (state.kamikazePendingUserId !== kamikazeUserId) return
+
+  const currentRound = state.rounds?.[state.currentRound - 1]
+  if (!currentRound) return
+
+  const target = state.players.find((p: any) => p.userId === targetUserId && p.status === 'alive')
+  if (!target) {
+    // Target no longer valid — clear pending and continue without extra kill
+    delete state.kamikazePendingUserId
+    delete state.kamikazePendingRoundNumber
+    await saveState(roomId, state)
+    await continueRoundAfterKamikaze(io, roomId, state, currentRound)
+    return
+  }
+
+  logger.info({ roomId, kamikazeUserId, targetUserId }, '[kamikaze] target eliminated')
+
+  // Apply target elimination
+  target.status = 'eliminated'
+  onPlayerEliminated(state, targetUserId)
+
+  // Record on the round — we extend eliminatedPlayerId semantics: the kamikaze
+  // was already set as the primary eliminated, so we store the second kill on
+  // a separate field so clients can reveal both.
+  currentRound.kamikazeKilledUserId = targetUserId
+  currentRound.kamikazeKilledRole = target.role ?? null
+
+  const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
+  if (game) {
+    await prisma.gameParticipation.updateMany({
+      where: { gameId: game.id, userId: targetUserId },
+      data: { survived: false },
+    }).catch(() => {})
+  }
+
+  delete state.kamikazePendingUserId
+  delete state.kamikazePendingRoundNumber
+
+  io.to(`room:${roomId}`).emit('kamikaze:target-chosen' as any, {
+    kamikazeUserId,
+    targetUserId,
+    targetUsername: target.username,
+  })
+
+  await saveState(roomId, state)
+  await continueRoundAfterKamikaze(io, roomId, state, currentRound)
+}
+
+/**
+ * Continues `_resolveRound` flow after a kamikaze has finalised their target.
+ * Mirrors the tail end of `_resolveRound`: revenant tick, flag reset, win
+ * check, and either finishGameWithWinner or next-round advance.
+ */
+async function continueRoundAfterKamikaze(
+  io: IO,
+  roomId: string,
+  state: any,
+  currentRound: any,
+): Promise<void> {
+  // Pull word reveal from DB for game-end payloads
+  const dbRound = await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
+  currentRound.wordReveal = dbRound
+    ? { villagerWord: dbRound.villagerWord, imposterWord: dbRound.imposterWord }
+    : null
+
+  // Persist this round's votes (kamikaze elimination came from a vote tally)
+  if (dbRound && (currentRound.votes ?? []).length > 0) {
+    await prisma.roundVote.createMany({
+      data: (currentRound.votes as any[]).map((v: any) => ({
+        roundId:  dbRound.id,
+        voterId:  v.voterId,
+        targetId: v.targetId,
+      })),
+      skipDuplicates: true,
+    }).catch((err: any) => logger.error('[kamikaze:votes] persist error:', err))
+  }
+
+  tickRevenantVotes(state, currentRound)
+  resetAbilityFlagsAtRoundEnd(state)
+  await saveState(roomId, state)
+
+  const roundPayload = buildRoundPayload(currentRound)
+  const winner: Winner | null = checkWinCondition(state.players as any)
+
+  if (winner) {
+    await finishGameWithWinner(io, roomId, state, winner, roundPayload)
+    return
+  }
+
+  // Advance to next round
+  const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
+  const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
+  if (!room || !game) return
+
+  const nextRoundNumber = state.currentRound + 1
+  const HARD_MAX_ROUNDS = 30
+  if (nextRoundNumber > HARD_MAX_ROUNDS) {
+    await finishGameWithWinner(io, roomId, state, 'draw', roundPayload)
+    return
+  }
+
+  const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
+  const nextSpeakingOrder: string[] = alivePlayers.map((p: any) => p.userId)
+  const nextDbRound = await prisma.round.create({
+    data: {
+      gameId: game.id,
+      roundNumber: nextRoundNumber,
+      villagerWord: dbRound?.villagerWord ?? '',
+      imposterWord: dbRound?.imposterWord ?? '',
+    },
+  }).catch(() => null)
+  if (!nextDbRound) return
+
+  state.currentRound = nextRoundNumber
+  state.status = 'in_progress'
+  state.rounds.push({
+    id: nextDbRound.id,
+    roundNumber: nextRoundNumber,
+    votes: [],
+    clues: [],
+    speakingOrder: nextSpeakingOrder,
+  })
+  await saveState(roomId, state)
+
+  const nextRoundPayload = {
+    id: nextDbRound.id, roundNumber: nextRoundNumber, speakingOrder: nextSpeakingOrder,
+    clues: [], votes: [], eliminatedPlayerId: null, eliminatedRole: null, wordReveal: null,
+  }
+  io.to(`room:${roomId}`).emit('round:ended', {
+    round: { ...roundPayload, wordReveal: null } as any,
+    nextRound: nextRoundPayload as any,
+  })
+  setTimeout(async () => { try {
+    await startRound(io, roomId, room.speakingTimeSeconds, room.votingTimeSeconds)
+  } catch (err) { logger.error({ err }, '[kamikaze:startRound] error') } }, 5000)
+}
+
+// ─── Judge decision resolution ────────────────────────────────────────────────
+
+/**
+ * Called when the judge has picked which tied player to eliminate (or the
+ * timeout fallback fires). Mirrors the tail end of `resolveTiebreaker` via
+ * `finalizeTiebreakerElimination` so housekeeping/winner flow is identical.
+ */
+export async function resolveJudgeDecision(
+  io: IO,
+  roomId: string,
+  judgeUserId: string,
+  targetUserId: string,
+): Promise<void> {
+  const state = await getState(roomId)
+  if (!state) return
+  // Idempotency: only resolve if we're still waiting on this exact judge
+  if (state.judgeDecisionPendingUserId !== judgeUserId) return
+
+  const tiedPlayerIds: string[] = state.tiebreakerPlayerIds ?? []
+  if (!tiedPlayerIds.includes(targetUserId)) return  // target must be a tied player
+
+  logger.info({ roomId, judgeUserId, targetUserId }, '[judge] decision made')
+
+  // Clear judge-pending marker and tiebreaker metadata
+  delete state.judgeDecisionPendingUserId
+  state.tiebreakerActive = false
+  state.tiebreakerPhase = null
+
+  // Broadcast decision so clients can surface the judge's call
+  const target = state.players.find((p: any) => p.userId === targetUserId)
+  io.to(`room:${roomId}`).emit('judge:decided' as any, {
+    judgeUserId,
+    targetUserId,
+    targetUsername: target?.username ?? targetUserId,
+  })
+
+  // Re-use the tiebreaker finalisation helper
+  await finalizeTiebreakerElimination(io, roomId, state, targetUserId)
+}
+
 // ─── Word-said instant elimination ────────────────────────────────────────────
 
 export async function eliminatePlayerForWord(
@@ -1034,33 +1509,22 @@ export async function eliminatePlayerForWord(
   speakingTimeSeconds: number,
   votingTimeSeconds: number,
 ): Promise<void> {
-  // Check if the elimination triggered a win condition (e.g. all imposters eliminated)
+  // Check if the said-word elimination triggered a win condition
   const state = await getState(roomId)
   if (state) {
-    const winner = checkWinCondition(state.players as any)
+    // Housekeeping for whichever player just died from said_word — the
+    // clue:submit handler has already set their status to 'eliminated' and
+    // filled in eliminatedPlayerId on the current round.
+    const currentRound = state.rounds?.[state.currentRound - 1]
+    if (currentRound?.eliminatedPlayerId) {
+      onPlayerEliminated(state, currentRound.eliminatedPlayerId)
+      await saveState(roomId, state)
+    }
+    const winner: Winner | null = checkWinCondition(state.players as any)
     if (winner) {
       clearRoomTimer(roomId)
-      state.status = 'finished'
-      await saveState(roomId, state)
-      await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
-      const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
-      if (game) {
-        await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: winner, endedAt: new Date() } }).catch(() => {})
-      }
-      const currentRound = state.rounds?.[state.currentRound - 1]
       const roundPayload = currentRound ? buildRoundPayload(currentRound) : null
-      if (roundPayload) io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
-      const isRanked = state.gameMode === 'ranked'
-      if (isRanked) {
-        await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, winner))
-      }
-      await applyXpAndLevel(io, state.players, winner, isRanked)
-      const lpChange = isRanked ? getWinLpDelta('villager', winner) : 0
-      const rewards = { starCoinsEarned: winner === 'villagers' ? 50 : 80, xpEarned: 120, lpChange, achievements: [] }
-      setTimeout(async () => { try {
-        io.to(`room:${roomId}`).emit('game:finished', { winner, finalRound: roundPayload as any, rewards })
-        await resetRoomAfterGame(roomId, state)
-      } catch (err) { logger.error({ err }, '[word-said:finished] error') } }, 3000)
+      await finishGameWithWinner(io, roomId, state, winner, roundPayload)
       return
     }
   }
@@ -1131,47 +1595,10 @@ async function _forfeitEndGame(
   state: any,
   winner: string,
   currentRound: any,
-  game: any,
+  _game: any,
 ): Promise<void> {
-  state.status = 'finished'
-  await saveState(roomId, state)
-  await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
-
-  if (game) {
-    await prisma.game.update({
-      where: { id: game.id },
-      data:  { winnerTeam: winner, endedAt: new Date() },
-    }).catch(() => {})
-  }
-
   const roundPayload = currentRound ? buildRoundPayload(currentRound) : null
-
-  if (roundPayload) {
-    io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
-  }
-
-  const isRanked = state.gameMode === 'ranked'
-  if (isRanked) {
-    await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, winner))
-  }
-  await applyXpAndLevel(io, state.players, winner as any, isRanked)
-
-  const lpChange = isRanked ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS) : 0
-  const rewards = {
-    starCoinsEarned: winner === 'villagers' ? 50 : 80,
-    xpEarned: 120,
-    lpChange,
-    achievements: [],
-  }
-
-  setTimeout(async () => { try {
-    io.to(`room:${roomId}`).emit('game:finished', {
-      winner: winner as any,
-      finalRound: roundPayload as any,
-      rewards,
-    })
-    await resetRoomAfterGame(roomId, state)
-  } catch (err) { logger.error({ err }, '[forfeit:game:finished] emit error') } }, 3000)
+  await finishGameWithWinner(io, roomId, state, winner as Winner, roundPayload)
 }
 
 // ─── Achievement auto-triggers ────────────────────────────────────────────────
@@ -1195,23 +1622,43 @@ async function checkAndUnlockAchievements(
 
     for (const p of participants) {
       const userId = p.userId
+      const role = p.role as any
+      // Twin loss override: a surviving twin whose partner died does NOT win
+      // with their natural team — the pair failed the twin co-win condition.
+      // For achievement purposes we look at the live state players list.
+      const isTwin = isTwinRole(role)
+      const twinPair = isTwin
+        ? (state.players as any[]).find((pl: any) => pl.userId === p.userId)
+        : null
+      const twinPartner = twinPair
+        ? (state.players as any[]).find((pl: any) => pl.userId === twinPair.twinPartnerUserId)
+        : null
+      const twinPairIntact = !!(twinPair && twinPair.status === 'alive' && twinPartner && twinPartner.status === 'alive')
+
       const isWinner =
-        (winner === 'villagers' && (p.role === 'villager' || p.role === 'detective' || p.role === 'guardian')) ||
-        (winner === 'imposters' && (p.role === 'imposter' || p.role === 'double_agent'))
-      const isImposter = p.role === 'imposter' || p.role === 'double_agent'
+        (winner === 'villagers' && isVillagerSideRole(role) && !(isTwin && !twinPairIntact && twinPair?.status === 'alive')) ||
+        (winner === 'imposters' && isImposterSideRole(role) && !(isTwin && !twinPairIntact && twinPair?.status === 'alive')) ||
+        (winner === 'jester'    && isJesterRole(role)) ||
+        (winner === 'evil_twins' && isTwin)
+      const isImposter = isImposterSideRole(role)
       const survived = p.survived
 
-      // Gather stats for this user
+      // Gather stats for this user. Role/winnerTeam pairs cover all 14 roles.
+      const VILLAGER_WIN_PAIRS = ['villager','detective','guardian','mayor','judge','revenant','twin_villager']
+        .map((r) => ({ role: r, game: { winnerTeam: 'villagers' } }))
+      const IMPOSTER_WIN_PAIRS = ['imposter','double_agent','infiltrator','kamikaze','corruptor','inverter','twin_imposter']
+        .map((r) => ({ role: r, game: { winnerTeam: 'imposters' } }))
+      const EVIL_TWINS_WIN_PAIRS = ['twin_villager','twin_imposter']
+        .map((r) => ({ role: r, game: { winnerTeam: 'evil_twins' } }))
       const [totalWins, imposterWins, totalGames, friends] = await Promise.all([
         prisma.gameParticipation.count({ where: { userId, game: { winnerTeam: { not: null } },
-          OR: [{ role: 'villager', game: { winnerTeam: 'villagers' } },
-               { role: 'detective', game: { winnerTeam: 'villagers' } },
-               { role: 'guardian', game: { winnerTeam: 'villagers' } },
-               { role: 'imposter', game: { winnerTeam: 'imposters' } },
-               { role: 'double_agent', game: { winnerTeam: 'imposters' } }] } }),
-        prisma.gameParticipation.count({ where: { userId,
-          OR: [{ role: 'imposter', game: { winnerTeam: 'imposters' } },
-               { role: 'double_agent', game: { winnerTeam: 'imposters' } }] } }),
+          OR: [
+            ...VILLAGER_WIN_PAIRS,
+            ...IMPOSTER_WIN_PAIRS,
+            ...EVIL_TWINS_WIN_PAIRS,
+            { role: 'jester', game: { winnerTeam: 'jester' } },
+          ] } }),
+        prisma.gameParticipation.count({ where: { userId, OR: IMPOSTER_WIN_PAIRS } }),
         prisma.gameParticipation.count({ where: { userId } }),
         prisma.friendship.count({ where: { OR: [{ requesterId: userId }, { addresseeId: userId }], status: 'accepted' } }),
       ]).catch(() => [0, 0, 0, 0] as [number, number, number, number])
@@ -1232,11 +1679,11 @@ async function checkAndUnlockAchievements(
           where: { gameId, eliminatedId: { not: null } },
           select: { id: true, eliminatedId: true },
         })
-        // Find rounds where an imposter was eliminated
+        // Find rounds where an imposter-side player was eliminated
         const imposterRoundIds = rounds
           .filter((r) => {
             const eliminated = participants.find((pp) => pp.userId === r.eliminatedId)
-            return eliminated?.role === 'imposter' || eliminated?.role === 'double_agent'
+            return isImposterSideRole(eliminated?.role as any)
           })
           .map((r) => ({ roundId: r.id, targetId: r.eliminatedId! }))
 

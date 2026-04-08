@@ -146,11 +146,21 @@ const PlayerClueHistoryModal = memo(({
   ]
 
   const ROLE_CONFIG: Record<string, { icon: string; color: string; label: string }> = {
-    villager:     { icon: '🏘️', color: 'text-emerald-400', label: t('game.roleVillager', 'Villager') },
-    imposter:     { icon: '🔪', color: 'text-red-400',     label: t('game.roleImposter', 'Imposter') },
-    detective:    { icon: '🔍', color: 'text-blue-400',    label: t('game.roleDetective', 'Detective') },
-    double_agent: { icon: '🎭', color: 'text-orange-400',  label: t('game.roleDoubleAgent', 'Double Agent') },
-    guardian:     { icon: '🛡️', color: 'text-yellow-400',  label: t('game.roleGuardian', 'Guardian') },
+    villager:      { icon: '🏘️', color: 'text-emerald-400', label: t('game.roleVillager', 'Villager') },
+    imposter:      { icon: '🔪', color: 'text-red-400',     label: t('game.roleImposter', 'Imposter') },
+    detective:     { icon: '🔍', color: 'text-blue-400',    label: t('game.roleDetective', 'Detective') },
+    double_agent:  { icon: '🎭', color: 'text-orange-400',  label: t('game.roleDoubleAgent', 'Double Agent') },
+    guardian:      { icon: '🛡️', color: 'text-yellow-400',  label: t('game.roleGuardian', 'Guardian') },
+    mayor:         { icon: '⚖️', color: 'text-indigo-400',  label: t('game.roleMayor', 'Mayor') },
+    infiltrator:   { icon: '🥷', color: 'text-fuchsia-400', label: t('game.roleInfiltrator', 'Infiltrator') },
+    jester:        { icon: '🃏', color: 'text-pink-400',    label: t('game.roleJester', 'Jester') },
+    judge:         { icon: '👨‍⚖️', color: 'text-emerald-300', label: t('game.roleJudge', 'Judge') },
+    revenant:      { icon: '👻', color: 'text-teal-300',    label: t('game.roleRevenant', 'Revenant') },
+    kamikaze:      { icon: '💥', color: 'text-red-300',     label: t('game.roleKamikaze', 'Kamikaze') },
+    corruptor:     { icon: '🕷️', color: 'text-orange-300',  label: t('game.roleCorruptor', 'Corruptor') },
+    inverter:      { icon: '🔄', color: 'text-rose-300',    label: t('game.roleInverter', 'Inverter') },
+    twin_villager: { icon: '👯', color: 'text-purple-300',  label: t('game.roleTwinVillager', 'Evil Twin (Villager)') },
+    twin_imposter: { icon: '👯', color: 'text-purple-400',  label: t('game.roleTwinImposter', 'Evil Twin (Imposter)') },
   }
   const roleInfo = player.role ? ROLE_CONFIG[player.role] : null
 
@@ -289,7 +299,7 @@ export default function GamePage() {
   const { code } = useParams<{ code: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { room, currentRound, completedRounds, myRole, myWord, myVillagerWord, detectiveRevealUsed, guardianProtectUsed, guardianProtectedPlayer, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setGuardianProtectUsed, setGuardianProtectedPlayer, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
+  const { room, currentRound, completedRounds, myRole, myWord, myVillagerWord, detectiveRevealUsed, guardianProtectUsed, guardianProtectedPlayer, mayorDoubleVoteUsed, mayorDoubleActive, inverterUsed, inverterActive, corruptorTargetUserId, twinPartner, revenantVotesRemaining, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setGuardianProtectUsed, setGuardianProtectedPlayer, setMayorDoubleActive, resetMayorDoubleActive, setInverterActive, resetInverterActive, setCorruptorTarget, setTwinPartner, setRevenantVotesRemaining, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
   const user = useAuthStore((s) => s.user)
   const [clueText, setClueText] = useState('')
   const [clues, setClues] = useState<Clue[]>([])
@@ -317,7 +327,14 @@ export default function GamePage() {
   const [tiebreakerActive, setTiebreakerActive] = useState(false)
   const [tiebreakerPlayerIds, setTiebreakerPlayerIds] = useState<string[]>([])
   const [tiebreakerUsernames, setTiebreakerUsernames] = useState<string[]>([])
-  const [tiebreakerPhase, setTiebreakerPhase] = useState<'clue' | 'vote' | null>(null)
+  const [tiebreakerPhase, setTiebreakerPhase] = useState<'clue' | 'vote' | 'judge' | null>(null)
+  // Kamikaze post-death target picker. When kamikazePrompt is non-null, a full-screen
+  // modal lets the kamikaze pick a target from candidateUserIds.
+  const [kamikazePrompt, setKamikazePrompt] = useState<{ candidateUserIds: string[]; timeSeconds: number } | null>(null)
+  // Judge tiebreaker decision prompt. Only the judge sees this.
+  const [judgePrompt, setJudgePrompt] = useState<{ candidateUserIds: string[]; candidateUsernames: string[]; timeSeconds: number } | null>(null)
+  // Corruptor target picker. Shown once at game start to the corruptor.
+  const [showCorruptorPicker, setShowCorruptorPicker] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const phaseRef = useRef<Phase>('clues')
@@ -415,6 +432,11 @@ export default function GamePage() {
       setCurrentSpeakerId(null)
       phaseRef.current = 'clues'
       setPhase('clues')
+      // Corruptor: immediately show the target-picker modal on game start.
+      // The player has to pick their one target before the first clue phase matters.
+      if (yourRole === 'corruptor') {
+        setShowCorruptorPicker(true)
+      }
     })
 
     // Full phase sync on reconnect — restores timer, clues, votes, speaking order and tiebreaker state
@@ -502,6 +524,14 @@ export default function GamePage() {
       setPhase('reveal')
       setCurrentSpeakerId(null)
       setAllVotedMsg(false)
+      // Mayor double-vote and inverter are per-round — clear active flags at round end
+      resetMayorDoubleActive()
+      resetInverterActive()
+      // Revenant: decrement remaining post-mortem votes if we cast a vote this round.
+      if (myRole === 'revenant' && isEliminated && revenantVotesRemaining > 0) {
+        const didVote = (round?.votes ?? []).some((v: any) => v.voterId === user?.id)
+        if (didVote) setRevenantVotesRemaining(revenantVotesRemaining - 1)
+      }
       // Clear tiebreaker state when round ends
       setTiebreakerActive(false)
       setTiebreakerPlayerIds([])
@@ -520,6 +550,8 @@ export default function GamePage() {
         // If it's me, join dead chat
         if (isMe) {
           setIsEliminated(true)
+          // Revenant: grant 2 post-mortem vote rounds upon death.
+          if (myRole === 'revenant') setRevenantVotesRemaining(2)
           socket.emit('deadchat:join' as any)
         }
       } else {
@@ -575,6 +607,44 @@ export default function GamePage() {
       setGuardianProtectedPlayer({ userId: protectedUserId, username: protectedUsername })
       setTimeout(() => setGuardianProtectedPlayer(null), 5000)
     })
+    socket.on('mayor:double-ack' as any, () => {
+      log.info('mayor double vote activated')
+      setMayorDoubleActive()
+    })
+    socket.on('inverter:activate-ack' as any, () => {
+      log.info('inverter activated')
+      setInverterActive()
+    })
+    socket.on('corruptor:target-ack' as any, ({ targetUserId }: any) => {
+      log.info('corruptor target locked', { targetUserId })
+      setCorruptorTarget(targetUserId)
+      setShowCorruptorPicker(false)
+    })
+    socket.on('kamikaze:select-prompt' as any, ({ candidateUserIds, timeSeconds }: any) => {
+      log.info('kamikaze prompt received', { candidateUserIds })
+      setKamikazePrompt({ candidateUserIds: candidateUserIds ?? [], timeSeconds: timeSeconds ?? 15 })
+    })
+    socket.on('kamikaze:target-chosen' as any, ({ kamikazeUserId, targetUserId, targetUsername }: any) => {
+      log.info('kamikaze target chosen', { kamikazeUserId, targetUserId, targetUsername })
+      setKamikazePrompt(null)
+    })
+    socket.on('judge:decide-prompt' as any, ({ candidateUserIds, candidateUsernames, timeSeconds }: any) => {
+      log.info('judge prompt received', { candidateUserIds })
+      setJudgePrompt({
+        candidateUserIds: candidateUserIds ?? [],
+        candidateUsernames: candidateUsernames ?? [],
+        timeSeconds: timeSeconds ?? 20,
+      })
+      setTiebreakerPhase('judge')
+    })
+    socket.on('judge:decided' as any, ({ targetUserId, targetUsername }: any) => {
+      log.info('judge decided', { targetUserId, targetUsername })
+      setJudgePrompt(null)
+    })
+    socket.on('twin:partner' as any, ({ twinUserId, twinUsername, twinRole }: any) => {
+      log.info('twin partner revealed', { twinUserId, twinUsername, twinRole })
+      setTwinPartner({ twinUserId, twinUsername, twinRole })
+    })
     socket.on('round:word-said' as any, ({ playerId, username, role }: any) => {
       if (room) {
         setRoom({
@@ -587,6 +657,8 @@ export default function GamePage() {
       const isMe = playerId === user?.id
       if (isMe) {
         setIsEliminated(true)
+        // Revenant starts with 2 post-mortem vote rounds upon death.
+        if (role === 'revenant') setRevenantVotesRemaining(2)
         socket.emit('deadchat:join' as any)
       }
     })
@@ -651,6 +723,14 @@ export default function GamePage() {
       socket.off('detective:result')
       socket.off('guardian:protect-ack' as any)
       socket.off('guardian:protection-triggered' as any)
+      socket.off('mayor:double-ack' as any)
+      socket.off('inverter:activate-ack' as any)
+      socket.off('corruptor:target-ack' as any)
+      socket.off('kamikaze:select-prompt' as any)
+      socket.off('kamikaze:target-chosen' as any)
+      socket.off('judge:decide-prompt' as any)
+      socket.off('judge:decided' as any)
+      socket.off('twin:partner' as any)
       socket.off('round:word-said' as any)
       socket.off('vote:update' as any)
       socket.off('vote:all-cast' as any)
@@ -737,11 +817,21 @@ export default function GamePage() {
   }, [showRoleCard])
 
   const ROLE_CONFIG: Record<string, { icon: string; label: string; color: string; bg: string }> = {
-    villager:     { icon: '🏘️', label: t('game.roleVillager', 'Villager'),     color: 'text-emerald-400', bg: 'from-emerald-900/40' },
-    imposter:     { icon: '🔪', label: t('game.roleImposter', 'Imposter'),     color: 'text-red-400',     bg: 'from-red-900/40' },
-    detective:    { icon: '🔍', label: t('game.roleDetective', 'Detective'),    color: 'text-blue-400',    bg: 'from-blue-900/40' },
-    double_agent: { icon: '🎭', label: t('game.roleDoubleAgent', 'Double Agent'), color: 'text-orange-400',  bg: 'from-orange-900/40' },
-    guardian:     { icon: '🛡️', label: t('game.roleGuardian', 'Guardian'),      color: 'text-yellow-400',  bg: 'from-yellow-900/40' },
+    villager:      { icon: '🏘️', label: t('game.roleVillager', 'Villager'),               color: 'text-emerald-400', bg: 'from-emerald-900/40' },
+    imposter:      { icon: '🔪', label: t('game.roleImposter', 'Imposter'),               color: 'text-red-400',     bg: 'from-red-900/40' },
+    detective:     { icon: '🔍', label: t('game.roleDetective', 'Detective'),             color: 'text-blue-400',    bg: 'from-blue-900/40' },
+    double_agent:  { icon: '🎭', label: t('game.roleDoubleAgent', 'Double Agent'),        color: 'text-orange-400',  bg: 'from-orange-900/40' },
+    guardian:      { icon: '🛡️', label: t('game.roleGuardian', 'Guardian'),               color: 'text-yellow-400',  bg: 'from-yellow-900/40' },
+    mayor:         { icon: '⚖️', label: t('game.roleMayor', 'Mayor'),                     color: 'text-indigo-400',  bg: 'from-indigo-900/40' },
+    infiltrator:   { icon: '🥷', label: t('game.roleInfiltrator', 'Infiltrator'),         color: 'text-fuchsia-400', bg: 'from-fuchsia-900/40' },
+    jester:        { icon: '🃏', label: t('game.roleJester', 'Jester'),                   color: 'text-pink-400',    bg: 'from-pink-900/40' },
+    judge:         { icon: '👨‍⚖️', label: t('game.roleJudge', 'Judge'),                    color: 'text-emerald-300', bg: 'from-emerald-900/40' },
+    revenant:      { icon: '👻', label: t('game.roleRevenant', 'Revenant'),               color: 'text-teal-300',    bg: 'from-teal-900/40' },
+    kamikaze:      { icon: '💥', label: t('game.roleKamikaze', 'Kamikaze'),               color: 'text-red-300',     bg: 'from-red-900/40' },
+    corruptor:     { icon: '🕷️', label: t('game.roleCorruptor', 'Corruptor'),              color: 'text-orange-300',  bg: 'from-orange-900/40' },
+    inverter:      { icon: '🔄', label: t('game.roleInverter', 'Inverter'),               color: 'text-rose-300',    bg: 'from-rose-900/40' },
+    twin_villager: { icon: '👯', label: t('game.roleTwinVillager', 'Evil Twin (Villager)'), color: 'text-purple-300',  bg: 'from-purple-900/40' },
+    twin_imposter: { icon: '👯', label: t('game.roleTwinImposter', 'Evil Twin (Imposter)'), color: 'text-purple-400',  bg: 'from-purple-900/40' },
   }
   const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
 
@@ -815,6 +905,98 @@ export default function GamePage() {
         </>
       )}
 
+      {/* ── Corruptor target picker modal — shown once at game start ── */}
+      {showCorruptorPicker && myRole === 'corruptor' && !corruptorTargetUserId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-neutral-900 border border-orange-800/60 p-6 shadow-2xl">
+            <div className="text-center mb-4">
+              <div className="text-5xl mb-2">🕷️</div>
+              <h2 className="text-xl font-black text-orange-400">{t('game.corruptorPickTitle', 'Pick Your Target')}</h2>
+              <p className="text-xs text-neutral-500 mt-2">{t('game.corruptorPickDesc', 'Their votes will be silently dropped until you die.')}</p>
+            </div>
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {players
+                .filter((p) => p.userId !== user?.id && p.status === 'alive')
+                .map((p) => (
+                  <button
+                    key={p.userId}
+                    onClick={() => {
+                      log.info('corruptor picking target', { targetUserId: p.userId })
+                      getSocket().emit('corruptor:pick-target' as any, { targetUserId: p.userId })
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-neutral-800 hover:bg-orange-950/60 border border-neutral-700 hover:border-orange-700 text-left text-sm font-semibold text-white transition-all"
+                  >
+                    {p.username}
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Kamikaze post-death target picker modal ── */}
+      {kamikazePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-neutral-900 border border-red-800/60 p-6 shadow-2xl animate-pulse">
+            <div className="text-center mb-4">
+              <div className="text-5xl mb-2">💥</div>
+              <h2 className="text-xl font-black text-red-400">{t('game.kamikazePickTitle', 'Take Someone With You')}</h2>
+              <p className="text-xs text-neutral-500 mt-2">
+                {t('game.kamikazePickDesc', 'Pick a player to eliminate alongside you. Choose quickly!')}
+              </p>
+            </div>
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {players
+                .filter((p) => kamikazePrompt.candidateUserIds.includes(p.userId))
+                .map((p) => (
+                  <button
+                    key={p.userId}
+                    onClick={() => {
+                      log.info('kamikaze picking target', { targetUserId: p.userId })
+                      getSocket().emit('kamikaze:pick-target' as any, { targetUserId: p.userId })
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-neutral-800 hover:bg-red-950/60 border border-neutral-700 hover:border-red-700 text-left text-sm font-semibold text-white transition-all"
+                  >
+                    {p.username}
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Judge tiebreaker decision modal ── */}
+      {judgePrompt && myRole === 'judge' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-neutral-900 border border-emerald-800/60 p-6 shadow-2xl">
+            <div className="text-center mb-4">
+              <div className="text-5xl mb-2">👨‍⚖️</div>
+              <h2 className="text-xl font-black text-emerald-300">{t('game.judgePickTitle', 'The Judge Decides')}</h2>
+              <p className="text-xs text-neutral-500 mt-2">
+                {t('game.judgePickDesc', 'The vote is tied. You have final say.')}
+              </p>
+            </div>
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {judgePrompt.candidateUserIds.map((uid, idx) => {
+                const uname = judgePrompt.candidateUsernames[idx] ?? uid
+                return (
+                  <button
+                    key={uid}
+                    onClick={() => {
+                      log.info('judge deciding elimination', { targetUserId: uid })
+                      getSocket().emit('judge:pick-elimination' as any, { targetUserId: uid })
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-neutral-800 hover:bg-emerald-950/60 border border-neutral-700 hover:border-emerald-700 text-left text-sm font-semibold text-white transition-all"
+                  >
+                    {uname}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Main game area ── */}
       <div className="relative flex-1 flex flex-col p-4 md:p-6 lg:p-8 gap-4 overflow-y-auto">
 
@@ -838,12 +1020,24 @@ export default function GamePage() {
               <span className="text-blue-400 font-bold text-sm">🔍 {revealedPlayer.username}: </span>
               <span className={[
                 'text-sm font-bold',
-                revealedPlayer.role === 'imposter' || revealedPlayer.role === 'double_agent' ? 'text-red-400' : 'text-emerald-400',
+                revealedPlayer.role === 'imposter' || revealedPlayer.role === 'double_agent' || revealedPlayer.role === 'kamikaze' || revealedPlayer.role === 'corruptor' || revealedPlayer.role === 'inverter' || revealedPlayer.role === 'twin_imposter' ? 'text-red-400' :
+                revealedPlayer.role === 'jester' ? 'text-pink-400' :
+                revealedPlayer.role === 'twin_villager' ? 'text-purple-300' :
+                'text-emerald-400',
               ].join(' ')}>
                 {revealedPlayer.role === 'imposter' ? t('game.roleImposter') :
                  revealedPlayer.role === 'double_agent' ? t('game.roleDoubleAgent') :
                  revealedPlayer.role === 'detective' ? t('game.roleDetective') :
                  revealedPlayer.role === 'guardian' ? t('game.roleGuardian') :
+                 revealedPlayer.role === 'mayor' ? t('game.roleMayor') :
+                 revealedPlayer.role === 'jester' ? t('game.roleJester') :
+                 revealedPlayer.role === 'judge' ? t('game.roleJudge') :
+                 revealedPlayer.role === 'revenant' ? t('game.roleRevenant') :
+                 revealedPlayer.role === 'kamikaze' ? t('game.roleKamikaze') :
+                 revealedPlayer.role === 'corruptor' ? t('game.roleCorruptor') :
+                 revealedPlayer.role === 'inverter' ? t('game.roleInverter') :
+                 revealedPlayer.role === 'twin_villager' ? t('game.roleTwinVillager') :
+                 revealedPlayer.role === 'twin_imposter' ? t('game.roleTwinImposter') :
                  t('game.roleVillager')}
               </span>
             </div>
@@ -1143,6 +1337,16 @@ export default function GamePage() {
                         : eliminated.role === 'double_agent' ? t('game.roleDoubleAgent')
                         : eliminated.role === 'detective' ? t('game.roleDetective')
                         : eliminated.role === 'guardian' ? t('game.roleGuardian')
+                        : eliminated.role === 'mayor' ? t('game.roleMayor')
+                        : eliminated.role === 'infiltrator' ? t('game.roleInfiltrator')
+                        : eliminated.role === 'jester' ? t('game.roleJester')
+                        : eliminated.role === 'judge' ? t('game.roleJudge')
+                        : eliminated.role === 'revenant' ? t('game.roleRevenant')
+                        : eliminated.role === 'kamikaze' ? t('game.roleKamikaze')
+                        : eliminated.role === 'corruptor' ? t('game.roleCorruptor')
+                        : eliminated.role === 'inverter' ? t('game.roleInverter')
+                        : eliminated.role === 'twin_villager' ? t('game.roleTwinVillager')
+                        : eliminated.role === 'twin_imposter' ? t('game.roleTwinImposter')
                         : t('game.roleVillager')}
                     </p>
                     {isImposterElim && (
@@ -1264,6 +1468,114 @@ export default function GamePage() {
             ].join(' ')}>
               <span>🛡️</span>
               <span>{guardianProtectUsed ? t('game.guardianUsed') : t('game.guardianAvailable')}</span>
+            </div>
+          )}
+          {/* Mayor ability banner */}
+          {myRole === 'mayor' && (
+            <div className={[
+              'flex flex-col gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold',
+              mayorDoubleActive
+                ? 'bg-indigo-900/50 border-indigo-600/60 text-indigo-300'
+                : mayorDoubleVoteUsed
+                  ? 'bg-neutral-900/40 border-neutral-800 text-neutral-600'
+                  : 'bg-indigo-950/40 border-indigo-800/40 text-indigo-400',
+            ].join(' ')}>
+              <div className="flex items-center gap-2">
+                <span>⚖️</span>
+                <span>
+                  {mayorDoubleActive
+                    ? t('game.mayorDoubleVoteActive', 'Double vote active this round')
+                    : mayorDoubleVoteUsed
+                      ? t('game.mayorDoubleVoteUsed', 'Double vote used')
+                      : t('game.mayorAvailable', 'Double vote ready')}
+                </span>
+              </div>
+              {!mayorDoubleVoteUsed && !mayorDoubleActive && phase === 'voting' && !isEliminated && (
+                <button
+                  onClick={() => {
+                    log.info('mayor activating double vote')
+                    getSocket().emit('mayor:activate-double' as any)
+                  }}
+                  className="w-full px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors"
+                >
+                  {t('game.mayorDoubleVoteBtn', 'Double my vote')}
+                </button>
+              )}
+            </div>
+          )}
+          {/* Inverter ability banner */}
+          {myRole === 'inverter' && (
+            <div className={[
+              'flex flex-col gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold',
+              inverterActive
+                ? 'bg-rose-900/50 border-rose-600/60 text-rose-300'
+                : inverterUsed
+                  ? 'bg-neutral-900/40 border-neutral-800 text-neutral-600'
+                  : 'bg-rose-950/40 border-rose-800/40 text-rose-400',
+            ].join(' ')}>
+              <div className="flex items-center gap-2">
+                <span>🔄</span>
+                <span>
+                  {inverterActive
+                    ? t('game.inverterActive', 'Vote inversion active this round')
+                    : inverterUsed
+                      ? t('game.inverterUsed', 'Vote inversion used')
+                      : t('game.inverterAvailable', 'Vote inversion ready')}
+                </span>
+              </div>
+              {!inverterUsed && !inverterActive && phase === 'voting' && !isEliminated && (
+                <button
+                  onClick={() => {
+                    log.info('inverter activating')
+                    getSocket().emit('inverter:activate' as any)
+                  }}
+                  className="w-full px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors"
+                >
+                  {t('game.inverterActivateBtn', 'Invert the vote')}
+                </button>
+              )}
+            </div>
+          )}
+          {/* Corruptor ability banner */}
+          {myRole === 'corruptor' && (
+            <div className={[
+              'flex items-center gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold',
+              corruptorTargetUserId
+                ? 'bg-orange-900/40 border-orange-800/40 text-orange-300'
+                : 'bg-orange-950/50 border-orange-700/60 text-orange-300 animate-pulse',
+            ].join(' ')}>
+              <span>🕷️</span>
+              <span>
+                {corruptorTargetUserId
+                  ? t('game.corruptorTargetLocked', 'Your target is silenced')
+                  : t('game.corruptorMustPick', 'Pick your corruption target')}
+              </span>
+              {!corruptorTargetUserId && (
+                <button
+                  onClick={() => setShowCorruptorPicker(true)}
+                  className="ml-auto px-2 py-0.5 rounded bg-orange-700 hover:bg-orange-600 text-white text-[10px] font-bold"
+                >
+                  {t('game.corruptorPickBtn', 'Pick')}
+                </button>
+              )}
+            </div>
+          )}
+          {/* Revenant ghost-voter banner */}
+          {myRole === 'revenant' && isEliminated && revenantVotesRemaining > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold bg-teal-950/50 border-teal-700/60 text-teal-300">
+              <span>👻</span>
+              <span>
+                {t('game.revenantGhostVoter', { count: revenantVotesRemaining, defaultValue: 'Ghost voter — {{count}} vote(s) left' })}
+              </span>
+            </div>
+          )}
+          {/* Twin partner banner */}
+          {(myRole === 'twin_villager' || myRole === 'twin_imposter') && twinPartner && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold bg-purple-950/40 border-purple-800/40 text-purple-300">
+              <span>👯</span>
+              <span>
+                {t('game.twinPartnerBanner', { name: twinPartner.twinUsername, defaultValue: 'Your twin: {{name}}' })}
+              </span>
             </div>
           )}
           <div className="flex flex-wrap gap-2" role="list" aria-label="Players">

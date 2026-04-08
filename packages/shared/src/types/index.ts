@@ -102,7 +102,22 @@ export interface RoomSettings {
 
 // ─── Player ──────────────────────────────────────────────────────────────────
 
-export type PlayerRole = 'villager' | 'imposter' | 'detective' | 'double_agent' | 'guardian'
+export type PlayerRole =
+  | 'villager'
+  | 'imposter'
+  | 'detective'
+  | 'double_agent'
+  | 'guardian'
+  | 'mayor'
+  | 'infiltrator'
+  | 'jester'
+  | 'judge'
+  | 'revenant'
+  | 'kamikaze'
+  | 'corruptor'
+  | 'inverter'
+  | 'twin_villager'
+  | 'twin_imposter'
 export type PlayerStatus = 'alive' | 'eliminated' | 'spectating' | 'forfeited'
 
 export interface Player {
@@ -117,6 +132,23 @@ export interface Player {
   isReady: boolean
   speakingOrder?: number
   honorGiven: boolean
+  // ── Special-mode role state ─────────────────────────────────────────────────
+  /** Mayor: has the player already used their one-shot double-vote? */
+  mayorDoubleVoteUsed?: boolean
+  /** Mayor: is the double-vote active for the current voting phase? Reset each round. */
+  mayorDoubleActive?: boolean
+  /** Inverter: has the player already used their one-shot vote inversion? */
+  inverterUsed?: boolean
+  /** Inverter: is the inversion active for the current voting phase? Reset each round. */
+  inverterActive?: boolean
+  /** Corruptor: userId of the player whose votes are silently dropped. Set once per game. */
+  corruptorTargetUserId?: string
+  /** Target-side flag: votes from this player are silently ignored while set. */
+  corrupted?: boolean
+  /** Revenant: how many post-mortem vote rounds this player still has. 0 = fully dead. */
+  revenantVotesRemaining?: number
+  /** Twin pairing: userId of the other twin (known to both twins from game start). */
+  twinPartnerUserId?: string
 }
 
 // ─── Round ───────────────────────────────────────────────────────────────────
@@ -185,7 +217,15 @@ export interface ServerToClientEvents {
   'round:vote-cast': (data: { voterId: string; hasVoted: boolean }) => void
   'round:ended': (data: { round: Round; nextRound?: Round }) => void
   'round:word-said': (data: { playerId: string; username: string; clueText: string; role: PlayerRole }) => void
-  'game:finished': (data: { winner: 'villagers' | 'imposters' | 'draw'; finalRound: Round; rewards: RewardSummary }) => void
+  'game:finished': (data: { winner: 'villagers' | 'imposters' | 'draw' | 'jester' | 'evil_twins'; finalRound: Round; rewards: RewardSummary }) => void
+  'mayor:double-ack': (data: { userId: string }) => void
+  'inverter:activate-ack': (data: { userId: string }) => void
+  'corruptor:target-ack': (data: { targetUserId: string; targetUsername: string }) => void
+  'kamikaze:select-prompt': (data: { candidateUserIds: string[]; timeSeconds: number }) => void
+  'kamikaze:target-chosen': (data: { kamikazeUserId: string; targetUserId: string; targetUsername: string }) => void
+  'judge:decide-prompt': (data: { candidateUserIds: string[]; candidateUsernames: string[]; timeSeconds: number }) => void
+  'judge:decided': (data: { judgeUserId: string; targetUserId: string; targetUsername: string }) => void
+  'twin:partner': (data: { twinUserId: string; twinUsername: string; twinRole: PlayerRole }) => void
   'round:tiebreaker-start': (data: { tiedPlayerIds: string[]; tiedUsernames: string[]; timeSeconds: number }) => void
   'round:tiebreaker-voting': (data: { tiedPlayerIds: string[]; timeSeconds: number }) => void
   'game:sync': (data: { phase: 'speaking' | 'voting'; currentSpeakerId: string | null; speakingOrder: string[]; clues: Clue[]; votes: Vote[]; timeRemainingSeconds: number; currentRound: Round | null; tiebreakerActive?: boolean; tiebreakerPlayerIds?: string[]; tiebreakerPhase?: 'clue' | 'vote' }) => void
@@ -211,6 +251,11 @@ export interface ClientToServerEvents {
   'chat:send': (text: string) => void
   'honor:give': (data: { targetPlayerId: string; honorType: HonorType }) => void
   'detective:reveal': (data: { targetUserId: string }) => void
+  'mayor:activate-double': () => void
+  'inverter:activate': () => void
+  'corruptor:pick-target': (data: { targetUserId: string }) => void
+  'kamikaze:pick-target': (data: { targetUserId: string }) => void
+  'judge:pick-elimination': (data: { targetUserId: string }) => void
 }
 
 // ─── Matchmaking ─────────────────────────────────────────────────────────────

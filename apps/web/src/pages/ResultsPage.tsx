@@ -288,9 +288,29 @@ export default function ResultsPage() {
   const winner = result?.winner ?? 'draw'
   const rewards = result?.rewards
   const players = room?.players?.length ? room.players : []
-  const isImposter = myRole === 'imposter' || myRole === 'double_agent'
+  const isImposterSide = myRole === 'imposter' || myRole === 'double_agent' || myRole === 'infiltrator' ||
+    myRole === 'kamikaze' || myRole === 'corruptor' || myRole === 'inverter' || myRole === 'twin_imposter'
+  const isVillagerSide = myRole === 'villager' || myRole === 'detective' || myRole === 'guardian' ||
+    myRole === 'mayor' || myRole === 'judge' || myRole === 'revenant' || myRole === 'twin_villager'
+  const isJester = myRole === 'jester'
+  const isTwin = myRole === 'twin_villager' || myRole === 'twin_imposter'
   const isDraw = winner === 'draw'
-  const didWin = !isDraw && ((winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter))
+  // Evil twins override: the surviving twin whose partner died LOSES individually
+  // even if their natural team won. We detect this by checking the final round's
+  // player list for both twins' statuses.
+  const twinPartnerDead = (() => {
+    if (!isTwin || !players.length) return false
+    const me = players.find((p: any) => p.userId === user?.id)
+    if (!me || !(me as any).twinPartnerUserId) return false
+    const partner = players.find((p: any) => p.userId === (me as any).twinPartnerUserId)
+    return !!partner && partner.status !== 'alive'
+  })()
+  const didWin = !isDraw && (
+    (winner === 'villagers' && isVillagerSide && !twinPartnerDead) ||
+    (winner === 'imposters' && isImposterSide && !twinPartnerDead) ||
+    (winner === 'jester'     && isJester) ||
+    (winner === 'evil_twins' && isTwin)
+  )
   const gameMode = (room?.settings as any)?.gameMode ?? 'normal'
   const isRanked = gameMode === 'ranked'
   const isLobby = room?.settings?.isPrivate ?? false
@@ -426,33 +446,63 @@ export default function ResultsPage() {
           {/* Outcome hero */}
           <div className={[
             'card relative overflow-hidden text-center py-8',
-            didWin ? 'border-emerald-700/40' : 'border-red-800/40',
+            winner === 'jester'     ? 'border-pink-700/40'
+            : winner === 'evil_twins' ? 'border-purple-700/40'
+            : didWin                  ? 'border-emerald-700/40'
+            :                           'border-red-800/40',
           ].join(' ')}>
             <div className={[
               'absolute inset-0 opacity-10',
-              didWin
-                ? 'bg-gradient-to-br from-emerald-500 to-transparent'
-                : 'bg-gradient-to-br from-red-600 to-transparent',
+              winner === 'jester'       ? 'bg-gradient-to-br from-pink-500 to-transparent'
+              : winner === 'evil_twins' ? 'bg-gradient-to-br from-purple-500 to-transparent'
+              : didWin                  ? 'bg-gradient-to-br from-emerald-500 to-transparent'
+              :                           'bg-gradient-to-br from-red-600 to-transparent',
             ].join(' ')} />
             <div className={[
               'absolute top-0 inset-x-0 h-0.5',
-              didWin
-                ? 'bg-gradient-to-r from-transparent via-emerald-500 to-transparent'
-                : 'bg-gradient-to-r from-transparent via-red-500 to-transparent',
+              winner === 'jester'       ? 'bg-gradient-to-r from-transparent via-pink-500 to-transparent'
+              : winner === 'evil_twins' ? 'bg-gradient-to-r from-transparent via-purple-500 to-transparent'
+              : didWin                  ? 'bg-gradient-to-r from-transparent via-emerald-500 to-transparent'
+              :                           'bg-gradient-to-r from-transparent via-red-500 to-transparent',
             ].join(' ')} />
             <div className="relative">
               <p className={['text-6xl mb-3', didWin ? 'animate-bounce-in' : ''].join(' ')}>
-                {didWin ? '🏆' : '💀'}
+                {winner === 'jester'       ? '🃏'
+                 : winner === 'evil_twins' ? '👯'
+                 : didWin                  ? '🏆'
+                 :                           '💀'}
               </p>
               <h1 className={[
                 'text-3xl font-extrabold tracking-tight mb-1',
-                didWin ? 'text-emerald-400' : 'text-red-400',
+                winner === 'jester'       ? 'text-pink-400'
+                : winner === 'evil_twins' ? 'text-purple-400'
+                : didWin                  ? 'text-emerald-400'
+                :                           'text-red-400',
               ].join(' ')}>
-                {isDraw ? t('results.draw', "It's a Draw!") : didWin ? t('results.victory') : t('results.defeat')}
+                {isDraw
+                  ? t('results.draw', "It's a Draw!")
+                  : winner === 'jester' && isJester
+                    ? t('results.jesterVictory', 'The Jester Wins!')
+                    : winner === 'evil_twins' && isTwin
+                      ? t('results.evilTwinsVictory', 'The Evil Twins Win!')
+                      : didWin ? t('results.victory') : t('results.defeat')}
               </h1>
               <p className="text-neutral-400 text-sm">
-                {isDraw ? t('results.drawDesc', 'The game lasted 30 rounds with no winner') : winner === 'villagers' ? t('results.villagersWon') : t('results.impostersWon')}
+                {isDraw
+                  ? t('results.drawDesc', 'The game lasted 30 rounds with no winner')
+                  : winner === 'jester'
+                    ? t('results.jesterWonDesc', 'The Jester was voted out and won alone!')
+                    : winner === 'evil_twins'
+                      ? t('results.evilTwinsWonDesc', 'Both twins survived — they win together!')
+                      : winner === 'villagers'
+                        ? t('results.villagersWon')
+                        : t('results.impostersWon')}
               </p>
+              {twinPartnerDead && !didWin && isTwin && (
+                <p className="text-purple-400 text-xs mt-2 font-semibold">
+                  {t('results.twinPartnerDead', 'Your twin died — you lose individually even though your team won.')}
+                </p>
+              )}
             </div>
           </div>
 
@@ -556,13 +606,29 @@ export default function ResultsPage() {
                     </div>
                     <span className={[
                       'text-xs font-semibold px-2 py-0.5 rounded-full',
-                      role === 'imposter' || role === 'double_agent'
+                      role === 'imposter' || role === 'double_agent' || role === 'infiltrator' ||
+                      role === 'kamikaze' || role === 'corruptor' || role === 'inverter' || role === 'twin_imposter'
                         ? 'bg-red-950/60 text-red-400 border border-red-800/40'
-                        : 'bg-brand-950/60 text-brand-400 border border-brand-800/40',
+                        : role === 'jester'
+                          ? 'bg-pink-950/60 text-pink-400 border border-pink-800/40'
+                          : role === 'twin_villager'
+                            ? 'bg-purple-950/60 text-purple-400 border border-purple-800/40'
+                            : 'bg-brand-950/60 text-brand-400 border border-brand-800/40',
                     ].join(' ')}>
                       {role === 'imposter' ? t('results.imposter')
                         : role === 'double_agent' ? t('results.doubleAgent')
                         : role === 'detective' ? t('results.detective')
+                        : role === 'guardian' ? t('results.guardian', 'Guardian')
+                        : role === 'mayor' ? t('results.mayor', 'Mayor')
+                        : role === 'infiltrator' ? t('results.infiltrator', 'Infiltrator')
+                        : role === 'jester' ? t('results.jester', 'Jester')
+                        : role === 'judge' ? t('results.judge', 'Judge')
+                        : role === 'revenant' ? t('results.revenant', 'Revenant')
+                        : role === 'kamikaze' ? t('results.kamikaze', 'Kamikaze')
+                        : role === 'corruptor' ? t('results.corruptor', 'Corruptor')
+                        : role === 'inverter' ? t('results.inverter', 'Inverter')
+                        : role === 'twin_villager' ? t('results.twinVillager', 'Evil Twin (Villager)')
+                        : role === 'twin_imposter' ? t('results.twinImposter', 'Evil Twin (Imposter)')
                         : t('results.villager')}
                     </span>
                     {survived !== undefined && (
