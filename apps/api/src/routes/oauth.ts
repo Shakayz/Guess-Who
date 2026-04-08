@@ -112,11 +112,7 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.send({ token, user: { id: user.id, username: user.username, email: user.email } })
     } catch (err: any) {
       req.log.error({ err }, 'google oauth verify error')
-      // TEMP DEBUG: include error details in response (revert once root cause found)
-      return reply.status(401).send({
-        error: 'Google authentication failed',
-        debug: { message: err?.message, code: err?.code, name: err?.name },
-      })
+      return reply.status(401).send({ error: 'Google authentication failed' })
     }
   })
 
