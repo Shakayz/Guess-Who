@@ -78,3 +78,88 @@ export const LP_REWARDS = {
   SURVIVAL_IMPOSTER_WIN:   20,
   SURVIVAL_VILLAGER_LOSS: -12,
 } as const
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Levelling system — lifetime XP awarded after every game (ranked or not)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Hard cap on player level. */
+export const LEVEL_CAP = 1000
+
+/**
+ * XP rewards added to the player's lifetime XP at the end of each game.
+ * Forfeited players get nothing.
+ */
+export const XP_REWARDS = {
+  WIN:               100,
+  LOSS:               40,
+  DRAW:               60,
+  SURVIVAL_BONUS:     20,  // bonus added if the player survived to the end
+  FORFEIT:             0,
+} as const
+
+/**
+ * XP required to advance FROM `level` TO `level + 1`.
+ * Linear curve: each level needs 50 more XP than the previous one.
+ *   level 1 → 2  : 100 XP
+ *   level 2 → 3  : 150 XP
+ *   level 10 → 11: 550 XP
+ *   level 100 → 101: 5050 XP
+ *   level 999 → 1000: 50000 XP
+ * Total to reach level 1000 ≈ 25M XP (≈ hundreds of thousands of games).
+ */
+export function xpForLevel(level: number): number {
+  if (level < 1) return 100
+  if (level >= LEVEL_CAP) return Infinity
+  return 100 + (level - 1) * 50
+}
+
+/** Total cumulative XP needed to reach `level` (from level 1 = 0 XP). */
+export function totalXpToReach(level: number): number {
+  if (level <= 1) return 0
+  if (level > LEVEL_CAP) level = LEVEL_CAP
+  // Sum of arithmetic series: n * (a1 + an) / 2 where a_i = xpForLevel(i)
+  const n = level - 1
+  const a1 = xpForLevel(1)
+  const an = xpForLevel(level - 1)
+  return Math.floor((n * (a1 + an)) / 2)
+}
+
+/** Compute the level corresponding to a given lifetime XP amount. */
+export function levelFromXp(totalXp: number): number {
+  if (totalXp <= 0) return 1
+  let level = 1
+  let cumulative = 0
+  while (level < LEVEL_CAP) {
+    const needed = xpForLevel(level)
+    if (cumulative + needed > totalXp) return level
+    cumulative += needed
+    level++
+  }
+  return LEVEL_CAP
+}
+
+/**
+ * XP progression within the current level.
+ *   level   — the player's current level (1..LEVEL_CAP)
+ *   current — XP accumulated since the start of this level
+ *   needed  — XP required to reach the next level
+ *   total   — original lifetime XP value (echoed back for convenience)
+ */
+export function xpProgressInLevel(totalXp: number): {
+  level: number
+  current: number
+  needed: number
+  total: number
+} {
+  const level = levelFromXp(totalXp)
+  const cumulativeForLevel = totalXpToReach(level)
+  const current = totalXp - cumulativeForLevel
+  const needed = xpForLevel(level)
+  return { level, current, needed, total: totalXp }
+}
+
+/**
+ * Level milestones that unlock achievements. Keep in sync with seed.ts.
+ */
+export const LEVEL_MILESTONES = [5, 10, 25, 50, 100, 250, 500, 1000] as const

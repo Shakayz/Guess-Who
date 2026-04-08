@@ -23,6 +23,9 @@ model User {
   rankPoints    Int      @default(0)
   honorPoints   Int      @default(0)
   seasonXp      Int      @default(0)
+  level           Int      @default(1)
+  xp              Int      @default(0)
+  hasPlayedRanked Boolean  @default(false)
   emailVerified            Boolean   @default(false)
   emailVerificationCode    String?   @db.VarChar(6)
   emailVerificationExpires DateTime?

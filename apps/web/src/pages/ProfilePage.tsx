@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../store/auth'
 import { NavBar } from '../components/NavBar'
 import { Avatar, Badge } from '@imposter/ui'
-import { RANK_CONFIG } from '@imposter/shared'
+import { RANK_CONFIG, LEVEL_CAP } from '@imposter/shared'
 import type { RankTier } from '@imposter/shared'
 import { api } from '../lib/api'
 
@@ -16,7 +16,7 @@ interface MeResponse {
   username: string
   email: string
   avatarUrl: string | null
-  rankTier: RankTier
+  rankTier: RankTier | 'unranked'
   rankPoints: number
   honorPoints: number
   starCoins: number
@@ -26,6 +26,11 @@ interface MeResponse {
   honorTeamplayer?: number
   honorSharpMind?: number
   honorGoodSport?: number
+  level?: number
+  xp?: number
+  xpInLevel?: number
+  xpForNextLevel?: number
+  hasPlayedRanked?: boolean
 }
 
 interface AchievementItem {
@@ -144,7 +149,8 @@ export default function ProfilePage() {
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 
-  const rankTier: RankTier = me?.rankTier ?? 'wooden'
+  const isUnranked = me?.rankTier === 'unranked' || me?.hasPlayedRanked === false
+  const rankTier: RankTier = (isUnranked ? 'wooden' : (me?.rankTier as RankTier)) ?? 'wooden'
   const rank = RANK_CONFIG[rankTier]
   const lp = me?.rankPoints ?? 0
   // Calculate LP progress within current tier
@@ -157,6 +163,14 @@ export default function ProfilePage() {
   const nextRankTiers = Object.entries(RANK_CONFIG)
   const nextIdx = nextRankTiers.findIndex(([k]) => k === rankTier) + 1
   const nextRank = nextRankTiers[nextIdx]?.[1]
+
+  // Lifetime player level (any game type)
+  const playerLevel = me?.level ?? 1
+  const xpInLevel = me?.xpInLevel ?? 0
+  const xpForNextLevel = me?.xpForNextLevel ?? 100
+  const xpPct = playerLevel >= LEVEL_CAP
+    ? 100
+    : Math.min(100, Math.max(0, (xpInLevel / xpForNextLevel) * 100))
 
   const stats = [
     { label: t('profile.starCoins'), value: me ? String(me.starCoins) : '—', icon: '⭐' },
@@ -253,20 +267,47 @@ export default function ProfilePage() {
                     {me?.createdAt && (
                       <p className="text-neutral-600 text-xs mt-0.5">{t('profile.joinedDate', { date: formatDate(me.createdAt) })}</p>
                     )}
-                    <div className="flex items-center gap-2 mt-2">
-                      <Badge variant="rank">{rank.icon} {rank.label}</Badge>
-                      <span className="text-xs text-neutral-500">
-                        {lp} / {rank.lpRequired === Infinity ? '∞' : rank.lpRequired} LP
-                      </span>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      {isUnranked ? (
+                        <Badge variant="rank">⚪ Unranked</Badge>
+                      ) : (
+                        <Badge variant="rank">{rank.icon} {rank.label}</Badge>
+                      )}
+                      {!isUnranked && (
+                        <span className="text-xs text-neutral-500">
+                          {lp} / {rank.lpRequired === Infinity ? '∞' : rank.lpRequired} LP
+                        </span>
+                      )}
+                      <Badge variant="default">⚡ Lvl {playerLevel}</Badge>
                     </div>
                   </>
                 )}
               </div>
             </div>
 
-            {/* Rank progress */}
+            {/* Lifetime player level progress (any game type) */}
             {!isLoading && (
               <div className="mt-4">
+                <div className="flex justify-between text-xs text-neutral-500 mb-1">
+                  <span>⚡ Level {playerLevel}</span>
+                  <span>
+                    {playerLevel >= LEVEL_CAP
+                      ? 'MAX'
+                      : `${xpInLevel.toLocaleString()} / ${xpForNextLevel.toLocaleString()} XP`}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-700"
+                    style={{ width: `${xpPct}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Rank progress (only for ranked players) */}
+            {!isLoading && !isUnranked && (
+              <div className="mt-3">
                 <div className="flex justify-between text-xs text-neutral-500 mb-1">
                   <span>{rank.label}</span>
                   <span>{nextRank ? nextRank.label : t('profile.maxRank')}</span>
@@ -278,6 +319,11 @@ export default function ProfilePage() {
                   />
                 </div>
               </div>
+            )}
+            {!isLoading && isUnranked && (
+              <p className="mt-3 text-xs text-neutral-500 text-center">
+                Play your first ranked game to enter the leaderboard.
+              </p>
             )}
 
             {/* Avatar edit form */}

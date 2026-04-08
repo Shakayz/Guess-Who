@@ -188,6 +188,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           id: true, username: true, email: true, avatarUrl: true,
           starCoins: true, goldCoins: true, rankTier: true, rankPoints: true,
           honorPoints: true, locale: true, createdAt: true,
+          level: true, xp: true, hasPlayedRanked: true,
         },
       }),
       prisma.honor.groupBy({
@@ -199,8 +200,15 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     if (!user) return reply.status(404).send({ error: 'User not found' })
     const honorMap: Record<string, number> = {}
     for (const h of honors) honorMap[h.type] = h._count.type
+    const { xpProgressInLevel } = await import('@imposter/shared')
+    const progress = xpProgressInLevel(user.xp ?? 0)
     return reply.send({
       ...user,
+      // If the player has never played a ranked game, expose 'unranked' as the
+      // public tier so the client can render the Unranked badge consistently.
+      rankTier: user.hasPlayedRanked ? user.rankTier : 'unranked',
+      xpInLevel: progress.current,
+      xpForNextLevel: progress.needed,
       honorTeamplayer: honorMap['teamplayer'] ?? 0,
       honorSharpMind:  honorMap['sharp_mind']  ?? 0,
       honorGoodSport:  honorMap['good_sport']  ?? 0,

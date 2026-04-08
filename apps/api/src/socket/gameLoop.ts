@@ -1,6 +1,17 @@
 import type { Server } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
-import { getMostVoted, getTiedPlayerIds, checkWinCondition, computeRankUpdate, LP_REWARDS } from '@imposter/shared'
+import {
+  getMostVoted,
+  getTiedPlayerIds,
+  checkWinCondition,
+  computeRankUpdate,
+  LP_REWARDS,
+  XP_REWARDS,
+  LEVEL_CAP,
+  LEVEL_MILESTONES,
+  levelFromXp,
+  xpProgressInLevel,
+} from '@imposter/shared'
 import type { RankTier } from '@imposter/shared'
 import pino from 'pino'
 import { redis } from '../config/redis'
@@ -146,6 +157,119 @@ async function applyRankedLP(
       if (tierChanged) {
         const socketId = onlineUsers.get(player.userId)
         if (socketId) io.to(socketId).emit('rank:updated' as any, { oldTier, newTier, newLP, promoted })
+      }
+    })
+  )
+}
+
+// ─── XP / Level awarding (any game type) ─────────────────────────────────────
+
+/**
+ * After a game ends, give every (non-forfeited) player a chunk of lifetime XP,
+ * recompute their level, flip hasPlayedRanked when relevant, and unlock any
+ * level-milestone achievements they just crossed. Emits `level:up` to each
+ * player who advanced.
+ *
+ * Computes XP per player from:
+ *   - team result (win / loss / draw)
+ *   - survival bonus
+ *   - forfeited players get nothing
+ */
+async function applyXpAndLevel(
+  io: IO,
+  players: any[],
+  winner: 'villagers' | 'imposters' | 'draw',
+  isRanked: boolean,
+): Promise<void> {
+  const userIds: string[] = players.map((p: any) => p.userId).filter(Boolean)
+  if (userIds.length === 0) return
+
+  const users = await prisma.user.findMany({
+    where:  { id: { in: userIds } },
+    select: { id: true, xp: true, level: true, hasPlayedRanked: true },
+  })
+  const userMap = new Map(users.map((u) => [u.id, u]))
+
+  // Pre-fetch level-milestone achievement IDs once for batch unlocks
+  const milestoneKeys = LEVEL_MILESTONES.map((n) => `reach_level_${n}`)
+  const milestoneAchs = await prisma.achievement
+    .findMany({ where: { key: { in: milestoneKeys } }, select: { id: true, key: true } })
+    .catch(() => [] as { id: string; key: string }[])
+  const achByKey = new Map(milestoneAchs.map((a) => [a.key, a.id]))
+
+  await Promise.allSettled(
+    players.map(async (player: any) => {
+      const user = userMap.get(player.userId)
+      if (!user) return
+      if (player.status === 'forfeited') return  // forfeited → 0 XP
+
+      // Determine win for this player based on role + team winner
+      const isImposter = player.role === 'imposter' || player.role === 'double_agent'
+      const isWinner =
+        winner === 'draw'
+          ? false
+          : (winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter)
+
+      let xpGain: number
+      if (winner === 'draw') xpGain = XP_REWARDS.DRAW
+      else if (isWinner)     xpGain = XP_REWARDS.WIN
+      else                   xpGain = XP_REWARDS.LOSS
+
+      // Survival bonus: only awarded if the player survived to the end
+      if (player.survived ?? player.status !== 'eliminated') {
+        xpGain += XP_REWARDS.SURVIVAL_BONUS
+      }
+
+      const oldLevel = user.level
+      // Cap so we never go past the absolute hard XP ceiling for level CAP
+      const newXp = user.xp + xpGain
+      const newLevel = Math.min(LEVEL_CAP, levelFromXp(newXp))
+      const promoted = newLevel > oldLevel
+
+      const dataToUpdate: Record<string, unknown> = { xp: newXp }
+      if (promoted) dataToUpdate.level = newLevel
+      if (isRanked && !user.hasPlayedRanked) dataToUpdate.hasPlayedRanked = true
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: dataToUpdate,
+      })
+
+      // Notify the player about their XP gain + level progression
+      const socketId = onlineUsers.get(user.id)
+      if (socketId) {
+        const progress = xpProgressInLevel(newXp)
+        io.to(socketId).emit('level:xp' as any, {
+          xpGained:    xpGain,
+          totalXp:     newXp,
+          level:       progress.level,
+          xpInLevel:   progress.current,
+          xpForNext:   progress.needed,
+          leveledUp:   promoted,
+          oldLevel,
+          newLevel,
+        })
+      }
+
+      // Unlock level-milestone achievements crossed by this game
+      if (promoted) {
+        const crossed = LEVEL_MILESTONES.filter((m) => m > oldLevel && m <= newLevel)
+        for (const milestone of crossed) {
+          const achId = achByKey.get(`reach_level_${milestone}`)
+          if (!achId) continue
+          await prisma.userAchievement
+            .upsert({
+              where:  { userId_achievementId: { userId: user.id, achievementId: achId } },
+              create: { userId: user.id, achievementId: achId },
+              update: {},
+            })
+            .catch(() => {})
+          if (socketId) {
+            io.to(socketId).emit('achievement:unlocked' as any, {
+              key: `reach_level_${milestone}`,
+            })
+          }
+        }
       }
     })
   )
@@ -459,6 +583,9 @@ async function _resolveRound(io: IO, roomId: string) {
     if (isRanked) {
       await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, winner))
     }
+    // ── Award lifetime XP + recompute level (every game, ranked or not) ──────
+    await applyXpAndLevel(io, state.players, winner, isRanked)
+
     // Representative delta for the broadcast RewardSummary (villager perspective)
     const lpChange = isRanked ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS) : 0
 
@@ -500,6 +627,7 @@ async function _resolveRound(io: IO, roomId: string) {
         await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: 'draw', endedAt: new Date() } }).catch(() => {})
       }
       io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
+      await applyXpAndLevel(io, state.players, 'draw', state.gameMode === 'ranked')
       const drawRewards = { starCoinsEarned: 20, xpEarned: 60, lpChange: 0, achievements: [] }
       setTimeout(async () => { try {
         io.to(`room:${roomId}`).emit('game:finished', { winner: 'draw' as any, finalRound: roundPayload as any, rewards: drawRewards })
@@ -527,6 +655,7 @@ async function _resolveRound(io: IO, roomId: string) {
         if (isRankedFinal) {
           await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, finalWinner))
         }
+        await applyXpAndLevel(io, state.players, finalWinner, isRankedFinal)
         const lpChangeFinal = isRankedFinal ? LP_REWARDS.VILLAGER_WIN : 0
         setTimeout(async () => { try {
           io.to(`room:${roomId}`).emit('game:finished', { winner: finalWinner, finalRound: roundPayload as any, rewards: { starCoinsEarned: 50, xpEarned: 120, lpChange: lpChangeFinal, achievements: [] } })
@@ -545,6 +674,7 @@ async function _resolveRound(io: IO, roomId: string) {
       if (isRankedSurvival) {
         await applyRankedLP(io, roomId, state.players, (role) => getSurvivalLpDelta(role))
       }
+      await applyXpAndLevel(io, state.players, 'imposters', isRankedSurvival)
       const survivalLpChange = isRankedSurvival ? LP_REWARDS.SURVIVAL_VILLAGER_LOSS : 0
       const rewards = { starCoinsEarned: 80, xpEarned: 120, lpChange: survivalLpChange, achievements: [] }
       setTimeout(async () => { try {
@@ -801,6 +931,7 @@ async function resolveTiebreaker(io: IO, roomId: string) {
     if (isRanked) {
       await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, winner))
     }
+    await applyXpAndLevel(io, state.players, winner, isRanked)
     const lpChange = isRanked ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS) : 0
     const rewards = { starCoinsEarned: winner === 'villagers' ? 50 : 80, xpEarned: 120, lpChange, achievements: [] }
     setTimeout(async () => { try {
@@ -923,6 +1054,7 @@ export async function eliminatePlayerForWord(
       if (isRanked) {
         await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, winner))
       }
+      await applyXpAndLevel(io, state.players, winner, isRanked)
       const lpChange = isRanked ? getWinLpDelta('villager', winner) : 0
       const rewards = { starCoinsEarned: winner === 'villagers' ? 50 : 80, xpEarned: 120, lpChange, achievements: [] }
       setTimeout(async () => { try {
@@ -1022,6 +1154,7 @@ async function _forfeitEndGame(
   if (isRanked) {
     await applyRankedLP(io, roomId, state.players, (role) => getWinLpDelta(role, winner))
   }
+  await applyXpAndLevel(io, state.players, winner as any, isRanked)
 
   const lpChange = isRanked ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS) : 0
   const rewards = {

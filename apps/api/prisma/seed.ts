@@ -9539,6 +9539,15 @@ async function main() {
     { key: 'survivor',         name: 'Survivor',            description: 'Survive all rounds without being eliminated', icon: '💪' },
     { key: 'correct_voter',    name: 'Good Eye',            description: 'Vote correctly to eliminate the imposter',    icon: '👁️' },
     { key: 'social_butterfly', name: 'Social Butterfly',    description: 'Make 5 friends',                              icon: '🦋' },
+    // Level milestones — keep in sync with packages/shared LEVEL_MILESTONES
+    { key: 'reach_level_5',    name: 'Apprentice',          description: 'Reach player level 5',                         icon: '⚡', category: 'milestones', difficulty: 'bronze',   xpReward: 25 },
+    { key: 'reach_level_10',   name: 'Initiate',            description: 'Reach player level 10',                        icon: '⚡', category: 'milestones', difficulty: 'bronze',   xpReward: 50 },
+    { key: 'reach_level_25',   name: 'Adept',               description: 'Reach player level 25',                        icon: '⚡', category: 'milestones', difficulty: 'silver',   xpReward: 100 },
+    { key: 'reach_level_50',   name: 'Expert',              description: 'Reach player level 50',                        icon: '⚡', category: 'milestones', difficulty: 'silver',   xpReward: 200 },
+    { key: 'reach_level_100',  name: 'Centurion',           description: 'Reach player level 100',                       icon: '🌟', category: 'milestones', difficulty: 'gold',     xpReward: 500 },
+    { key: 'reach_level_250',  name: 'Veteran of the Game', description: 'Reach player level 250',                       icon: '🌟', category: 'milestones', difficulty: 'platinum', xpReward: 1000 },
+    { key: 'reach_level_500',  name: 'Legendary',           description: 'Reach player level 500',                       icon: '👑', category: 'milestones', difficulty: 'diamond',  xpReward: 2500 },
+    { key: 'reach_level_1000', name: 'Imposter God',        description: 'Reach the maximum level of 1000',              icon: '👑', category: 'milestones', difficulty: 'diamond',  xpReward: 10000 },
   ]
   for (const ach of ACHIEVEMENTS) {
     await prisma.achievement.upsert({ where: { key: ach.key }, create: ach, update: {} })

@@ -159,11 +159,19 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       select: {
         id: true, username: true, avatarUrl: true, rankTier: true,
         rankPoints: true, honorPoints: true, createdAt: true,
+        level: true, xp: true, hasPlayedRanked: true,
         _count: { select: { gameParticipations: true } },
       },
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
-    return reply.send(user)
+    const { xpProgressInLevel } = await import('@imposter/shared')
+    const progress = xpProgressInLevel(user.xp ?? 0)
+    return reply.send({
+      ...user,
+      rankTier: user.hasPlayedRanked ? user.rankTier : 'unranked',
+      xpInLevel: progress.current,
+      xpForNextLevel: progress.needed,
+    })
   })
 
   // POST /api/users/:userId/block — block a player
@@ -233,6 +241,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       select: {
         id: true, username: true, avatarUrl: true, rankTier: true,
         rankPoints: true, honorPoints: true, createdAt: true,
+        level: true, xp: true, hasPlayedRanked: true,
       },
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
@@ -286,8 +295,13 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       playedAt: p.game.startedAt,
     }))
 
+    const { xpProgressInLevel } = await import('@imposter/shared')
+    const progress = xpProgressInLevel(user.xp ?? 0)
     return reply.send({
       ...user,
+      rankTier: user.hasPlayedRanked ? user.rankTier : 'unranked',
+      xpInLevel: progress.current,
+      xpForNextLevel: progress.needed,
       stats: { totalGames, wins, losses: totalGames - wins, winRate: totalGames ? Math.round(wins / totalGames * 100) : 0, asVillager, asImposter, survived },
       recentGames,
       honors: honorsReceived.map((h) => ({ type: h.type, count: h._count.type })),
