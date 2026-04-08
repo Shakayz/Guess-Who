@@ -41,8 +41,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared package
-        run: pnpm --filter @imposter/shared build
+      - name: Build shared packages
+        run: |
+          pnpm --filter @imposter/shared build
+          pnpm --filter @imposter/ui build
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
