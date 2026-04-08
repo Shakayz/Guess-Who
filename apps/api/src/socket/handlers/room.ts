@@ -44,27 +44,104 @@ async function startGameForRoom(
     // Assign roles
     const players: any[] = shuffleArray([...state.players])
     const imposterCount = Math.min(room.imposterCount, Math.floor(players.length / 3))
-    const detectiveCount   = Math.max(0, state.detectiveCount   ?? (state.enableDetective   ? 1 : 0))
-    const doubleAgentCount = Math.max(0, state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0))
-    const guardianCount    = Math.max(0, state.guardianCount ?? 0)
+    const detectiveCount    = Math.max(0, state.detectiveCount    ?? (state.enableDetective   ? 1 : 0))
+    const doubleAgentCount  = Math.max(0, state.doubleAgentCount  ?? (state.enableDoubleAgent ? 1 : 0))
+    const guardianCount     = Math.max(0, state.guardianCount     ?? 0)
+    // ── New special-mode roles ────────────────────────────────────────────────
+    // Capped to 1 per game for mayor and jester; infiltrator can go up to 2.
+    const mayorCount        = Math.min(1, Math.max(0, state.mayorCount       ?? 0))
+    const infiltratorCount  = Math.max(0, state.infiltratorCount ?? 0)
+    const jesterCount       = Math.min(1, Math.max(0, state.jesterCount      ?? 0))
+    // ── 6-role expansion pack (judge / revenant / kamikaze / corruptor / inverter / evil-twins) ─
+    const judgeCount        = Math.min(1, Math.max(0, state.judgeCount       ?? 0))
+    const revenantCount     = Math.min(1, Math.max(0, state.revenantCount    ?? 0))
+    const kamikazeCount     = Math.min(2, Math.max(0, state.kamikazeCount    ?? 0))
+    const corruptorCount    = Math.min(1, Math.max(0, state.corruptorCount   ?? 0))
+    const inverterCount     = Math.min(1, Math.max(0, state.inverterCount    ?? 0))
+    // evilTwinsEnabled = 0 | 1. When enabled, uses exactly 2 slots (one villager, one imposter twin).
+    const evilTwinsEnabled  = Math.min(1, Math.max(0, state.evilTwinsEnabled ?? 0))
+    const evilTwinSlots     = evilTwinsEnabled * 2
 
+    // Safety: total non-villager slots must not exceed player count.
+    const totalSpecial =
+      imposterCount + doubleAgentCount + infiltratorCount +
+      detectiveCount + guardianCount + mayorCount + jesterCount +
+      judgeCount + revenantCount + kamikazeCount + corruptorCount + inverterCount +
+      evilTwinSlots
+    if (totalSpecial > players.length) {
+      log.warn({ roomId, totalSpecial, playerCount: players.length }, 'too many special roles — some will fall through to villager')
+    }
+
+    // Cumulative bounds — each role occupies a contiguous slice of the
+    // shuffled players array. Kamikaze/corruptor/inverter are imposter-side;
+    // judge/revenant are villager-side; twins use two dedicated slots.
+    const bounds = {
+      imposter:    imposterCount,
+      doubleAgent: imposterCount + doubleAgentCount,
+      infiltrator: imposterCount + doubleAgentCount + infiltratorCount,
+      kamikaze:    imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount,
+      corruptor:   imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount,
+      inverter:    imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount,
+      twinImposter: imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled,
+      detective:   imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount,
+      guardian:    imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount,
+      mayor:       imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount,
+      judge:       imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount,
+      revenant:    imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount,
+      twinVillager: imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount + evilTwinsEnabled,
+      jester:      imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount + evilTwinsEnabled + jesterCount,
+    }
     let roleIdx = 0
     players.forEach((p) => {
-      if (roleIdx < imposterCount) {
+      if (roleIdx < bounds.imposter) {
         p.role = 'imposter'
-      } else if (roleIdx < imposterCount + doubleAgentCount) {
+      } else if (roleIdx < bounds.doubleAgent) {
         p.role = 'double_agent'
-      } else if (roleIdx < imposterCount + doubleAgentCount + detectiveCount) {
+      } else if (roleIdx < bounds.infiltrator) {
+        p.role = 'infiltrator'
+      } else if (roleIdx < bounds.kamikaze) {
+        p.role = 'kamikaze'
+      } else if (roleIdx < bounds.corruptor) {
+        p.role = 'corruptor'
+      } else if (roleIdx < bounds.inverter) {
+        p.role = 'inverter'
+        p.inverterUsed = false
+        p.inverterActive = false
+      } else if (roleIdx < bounds.twinImposter) {
+        p.role = 'twin_imposter'
+      } else if (roleIdx < bounds.detective) {
         p.role = 'detective'
         p.detectiveRevealUsed = false
-      } else if (roleIdx < imposterCount + doubleAgentCount + detectiveCount + guardianCount) {
+      } else if (roleIdx < bounds.guardian) {
         p.role = 'guardian'
         p.guardianProtectUsed = false
+      } else if (roleIdx < bounds.mayor) {
+        p.role = 'mayor'
+        p.mayorDoubleVoteUsed = false
+        p.mayorDoubleActive = false
+      } else if (roleIdx < bounds.judge) {
+        p.role = 'judge'
+      } else if (roleIdx < bounds.revenant) {
+        p.role = 'revenant'
+      } else if (roleIdx < bounds.twinVillager) {
+        p.role = 'twin_villager'
+      } else if (roleIdx < bounds.jester) {
+        p.role = 'jester'
       } else {
         p.role = 'villager'
       }
       roleIdx++
     })
+
+    // Evil twins pairing: link the two twins so each knows the other.
+    if (evilTwinsEnabled) {
+      const twinV = players.find((p: any) => p.role === 'twin_villager')
+      const twinI = players.find((p: any) => p.role === 'twin_imposter')
+      if (twinV && twinI) {
+        twinV.twinPartnerUserId = twinI.userId
+        twinI.twinPartnerUserId = twinV.userId
+      }
+    }
 
     // Pick words
     const selectedCategories: string[] = state.categories ?? []
@@ -141,11 +218,28 @@ async function startGameForRoom(
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0), doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
         guardianCount: state.guardianCount ?? 0,
+        mayorCount: state.mayorCount ?? 0,
+        infiltratorCount: state.infiltratorCount ?? 0,
+        jesterCount: state.jesterCount ?? 0,
+        judgeCount: state.judgeCount ?? 0,
+        revenantCount: state.revenantCount ?? 0,
+        kamikazeCount: state.kamikazeCount ?? 0,
+        corruptorCount: state.corruptorCount ?? 0,
+        inverterCount: state.inverterCount ?? 0,
+        evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
       },
     } as any)
 
+    // Roles that get the IMPOSTER word. All other roles get the villager word.
+    // Kamikaze, corruptor, inverter, twin_imposter play on the imposter team
+    // and must know the imposter word. Infiltrator blends in and plays imposter
+    // team but receives the VILLAGER word (the whole point of the role).
+    const imposterWordRoles = new Set([
+      'imposter', 'double_agent', 'kamikaze', 'corruptor', 'inverter', 'twin_imposter',
+    ])
+
     for (const playerData of players) {
-      const getsImposterWord = playerData.role === 'imposter' || playerData.role === 'double_agent'
+      const getsImposterWord = imposterWordRoles.has(playerData.role)
       const payload = {
         round: roundPayload as any,
         yourWord: getsImposterWord ? wordPair.wordB : wordPair.wordA,
@@ -156,6 +250,22 @@ async function startGameForRoom(
       if (sid) io.to(sid).emit('game:started', payload)
       if (playerData.id && playerData.id !== sid) {
         io.to(playerData.id).emit('game:started', payload)
+      }
+
+      // Evil twins: tell each twin about their partner's identity + role.
+      if (playerData.twinPartnerUserId) {
+        const partner = players.find((pp: any) => pp.userId === playerData.twinPartnerUserId)
+        if (partner) {
+          const twinPayload = {
+            twinUserId: partner.userId,
+            twinUsername: partner.username,
+            twinRole: partner.role,
+          }
+          if (sid) io.to(sid).emit('twin:partner' as any, twinPayload)
+          if (playerData.id && playerData.id !== sid) {
+            io.to(playerData.id).emit('twin:partner' as any, twinPayload)
+          }
+        }
       }
     }
 
@@ -353,6 +463,15 @@ export function registerRoomHandlers(
           detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
           doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
           guardianCount: state.guardianCount ?? 0,
+          mayorCount: state.mayorCount ?? 0,
+          infiltratorCount: state.infiltratorCount ?? 0,
+          jesterCount: state.jesterCount ?? 0,
+          judgeCount: state.judgeCount ?? 0,
+          revenantCount: state.revenantCount ?? 0,
+          kamikazeCount: state.kamikazeCount ?? 0,
+          corruptorCount: state.corruptorCount ?? 0,
+          inverterCount: state.inverterCount ?? 0,
+          evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
           isMatchmade: state.isMatchmade ?? false,
         },
       }
@@ -403,13 +522,31 @@ export function registerRoomHandlers(
 
     // Special roles only allowed in 'special' mode — force-disable in normal mode
     if (state.gameMode === 'normal') {
-      state.detectiveCount   = 0
-      state.doubleAgentCount = 0
-      state.guardianCount    = 0
+      state.detectiveCount    = 0
+      state.doubleAgentCount  = 0
+      state.guardianCount     = 0
+      state.mayorCount        = 0
+      state.infiltratorCount  = 0
+      state.jesterCount       = 0
+      state.judgeCount        = 0
+      state.revenantCount     = 0
+      state.kamikazeCount     = 0
+      state.corruptorCount    = 0
+      state.inverterCount     = 0
+      state.evilTwinsEnabled  = 0
     } else {
-      if (newSettings.detectiveCount   !== undefined) state.detectiveCount   = Math.max(0, Math.min(3, newSettings.detectiveCount))
-      if (newSettings.doubleAgentCount !== undefined) state.doubleAgentCount = Math.max(0, Math.min(2, newSettings.doubleAgentCount))
-      if (newSettings.guardianCount    !== undefined) state.guardianCount    = Math.max(0, Math.min(2, newSettings.guardianCount))
+      if (newSettings.detectiveCount    !== undefined) state.detectiveCount    = Math.max(0, Math.min(3, newSettings.detectiveCount))
+      if (newSettings.doubleAgentCount  !== undefined) state.doubleAgentCount  = Math.max(0, Math.min(2, newSettings.doubleAgentCount))
+      if (newSettings.guardianCount     !== undefined) state.guardianCount     = Math.max(0, Math.min(2, newSettings.guardianCount))
+      if (newSettings.mayorCount        !== undefined) state.mayorCount        = Math.max(0, Math.min(1, newSettings.mayorCount))
+      if (newSettings.infiltratorCount  !== undefined) state.infiltratorCount  = Math.max(0, Math.min(2, newSettings.infiltratorCount))
+      if (newSettings.jesterCount       !== undefined) state.jesterCount       = Math.max(0, Math.min(1, newSettings.jesterCount))
+      if (newSettings.judgeCount        !== undefined) state.judgeCount        = Math.max(0, Math.min(1, newSettings.judgeCount))
+      if (newSettings.revenantCount     !== undefined) state.revenantCount     = Math.max(0, Math.min(1, newSettings.revenantCount))
+      if (newSettings.kamikazeCount     !== undefined) state.kamikazeCount     = Math.max(0, Math.min(2, newSettings.kamikazeCount))
+      if (newSettings.corruptorCount    !== undefined) state.corruptorCount    = Math.max(0, Math.min(1, newSettings.corruptorCount))
+      if (newSettings.inverterCount     !== undefined) state.inverterCount     = Math.max(0, Math.min(1, newSettings.inverterCount))
+      if (newSettings.evilTwinsEnabled  !== undefined) state.evilTwinsEnabled  = Math.max(0, Math.min(1, newSettings.evilTwinsEnabled ? 1 : 0))
     }
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
@@ -428,9 +565,49 @@ export function registerRoomHandlers(
     // which field changed in this update. imposterCount must be ≤ floor(maxPlayers/3).
     const finalMaxPlayers = (dbUpdate.maxPlayers as number | undefined) ?? room.maxPlayers
     const finalImposterCount = (dbUpdate.imposterCount as number | undefined) ?? room.imposterCount
-    const cappedImposters = Math.max(1, Math.min(finalImposterCount, Math.floor(finalMaxPlayers / 3)))
+    const evilCap = Math.max(1, Math.floor(finalMaxPlayers / 3))
+    const cappedImposters = Math.max(1, Math.min(finalImposterCount, evilCap))
     if (cappedImposters !== finalImposterCount) {
       dbUpdate.imposterCount = cappedImposters
+    }
+
+    // In special mode, also enforce that the full imposter-side team
+    // (imposterCount + all imposter-aligned special roles) stays ≤ evilCap.
+    // Clamp in priority order: reduce most-recently-touched roles first,
+    // favoring imposter > doubleAgent > infiltrator > kamikaze > corruptor >
+    // inverter > twinImposter until the sum fits under the cap.
+    if (state.gameMode === 'special') {
+      const roleKeys = [
+        'imposterCount',       // derived from dbUpdate/cappedImposters below
+        'doubleAgentCount',
+        'infiltratorCount',
+        'kamikazeCount',
+        'corruptorCount',
+        'inverterCount',
+        'evilTwinsEnabled',
+      ] as const
+
+      const imposterResolved = cappedImposters
+      let sumEvil = imposterResolved
+        + (state.doubleAgentCount ?? 0)
+        + (state.infiltratorCount ?? 0)
+        + (state.kamikazeCount ?? 0)
+        + (state.corruptorCount ?? 0)
+        + (state.inverterCount ?? 0)
+        + (state.evilTwinsEnabled ?? 0)
+
+      if (sumEvil > evilCap) {
+        // Reduce in reverse priority order (skip imposterCount, keep the
+        // baseline imposters). Lower the tail until we fit.
+        for (let i = roleKeys.length - 1; i > 0 && sumEvil > evilCap; i--) {
+          const key = roleKeys[i]
+          const current = (state as any)[key] ?? 0
+          const excess = sumEvil - evilCap
+          const reduceBy = Math.min(current, excess)
+          ;(state as any)[key] = current - reduceBy
+          sumEvil -= reduceBy
+        }
+      }
     }
     const updatedRoom = Object.keys(dbUpdate).length > 0
       ? await prisma.room.update({ where: { id: roomId }, data: dbUpdate })
@@ -450,6 +627,15 @@ export function registerRoomHandlers(
         detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
         doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
         guardianCount: state.guardianCount ?? 0,
+        mayorCount: state.mayorCount ?? 0,
+        infiltratorCount: state.infiltratorCount ?? 0,
+        jesterCount: state.jesterCount ?? 0,
+        judgeCount: state.judgeCount ?? 0,
+        revenantCount: state.revenantCount ?? 0,
+        kamikazeCount: state.kamikazeCount ?? 0,
+        corruptorCount: state.corruptorCount ?? 0,
+        inverterCount: state.inverterCount ?? 0,
+        evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
         isMatchmade: state.isMatchmade ?? false,
       },
     }
@@ -488,6 +674,15 @@ export function registerRoomHandlers(
         detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
         doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
         guardianCount: state.guardianCount ?? 0,
+        mayorCount: state.mayorCount ?? 0,
+        infiltratorCount: state.infiltratorCount ?? 0,
+        jesterCount: state.jesterCount ?? 0,
+        judgeCount: state.judgeCount ?? 0,
+        revenantCount: state.revenantCount ?? 0,
+        kamikazeCount: state.kamikazeCount ?? 0,
+        corruptorCount: state.corruptorCount ?? 0,
+        inverterCount: state.inverterCount ?? 0,
+        evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
         isMatchmade: state.isMatchmade ?? false,
       },
     }
@@ -535,13 +730,185 @@ export function registerRoomHandlers(
       detective.detectiveRevealUsed = true
       await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
+      // ── Infiltrator dissimulation ──
+      // The Infiltrator plays on the imposter team but is shown as a plain
+      // 'villager' to the Detective. Without this, the Infiltrator would be
+      // trivially outed.
+      const revealedRole = target.role === 'infiltrator' ? 'villager' : target.role
+
       socket.emit('detective:result', {
         targetUserId: target.userId,
         targetUsername: target.username,
-        role: target.role,
+        role: revealedRole,
       })
     } catch (err) {
       log.error({ err, userId }, 'detective:reveal error')
+    }
+  })
+
+  // ── Mayor: activate one-shot double-vote for the current voting phase ────────
+  socket.on('mayor:activate-double' as any, async () => {
+    try {
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      const mayor = state.players.find((p: any) => p.userId === userId)
+      if (!mayor || mayor.role !== 'mayor') return
+
+      if (mayor.mayorDoubleVoteUsed) {
+        socket.emit('error', { code: 'MAYOR_USED', message: 'Double vote already used' })
+        return
+      }
+
+      // Can only activate during voting phase
+      if (state.status !== 'voting') {
+        socket.emit('error', { code: 'MAYOR_WRONG_PHASE', message: 'Can only activate during voting phase' })
+        return
+      }
+
+      // Mayor must still be alive to use the ability
+      if (mayor.status !== 'alive') return
+
+      mayor.mayorDoubleVoteUsed = true
+      mayor.mayorDoubleActive = true
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+
+      socket.emit('mayor:double-ack' as any, { userId })
+      log.info({ userId, roomId }, 'mayor:activate-double used')
+    } catch (err) {
+      log.error({ err, userId }, 'mayor:activate-double error')
+    }
+  })
+
+  // ── Inverter: activate one-shot vote inversion for the current voting phase ──
+  socket.on('inverter:activate' as any, async () => {
+    try {
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      const inverter = state.players.find((p: any) => p.userId === userId)
+      if (!inverter || inverter.role !== 'inverter') return
+      if (inverter.inverterUsed) {
+        socket.emit('error', { code: 'INVERTER_USED', message: 'Inversion already used' })
+        return
+      }
+      if (state.status !== 'voting') {
+        socket.emit('error', { code: 'INVERTER_WRONG_PHASE', message: 'Can only activate during voting' })
+        return
+      }
+      if (inverter.status !== 'alive') return
+
+      inverter.inverterUsed = true
+      inverter.inverterActive = true
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+
+      socket.emit('inverter:activate-ack' as any, { userId })
+      log.info({ userId, roomId }, 'inverter:activate used')
+    } catch (err) {
+      log.error({ err, userId }, 'inverter:activate error')
+    }
+  })
+
+  // ── Corruptor: pick a target whose votes are silently dropped ───────────────
+  // Choose once per game. Persists until the corruptor dies (then auto-cleared).
+  socket.on('corruptor:pick-target' as any, async ({ targetUserId }: { targetUserId: string }) => {
+    try {
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      const corruptor = state.players.find((p: any) => p.userId === userId)
+      if (!corruptor || corruptor.role !== 'corruptor') return
+      if (corruptor.corruptorTargetUserId) {
+        socket.emit('error', { code: 'CORRUPTOR_USED', message: 'Target already chosen' })
+        return
+      }
+      if (corruptor.status !== 'alive') return
+      if (targetUserId === userId) return  // can't corrupt yourself
+
+      const target = state.players.find((p: any) => p.userId === targetUserId && p.status === 'alive')
+      if (!target) return
+
+      corruptor.corruptorTargetUserId = targetUserId
+      target.corrupted = true
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+
+      socket.emit('corruptor:target-ack' as any, { targetUserId, targetUsername: target.username })
+      log.info({ userId, roomId, targetUserId }, 'corruptor:pick-target used')
+    } catch (err) {
+      log.error({ err, userId }, 'corruptor:pick-target error')
+    }
+  })
+
+  // ── Kamikaze: pick a victim to drag along when eliminated by vote ────────────
+  // This handler is only valid while a kamikaze-pending state is active for
+  // this player (set by gameLoop on vote-elimination of the kamikaze).
+  socket.on('kamikaze:pick-target' as any, async ({ targetUserId }: { targetUserId: string }) => {
+    try {
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      if (state.kamikazePendingUserId !== userId) return  // not your turn
+
+      const kamikaze = state.players.find((p: any) => p.userId === userId)
+      if (!kamikaze || kamikaze.role !== 'kamikaze') return
+
+      const target = state.players.find((p: any) => p.userId === targetUserId && p.status === 'alive')
+      if (!target) return
+      if (targetUserId === userId) return  // can't target self
+
+      // Resolve immediately via the gameLoop helper
+      const { resolveKamikazeSelection } = await import('../gameLoop')
+      await resolveKamikazeSelection(io, roomId, userId, targetUserId)
+      log.info({ userId, roomId, targetUserId }, 'kamikaze:pick-target used')
+    } catch (err) {
+      log.error({ err, userId }, 'kamikaze:pick-target error')
+    }
+  })
+
+  // ── Judge: decide who to eliminate during a tiebreaker ──────────────────────
+  socket.on('judge:pick-elimination' as any, async ({ targetUserId }: { targetUserId: string }) => {
+    try {
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      if (state.judgeDecisionPendingUserId !== userId) return
+
+      const judge = state.players.find((p: any) => p.userId === userId)
+      if (!judge || judge.role !== 'judge' || judge.status !== 'alive') return
+
+      const tiedIds: string[] = state.tiebreakerPlayerIds ?? []
+      if (!tiedIds.includes(targetUserId)) return  // must be one of the tied candidates
+
+      const { resolveJudgeDecision } = await import('../gameLoop')
+      await resolveJudgeDecision(io, roomId, userId, targetUserId)
+      log.info({ userId, roomId, targetUserId }, 'judge:pick-elimination used')
+    } catch (err) {
+      log.error({ err, userId }, 'judge:pick-elimination error')
     }
   })
 

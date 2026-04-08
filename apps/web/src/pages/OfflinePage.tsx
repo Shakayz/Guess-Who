@@ -99,6 +99,17 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
     }
   }, [filledCount, maxImposters])
 
+  // In special mode the imposter side = imposterCount + doubleAgentCount must
+  // also respect the ≤ 1/3 rule. Decrease doubleAgentCount whenever the cap
+  // is breached (e.g. player count dropped or imposterCount was raised).
+  useEffect(() => {
+    const evilCap = Math.max(1, Math.floor(filledCount / 3))
+    const maxDa = Math.max(0, evilCap - imposterCount)
+    if (doubleAgentCount > maxDa) {
+      setDoubleAgentCount(maxDa)
+    }
+  }, [filledCount, imposterCount, doubleAgentCount])
+
   // Auto-adjust double agent availability based on player count
   useEffect(() => {
     if (initialSettings) return
@@ -134,11 +145,16 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
     onStart(validNames, imposterCount, gameMode === 'special' ? detectiveCount : 0, gameMode === 'special' ? doubleAgentCount : 0, gameMode === 'special' ? guardianCount : 0, categories, gameMode)
   }
 
-  // Max special roles based on player count
-  const maxSpecialTotal = Math.max(0, filledCount - imposterCount - 1) // at least 1 villager
+  // Evil-team cap: the imposter side (imposter + double_agent) must never
+  // exceed 1/3 of the players. This matches the main imposter-cap rule.
+  const evilTeamCap = Math.max(1, Math.floor(filledCount / 3))
+  const maxDoubleAgents = Math.min(2, Math.max(0, evilTeamCap - imposterCount))
+
+  // Villager-side special slots (detective + guardian). Must leave at least
+  // one "pure" villager so there is someone neutral to protect/detect.
+  const maxSpecialTotal = Math.max(0, filledCount - imposterCount - doubleAgentCount - 1)
   const maxDetectives = Math.min(3, maxSpecialTotal)
-  const maxDoubleAgents = Math.min(2, Math.max(0, maxSpecialTotal - detectiveCount))
-  const maxGuardians = Math.min(2, Math.max(0, maxSpecialTotal - detectiveCount - doubleAgentCount))
+  const maxGuardians = Math.min(2, Math.max(0, maxSpecialTotal - detectiveCount))
 
   return (
     <div className="space-y-6 animate-slide-up">

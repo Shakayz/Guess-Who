@@ -96,6 +96,7 @@ export default function ProfilePage() {
   const [editingUsername, setEditingUsername] = useState(false)
   const [usernameInput, setUsernameInput] = useState('')
   const [usernameError, setUsernameError] = useState<string | null>(null)
+  const [statsTab, setStatsTab] = useState<'unranked' | 'ranked'>('unranked')
 
   const { data: me, isLoading } = useQuery<MeResponse>({
     queryKey: ['me'],
@@ -193,8 +194,6 @@ export default function ProfilePage() {
     { label: t('profile.honorPoints'), value: me ? String(me.honorPoints) : '—', icon: '🎖️' },
     { label: t('profile.rankPoints'), value: me ? String(me.rankPoints) : '—', icon: '📊' },
   ]
-
-  const gameStats = profileStats?.stats
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -428,64 +427,87 @@ export default function ProfilePage() {
             ))}
           </div>
 
-          {/* Game statistics — split into Ranked / Unranked */}
-          {(gameStats || isLoading) && (() => {
-            const renderStatsBlock = (stats: UserStats | undefined, label: string, icon: string) => (
-              <div className="card">
-                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
-                  <span className="mr-1">{icon}</span>{label}
-                </p>
-                {isLoading || !stats ? (
-                  <div className="grid grid-cols-3 gap-3">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <div key={i} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60">
-                        <div className="h-6 w-12 bg-neutral-700 rounded animate-pulse" />
-                        <div className="h-3 w-16 bg-neutral-700 rounded animate-pulse mt-1" />
-                      </div>
-                    ))}
-                  </div>
-                ) : stats.totalGames === 0 ? (
-                  <p className="text-xs text-neutral-500 text-center py-4">
-                    {label === t('profile.statsRanked')
-                      ? t('profile.noRankedGames', { defaultValue: 'No ranked games played yet.' })
-                      : t('profile.noUnrankedGames', { defaultValue: 'No unranked games played yet.' })}
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                    {[
-                      { label: t('profile.gamesPlayed'), value: stats.totalGames, icon: '🎮' },
-                      { label: t('profile.winRate'),     value: `${stats.winRate}%`, icon: '🏆' },
-                      { label: t('profile.wins'),        value: stats.wins, icon: '✅' },
-                      { label: t('profile.asVillager'),  value: stats.asVillager, icon: '🏘️' },
-                      { label: t('profile.asImposter'),  value: stats.asImposter, icon: '🎭' },
-                      { label: t('profile.survived'),    value: stats.survived, icon: '💪' },
-                    ].map((s) => (
-                      <div key={s.label} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60 text-center">
-                        <span className="text-xl">{s.icon}</span>
-                        <p className="text-lg font-bold text-white">{s.value}</p>
-                        <p className="text-[10px] text-neutral-500 leading-tight">{s.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-            return (
-              <>
-                {renderStatsBlock(profileStats?.statsUnranked, t('profile.statsUnranked', { defaultValue: 'Unranked Games' }), '🎲')}
-                {renderStatsBlock(profileStats?.statsRanked,   t('profile.statsRanked',   { defaultValue: 'Ranked Games'   }), '🏆')}
-              </>
-            )
-          })()}
-
-          {/* Honors — split into Ranked / Unranked */}
+          {/* Stats & Honors — tabbed by mode */}
           {(() => {
-            const renderHonorBlock = (honors: HonorBucket[] | undefined, label: string, icon: string) => {
-              const countByType = new Map((honors ?? []).map((h) => [h.type, h.count]))
-              return (
-                <div className="card">
+            const isRanked = statsTab === 'ranked'
+            const activeStats  = isRanked ? profileStats?.statsRanked  : profileStats?.statsUnranked
+            const activeHonors = isRanked ? profileStats?.honorsRanked : profileStats?.honorsUnranked
+            const countByType = new Map((activeHonors ?? []).map((h) => [h.type, h.count]))
+
+            return (
+              <div className="card space-y-4">
+                {/* Tab switcher */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setStatsTab('unranked')}
+                    className={[
+                      'flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all',
+                      !isRanked
+                        ? 'bg-brand-600 text-white'
+                        : 'text-neutral-400 hover:text-white hover:bg-neutral-800',
+                    ].join(' ')}
+                  >
+                    🎲 {t('profile.statsUnranked', { defaultValue: 'Unranked' })}
+                  </button>
+                  <button
+                    onClick={() => setStatsTab('ranked')}
+                    className={[
+                      'flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all',
+                      isRanked
+                        ? 'bg-brand-600 text-white'
+                        : 'text-neutral-400 hover:text-white hover:bg-neutral-800',
+                    ].join(' ')}
+                  >
+                    🏆 {t('profile.statsRanked', { defaultValue: 'Ranked' })}
+                  </button>
+                </div>
+
+                {/* Stats grid */}
+                <div>
                   <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
-                    <span className="mr-1">{icon}</span>{label}
+                    {t('profile.gamesPlayed', { defaultValue: 'Games' })}
+                  </p>
+                  {isLoading || !activeStats ? (
+                    <div className="grid grid-cols-3 gap-3">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60">
+                          <div className="h-6 w-12 bg-neutral-700 rounded animate-pulse" />
+                          <div className="h-3 w-16 bg-neutral-700 rounded animate-pulse mt-1" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : activeStats.totalGames === 0 ? (
+                    <p className="text-xs text-neutral-500 text-center py-4">
+                      {isRanked
+                        ? t('profile.noRankedGames',   { defaultValue: 'No ranked games played yet.' })
+                        : t('profile.noUnrankedGames', { defaultValue: 'No unranked games played yet.' })}
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                      {[
+                        { label: t('profile.gamesPlayed'), value: activeStats.totalGames, icon: '🎮' },
+                        { label: t('profile.winRate'),     value: `${activeStats.winRate}%`, icon: '🏆' },
+                        { label: t('profile.wins'),        value: activeStats.wins, icon: '✅' },
+                        { label: t('profile.asVillager'),  value: activeStats.asVillager, icon: '🏘️' },
+                        { label: t('profile.asImposter'),  value: activeStats.asImposter, icon: '🎭' },
+                        { label: t('profile.survived'),    value: activeStats.survived, icon: '💪' },
+                      ].map((s) => (
+                        <div key={s.label} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60 text-center">
+                          <span className="text-xl">{s.icon}</span>
+                          <p className="text-lg font-bold text-white">{s.value}</p>
+                          <p className="text-[10px] text-neutral-500 leading-tight">{s.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Honors grid */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
+                    {isRanked
+                      ? t('profile.honorReceivedRanked',   { defaultValue: 'Honor Received' })
+                      : t('profile.honorReceivedUnranked', { defaultValue: 'Honor Received' })}
                   </p>
                   {isLoading ? (
                     <div className="grid grid-cols-3 gap-3">
@@ -519,13 +541,7 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </div>
-              )
-            }
-            return (
-              <>
-                {renderHonorBlock(profileStats?.honorsUnranked, t('profile.honorReceivedUnranked', { defaultValue: 'Honor Received — Unranked' }), '🎲')}
-                {renderHonorBlock(profileStats?.honorsRanked,   t('profile.honorReceivedRanked',   { defaultValue: 'Honor Received — Ranked'   }), '🏆')}
-              </>
+              </div>
             )
           })()}
 

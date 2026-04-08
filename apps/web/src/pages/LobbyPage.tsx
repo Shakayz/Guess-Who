@@ -41,6 +41,9 @@ interface Settings {
   detectiveCount: number
   doubleAgentCount: number
   guardianCount: number
+  mayorCount: number
+  infiltratorCount: number
+  jesterCount: number
   maxRounds: number
   language: Locale
 }
@@ -88,9 +91,12 @@ function SettingsPanel({
     onChange({
       ...settings,
       gameMode: mode,
-      detectiveCount: mode === 'normal' ? 0 : settings.detectiveCount,
+      detectiveCount:   mode === 'normal' ? 0 : settings.detectiveCount,
       doubleAgentCount: mode === 'normal' ? 0 : settings.doubleAgentCount,
-      guardianCount: mode === 'normal' ? 0 : settings.guardianCount,
+      guardianCount:    mode === 'normal' ? 0 : settings.guardianCount,
+      mayorCount:       mode === 'normal' ? 0 : settings.mayorCount,
+      infiltratorCount: mode === 'normal' ? 0 : settings.infiltratorCount,
+      jesterCount:      mode === 'normal' ? 0 : settings.jesterCount,
     })
   }
 
@@ -131,7 +137,22 @@ function SettingsPanel({
       </div>
 
       {/* Special roles */}
-      {settings.gameMode === 'special' && (
+      {settings.gameMode === 'special' && (() => {
+        // Evil team (imposter + double_agent + infiltrator) must stay ≤ floor(N/3).
+        // N here is maxPlayers because we don't yet know how many players
+        // will actually join — we validate against the worst case.
+        const evilCap = Math.max(1, Math.floor(settings.maxPlayers / 3))
+        const currentEvil = settings.imposterCount + settings.doubleAgentCount + (settings.infiltratorCount ?? 0)
+        const evilHeadroom = Math.max(0, evilCap - currentEvil)
+        const maxDoubleAgentsLobby = Math.max(0, evilCap - settings.imposterCount - (settings.infiltratorCount ?? 0))
+        const maxInfiltratorsLobby = Math.max(0, evilCap - settings.imposterCount - settings.doubleAgentCount)
+        // Villager side leaves at least 1 pure villager
+        const maxSpecialTotal = Math.max(0, settings.maxPlayers - currentEvil - 1)
+        const maxDetectivesLobby = Math.min(3, maxSpecialTotal)
+        const maxGuardiansLobby = Math.min(2, Math.max(0, maxSpecialTotal - settings.detectiveCount))
+        // silence unused warning when evilHeadroom isn't read directly in JSX
+        void evilHeadroom
+        return (
         <div className="space-y-3">
           <p className="text-xs text-neutral-500">{t('lobby.specialRoles')}</p>
 
@@ -141,46 +162,58 @@ function SettingsPanel({
               {t('lobby.detectiveCount')}
             </p>
             <div className="flex gap-1.5">
-              {[0, 1, 2, 3].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => onChange({ ...settings, detectiveCount: n })}
-                  className={[
-                    'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                    settings.detectiveCount === n
-                      ? 'bg-sky-950/60 border-sky-700/50 text-sky-400'
-                      : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                  ].join(' ')}
-                >
-                  {n}
-                </button>
-              ))}
+              {[0, 1, 2, 3].map((n) => {
+                const allowed = n <= maxDetectivesLobby
+                return (
+                  <button
+                    key={n}
+                    disabled={!allowed}
+                    onClick={() => { if (allowed) onChange({ ...settings, detectiveCount: n }) }}
+                    className={[
+                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                      !allowed
+                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
+                        : settings.detectiveCount === n
+                        ? 'bg-sky-950/60 border-sky-700/50 text-sky-400'
+                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                    ].join(' ')}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
             </div>
             {settings.detectiveCount > 0 && (
               <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.detectiveDesc')}</p>
             )}
           </div>
 
-          {/* Double Agent count */}
+          {/* Double Agent count — capped to (floor(N/3) - imposterCount) */}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
               {t('lobby.doubleAgentCount')}
             </p>
             <div className="flex gap-1.5">
-              {[0, 1, 2].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => onChange({ ...settings, doubleAgentCount: n })}
-                  className={[
-                    'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                    settings.doubleAgentCount === n
-                      ? 'bg-amber-950/60 border-amber-700/50 text-amber-400'
-                      : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                  ].join(' ')}
-                >
-                  {n}
-                </button>
-              ))}
+              {[0, 1, 2].map((n) => {
+                const allowed = n <= maxDoubleAgentsLobby
+                return (
+                  <button
+                    key={n}
+                    disabled={!allowed}
+                    onClick={() => { if (allowed) onChange({ ...settings, doubleAgentCount: n }) }}
+                    className={[
+                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                      !allowed
+                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
+                        : settings.doubleAgentCount === n
+                        ? 'bg-amber-950/60 border-amber-700/50 text-amber-400'
+                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                    ].join(' ')}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
             </div>
             {settings.doubleAgentCount > 0 && (
               <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.doubleAgentDesc')}</p>
@@ -193,14 +226,46 @@ function SettingsPanel({
               {t('lobby.guardianCount')}
             </p>
             <div className="flex gap-1.5">
-              {[0, 1, 2].map((n) => (
+              {[0, 1, 2].map((n) => {
+                const allowed = n <= maxGuardiansLobby
+                return (
+                  <button
+                    key={n}
+                    disabled={!allowed}
+                    onClick={() => { if (allowed) onChange({ ...settings, guardianCount: n }) }}
+                    className={[
+                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                      !allowed
+                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
+                        : settings.guardianCount === n
+                        ? 'bg-yellow-950/60 border-yellow-700/50 text-yellow-400'
+                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                    ].join(' ')}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
+            </div>
+            {settings.guardianCount > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.guardianDesc')}</p>
+            )}
+          </div>
+
+          {/* Mayor count */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+              {t('lobby.mayorCount')}
+            </p>
+            <div className="flex gap-1.5">
+              {[0, 1].map((n) => (
                 <button
                   key={n}
-                  onClick={() => onChange({ ...settings, guardianCount: n })}
+                  onClick={() => onChange({ ...settings, mayorCount: n })}
                   className={[
                     'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                    settings.guardianCount === n
-                      ? 'bg-yellow-950/60 border-yellow-700/50 text-yellow-400'
+                    settings.mayorCount === n
+                      ? 'bg-indigo-950/60 border-indigo-700/50 text-indigo-400'
                       : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
                   ].join(' ')}
                 >
@@ -208,12 +273,71 @@ function SettingsPanel({
                 </button>
               ))}
             </div>
-            {settings.guardianCount > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.guardianDesc')}</p>
+            {settings.mayorCount > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.mayorDesc')}</p>
+            )}
+          </div>
+
+          {/* Infiltrator count — imposter-side, counts toward the 1/3 evil cap */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+              {t('lobby.infiltratorCount')}
+            </p>
+            <div className="flex gap-1.5">
+              {[0, 1, 2].map((n) => {
+                const allowed = n <= maxInfiltratorsLobby
+                return (
+                  <button
+                    key={n}
+                    disabled={!allowed}
+                    onClick={() => { if (allowed) onChange({ ...settings, infiltratorCount: n }) }}
+                    className={[
+                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                      !allowed
+                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
+                        : settings.infiltratorCount === n
+                        ? 'bg-fuchsia-950/60 border-fuchsia-700/50 text-fuchsia-400'
+                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                    ].join(' ')}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
+            </div>
+            {settings.infiltratorCount > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.infiltratorDesc')}</p>
+            )}
+          </div>
+
+          {/* Jester count */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+              {t('lobby.jesterCount')}
+            </p>
+            <div className="flex gap-1.5">
+              {[0, 1].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => onChange({ ...settings, jesterCount: n })}
+                  className={[
+                    'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                    settings.jesterCount === n
+                      ? 'bg-pink-950/60 border-pink-700/50 text-pink-400'
+                      : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
+                  ].join(' ')}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            {settings.jesterCount > 0 && (
+              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.jesterDesc')}</p>
             )}
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Category picker */}
       <div>
@@ -290,8 +414,20 @@ function SettingsPanel({
           max={20}
           onChange={(v) => {
             // Cap imposters to floor(N/3) so we never exceed the 1/3 rule
-            const cappedImposters = Math.min(settings.imposterCount, Math.max(1, Math.floor(v / 3)))
-            onChange({ ...settings, maxPlayers: v, imposterCount: cappedImposters })
+            // 1/3 evil-team cap: imposter + double_agent + infiltrator ≤ floor(N/3)
+            const evilCap = Math.max(1, Math.floor(v / 3))
+            const cappedImposters = Math.min(settings.imposterCount, evilCap)
+            const headroomAfterImposters = Math.max(0, evilCap - cappedImposters)
+            const cappedDoubleAgents = Math.min(settings.doubleAgentCount, headroomAfterImposters)
+            const headroomAfterDa = Math.max(0, headroomAfterImposters - cappedDoubleAgents)
+            const cappedInfiltrators = Math.min(settings.infiltratorCount ?? 0, headroomAfterDa)
+            onChange({
+              ...settings,
+              maxPlayers: v,
+              imposterCount: cappedImposters,
+              doubleAgentCount: cappedDoubleAgents,
+              infiltratorCount: cappedInfiltrators,
+            })
           }}
         />
         <NumStepper
@@ -299,7 +435,21 @@ function SettingsPanel({
           value={settings.imposterCount}
           min={1}
           max={Math.min(4, Math.max(1, Math.floor(settings.maxPlayers / 3)))}
-          onChange={(v) => onChange({ ...settings, imposterCount: v })}
+          onChange={(v) => {
+            // Keep imposter + double_agent + infiltrator ≤ floor(N/3) when the
+            // imposter count grows past the headroom.
+            const evilCap = Math.max(1, Math.floor(settings.maxPlayers / 3))
+            const headroomAfterImposters = Math.max(0, evilCap - v)
+            const cappedDoubleAgents = Math.min(settings.doubleAgentCount, headroomAfterImposters)
+            const headroomAfterDa = Math.max(0, headroomAfterImposters - cappedDoubleAgents)
+            const cappedInfiltrators = Math.min(settings.infiltratorCount ?? 0, headroomAfterDa)
+            onChange({
+              ...settings,
+              imposterCount: v,
+              doubleAgentCount: cappedDoubleAgents,
+              infiltratorCount: cappedInfiltrators,
+            })
+          }}
         />
         <NumStepper
           label={t('lobby.rounds')}
@@ -353,6 +503,9 @@ export default function LobbyPage() {
     detectiveCount: 0,
     doubleAgentCount: 0,
     guardianCount: 0,
+    mayorCount: 0,
+    infiltratorCount: 0,
+    jesterCount: 0,
     maxRounds: 0,
     language: (i18n.language.split('-')[0] as Locale) || 'en',
   })
@@ -366,6 +519,9 @@ export default function LobbyPage() {
       detectiveCount: s.detectiveCount,
       doubleAgentCount: s.doubleAgentCount,
       guardianCount: s.guardianCount,
+      mayorCount: s.mayorCount,
+      infiltratorCount: s.infiltratorCount,
+      jesterCount: s.jesterCount,
       maxRounds: s.maxRounds,
       maxPlayers: s.maxPlayers,
       imposterCount: s.imposterCount,
@@ -434,6 +590,9 @@ export default function LobbyPage() {
           detectiveCount: (r.settings as any).detectiveCount ?? ((r.settings as any).enableDetective ? 1 : 0),
           doubleAgentCount: (r.settings as any).doubleAgentCount ?? ((r.settings as any).enableDoubleAgent ? 1 : 0),
           guardianCount: (r.settings as any).guardianCount ?? 0,
+          mayorCount: (r.settings as any).mayorCount ?? 0,
+          infiltratorCount: (r.settings as any).infiltratorCount ?? 0,
+          jesterCount: (r.settings as any).jesterCount ?? 0,
           maxRounds: r.maxRounds ?? 0,
           language: roomLang,
         }))
@@ -705,6 +864,15 @@ export default function LobbyPage() {
               )}
               {settings.gameMode === 'special' && settings.guardianCount > 0 && (
                 <><span>·</span><span>{settings.guardianCount} {t('lobby.guardianCount').toLowerCase()}</span></>
+              )}
+              {settings.gameMode === 'special' && settings.mayorCount > 0 && (
+                <><span>·</span><span>{settings.mayorCount} {t('lobby.mayorCount').toLowerCase()}</span></>
+              )}
+              {settings.gameMode === 'special' && settings.infiltratorCount > 0 && (
+                <><span>·</span><span>{settings.infiltratorCount} {t('lobby.infiltratorCount').toLowerCase()}</span></>
+              )}
+              {settings.gameMode === 'special' && settings.jesterCount > 0 && (
+                <><span>·</span><span>{settings.jesterCount} {t('lobby.jesterCount').toLowerCase()}</span></>
               )}
               {settings.categories.length > 0 && (
                 <><span>·</span><span>{settings.categories.length} {t('lobby.categories').toLowerCase()}</span></>
