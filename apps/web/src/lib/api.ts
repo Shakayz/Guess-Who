@@ -2,7 +2,11 @@ import { useAuthStore } from '../store/auth'
 import { createLogger } from './logger'
 
 const log = createLogger('api')
-const BASE_URL = '/api'
+// Resolve the API base URL:
+//   - Production:  VITE_API_URL is set (e.g. https://api.aghazzaf.com) → '<host>/api'
+//   - Development: VITE_API_URL is empty → '/api', proxied by Vite to the local API
+const API_HOST = import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? ''
+const BASE_URL = API_HOST ? `${API_HOST}/api` : '/api'
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = options.method ?? 'GET'

@@ -7,10 +7,15 @@ const log = createLogger('socket')
 
 let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null
 
+// Resolve the socket.io endpoint:
+//   - Production:  VITE_SOCKET_URL is set (e.g. https://api.aghazzaf.com)
+//   - Development: VITE_SOCKET_URL is empty → '/' (Vite proxies '/socket.io' → API)
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '/'
+
 export function getSocket(): Socket<ServerToClientEvents, ClientToServerEvents> {
   if (!socket) {
     const token = useAuthStore.getState().token
-    socket = io('/', {
+    socket = io(SOCKET_URL, {
       auth: { token },
       transports: ['websocket'],
       autoConnect: false,
