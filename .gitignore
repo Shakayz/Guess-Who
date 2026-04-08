@@ -50,3 +50,4 @@ ios/
 
 # Prisma — migrations must be committed for production deploys
 # prisma/migrations/
+deploy/.env*

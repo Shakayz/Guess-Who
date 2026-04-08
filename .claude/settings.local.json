@@ -46,7 +46,18 @@
       "Bash(find \"/Users/radouane/Documents/Guess Who/apps/api/src\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.js\" \\\\\\) -exec wc -l {} +)",
       "Bash(find /Users/radouane/Documents/Guess Who/apps/web/src -type f \\\\\\( -name \"*.tsx\" -o -name \"*.ts\" -o -name \"*.css\" \\\\\\) -exec wc -l {} +)",
       "Bash(wc -l packages/shared/src/**/*.ts packages/shared/src/*.ts)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(ls \"/Users/radouane/Documents/Guess Who\"/docker-compose*.yml)",
+      "Bash(python3 -c \"import sys,json; [print\\(e\\) for e in json.load\\(sys.stdin\\)]\")",
+      "Bash(command -v pnpm)",
+      "Read(//usr/local/bin/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH)",
+      "Bash(docker stop:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/api/health)",
+      "Bash(curl -s http://localhost:5173/api/health)",
+      "Bash(curl -s http://localhost:5173/api/auth/me)",
+      "Bash(find /Users/radouane/Documents/Guess Who/packages/shared/src -type f -name *.ts -o -name *.tsx -o -name *.js)"
     ]
   }
 }

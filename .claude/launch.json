@@ -9,9 +9,17 @@
     },
     {
       "name": "Web only (Vite)",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "web", "dev"],
-      "port": 5173
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "export PATH=/opt/homebrew/bin:$PATH && pnpm --filter web dev --port 5175"],
+      "port": 5175,
+      "autoPort": true
+    },
+    {
+      "name": "Docker App",
+      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeArgs": ["-e", "const net=require('net');const port=process.env.PORT||5174;net.createServer(c=>{const s=net.connect(5173,()=>{c.pipe(s);s.pipe(c)});s.on('error',()=>c.destroy());c.on('error',()=>s.destroy())}).listen(port,()=>console.log('proxy on '+port))"],
+      "port": 5174,
+      "autoPort": true
     },
     {
       "name": "API only (Fastify)",
