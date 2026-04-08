@@ -87,15 +87,17 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
     }
   }, [gameMode])
 
-  // Auto-adjust imposter count suggestion based on player count (only if no initial settings)
+  // Cap imposter count to floor(N/3) so imposters never exceed 1/3 of players.
+  // Examples: 3p→1, 4p→1, 5p→1, 6p→2, 9p→3, 12p→4. Always at least 1.
+  const maxImposters = Math.max(1, Math.floor(filledCount / 3))
+
+  // Auto-adjust imposter count to stay within the 1/3 rule whenever the
+  // player count changes (even when replaying with previous settings).
   useEffect(() => {
-    if (initialSettings) return
-    if (filledCount >= 6 && imposterCount < 2) {
-      setImposterCount(2)
-    } else if (filledCount < 6 && imposterCount > 1) {
-      setImposterCount(1)
+    if (imposterCount > maxImposters) {
+      setImposterCount(maxImposters)
     }
-  }, [filledCount])
+  }, [filledCount, maxImposters])
 
   // Auto-adjust double agent availability based on player count
   useEffect(() => {
@@ -284,20 +286,26 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
           {t('offline.imposterCount')}
         </p>
         <div className="flex gap-2">
-          {[1, 2, 3, 4].map((n) => (
-            <button
-              key={n}
-              onClick={() => setImposterCount(n)}
-              className={[
-                'flex-1 py-3 rounded-xl border font-bold text-lg transition-all',
-                imposterCount === n
-                  ? 'bg-red-950/60 border-red-700/60 text-red-400 shadow-md shadow-red-950/30'
-                  : 'bg-neutral-800/60 border-neutral-700/40 text-neutral-400 hover:border-neutral-600/60 hover:text-neutral-300',
-              ].join(' ')}
-            >
-              {n}
-            </button>
-          ))}
+          {[1, 2, 3, 4].map((n) => {
+            const allowed = n <= maxImposters
+            return (
+              <button
+                key={n}
+                onClick={() => { if (allowed) setImposterCount(n) }}
+                disabled={!allowed}
+                className={[
+                  'flex-1 py-3 rounded-xl border font-bold text-lg transition-all',
+                  !allowed
+                    ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
+                    : imposterCount === n
+                    ? 'bg-red-950/60 border-red-700/60 text-red-400 shadow-md shadow-red-950/30'
+                    : 'bg-neutral-800/60 border-neutral-700/40 text-neutral-400 hover:border-neutral-600/60 hover:text-neutral-300',
+                ].join(' ')}
+              >
+                {n}
+              </button>
+            )
+          })}
         </div>
         <p className="text-[11px] text-neutral-600 mt-2">
           {filledCount >= 6 ? t('offline.recommendHigh') : t('offline.recommendLow')}

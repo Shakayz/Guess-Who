@@ -15,7 +15,12 @@ const createRoomSchema = z.object({
     language:             z.enum(['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de']).default('en'),
     categories:           z.array(z.string()).default([]),
     gameMode:             z.enum(['normal', 'special', 'ranked']).default('normal'),
-  }).optional(),
+  })
+    .refine((s) => s.imposterCount <= Math.floor(s.maxPlayers / 3), {
+      message: 'imposterCount must be at most floor(maxPlayers / 3) (1 imposter per 3 players)',
+      path: ['imposterCount'],
+    })
+    .optional(),
 })
 
 export const roomRoutes: FastifyPluginAsync = async (fastify) => {

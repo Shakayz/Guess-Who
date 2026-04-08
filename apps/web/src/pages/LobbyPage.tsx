@@ -283,8 +283,24 @@ function SettingsPanel({
 
       {/* Numeric settings */}
       <div className="space-y-3 pt-1 border-t border-neutral-800">
-        <NumStepper label={t('lobby.maxPlayers')}   value={settings.maxPlayers}           min={3}  max={20} onChange={(v) => onChange({ ...settings, maxPlayers: v })} />
-        <NumStepper label={t('lobby.imposters')}    value={settings.imposterCount}        min={1}  max={4}  onChange={(v) => onChange({ ...settings, imposterCount: v })} />
+        <NumStepper
+          label={t('lobby.maxPlayers')}
+          value={settings.maxPlayers}
+          min={3}
+          max={20}
+          onChange={(v) => {
+            // Cap imposters to floor(N/3) so we never exceed the 1/3 rule
+            const cappedImposters = Math.min(settings.imposterCount, Math.max(1, Math.floor(v / 3)))
+            onChange({ ...settings, maxPlayers: v, imposterCount: cappedImposters })
+          }}
+        />
+        <NumStepper
+          label={t('lobby.imposters')}
+          value={settings.imposterCount}
+          min={1}
+          max={Math.min(4, Math.max(1, Math.floor(settings.maxPlayers / 3)))}
+          onChange={(v) => onChange({ ...settings, imposterCount: v })}
+        />
         <NumStepper
           label={t('lobby.rounds')}
           value={settings.maxRounds}

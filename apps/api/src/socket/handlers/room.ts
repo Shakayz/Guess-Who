@@ -410,11 +410,22 @@ export function registerRoomHandlers(
     // Persist numeric and language settings to Prisma
     const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de']
     const dbUpdate: Record<string, number | string> = {}
-    if (typeof newSettings.maxPlayers === 'number')          dbUpdate.maxPlayers          = Math.min(20, Math.max(4,   newSettings.maxPlayers))
+    // Min 3 players (was incorrectly clamped to 4 here, even though the rest
+    // of the codebase advertises 3 as the minimum).
+    if (typeof newSettings.maxPlayers === 'number')          dbUpdate.maxPlayers          = Math.min(20, Math.max(3,   newSettings.maxPlayers))
     if (typeof newSettings.imposterCount === 'number')       dbUpdate.imposterCount       = Math.min(4,  Math.max(1,   newSettings.imposterCount))
     if (typeof newSettings.speakingTimeSeconds === 'number') dbUpdate.speakingTimeSeconds = Math.min(120, Math.max(10, newSettings.speakingTimeSeconds))
     if (typeof newSettings.votingTimeSeconds === 'number')   dbUpdate.votingTimeSeconds   = Math.min(120, Math.max(15, newSettings.votingTimeSeconds))
     if (typeof newSettings.language === 'string' && SUPPORTED_LOCALES.includes(newSettings.language)) dbUpdate.language = newSettings.language
+
+    // Enforce the 1/3 imposter rule on the resolved (final) values, no matter
+    // which field changed in this update. imposterCount must be ≤ floor(maxPlayers/3).
+    const finalMaxPlayers = (dbUpdate.maxPlayers as number | undefined) ?? room.maxPlayers
+    const finalImposterCount = (dbUpdate.imposterCount as number | undefined) ?? room.imposterCount
+    const cappedImposters = Math.max(1, Math.min(finalImposterCount, Math.floor(finalMaxPlayers / 3)))
+    if (cappedImposters !== finalImposterCount) {
+      dbUpdate.imposterCount = cappedImposters
+    }
     const updatedRoom = Object.keys(dbUpdate).length > 0
       ? await prisma.room.update({ where: { id: roomId }, data: dbUpdate })
       : room
