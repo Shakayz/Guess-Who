@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
+import { xpProgressInLevel } from '@imposter/shared'
 import bcrypt from 'bcryptjs'
 
 const patchMeSchema = z.object({
@@ -164,7 +165,6 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       },
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
-    const { xpProgressInLevel } = await import('@imposter/shared')
     const progress = xpProgressInLevel(user.xp ?? 0)
     return reply.send({
       ...user,
@@ -246,38 +246,87 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
 
-    // Use parallel aggregated queries instead of fetching all participations
-    const [totalGames, wins, asVillager, asImposter, survived, recentParticipations, honorsReceived] = await Promise.all([
-      prisma.gameParticipation.count({ where: { userId: id } }),
-      prisma.gameParticipation.count({
-        where: {
-          userId: id,
-          OR: [
-            { role: 'villager', game: { winnerTeam: 'villagers' } },
-            { role: 'detective', game: { winnerTeam: 'villagers' } },
-            { role: 'imposter', game: { winnerTeam: 'imposters' } },
-            { role: 'double_agent', game: { winnerTeam: 'imposters' } },
-          ],
-        },
-      }),
-      prisma.gameParticipation.count({ where: { userId: id, role: { in: ['villager', 'detective'] } } }),
-      prisma.gameParticipation.count({ where: { userId: id, role: { in: ['imposter', 'double_agent'] } } }),
-      prisma.gameParticipation.count({ where: { userId: id, survived: true } }),
+    // Helper that builds the same set of stat queries scoped by gameMode.
+    // mode = 'ranked' → only games where game.gameMode === 'ranked'
+    // mode = 'unranked' → all other game modes (normal + special)
+    const statsForMode = async (mode: 'ranked' | 'unranked') => {
+      const gameModeFilter = mode === 'ranked'
+        ? { gameMode: 'ranked' }
+        : { gameMode: { not: 'ranked' } }
+
+      const [totalGames, wins, asVillager, asImposter, survived] = await Promise.all([
+        prisma.gameParticipation.count({
+          where: { userId: id, game: gameModeFilter },
+        }),
+        prisma.gameParticipation.count({
+          where: {
+            userId: id,
+            OR: [
+              { role: 'villager',     game: { winnerTeam: 'villagers', ...gameModeFilter } },
+              { role: 'detective',    game: { winnerTeam: 'villagers', ...gameModeFilter } },
+              { role: 'imposter',     game: { winnerTeam: 'imposters', ...gameModeFilter } },
+              { role: 'double_agent', game: { winnerTeam: 'imposters', ...gameModeFilter } },
+            ],
+          },
+        }),
+        prisma.gameParticipation.count({
+          where: { userId: id, role: { in: ['villager', 'detective'] }, game: gameModeFilter },
+        }),
+        prisma.gameParticipation.count({
+          where: { userId: id, role: { in: ['imposter', 'double_agent'] }, game: gameModeFilter },
+        }),
+        prisma.gameParticipation.count({
+          where: { userId: id, survived: true, game: gameModeFilter },
+        }),
+      ])
+      return {
+        totalGames,
+        wins,
+        losses: totalGames - wins,
+        winRate: totalGames ? Math.round((wins / totalGames) * 100) : 0,
+        asVillager,
+        asImposter,
+        survived,
+      }
+    }
+
+    // Honors are grouped by type and joined to game.gameMode via Honor.gameId.
+    // Honors with no gameId (gifted outside a game) are bucketed as "unranked".
+    const honorsForMode = async (mode: 'ranked' | 'unranked') => {
+      const gameModeFilter =
+        mode === 'ranked'
+          ? { game: { gameMode: 'ranked' } }
+          : {
+              OR: [
+                { game: { gameMode: { not: 'ranked' } } },
+                { gameId: null },
+              ],
+            }
+      const grouped = await prisma.honor.groupBy({
+        by: ['type'],
+        where: { receiverId: id, ...gameModeFilter },
+        _count: { type: true },
+      })
+      return grouped.map((h) => ({ type: h.type, count: h._count.type }))
+    }
+
+    const [statsRanked, statsUnranked, honorsRanked, honorsUnranked, recentParticipations] = await Promise.all([
+      statsForMode('ranked'),
+      statsForMode('unranked'),
+      honorsForMode('ranked'),
+      honorsForMode('unranked'),
       prisma.gameParticipation.findMany({
         where: { userId: id },
         take: 8,
         orderBy: { game: { startedAt: 'desc' } },
         include: {
           game: {
-            select: { id: true, winnerTeam: true, startedAt: true,
-              _count: { select: { rounds: true } } },
+            select: {
+              id: true, winnerTeam: true, startedAt: true, gameMode: true,
+              _count: { select: { rounds: true } },
+            },
           },
         },
-      }),
-      prisma.honor.groupBy({
-        by: ['type'],
-        where: { receiverId: id },
-        _count: { type: true },
       }),
     ])
 
@@ -286,6 +335,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       role: p.role,
       survived: p.survived,
       winnerTeam: p.game.winnerTeam,
+      gameMode: p.game.gameMode,
       didWin:
         (p.role === 'villager' && p.game.winnerTeam === 'villagers') ||
         (p.role === 'detective' && p.game.winnerTeam === 'villagers') ||
@@ -295,16 +345,41 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       playedAt: p.game.startedAt,
     }))
 
-    const { xpProgressInLevel } = await import('@imposter/shared')
     const progress = xpProgressInLevel(user.xp ?? 0)
+    // Lifetime totals (sum of both buckets) — kept for backward compat with
+    // any client that hasn't been updated yet.
+    const totalGames = statsRanked.totalGames + statsUnranked.totalGames
+    const wins      = statsRanked.wins      + statsUnranked.wins
+    const losses    = totalGames - wins
+    const asVillager = statsRanked.asVillager + statsUnranked.asVillager
+    const asImposter = statsRanked.asImposter + statsUnranked.asImposter
+    const survived   = statsRanked.survived   + statsUnranked.survived
+
+    // Lifetime honors (merged by type) for back-compat too.
+    const lifetimeHonors = new Map<string, number>()
+    for (const h of honorsRanked)   lifetimeHonors.set(h.type, (lifetimeHonors.get(h.type) ?? 0) + h.count)
+    for (const h of honorsUnranked) lifetimeHonors.set(h.type, (lifetimeHonors.get(h.type) ?? 0) + h.count)
+
     return reply.send({
       ...user,
       rankTier: user.hasPlayedRanked ? user.rankTier : 'unranked',
       xpInLevel: progress.current,
       xpForNextLevel: progress.needed,
-      stats: { totalGames, wins, losses: totalGames - wins, winRate: totalGames ? Math.round(wins / totalGames * 100) : 0, asVillager, asImposter, survived },
+      stats: {
+        totalGames,
+        wins,
+        losses,
+        winRate: totalGames ? Math.round((wins / totalGames) * 100) : 0,
+        asVillager,
+        asImposter,
+        survived,
+      },
+      statsRanked,
+      statsUnranked,
       recentGames,
-      honors: honorsReceived.map((h) => ({ type: h.type, count: h._count.type })),
+      honors: Array.from(lifetimeHonors.entries()).map(([type, count]) => ({ type, count })),
+      honorsRanked,
+      honorsUnranked,
     })
   })
 }

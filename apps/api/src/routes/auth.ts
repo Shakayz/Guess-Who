@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
 import { sendPasswordResetEmail } from '../services/email'
+import { xpProgressInLevel } from '@imposter/shared'
 import bcrypt from 'bcryptjs'
 
 const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de'] as const
@@ -200,7 +201,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     if (!user) return reply.status(404).send({ error: 'User not found' })
     const honorMap: Record<string, number> = {}
     for (const h of honors) honorMap[h.type] = h._count.type
-    const { xpProgressInLevel } = await import('@imposter/shared')
     const progress = xpProgressInLevel(user.xp ?? 0)
     return reply.send({
       ...user,

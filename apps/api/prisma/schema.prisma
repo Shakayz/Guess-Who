@@ -82,6 +82,9 @@ model Game {
   roomId     String
   winnerId   String?
   winnerTeam String?  @db.VarChar(20)
+  // 'normal' | 'special' | 'ranked' — set at game creation from the live
+  // room state so historical stats can be filtered ranked vs unranked.
+  gameMode   String   @default("normal") @db.VarChar(20)
   startedAt  DateTime @default(now())
   endedAt    DateTime?
 

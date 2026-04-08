@@ -61,6 +61,22 @@ interface RecentGame {
   didWin: boolean
   rounds: number
   playedAt: string
+  gameMode?: string
+}
+
+interface HonorBucket {
+  type: string
+  count: number
+}
+
+interface ProfileStatsResponse {
+  stats: UserStats
+  statsRanked?: UserStats
+  statsUnranked?: UserStats
+  honors?: HonorBucket[]
+  honorsRanked?: HonorBucket[]
+  honorsUnranked?: HonorBucket[]
+  recentGames: RecentGame[]
 }
 
 const HONOR_LABELS = [
@@ -93,7 +109,7 @@ export default function ProfilePage() {
     retry: false,
   })
 
-  const { data: profileStats } = useQuery<{ stats: UserStats; recentGames: RecentGame[] }>({
+  const { data: profileStats } = useQuery<ProfileStatsResponse>({
     queryKey: ['profile-stats', me?.id],
     queryFn: () => api.get(`/users/${me!.id}/profile`),
     enabled: !!me?.id,
@@ -412,75 +428,106 @@ export default function ProfilePage() {
             ))}
           </div>
 
-          {/* Game statistics */}
-          {(gameStats || isLoading) && (
-            <div className="card">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('profile.gameStats')}</p>
-              {isLoading || !gameStats ? (
-                <div className="grid grid-cols-3 gap-3">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60">
-                      <div className="h-6 w-12 bg-neutral-700 rounded animate-pulse" />
-                      <div className="h-3 w-16 bg-neutral-700 rounded animate-pulse mt-1" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                  {[
-                    { label: t('profile.gamesPlayed'), value: gameStats.totalGames, icon: '🎮' },
-                    { label: t('profile.winRate'), value: `${gameStats.winRate}%`, icon: '🏆' },
-                    { label: t('profile.wins'), value: gameStats.wins, icon: '✅' },
-                    { label: t('profile.asVillager'), value: gameStats.asVillager, icon: '🏘️' },
-                    { label: t('profile.asImposter'), value: gameStats.asImposter, icon: '🎭' },
-                    { label: t('profile.survived'), value: gameStats.survived, icon: '💪' },
-                  ].map((s) => (
-                    <div key={s.label} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60 text-center">
-                      <span className="text-xl">{s.icon}</span>
-                      <p className="text-lg font-bold text-white">{s.value}</p>
-                      <p className="text-[10px] text-neutral-500 leading-tight">{s.label}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Honors */}
-          <div className="card">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('profile.honorReceived')}</p>
-            {isLoading ? (
-              <div className="grid grid-cols-3 gap-3">
-                {HONOR_LABELS.map((h) => (
-                  <div key={h.key} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60">
-                    <span className="text-2xl">{h.icon}</span>
-                    <p className="text-xs font-semibold text-white">{t(h.labelKey)}</p>
-                    <div className="h-6 w-8 bg-neutral-700 rounded animate-pulse mt-1" />
+          {/* Game statistics — split into Ranked / Unranked */}
+          {(gameStats || isLoading) && (() => {
+            const renderStatsBlock = (stats: UserStats | undefined, label: string, icon: string) => (
+              <div className="card">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
+                  <span className="mr-1">{icon}</span>{label}
+                </p>
+                {isLoading || !stats ? (
+                  <div className="grid grid-cols-3 gap-3">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60">
+                        <div className="h-6 w-12 bg-neutral-700 rounded animate-pulse" />
+                        <div className="h-3 w-16 bg-neutral-700 rounded animate-pulse mt-1" />
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : stats.totalGames === 0 ? (
+                  <p className="text-xs text-neutral-500 text-center py-4">
+                    {label === t('profile.statsRanked')
+                      ? t('profile.noRankedGames', { defaultValue: 'No ranked games played yet.' })
+                      : t('profile.noUnrankedGames', { defaultValue: 'No unranked games played yet.' })}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                    {[
+                      { label: t('profile.gamesPlayed'), value: stats.totalGames, icon: '🎮' },
+                      { label: t('profile.winRate'),     value: `${stats.winRate}%`, icon: '🏆' },
+                      { label: t('profile.wins'),        value: stats.wins, icon: '✅' },
+                      { label: t('profile.asVillager'),  value: stats.asVillager, icon: '🏘️' },
+                      { label: t('profile.asImposter'),  value: stats.asImposter, icon: '🎭' },
+                      { label: t('profile.survived'),    value: stats.survived, icon: '💪' },
+                    ].map((s) => (
+                      <div key={s.label} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60 text-center">
+                        <span className="text-xl">{s.icon}</span>
+                        <p className="text-lg font-bold text-white">{s.value}</p>
+                        <p className="text-[10px] text-neutral-500 leading-tight">{s.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-3">
-                {HONOR_LABELS.map((h) => {
-                  const count = (me as any)?.[h.field] ?? 0
-                  return (
-                    <div key={h.key} className={[
-                      'flex flex-col items-center gap-1 p-3 rounded-xl border transition-colors',
-                      count > 0
-                        ? 'bg-brand-950/40 border-brand-800/40'
-                        : 'bg-neutral-800/60 border-neutral-700/60 opacity-50',
-                    ].join(' ')}>
-                      <span className="text-2xl">{h.icon}</span>
-                      <p className="text-xs font-semibold text-white">{t(h.labelKey)}</p>
-                      <p className={['text-lg font-bold', count > 0 ? 'text-brand-300' : 'text-neutral-500'].join(' ')}>
-                        {count}
-                      </p>
+            )
+            return (
+              <>
+                {renderStatsBlock(profileStats?.statsUnranked, t('profile.statsUnranked', { defaultValue: 'Unranked Games' }), '🎲')}
+                {renderStatsBlock(profileStats?.statsRanked,   t('profile.statsRanked',   { defaultValue: 'Ranked Games'   }), '🏆')}
+              </>
+            )
+          })()}
+
+          {/* Honors — split into Ranked / Unranked */}
+          {(() => {
+            const renderHonorBlock = (honors: HonorBucket[] | undefined, label: string, icon: string) => {
+              const countByType = new Map((honors ?? []).map((h) => [h.type, h.count]))
+              return (
+                <div className="card">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
+                    <span className="mr-1">{icon}</span>{label}
+                  </p>
+                  {isLoading ? (
+                    <div className="grid grid-cols-3 gap-3">
+                      {HONOR_LABELS.map((h) => (
+                        <div key={h.key} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60">
+                          <span className="text-2xl">{h.icon}</span>
+                          <p className="text-xs font-semibold text-white">{t(h.labelKey)}</p>
+                          <div className="h-6 w-8 bg-neutral-700 rounded animate-pulse mt-1" />
+                        </div>
+                      ))}
                     </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-3">
+                      {HONOR_LABELS.map((h) => {
+                        const count = countByType.get(h.key) ?? 0
+                        return (
+                          <div key={h.key} className={[
+                            'flex flex-col items-center gap-1 p-3 rounded-xl border transition-colors',
+                            count > 0
+                              ? 'bg-brand-950/40 border-brand-800/40'
+                              : 'bg-neutral-800/60 border-neutral-700/60 opacity-50',
+                          ].join(' ')}>
+                            <span className="text-2xl">{h.icon}</span>
+                            <p className="text-xs font-semibold text-white">{t(h.labelKey)}</p>
+                            <p className={['text-lg font-bold', count > 0 ? 'text-brand-300' : 'text-neutral-500'].join(' ')}>
+                              {count}
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+            return (
+              <>
+                {renderHonorBlock(profileStats?.honorsUnranked, t('profile.honorReceivedUnranked', { defaultValue: 'Honor Received — Unranked' }), '🎲')}
+                {renderHonorBlock(profileStats?.honorsRanked,   t('profile.honorReceivedRanked',   { defaultValue: 'Honor Received — Ranked'   }), '🏆')}
+              </>
+            )
+          })()}
 
           {/* Achievements */}
           <div className="card">

@@ -93,7 +93,13 @@ async function startGameForRoom(
     }
 
     const { game, round } = await prisma.$transaction(async (tx) => {
-      const game = await tx.game.create({ data: { roomId } })
+      const game = await tx.game.create({
+        data: {
+          roomId,
+          // Persist gameMode so /profile can filter ranked vs unranked stats
+          gameMode: (state.gameMode as string | undefined) ?? 'normal',
+        },
+      })
       const round = await tx.round.create({
         data: { gameId: game.id, roundNumber: 1, villagerWord: wordPair.wordA, imposterWord: wordPair.wordB },
       })
