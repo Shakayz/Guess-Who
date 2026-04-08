@@ -55,6 +55,7 @@ jobs:
         env:
           VITE_API_URL: https://api.aghazzaf.com
           VITE_SOCKET_URL: https://api.aghazzaf.com
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
         run: pnpm --filter @imposter/web build
 
       - name: Sync web to S3
@@ -99,10 +100,19 @@ jobs:
         run: echo "pw=$(aws ecr get-login-password --region eu-west-3)" >> $GITHUB_OUTPUT
 
       - name: Deploy to VM
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          ECR_PW: ${{ steps.ecr.outputs.pw }}
         run: |
           ssh -i ~/.ssh/deploy ubuntu@${{ env.VM_HOST }} \
-            "echo '${{ steps.ecr.outputs.pw }}' | sudo docker login --username AWS --password-stdin 700672899544.dkr.ecr.eu-west-3.amazonaws.com \
-             && cd /opt/imposter \
+            "cd /opt/imposter \
+             && sudo touch .env && sudo chmod 600 .env \
+             && if sudo grep -q '^GOOGLE_CLIENT_ID=' .env; then \
+                  sudo sed -i 's|^GOOGLE_CLIENT_ID=.*|GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}|' .env; \
+                else \
+                  echo 'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}' | sudo tee -a .env >/dev/null; \
+                fi \
+             && echo '${ECR_PW}' | sudo docker login --username AWS --password-stdin 700672899544.dkr.ecr.eu-west-3.amazonaws.com \
              && sudo docker compose pull api \
              && sudo docker compose up -d --no-deps api \
              && sudo docker image prune -f"

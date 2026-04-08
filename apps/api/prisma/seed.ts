@@ -9455,17 +9455,36 @@ const ZH: PairData[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 // Pack definitions — one per locale
 // ─────────────────────────────────────────────────────────────────────────────
-const extFor = (loc: string): PairData[] => EXTENDED_PAIRS.filter((p) => p.locale === loc)
+// Merge base pack + extended pairs, deduplicating on (category, wordA, wordB).
+// Order-insensitive: {A,B} is considered the same as {B,A}.
+function mergePairs(base: PairData[], loc: string): PairData[] {
+  const seen = new Set<string>()
+  const key = (p: PairData) => {
+    const [x, y] = [p.wordA, p.wordB].sort()
+    return `${p.category}|${x}|${y}`
+  }
+  const out: PairData[] = []
+  for (const p of base) {
+    const k = key(p)
+    if (!seen.has(k)) { seen.add(k); out.push(p) }
+  }
+  for (const p of EXTENDED_PAIRS) {
+    if (p.locale !== loc) continue
+    const k = key(p)
+    if (!seen.has(k)) { seen.add(k); out.push(p) }
+  }
+  return out
+}
 
 const LANGUAGE_PACKS = [
-  { locale: 'en', name: 'General',   description: 'General word pack (English) — 100 pairs per category',                          pairs: [...EN, ...extFor('en')] },
-  { locale: 'fr', name: 'Général',   description: 'Pack de mots général (Français) — 100 paires par catégorie',                    pairs: [...FR, ...extFor('fr')] },
-  { locale: 'es', name: 'General',   description: 'Pack de palabras general (Español) — 100 pares por categoría',                  pairs: [...ES, ...extFor('es')] },
-  { locale: 'de', name: 'Allgemein', description: 'Allgemeines Wortpaket (Deutsch) — 100 Paare pro Kategorie',                     pairs: [...DE, ...extFor('de')] },
-  { locale: 'ar', name: 'عام',       description: 'حزمة الكلمات العامة (العربية) — 100 زوج لكل فئة',                             pairs: [...AR, ...extFor('ar')] },
-  { locale: 'it', name: 'Generale',  description: 'Pacchetto di parole generale (Italiano) — 100 coppie per categoria',            pairs: [...IT, ...extFor('it')] },
-  { locale: 'pt', name: 'Geral',     description: 'Pacote de palavras geral (Português) — 100 pares por categoria',                pairs: [...PT, ...extFor('pt')] },
-  { locale: 'zh', name: '通用',      description: '通用词包 (中文) — 每类100对',                                                      pairs: [...ZH, ...extFor('zh')] },
+  { locale: 'en', name: 'General',   description: 'General word pack (English) — 100+ pairs per category',                         pairs: mergePairs(EN, 'en') },
+  { locale: 'fr', name: 'Général',   description: 'Pack de mots général (Français) — 100+ paires par catégorie',                   pairs: mergePairs(FR, 'fr') },
+  { locale: 'es', name: 'General',   description: 'Pack de palabras general (Español) — 100+ pares por categoría',                 pairs: mergePairs(ES, 'es') },
+  { locale: 'de', name: 'Allgemein', description: 'Allgemeines Wortpaket (Deutsch) — 100+ Paare pro Kategorie',                    pairs: mergePairs(DE, 'de') },
+  { locale: 'ar', name: 'عام',       description: 'حزمة الكلمات العامة (العربية) — 100+ زوج لكل فئة',                            pairs: mergePairs(AR, 'ar') },
+  { locale: 'it', name: 'Generale',  description: 'Pacchetto di parole generale (Italiano) — 100+ coppie per categoria',           pairs: mergePairs(IT, 'it') },
+  { locale: 'pt', name: 'Geral',     description: 'Pacote de palavras geral (Português) — 100+ pares por categoria',               pairs: mergePairs(PT, 'pt') },
+  { locale: 'zh', name: '通用',      description: '通用词包 (中文) — 每类100+对',                                                      pairs: mergePairs(ZH, 'zh') },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -63,37 +63,45 @@ function parseSeed(content) {
 const bucket = {}
 for (const loc of LOCALES) {
   bucket[loc] = {}
-  for (const cat of CATEGORIES) bucket[loc][cat] = []
+  for (const cat of CATEGORIES) bucket[loc][cat] = { list: [], seen: new Set() }
+}
+
+// Order-insensitive dedup key: {A,B} == {B,A}.
+function pushUnique(slot, a, b) {
+  const [x, y] = [a, b].sort()
+  const key = `${x}|${y}`
+  if (slot.seen.has(key)) return
+  slot.seen.add(key)
+  slot.list.push({ a, b })
 }
 
 // Base pairs from seed.ts
 const seedContent = readFileSync(SEED, 'utf8')
 const basePairs = parseSeed(seedContent)
 for (const p of basePairs) {
-  if (bucket[p.locale]?.[p.category]) {
-    bucket[p.locale][p.category].push({ a: p.wordA, b: p.wordB })
-  }
+  const slot = bucket[p.locale]?.[p.category]
+  if (slot) pushUnique(slot, p.wordA, p.wordB)
 }
 
 // Extended pairs from extended-pairs.ts (dynamic import, --experimental-strip-types)
 const extModule = await import(pathToFileURL(EXTENDED).href)
 for (const p of extModule.EXTENDED_PAIRS) {
-  if (bucket[p.locale]?.[p.category]) {
-    bucket[p.locale][p.category].push({ a: p.wordA, b: p.wordB })
-  }
+  const slot = bucket[p.locale]?.[p.category]
+  if (slot) pushUnique(slot, p.wordA, p.wordB)
 }
 
 // ---------------------------------------------------------------------------
-// Sanity: every (locale, category) cell should have 100 pairs.
+// Count totals per locale/category.
 // ---------------------------------------------------------------------------
 
 let total = 0
+const MIN_EXPECTED = 100
 for (const loc of LOCALES) {
   for (const cat of CATEGORIES) {
-    const n = bucket[loc][cat].length
+    const n = bucket[loc][cat].list.length
     total += n
-    if (n !== 100) {
-      console.warn(`[WARN] ${loc}/${cat} has ${n} pairs (expected 100)`)
+    if (n < MIN_EXPECTED) {
+      console.warn(`[WARN] ${loc}/${cat} has ${n} pairs (expected >= ${MIN_EXPECTED})`)
     }
   }
 }
@@ -114,7 +122,7 @@ function renderRecord(locale) {
   const lines = ['{']
   for (const cat of CATEGORIES) {
     lines.push(`  ${cat}: [`)
-    for (const p of bucket[locale][cat]) lines.push(renderPair(p))
+    for (const p of bucket[locale][cat].list) lines.push(renderPair(p))
     lines.push('  ],')
   }
   lines.push('}')
@@ -131,7 +139,7 @@ const HEADER = `import type { WordCategory } from './types'
  * online database pairs (seed.ts + extended-pairs.ts).
  * Offline and online modes use the same pair content.
  *
- * 8 locales x 11 categories x 100 pairs = 8800 pairs total.
+ * 8 locales x 11 categories x 100+ pairs each (deduplicated).
  */
 export interface OfflineWordPair {
   villagerWord: string
