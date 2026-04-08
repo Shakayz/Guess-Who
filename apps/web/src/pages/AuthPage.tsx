@@ -125,7 +125,9 @@ export default function AuthPage() {
             const data = await api.post<any>('/auth/google/verify', { accessToken: response.access_token })
             handleOAuthResponse(data)
           } catch (err: any) {
-            setError(err.message ?? 'Google sign-in failed')
+            // TEMP DEBUG: surface API debug field if present
+            const debugMsg = err?.data?.debug?.message ? ` [${err.data.debug.message}]` : ''
+            setError((err.message ?? 'Google sign-in failed') + debugMsg)
           } finally {
             setOauthLoading(null)
           }
