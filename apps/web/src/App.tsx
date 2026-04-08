@@ -4,7 +4,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import { useAuthStore } from './store/auth'
 import { useSocialStore } from './store/social'
 import { useGameStore } from './store/game'
-import { getSocket } from './lib/socket'
+import { getSocket, connectSocket, disconnectSocket } from './lib/socket'
 import { api } from './lib/api'
 import { BottomNav } from './components/BottomNav'
 import { ConnectionStatus } from './components/ConnectionStatus'
@@ -155,7 +155,14 @@ function GlobalSocketListeners() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (!token) return
+    if (!token) {
+      disconnectSocket()
+      return
+    }
+    // Establish the socket connection as soon as the user is authenticated so
+    // global notifications (DMs, room invites, friend requests, game:finished)
+    // arrive even before the user starts a game.
+    connectSocket()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sock = getSocket() as any
 
