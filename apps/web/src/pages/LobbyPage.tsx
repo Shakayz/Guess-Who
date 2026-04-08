@@ -407,50 +407,72 @@ function SettingsPanel({
 
       {/* Numeric settings */}
       <div className="space-y-3 pt-1 border-t border-neutral-800">
-        <NumStepper
-          label={t('lobby.maxPlayers')}
-          value={settings.maxPlayers}
-          min={3}
-          max={20}
-          onChange={(v) => {
-            // Cap imposters to floor(N/3) so we never exceed the 1/3 rule
-            // 1/3 evil-team cap: imposter + double_agent + infiltrator ≤ floor(N/3)
-            const evilCap = Math.max(1, Math.floor(v / 3))
-            const cappedImposters = Math.min(settings.imposterCount, evilCap)
-            const headroomAfterImposters = Math.max(0, evilCap - cappedImposters)
-            const cappedDoubleAgents = Math.min(settings.doubleAgentCount, headroomAfterImposters)
-            const headroomAfterDa = Math.max(0, headroomAfterImposters - cappedDoubleAgents)
-            const cappedInfiltrators = Math.min(settings.infiltratorCount ?? 0, headroomAfterDa)
-            onChange({
-              ...settings,
-              maxPlayers: v,
-              imposterCount: cappedImposters,
-              doubleAgentCount: cappedDoubleAgents,
-              infiltratorCount: cappedInfiltrators,
-            })
-          }}
-        />
-        <NumStepper
-          label={t('lobby.imposters')}
-          value={settings.imposterCount}
-          min={1}
-          max={Math.min(4, Math.max(1, Math.floor(settings.maxPlayers / 3)))}
-          onChange={(v) => {
-            // Keep imposter + double_agent + infiltrator ≤ floor(N/3) when the
-            // imposter count grows past the headroom.
-            const evilCap = Math.max(1, Math.floor(settings.maxPlayers / 3))
-            const headroomAfterImposters = Math.max(0, evilCap - v)
-            const cappedDoubleAgents = Math.min(settings.doubleAgentCount, headroomAfterImposters)
-            const headroomAfterDa = Math.max(0, headroomAfterImposters - cappedDoubleAgents)
-            const cappedInfiltrators = Math.min(settings.infiltratorCount ?? 0, headroomAfterDa)
-            onChange({
-              ...settings,
-              imposterCount: v,
-              doubleAgentCount: cappedDoubleAgents,
-              infiltratorCount: cappedInfiltrators,
-            })
-          }}
-        />
+        {settings.gameMode === 'ranked' ? (
+          // Ranked games are locked at 10 players and 3 imposters. Show a
+          // read-only summary instead of the configurable steppers.
+          <div className="rounded-xl border border-brand-700/40 bg-brand-950/30 p-3 text-xs text-brand-300 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-neutral-400">{t('lobby.maxPlayers')}</span>
+              <span className="font-mono font-semibold">10</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-neutral-400">{t('lobby.imposters')}</span>
+              <span className="font-mono font-semibold">3</span>
+            </div>
+            <p className="text-[10px] text-neutral-500 pt-1">
+              {t('lobby.rankedLocked', {
+                defaultValue: 'Ranked games always have 7 villagers and 3 imposters.',
+              })}
+            </p>
+          </div>
+        ) : (
+          <>
+            <NumStepper
+              label={t('lobby.maxPlayers')}
+              value={settings.maxPlayers}
+              min={3}
+              max={20}
+              onChange={(v) => {
+                // Cap imposters to floor(N/3) so we never exceed the 1/3 rule
+                // 1/3 evil-team cap: imposter + double_agent + infiltrator ≤ floor(N/3)
+                const evilCap = Math.max(1, Math.floor(v / 3))
+                const cappedImposters = Math.min(settings.imposterCount, evilCap)
+                const headroomAfterImposters = Math.max(0, evilCap - cappedImposters)
+                const cappedDoubleAgents = Math.min(settings.doubleAgentCount, headroomAfterImposters)
+                const headroomAfterDa = Math.max(0, headroomAfterImposters - cappedDoubleAgents)
+                const cappedInfiltrators = Math.min(settings.infiltratorCount ?? 0, headroomAfterDa)
+                onChange({
+                  ...settings,
+                  maxPlayers: v,
+                  imposterCount: cappedImposters,
+                  doubleAgentCount: cappedDoubleAgents,
+                  infiltratorCount: cappedInfiltrators,
+                })
+              }}
+            />
+            <NumStepper
+              label={t('lobby.imposters')}
+              value={settings.imposterCount}
+              min={1}
+              max={Math.min(6, Math.max(1, Math.floor(settings.maxPlayers / 3)))}
+              onChange={(v) => {
+                // Keep imposter + double_agent + infiltrator ≤ floor(N/3) when the
+                // imposter count grows past the headroom.
+                const evilCap = Math.max(1, Math.floor(settings.maxPlayers / 3))
+                const headroomAfterImposters = Math.max(0, evilCap - v)
+                const cappedDoubleAgents = Math.min(settings.doubleAgentCount, headroomAfterImposters)
+                const headroomAfterDa = Math.max(0, headroomAfterImposters - cappedDoubleAgents)
+                const cappedInfiltrators = Math.min(settings.infiltratorCount ?? 0, headroomAfterDa)
+                onChange({
+                  ...settings,
+                  imposterCount: v,
+                  doubleAgentCount: cappedDoubleAgents,
+                  infiltratorCount: cappedInfiltrators,
+                })
+              }}
+            />
+          </>
+        )}
         <NumStepper
           label={t('lobby.rounds')}
           value={settings.maxRounds}

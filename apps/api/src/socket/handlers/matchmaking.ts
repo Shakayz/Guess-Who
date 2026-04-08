@@ -291,7 +291,8 @@ async function executeRankedMatch(io: Server<any, any>, queueKey: string, player
   const parts = queueKey.split(':')
   const locale = parts[2] ?? 'en'
   const hostPlayer = players[0]
-  const imposterCount = computeImposterCount(players.length)
+  // Ranked is locked at exactly 7 villagers + 3 imposters.
+  const imposterCount = 3
 
   const room = await prisma.room.create({
     data: {

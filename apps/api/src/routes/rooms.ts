@@ -7,7 +7,7 @@ import { generateRoomCode } from '@imposter/shared'
 const createRoomSchema = z.object({
   settings: z.object({
     maxPlayers:           z.number().min(3).max(20).default(10),
-    imposterCount:        z.number().min(1).max(4).default(2),
+    imposterCount:        z.number().min(1).max(6).default(2),
     speakingTimeSeconds:  z.number().min(10).max(120).default(30),
     votingTimeSeconds:    z.number().min(15).max(120).default(30),
     wordPackId:           z.string().default('default'),
@@ -16,10 +16,13 @@ const createRoomSchema = z.object({
     categories:           z.array(z.string()).default([]),
     gameMode:             z.enum(['normal', 'special', 'ranked']).default('normal'),
   })
-    .refine((s) => s.imposterCount <= Math.floor(s.maxPlayers / 3), {
-      message: 'imposterCount must be at most floor(maxPlayers / 3) (1 imposter per 3 players)',
-      path: ['imposterCount'],
-    })
+    .refine(
+      (s) => s.gameMode === 'ranked' || s.imposterCount <= Math.floor(s.maxPlayers / 3),
+      {
+        message: 'imposterCount must be at most floor(maxPlayers / 3) (1 imposter per 3 players)',
+        path: ['imposterCount'],
+      },
+    )
     .optional(),
 })
 
@@ -94,12 +97,19 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     req.log.info({ userId: payload.sub, gameMode: settings?.gameMode, isPrivate: settings?.isPrivate }, 'creating room')
     const host = await prisma.user.findUnique({ where: { id: payload.sub }, select: { locale: true } })
     const code = generateRoomCode()
+
+    // Ranked games are locked at 10 players / 3 imposters, regardless of
+    // what the client sends. All other modes honour the submitted values.
+    const isRanked = settings?.gameMode === 'ranked'
+    const rankedMaxPlayers    = 10
+    const rankedImposterCount = 3
+
     const room = await prisma.room.create({
       data: {
         code,
         hostId: payload.sub,
-        maxPlayers:           settings?.maxPlayers ?? 10,
-        imposterCount:        settings?.imposterCount ?? 2,
+        maxPlayers:           isRanked ? rankedMaxPlayers    : (settings?.maxPlayers ?? 10),
+        imposterCount:        isRanked ? rankedImposterCount : (settings?.imposterCount ?? 2),
         speakingTimeSeconds:  settings?.speakingTimeSeconds ?? 30,
         votingTimeSeconds:    settings?.votingTimeSeconds ?? 30,
         wordPackId:           settings?.wordPackId ?? 'default',

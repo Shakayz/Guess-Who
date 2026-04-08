@@ -556,10 +556,17 @@ export function registerRoomHandlers(
     // Min 3 players (was incorrectly clamped to 4 here, even though the rest
     // of the codebase advertises 3 as the minimum).
     if (typeof newSettings.maxPlayers === 'number')          dbUpdate.maxPlayers          = Math.min(20, Math.max(3,   newSettings.maxPlayers))
-    if (typeof newSettings.imposterCount === 'number')       dbUpdate.imposterCount       = Math.min(4,  Math.max(1,   newSettings.imposterCount))
+    if (typeof newSettings.imposterCount === 'number')       dbUpdate.imposterCount       = Math.min(6,  Math.max(1,   newSettings.imposterCount))
     if (typeof newSettings.speakingTimeSeconds === 'number') dbUpdate.speakingTimeSeconds = Math.min(120, Math.max(10, newSettings.speakingTimeSeconds))
     if (typeof newSettings.votingTimeSeconds === 'number')   dbUpdate.votingTimeSeconds   = Math.min(120, Math.max(15, newSettings.votingTimeSeconds))
     if (typeof newSettings.language === 'string' && SUPPORTED_LOCALES.includes(newSettings.language)) dbUpdate.language = newSettings.language
+
+    // Ranked games are locked at 10 players + 3 imposters. Any client
+    // attempt to change these values is ignored.
+    if (state.gameMode === 'ranked') {
+      dbUpdate.maxPlayers    = 10
+      dbUpdate.imposterCount = 3
+    }
 
     // Enforce the 1/3 imposter rule on the resolved (final) values, no matter
     // which field changed in this update. imposterCount must be ≤ floor(maxPlayers/3).

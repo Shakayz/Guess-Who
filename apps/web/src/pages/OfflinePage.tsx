@@ -302,7 +302,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
           {t('offline.imposterCount')}
         </p>
         <div className="flex gap-2">
-          {[1, 2, 3, 4].map((n) => {
+          {[1, 2, 3, 4, 5, 6].map((n) => {
             const allowed = n <= maxImposters
             return (
               <button
