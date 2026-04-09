@@ -35,6 +35,8 @@ interface PlayerRole {
   role: PlayerRoleType
   word: string
   isEliminated: boolean
+  /** Set to true when a Jester wins by being voted out. */
+  jesterWon?: boolean
 }
 
 interface VoteRecord {
@@ -103,6 +105,9 @@ function getRoleConfig(t: any): Record<PlayerRoleType, { label: string; icon: st
 const EVIL_ROLES: PlayerRoleType[] = [
   'imposter', 'doubleAgent', 'infiltrator', 'kamikaze', 'corruptor', 'inverter', 'twinImposter',
 ]
+
+/** Number of post-death vote rounds for the Revenant. */
+const REVENANT_POST_DEATH_ROUNDS = 2
 
 function isEvilRole(role: PlayerRoleType) {
   return EVIL_ROLES.includes(role)
@@ -1263,19 +1268,166 @@ function SpeakingTimer({ defaultSeconds = 30 }: SpeakingTimerProps) {
 // ─── Sub-component: Vote Phase (pass-and-play voting) ─────────────────────────
 
 interface VotePhaseProps {
+  allVoters: PlayerRole[]
   alivePlayers: PlayerRole[]
   detectiveUsedSet: Set<string>
   revealedRoles: Record<string, PlayerRoleType>
   protectedPlayers: Set<string>
+  mayorDoubleVoteUsedSet: Set<string>
+  inverterUsedSet: Set<string>
+  inverterActiveThisRound: boolean
+  corruptorTargets: Record<string, string>
+  ghostVoterNames: Set<string>
+  revenantGhostRounds: Record<string, number>
   onDetectiveReveal: (detectiveName: string, targetName: string, targetRole: PlayerRoleType) => void
   onGuardianProtect: (guardianName: string, targetName: string) => void
-  onVotesDone: (votes: VoteRecord[], eliminated: PlayerRole | null) => void
+  onMayorDoubleVote: (mayorName: string) => void
+  onInverterActivate: () => void
+  onCorruptorPick: (corruptorName: string, targetName: string) => void
+  onVotesDone: (votes: VoteRecord[], eliminated: PlayerRole | null, extras?: VoteExtras) => void
   onCancel: () => void
 }
 
 type VoteStep = 'pass' | 'voting'
 
-function VotePhase({ alivePlayers, detectiveUsedSet, revealedRoles, protectedPlayers, onDetectiveReveal, onGuardianProtect, onVotesDone, onCancel }: VotePhaseProps) {
+// ─── Sub-component: Judge Tie-Break (pass-and-play) ──────────────────────────
+
+interface JudgeTieBreakPhaseProps {
+  judge: PlayerRole
+  candidates: string[]
+  onDecide: (targetName: string) => void
+}
+
+function JudgeTieBreakPhase({ judge, candidates, onDecide }: JudgeTieBreakPhaseProps) {
+  const { t } = useTranslation()
+  const [ready, setReady] = useState(false)
+
+  return (
+    <div className="space-y-5 animate-slide-up">
+      <div className="text-center">
+        <h2 className="text-xl font-extrabold text-white">⚖️ {t('game.judgePickTitle')}</h2>
+      </div>
+
+      {!ready ? (
+        <div className="text-center space-y-5 py-6">
+          <div className="text-5xl">🤲</div>
+          <div>
+            <p className="text-neutral-400 text-base mb-2">{t('offline.passDevice')}</p>
+            <p className="text-2xl font-extrabold text-emerald-300">{judge.name}</p>
+          </div>
+          <p className="text-xs text-neutral-500 max-w-xs mx-auto">{t('game.judgePickDesc')}</p>
+          <button
+            onClick={() => setReady(true)}
+            className="px-8 py-3.5 rounded-2xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold transition-all active:scale-[0.97]"
+          >
+            {t('offline.imReadyToVote')}
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-xs text-neutral-500 text-center">{t('game.judgePickDesc')}</p>
+          <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-2">
+            {candidates.map((name) => (
+              <button
+                key={name}
+                onClick={() => onDecide(name)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-neutral-800/60 hover:bg-emerald-900/30 border border-neutral-700/40 hover:border-emerald-700/50 transition-all active:scale-[0.98]"
+              >
+                <span className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center text-base shrink-0">
+                  {name[0].toUpperCase()}
+                </span>
+                <span className="text-white text-sm font-semibold flex-1 min-w-0 truncate text-left">
+                  {name}
+                </span>
+                <span className="text-emerald-400 text-xs font-bold">⚖️ →</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Sub-component: Kamikaze Drag-Down (pass-and-play) ───────────────────────
+
+interface KamikazeDragPhaseProps {
+  kamikaze: PlayerRole
+  targets: PlayerRole[]
+  onDragDown: (victimName: string) => void
+}
+
+function KamikazeDragPhase({ kamikaze, targets, onDragDown }: KamikazeDragPhaseProps) {
+  const { t } = useTranslation()
+  const [ready, setReady] = useState(false)
+
+  return (
+    <div className="space-y-5 animate-slide-up">
+      <div className="text-center">
+        <h2 className="text-xl font-extrabold text-white">💥 {t('game.kamikazePickTitle')}</h2>
+      </div>
+
+      {!ready ? (
+        <div className="text-center space-y-5 py-6">
+          <div className="text-5xl">🤲</div>
+          <div>
+            <p className="text-neutral-400 text-base mb-2">{t('offline.passDevice')}</p>
+            <p className="text-2xl font-extrabold text-red-300">{kamikaze.name}</p>
+          </div>
+          <p className="text-xs text-neutral-500 max-w-xs mx-auto">{t('game.kamikazePickDesc')}</p>
+          <button
+            onClick={() => setReady(true)}
+            className="px-8 py-3.5 rounded-2xl bg-red-700 hover:bg-red-600 text-white font-bold transition-all active:scale-[0.97]"
+          >
+            {t('offline.imReadyToVote')}
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-xs text-neutral-500 text-center">{t('game.kamikazePickDesc')}</p>
+          <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-2">
+            {targets.map((p) => (
+              <button
+                key={p.name}
+                onClick={() => onDragDown(p.name)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-neutral-800/60 hover:bg-red-900/30 border border-neutral-700/40 hover:border-red-700/50 transition-all active:scale-[0.98]"
+              >
+                <span className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center text-base shrink-0">
+                  {p.name[0].toUpperCase()}
+                </span>
+                <span className="text-white text-sm font-semibold flex-1 min-w-0 truncate text-left">
+                  {p.name}
+                </span>
+                <span className="text-red-400 text-xs font-bold">💥 →</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function VotePhase({
+  allVoters,
+  alivePlayers,
+  detectiveUsedSet,
+  revealedRoles,
+  protectedPlayers,
+  mayorDoubleVoteUsedSet,
+  inverterUsedSet,
+  inverterActiveThisRound,
+  corruptorTargets,
+  ghostVoterNames,
+  revenantGhostRounds,
+  onDetectiveReveal,
+  onGuardianProtect,
+  onMayorDoubleVote,
+  onInverterActivate,
+  onCorruptorPick,
+  onVotesDone,
+  onCancel,
+}: VotePhaseProps) {
   const { t } = useTranslation()
   const ROLES = getRoleConfig(t)
   const [voterIndex, setVoterIndex] = useState(0)
@@ -1283,27 +1435,68 @@ function VotePhase({ alivePlayers, detectiveUsedSet, revealedRoles, protectedPla
   const [votes, setVotes] = useState<VoteRecord[]>([])
   // Track which guardians have protected this round (within VotePhase)
   const [guardianProtectedThisRound, setGuardianProtectedThisRound] = useState<Set<string>>(new Set())
+  // Mayor: is the current voter using their double-vote on this ballot?
+  const [mayorDoublingThisVote, setMayorDoublingThisVote] = useState(false)
 
-  const voter = alivePlayers[voterIndex]
+  const voter = allVoters[voterIndex]
+  const isGhostVoter = voter ? ghostVoterNames.has(voter.name) : false
+
+  // Reset mayor toggle whenever the voter changes
+  useEffect(() => {
+    setMayorDoublingThisVote(false)
+  }, [voterIndex])
 
   const isDetective = voter?.role === 'detective'
   const isGuardian = voter?.role === 'guardian'
+  const isMayor = voter?.role === 'mayor'
+  const isInverter = voter?.role === 'inverter'
+  const isCorruptor = voter?.role === 'corruptor'
   const canInvestigate = isDetective && !detectiveUsedSet.has(voter.name)
-  const canProtect = isGuardian && !guardianProtectedThisRound.has(voter.name)
+  const canProtect = isGuardian && !guardianProtectedThisRound.has(voter.name) && !isGhostVoter
+  const canDoubleVote = isMayor && !mayorDoubleVoteUsedSet.has(voter.name) && !isGhostVoter
+  const canActivateInverter = isInverter && !inverterUsedSet.has(voter.name) && !inverterActiveThisRound && !isGhostVoter
+  const needsCorruptorPick = isCorruptor && !corruptorTargets[voter.name] && !isGhostVoter
 
   const castVote = (targetName: string) => {
-    const newVotes = [...votes, { voterName: voter.name, targetName }]
+    const extra: VoteRecord[] = mayorDoublingThisVote ? [{ voterName: voter.name, targetName }] : []
+    const newVotes: VoteRecord[] = [...votes, { voterName: voter.name, targetName }, ...extra]
+    if (mayorDoublingThisVote) onMayorDoubleVote(voter.name)
     const nextIndex = voterIndex + 1
 
-    if (nextIndex >= alivePlayers.length) {
+    if (nextIndex >= allVoters.length) {
+      // Apply Corruptor silencing: votes cast by a silenced voter don't count
+      const aliveCorruptors = alivePlayers.filter((p) => p.role === 'corruptor')
+      const silenced = new Set<string>()
+      for (const c of aliveCorruptors) {
+        const tgt = corruptorTargets[c.name]
+        if (tgt) silenced.add(tgt)
+      }
       const tally: Record<string, number> = {}
       for (const v of newVotes) {
+        if (silenced.has(v.voterName)) continue
         tally[v.targetName] = (tally[v.targetName] ?? 0) + 1
       }
-      const maxVotes = Math.max(...Object.values(tally))
-      const topCandidates = Object.entries(tally).filter(([, c]) => c === maxVotes).map(([n]) => n)
-      if (topCandidates.length > 1) {
+      const tallyValues = Object.values(tally)
+      if (tallyValues.length === 0) {
         onVotesDone(newVotes, null)
+        return
+      }
+      const maxVotes = Math.max(...tallyValues)
+      const minVotes = Math.min(...tallyValues)
+      const threshold = inverterActiveThisRound ? minVotes : maxVotes
+      const topCandidates = Object.entries(tally)
+        .filter(([, c]) => c === threshold)
+        .map(([n]) => n)
+      if (topCandidates.length > 1) {
+        // Tie — check for an eligible Judge (alive, not in the tied set)
+        const eligibleJudge = alivePlayers.find(
+          (p) => p.role === 'judge' && !topCandidates.includes(p.name),
+        )
+        if (eligibleJudge) {
+          onVotesDone(newVotes, null, { judgeTie: { judge: eligibleJudge, candidates: topCandidates } })
+        } else {
+          onVotesDone(newVotes, null)
+        }
       } else {
         const eliminated = alivePlayers.find((p) => p.name === topCandidates[0]) ?? null
         onVotesDone(newVotes, eliminated)
@@ -1316,7 +1509,9 @@ function VotePhase({ alivePlayers, detectiveUsedSet, revealedRoles, protectedPla
   }
 
   const handleDetectiveInvestigate = (target: PlayerRole) => {
-    onDetectiveReveal(voter.name, target.name, target.role)
+    // Infiltrator appears as Villager to the Detective
+    const revealedAs: PlayerRoleType = target.role === 'infiltrator' ? 'villager' : target.role
+    onDetectiveReveal(voter.name, target.name, revealedAs)
   }
 
   const handleGuardianProtect = (targetName: string) => {
@@ -1324,15 +1519,20 @@ function VotePhase({ alivePlayers, detectiveUsedSet, revealedRoles, protectedPla
     setGuardianProtectedThisRound((prev) => new Set(prev).add(voter.name))
   }
 
-  const otherPlayers = alivePlayers.filter((p) => p.name !== voter.name)
+  // Target list: never includes the voter themselves; ghost revenants can't be voted for
+  const otherPlayers = alivePlayers.filter((p) => p.name !== voter?.name)
 
   const voterRoleInfo = voter ? ROLES[voter.role] : null
+
+  if (!voter) {
+    return null
+  }
 
   return (
     <div className="space-y-5 animate-slide-up">
       <div className="text-center">
         <p className="text-neutral-400 text-sm mb-1">
-          {t('offline.voteOf', { current: voterIndex + 1, total: alivePlayers.length })}
+          {t('offline.voteOf', { current: voterIndex + 1, total: allVoters.length })}
         </p>
         <h2 className="text-xl font-extrabold text-white">{t('offline.votingPhase')}</h2>
         {step === 'voting' && voterRoleInfo && (
@@ -1352,11 +1552,16 @@ function VotePhase({ alivePlayers, detectiveUsedSet, revealedRoles, protectedPla
             </div>
           </div>
         )}
+        {step === 'voting' && isGhostVoter && (
+          <p className="mt-2 text-[11px] text-teal-300 font-semibold">
+            👻 {t('game.revenantGhostVoter', { count: revenantGhostRounds[voter.name] ?? 0 })}
+          </p>
+        )}
       </div>
 
       {step === 'pass' ? (
         <div className="text-center space-y-5 py-6">
-          <div className="text-5xl">🤲</div>
+          <div className="text-5xl">{isGhostVoter ? '👻' : '🤲'}</div>
           <div>
             <p className="text-neutral-400 text-base mb-2">{t('offline.passDevice')}</p>
             <p className="text-2xl font-extrabold text-brand-400">{voter.name}</p>
@@ -1370,6 +1575,56 @@ function VotePhase({ alivePlayers, detectiveUsedSet, revealedRoles, protectedPla
         </div>
       ) : (
         <div className="space-y-4">
+          {/* Mayor double-vote toggle */}
+          {canDoubleVote && (
+            <button
+              onClick={() => setMayorDoublingThisVote((v) => !v)}
+              className={[
+                'w-full py-2.5 rounded-xl border text-sm font-bold transition-all active:scale-[0.98]',
+                mayorDoublingThisVote
+                  ? 'bg-indigo-600/30 border-indigo-500/60 text-indigo-200'
+                  : 'bg-indigo-900/30 hover:bg-indigo-900/50 border-indigo-800/50 text-indigo-300',
+              ].join(' ')}
+            >
+              👑 {mayorDoublingThisVote ? t('game.mayorDoubleVoteActive') : t('game.mayorDoubleVoteBtn')}
+            </button>
+          )}
+          {isMayor && mayorDoubleVoteUsedSet.has(voter.name) && !canDoubleVote && (
+            <div className="text-center text-[11px] text-indigo-500/80">
+              👑 {t('game.mayorDoubleVoteUsed')}
+            </div>
+          )}
+
+          {/* Inverter activate button */}
+          {canActivateInverter && (
+            <button
+              onClick={onInverterActivate}
+              className="w-full py-2.5 rounded-xl border border-rose-800/50 bg-rose-900/30 hover:bg-rose-900/50 text-rose-300 text-sm font-bold transition-all active:scale-[0.98]"
+            >
+              🔄 {t('game.inverterActivateBtn')}
+            </button>
+          )}
+          {isInverter && inverterActiveThisRound && (
+            <div className="text-center text-[11px] text-rose-300 font-semibold">
+              🔄 {t('game.inverterActive')}
+            </div>
+          )}
+          {isInverter && inverterUsedSet.has(voter.name) && !inverterActiveThisRound && (
+            <div className="text-center text-[11px] text-rose-500/80">
+              🔄 {t('game.inverterUsed')}
+            </div>
+          )}
+
+          {/* Corruptor pick prompt */}
+          {needsCorruptorPick && (
+            <div className="rounded-xl border border-orange-800/50 bg-orange-950/40 px-4 py-3 text-center">
+              <p className="text-xs font-bold uppercase tracking-widest text-orange-400 mb-0.5">
+                🕷️ {t('game.corruptorPickTitle')}
+              </p>
+              <p className="text-[11px] text-orange-300/80">{t('game.corruptorPickDesc')}</p>
+            </div>
+          )}
+
           <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
             <p className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">
               {t('offline.whoIsImposter', { name: voter.name })}
@@ -1420,6 +1675,16 @@ function VotePhase({ alivePlayers, detectiveUsedSet, revealedRoles, protectedPla
                         <span className="w-9 h-9 rounded-lg bg-yellow-900/20 border border-yellow-800/30 flex items-center justify-center text-yellow-500/50">
                           🛡️
                         </span>
+                      )}
+                      {/* Corruptor corrupt button (first vote only) */}
+                      {needsCorruptorPick && (
+                        <button
+                          onClick={() => onCorruptorPick(voter.name, p.name)}
+                          className="w-9 h-9 rounded-lg bg-orange-900/40 hover:bg-orange-800/60 border border-orange-700/40 flex items-center justify-center text-orange-400 transition-all active:scale-90"
+                          title={t('game.corruptorPickBtn')}
+                        >
+                          🕷️
+                        </button>
                       )}
                       {/* Vote button */}
                       <button
@@ -1530,7 +1795,17 @@ interface PlayingPhaseProps {
   onRevealRoles: (updatedPlayers: PlayerRole[]) => void
 }
 
-type PlayingSubPhase = 'main' | 'voting' | 'voteResult'
+type PlayingSubPhase = 'main' | 'voting' | 'voteResult' | 'kamikazeDrag' | 'judgeTieBreak'
+
+interface JudgeTiePending {
+  judge: PlayerRole
+  candidates: string[]
+  votes: VoteRecord[]
+}
+
+interface VoteExtras {
+  judgeTie?: { judge: PlayerRole; candidates: string[] }
+}
 
 function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRoles }: PlayingPhaseProps) {
   const { t } = useTranslation()
@@ -1547,10 +1822,33 @@ function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRol
   const [protectedPlayers, setProtectedPlayers] = useState<Set<string>>(new Set())
   const [protectionTriggeredName, setProtectionTriggeredName] = useState<string | null>(null)
 
+  // Mayor: once per player per game
+  const [mayorDoubleVoteUsedSet, setMayorDoubleVoteUsedSet] = useState<Set<string>>(new Set())
+  // Inverter: once per player per game; flag resets each round
+  const [inverterUsedSet, setInverterUsedSet] = useState<Set<string>>(new Set())
+  const [inverterActiveThisRound, setInverterActiveThisRound] = useState(false)
+  // Corruptor: map corruptorName -> silencedTargetName (chosen during their first vote turn)
+  const [corruptorTargets, setCorruptorTargets] = useState<Record<string, string>>({})
+  // Revenant ghost votes: remaining rounds per dead revenant
+  const [revenantGhostRounds, setRevenantGhostRounds] = useState<Record<string, number>>({})
+  // Kamikaze pending drag-down: set when a kamikaze is voted out
+  const [kamikazePending, setKamikazePending] = useState<PlayerRole | null>(null)
+  // Judge tie-break: set when a vote ends in a tie AND an eligible judge is alive
+  const [judgeTiePending, setJudgeTiePending] = useState<JudgeTiePending | null>(null)
+
   const alivePlayers = players.filter((p) => !p.isEliminated)
+
+  // Ghost voters: dead revenants with remaining post-death rounds
+  const ghostVoters: PlayerRole[] = Object.keys(revenantGhostRounds)
+    .filter((name) => revenantGhostRounds[name] > 0)
+    .map((name) => players.find((p) => p.name === name))
+    .filter((p): p is PlayerRole => !!p)
+  const allVoters: PlayerRole[] = [...alivePlayers, ...ghostVoters]
+  const ghostVoterNames = new Set(ghostVoters.map((g) => g.name))
 
   const handleStartVote = () => {
     setProtectedPlayers(new Set())
+    setInverterActiveThisRound(false)
     setSubPhase('voting')
   }
 
@@ -1563,58 +1861,233 @@ function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRol
     setProtectedPlayers((prev) => new Set(prev).add(targetName))
   }
 
-  const handleVotesDone = (votes: VoteRecord[], eliminated: PlayerRole | null) => {
+  const handleMayorDoubleVote = (mayorName: string) => {
+    setMayorDoubleVoteUsedSet((prev) => new Set(prev).add(mayorName))
+  }
+
+  const handleInverterActivate = () => {
+    setInverterActiveThisRound(true)
+    // Find the current alive inverter and mark them as used
+    const aliveInverter = alivePlayers.find((p) => p.role === 'inverter' && !inverterUsedSet.has(p.name))
+    if (aliveInverter) {
+      setInverterUsedSet((prev) => new Set(prev).add(aliveInverter.name))
+    }
+  }
+
+  const handleCorruptorPick = (corruptorName: string, targetName: string) => {
+    setCorruptorTargets((prev) => ({ ...prev, [corruptorName]: targetName }))
+  }
+
+  const endRoundWithReveal = (updatedPlayers: PlayerRole[]) => {
+    // Win-condition check after applying any eliminations
+    const alive = updatedPlayers.filter((p) => !p.isEliminated)
+    const aliveEvil = alive.filter((p) => isEvilRole(p.role))
+    const aliveGood = alive.filter((p) => !isEvilRole(p.role))
+    if (aliveEvil.length === 0 || aliveEvil.length >= aliveGood.length) {
+      onRevealRoles(updatedPlayers)
+      return true
+    }
+    return false
+  }
+
+  const handleVotesDone = (votes: VoteRecord[], eliminated: PlayerRole | null, extras?: VoteExtras) => {
     setLastVotes(votes)
-    if (eliminated && protectedPlayers.has(eliminated.name)) {
+
+    // Tie with eligible judge — go to judge sub-phase
+    if (extras?.judgeTie) {
+      setLastEliminated(null)
+      setProtectionTriggeredName(null)
+      setJudgeTiePending({ judge: extras.judgeTie.judge, candidates: extras.judgeTie.candidates, votes })
+      setSubPhase('judgeTieBreak')
+      return
+    }
+
+    // No one eliminated (tie with no judge)
+    if (!eliminated) {
+      setLastEliminated(null)
+      setProtectionTriggeredName(null)
+      setSubPhase('voteResult')
+      return
+    }
+
+    // Protected by Guardian
+    if (protectedPlayers.has(eliminated.name)) {
       setLastEliminated(null)
       setProtectionTriggeredName(eliminated.name)
-    } else {
+      setSubPhase('voteResult')
+      return
+    }
+
+    // Jester wins immediately
+    if (eliminated.role === 'jester') {
+      const updatedPlayers = players.map((p) =>
+        p.name === eliminated.name ? { ...p, isEliminated: true, jesterWon: true } : p,
+      )
+      setPlayers(updatedPlayers)
+      onRevealRoles(updatedPlayers)
+      return
+    }
+
+    // Revenant: schedule ghost votes
+    if (eliminated.role === 'revenant') {
+      setRevenantGhostRounds((prev) => ({ ...prev, [eliminated.name]: REVENANT_POST_DEATH_ROUNDS }))
+    }
+
+    // Kamikaze: go to drag-down sub-phase before resolving the round
+    if (eliminated.role === 'kamikaze') {
+      setPlayers((prev) => prev.map((p) => (p.name === eliminated.name ? { ...p, isEliminated: true } : p)))
       setLastEliminated(eliminated)
       setProtectionTriggeredName(null)
-      if (eliminated) {
-        setPlayers((prev) =>
-          prev.map((p) => (p.name === eliminated.name ? { ...p, isEliminated: true } : p)),
-        )
-      }
+      setKamikazePending(eliminated)
+      setSubPhase('kamikazeDrag')
+      return
     }
+
+    // Normal elimination
+    const updatedPlayers = players.map((p) =>
+      p.name === eliminated.name ? { ...p, isEliminated: true } : p,
+    )
+    setPlayers(updatedPlayers)
+    setLastEliminated(eliminated)
+    setProtectionTriggeredName(null)
+    setSubPhase('voteResult')
+  }
+
+  const handleJudgeDecide = (targetName: string) => {
+    if (!judgeTiePending) return
+    const target = players.find((p) => p.name === targetName)
+    if (!target) return
+
+    // Guardian protection can still save the judge's pick
+    if (protectedPlayers.has(targetName)) {
+      setLastEliminated(null)
+      setProtectionTriggeredName(targetName)
+      setJudgeTiePending(null)
+      setSubPhase('voteResult')
+      return
+    }
+
+    // Jester wins via judge pick too
+    if (target.role === 'jester') {
+      const updatedPlayers = players.map((p) =>
+        p.name === targetName ? { ...p, isEliminated: true, jesterWon: true } : p,
+      )
+      setPlayers(updatedPlayers)
+      setJudgeTiePending(null)
+      onRevealRoles(updatedPlayers)
+      return
+    }
+
+    if (target.role === 'revenant') {
+      setRevenantGhostRounds((prev) => ({ ...prev, [targetName]: REVENANT_POST_DEATH_ROUNDS }))
+    }
+
+    if (target.role === 'kamikaze') {
+      setPlayers((prev) => prev.map((p) => (p.name === targetName ? { ...p, isEliminated: true } : p)))
+      setLastEliminated(target)
+      setProtectionTriggeredName(null)
+      setKamikazePending(target)
+      setJudgeTiePending(null)
+      setSubPhase('kamikazeDrag')
+      return
+    }
+
+    const updatedPlayers = players.map((p) =>
+      p.name === targetName ? { ...p, isEliminated: true } : p,
+    )
+    setPlayers(updatedPlayers)
+    setLastEliminated(target)
+    setProtectionTriggeredName(null)
+    setJudgeTiePending(null)
+    setSubPhase('voteResult')
+  }
+
+  const handleKamikazeDragDown = (victimName: string) => {
+    // Drag-down bypasses Guardian protection per role description
+    const updatedPlayers = players.map((p) =>
+      p.name === victimName ? { ...p, isEliminated: true } : p,
+    )
+    setPlayers(updatedPlayers)
+    setKamikazePending(null)
+
+    // Jester win still applies if dragged
+    const victim = players.find((p) => p.name === victimName)
+    if (victim?.role === 'jester') {
+      const withJester = updatedPlayers.map((p) =>
+        p.name === victimName ? { ...p, jesterWon: true } : p,
+      )
+      setPlayers(withJester)
+      onRevealRoles(withJester)
+      return
+    }
+
+    // Revenant drag-down still gets ghost votes
+    if (victim?.role === 'revenant') {
+      setRevenantGhostRounds((prev) => ({ ...prev, [victimName]: REVENANT_POST_DEATH_ROUNDS }))
+    }
+
     setSubPhase('voteResult')
   }
 
   const handleContinueAfterVote = () => {
     setProtectedPlayers(new Set())
     setProtectionTriggeredName(null)
+    setInverterActiveThisRound(false)
 
-    // Check win conditions
-    const updatedPlayers = players // players state already updated in handleVotesDone
-    const alive = updatedPlayers.filter((p) => !p.isEliminated)
-    const aliveEvil = alive.filter((p) => isEvilRole(p.role))
-    const aliveGood = alive.filter((p) => !isEvilRole(p.role))
+    // Decrement ghost revenant rounds
+    setRevenantGhostRounds((prev) => {
+      const next: Record<string, number> = {}
+      for (const [name, rounds] of Object.entries(prev)) {
+        if (rounds - 1 > 0) next[name] = rounds - 1
+      }
+      return next
+    })
 
-    if (aliveEvil.length === 0) {
-      // All imposters/double agents eliminated — villagers win
-      onRevealRoles(updatedPlayers)
-      return
-    }
-    if (aliveEvil.length >= aliveGood.length) {
-      // Evil team equals or outnumbers village — imposters win
-      onRevealRoles(updatedPlayers)
-      return
-    }
-
+    if (endRoundWithReveal(players)) return
     setSubPhase('main')
   }
 
   if (subPhase === 'voting') {
     return (
       <VotePhase
+        allVoters={allVoters}
         alivePlayers={alivePlayers}
         detectiveUsedSet={detectiveUsedSet}
         revealedRoles={revealedRoles}
         protectedPlayers={protectedPlayers}
+        mayorDoubleVoteUsedSet={mayorDoubleVoteUsedSet}
+        inverterUsedSet={inverterUsedSet}
+        inverterActiveThisRound={inverterActiveThisRound}
+        corruptorTargets={corruptorTargets}
+        ghostVoterNames={ghostVoterNames}
+        revenantGhostRounds={revenantGhostRounds}
         onDetectiveReveal={handleDetectiveReveal}
         onGuardianProtect={handleGuardianProtect}
+        onMayorDoubleVote={handleMayorDoubleVote}
+        onInverterActivate={handleInverterActivate}
+        onCorruptorPick={handleCorruptorPick}
         onVotesDone={handleVotesDone}
         onCancel={() => setSubPhase('main')}
+      />
+    )
+  }
+
+  if (subPhase === 'judgeTieBreak' && judgeTiePending) {
+    return (
+      <JudgeTieBreakPhase
+        judge={judgeTiePending.judge}
+        candidates={judgeTiePending.candidates}
+        onDecide={handleJudgeDecide}
+      />
+    )
+  }
+
+  if (subPhase === 'kamikazeDrag' && kamikazePending) {
+    return (
+      <KamikazeDragPhase
+        kamikaze={kamikazePending}
+        targets={players.filter((p) => !p.isEliminated && p.name !== kamikazePending.name)}
+        onDragDown={handleKamikazeDragDown}
       />
     )
   }
