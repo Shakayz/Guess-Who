@@ -81,6 +81,90 @@ function NumStepper({
   )
 }
 
+/**
+ * A NumStepper variant for special roles:
+ *  - accent color per team (villager/imposter/neutral)
+ *  - native-title tooltip (hover) showing what the role does
+ *  - soft-disables the + button once the role can't grow any further
+ *  - gates the whole row behind a "lockedReason" (e.g. neutral under 10 players)
+ */
+function RoleStepper({
+  icon, label, description, value, min = 0, max, onChange, accent, lockedReason,
+}: {
+  icon: string
+  label: string
+  description: string
+  value: number
+  min?: number
+  max: number
+  onChange: (v: number) => void
+  accent: 'emerald' | 'red' | 'sky'
+  lockedReason?: string | null
+}) {
+  const isLocked = !!lockedReason
+  const canDec = !isLocked && value > min
+  const canInc = !isLocked && value < max
+  // Tailwind-safe static class names keyed by accent
+  const ACCENT = {
+    emerald: {
+      chip: 'text-emerald-300 bg-emerald-950/40 border-emerald-700/40',
+      value: 'text-emerald-300',
+    },
+    red: {
+      chip: 'text-red-300 bg-red-950/40 border-red-700/40',
+      value: 'text-red-300',
+    },
+    sky: {
+      chip: 'text-sky-300 bg-sky-950/40 border-sky-700/40',
+      value: 'text-sky-300',
+    },
+  } as const
+  const a = ACCENT[accent]
+  return (
+    <div
+      title={isLocked ? lockedReason! : description}
+      className={[
+        'flex items-center justify-between gap-3 px-3 py-2 rounded-xl border transition-colors',
+        isLocked
+          ? 'bg-neutral-900/40 border-neutral-800/60 opacity-50'
+          : 'bg-neutral-900/50 border-neutral-800/60 hover:border-neutral-700',
+      ].join(' ')}
+    >
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <span className={[
+          'inline-flex items-center justify-center w-7 h-7 rounded-lg border text-sm',
+          a.chip,
+        ].join(' ')}>
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-white truncate">{label}</p>
+          <p className="text-[10px] text-neutral-500 truncate" title={description}>
+            {isLocked ? lockedReason : description}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={() => { if (canDec) onChange(Math.max(min, value - 1)) }}
+          disabled={!canDec}
+          className="w-7 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >−</button>
+        <span className={`text-sm font-mono font-bold w-7 text-center ${isLocked ? 'text-neutral-600' : a.value}`}>
+          {value}
+        </span>
+        <button
+          type="button"
+          onClick={() => { if (canInc) onChange(Math.min(max, value + 1)) }}
+          disabled={!canInc}
+          className="w-7 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >+</button>
+      </div>
+    </div>
+  )
+}
+
 function SettingsPanel({
   settings, onChange,
 }: { settings: Settings; onChange: (s: Settings) => void }) {
@@ -150,417 +234,209 @@ function SettingsPanel({
 
       {/* Special roles */}
       {settings.gameMode === 'special' && (() => {
-        // Evil team (imposter + double_agent + infiltrator + kamikaze + corruptor
-        // + inverter + twin_imposter) must stay ≤ floor(N/3).
-        // N here is maxPlayers because we don't yet know how many players
-        // will actually join — we validate against the worst case.
+        // ── Capacity math ────────────────────────────────────────────────
+        // Evil team cap: imposter + all imposter-side special roles ≤ floor(N/3).
+        // Evil Twins counts as 2 slots (1 villager + 1 imposter).
         const evilCap = Math.max(1, Math.floor(settings.maxPlayers / 3))
-        const evilExtras =
-          (settings.kamikazeCount ?? 0) +
-          (settings.corruptorCount ?? 0) +
-          (settings.inverterCount ?? 0) +
-          (settings.evilTwinsEnabled ?? 0) // twin_imposter counts as 1 imposter slot
+        const twinSlot = settings.evilTwinsEnabled ?? 0 // 0 or 1 (a twin PAIR)
+
         const currentEvil =
           settings.imposterCount +
           settings.doubleAgentCount +
           (settings.infiltratorCount ?? 0) +
-          evilExtras
+          (settings.kamikazeCount ?? 0) +
+          (settings.corruptorCount ?? 0) +
+          (settings.inverterCount ?? 0) +
+          twinSlot // twin_imposter
+
+        // Villager-side special slots (detective/guardian/mayor/judge/revenant).
+        // Must leave at least 1 pure villager AND the twin_villager slot.
+        const currentGoodSpecial =
+          settings.detectiveCount +
+          settings.guardianCount +
+          (settings.mayorCount ?? 0) +
+          (settings.judgeCount ?? 0) +
+          (settings.revenantCount ?? 0)
+        const villagerSlotsUsed = currentEvil + currentGoodSpecial + twinSlot // +twinSlot = twin_villager
+        const maxVillagerSpecialTotal = Math.max(0, settings.maxPlayers - currentEvil - twinSlot - 1)
+
+        // Per-role maxima: how high each role can go WITHOUT breaking the rules
+        // (and assuming other counts stay fixed). For villager-side roles we also
+        // have individual hard caps (3 detectives, 2 guardians, 1 mayor, etc).
         const evilHeadroom = Math.max(0, evilCap - currentEvil)
-        const maxDoubleAgentsLobby = Math.max(0, evilCap - settings.imposterCount - (settings.infiltratorCount ?? 0) - evilExtras)
-        const maxInfiltratorsLobby = Math.max(0, evilCap - settings.imposterCount - settings.doubleAgentCount - evilExtras)
-        const maxKamikazeLobby = Math.max(0, evilCap - settings.imposterCount - settings.doubleAgentCount - (settings.infiltratorCount ?? 0) - (settings.corruptorCount ?? 0) - (settings.inverterCount ?? 0) - (settings.evilTwinsEnabled ?? 0))
-        const maxCorruptorLobby = Math.max(0, evilCap - settings.imposterCount - settings.doubleAgentCount - (settings.infiltratorCount ?? 0) - (settings.kamikazeCount ?? 0) - (settings.inverterCount ?? 0) - (settings.evilTwinsEnabled ?? 0))
-        const maxInverterLobby = Math.max(0, evilCap - settings.imposterCount - settings.doubleAgentCount - (settings.infiltratorCount ?? 0) - (settings.kamikazeCount ?? 0) - (settings.corruptorCount ?? 0) - (settings.evilTwinsEnabled ?? 0))
-        // Villager side leaves at least 1 pure villager. The twin_villager also
-        // takes a villager-side slot when evilTwinsEnabled.
-        const twinVillagerSlot = settings.evilTwinsEnabled ?? 0
-        const maxSpecialTotal = Math.max(0, settings.maxPlayers - currentEvil - twinVillagerSlot - 1)
-        const maxDetectivesLobby = Math.min(3, maxSpecialTotal)
-        const maxGuardiansLobby = Math.min(2, Math.max(0, maxSpecialTotal - settings.detectiveCount))
-        const maxJudgeLobby = Math.min(1, Math.max(0, maxSpecialTotal - settings.detectiveCount - settings.guardianCount - (settings.mayorCount ?? 0)))
-        const maxRevenantLobby = Math.min(1, Math.max(0, maxSpecialTotal - settings.detectiveCount - settings.guardianCount - (settings.mayorCount ?? 0) - (settings.judgeCount ?? 0)))
-        // Evil Twins requires ≥1 slot on each side, so disable if either side is saturated.
-        const evilTwinsAllowed = (settings.evilTwinsEnabled ?? 0) === 1 || (evilHeadroom >= 1 && maxSpecialTotal >= 1)
-        // silence unused warning when evilHeadroom isn't read directly in JSX
-        void evilHeadroom
+        const goodHeadroom = Math.max(0, settings.maxPlayers - villagerSlotsUsed - 1)
+        void villagerSlotsUsed
+        void maxVillagerSpecialTotal
+
+        const maxDetective  = Math.min(3, settings.detectiveCount  + goodHeadroom)
+        const maxGuardian   = Math.min(2, settings.guardianCount   + goodHeadroom)
+        const maxMayor      = Math.min(1, (settings.mayorCount ?? 0)    + goodHeadroom)
+        const maxJudge      = Math.min(1, (settings.judgeCount ?? 0)    + goodHeadroom)
+        const maxRevenant   = Math.min(1, (settings.revenantCount ?? 0) + goodHeadroom)
+
+        const maxDoubleAgent = Math.min(2, settings.doubleAgentCount    + evilHeadroom)
+        const maxInfiltrator = Math.min(2, (settings.infiltratorCount ?? 0) + evilHeadroom)
+        const maxKamikaze    = Math.min(2, (settings.kamikazeCount ?? 0)    + evilHeadroom)
+        const maxCorruptor   = Math.min(1, (settings.corruptorCount ?? 0)   + evilHeadroom)
+        const maxInverter    = Math.min(1, (settings.inverterCount ?? 0)    + evilHeadroom)
+
+        // Neutral roles (jester) only available with ≥ 10 players.
+        const neutralUnlocked = settings.maxPlayers >= 10
+        const neutralLockReason = neutralUnlocked
+          ? null
+          : t('lobby.neutralUnlockHint', { defaultValue: 'Unlocked at 10+ players.' })
+        const maxJester = neutralUnlocked ? Math.min(1, (settings.jesterCount ?? 0) + goodHeadroom) : 0
+
+        // Evil Twins (pair) takes 2 slots on opposite sides.
+        const maxEvilTwins = Math.min(
+          1,
+          twinSlot + Math.min(evilHeadroom, goodHeadroom),
+        )
+
         return (
-        <div className="space-y-3">
-          <p className="text-xs text-neutral-500">{t('lobby.specialRoles')}</p>
+          <div className="space-y-4">
+            <p className="text-xs text-neutral-500">{t('lobby.specialRoles')}</p>
 
-          {/* Detective count */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-              {t('lobby.detectiveCount')}
-            </p>
-            <div className="flex gap-1.5">
-              {[0, 1, 2, 3].map((n) => {
-                const allowed = n <= maxDetectivesLobby
-                return (
-                  <button
-                    key={n}
-                    disabled={!allowed}
-                    onClick={() => { if (allowed) onChange({ ...settings, detectiveCount: n }) }}
-                    className={[
-                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                      !allowed
-                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
-                        : settings.detectiveCount === n
-                        ? 'bg-sky-950/60 border-sky-700/50 text-sky-400'
-                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                    ].join(' ')}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
+            {/* ── Villager side ─────────────────────────────────────────── */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-400">
+                🟢 {t('lobby.teamVillagers', { defaultValue: 'Villagers' })}
+              </p>
+              <RoleStepper
+                icon="🔍"
+                label={t('lobby.detectiveCount', { defaultValue: 'Detective' })}
+                description={t('lobby.detectiveDesc', { defaultValue: 'Each round, secretly reveals whether a chosen player is an imposter.' })}
+                value={settings.detectiveCount}
+                max={maxDetective}
+                onChange={(v) => onChange({ ...settings, detectiveCount: v })}
+                accent="emerald"
+              />
+              <RoleStepper
+                icon="🛡️"
+                label={t('lobby.guardianCount', { defaultValue: 'Guardian' })}
+                description={t('lobby.guardianDesc', { defaultValue: 'Protects a chosen player from elimination for one round.' })}
+                value={settings.guardianCount}
+                max={maxGuardian}
+                onChange={(v) => onChange({ ...settings, guardianCount: v })}
+                accent="emerald"
+              />
+              <RoleStepper
+                icon="👑"
+                label={t('lobby.mayorCount', { defaultValue: 'Mayor' })}
+                description={t('lobby.mayorDesc', { defaultValue: 'Their vote counts double during the voting phase.' })}
+                value={settings.mayorCount ?? 0}
+                max={maxMayor}
+                onChange={(v) => onChange({ ...settings, mayorCount: v })}
+                accent="emerald"
+              />
+              <RoleStepper
+                icon="⚖️"
+                label={t('lobby.judgeCount', { defaultValue: 'Judge' })}
+                description={t('lobby.judgeDesc', { defaultValue: 'Can veto one elimination per game.' })}
+                value={settings.judgeCount ?? 0}
+                max={maxJudge}
+                onChange={(v) => onChange({ ...settings, judgeCount: v })}
+                accent="emerald"
+              />
+              <RoleStepper
+                icon="👻"
+                label={t('lobby.revenantCount', { defaultValue: 'Revenant' })}
+                description={t('lobby.revenantDesc', { defaultValue: 'If eliminated, returns once during the next round.' })}
+                value={settings.revenantCount ?? 0}
+                max={maxRevenant}
+                onChange={(v) => onChange({ ...settings, revenantCount: v })}
+                accent="emerald"
+              />
             </div>
-            {settings.detectiveCount > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.detectiveDesc')}</p>
-            )}
-          </div>
 
-          {/* Double Agent count — capped to (floor(N/3) - imposterCount) */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-              {t('lobby.doubleAgentCount')}
-            </p>
-            <div className="flex gap-1.5">
-              {[0, 1, 2].map((n) => {
-                const allowed = n <= maxDoubleAgentsLobby
-                return (
-                  <button
-                    key={n}
-                    disabled={!allowed}
-                    onClick={() => { if (allowed) onChange({ ...settings, doubleAgentCount: n }) }}
-                    className={[
-                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                      !allowed
-                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
-                        : settings.doubleAgentCount === n
-                        ? 'bg-amber-950/60 border-amber-700/50 text-amber-400'
-                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                    ].join(' ')}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
+            {/* ── Imposter side ─────────────────────────────────────────── */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
+                🔴 {t('lobby.teamImposters', { defaultValue: 'Imposters' })}
+              </p>
+              <RoleStepper
+                icon="🕵️"
+                label={t('lobby.doubleAgentCount', { defaultValue: 'Double Agent' })}
+                description={t('lobby.doubleAgentDesc', { defaultValue: 'Pretends to be a villager but wins with the imposters. Knows both words.' })}
+                value={settings.doubleAgentCount}
+                max={maxDoubleAgent}
+                onChange={(v) => onChange({ ...settings, doubleAgentCount: v })}
+                accent="red"
+              />
+              <RoleStepper
+                icon="🥷"
+                label={t('lobby.infiltratorCount', { defaultValue: 'Infiltrator' })}
+                description={t('lobby.infiltratorDesc', { defaultValue: 'An extra imposter who starts knowing the villager word.' })}
+                value={settings.infiltratorCount ?? 0}
+                max={maxInfiltrator}
+                onChange={(v) => onChange({ ...settings, infiltratorCount: v })}
+                accent="red"
+              />
+              <RoleStepper
+                icon="💣"
+                label={t('lobby.kamikazeCount', { defaultValue: 'Kamikaze' })}
+                description={t('lobby.kamikazeDesc', { defaultValue: 'When voted out, takes the player who cast the most votes with them.' })}
+                value={settings.kamikazeCount ?? 0}
+                max={maxKamikaze}
+                onChange={(v) => onChange({ ...settings, kamikazeCount: v })}
+                accent="red"
+              />
+              <RoleStepper
+                icon="🧪"
+                label={t('lobby.corruptorCount', { defaultValue: 'Corruptor' })}
+                description={t('lobby.corruptorDesc', { defaultValue: 'Can flip one villager\u2019s vote once per game.' })}
+                value={settings.corruptorCount ?? 0}
+                max={maxCorruptor}
+                onChange={(v) => onChange({ ...settings, corruptorCount: v })}
+                accent="red"
+              />
+              <RoleStepper
+                icon="🔀"
+                label={t('lobby.inverterCount', { defaultValue: 'Inverter' })}
+                description={t('lobby.inverterDesc', { defaultValue: 'Swaps the result of one vote (majority \u2194 minority).' })}
+                value={settings.inverterCount ?? 0}
+                max={maxInverter}
+                onChange={(v) => onChange({ ...settings, inverterCount: v })}
+                accent="red"
+              />
             </div>
-            {settings.doubleAgentCount > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.doubleAgentDesc')}</p>
-            )}
-          </div>
 
-          {/* Guardian count */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-              {t('lobby.guardianCount')}
-            </p>
-            <div className="flex gap-1.5">
-              {[0, 1, 2].map((n) => {
-                const allowed = n <= maxGuardiansLobby
-                return (
-                  <button
-                    key={n}
-                    disabled={!allowed}
-                    onClick={() => { if (allowed) onChange({ ...settings, guardianCount: n }) }}
-                    className={[
-                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                      !allowed
-                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
-                        : settings.guardianCount === n
-                        ? 'bg-yellow-950/60 border-yellow-700/50 text-yellow-400'
-                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                    ].join(' ')}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
+            {/* ── Pair / special duo ────────────────────────────────────── */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-400">
+                ⚖️ {t('lobby.teamPair', { defaultValue: 'Pair' })}
+              </p>
+              <RoleStepper
+                icon="👯"
+                label={t('lobby.evilTwinsCount', { defaultValue: 'Evil Twins' })}
+                description={t('lobby.evilTwinsDesc', { defaultValue: 'A pair: one secret villager twin + one secret imposter twin (counts as 2 players).' })}
+                value={settings.evilTwinsEnabled ?? 0}
+                max={maxEvilTwins}
+                onChange={(v) => onChange({ ...settings, evilTwinsEnabled: v })}
+                accent="sky"
+              />
             </div>
-            {settings.guardianCount > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.guardianDesc')}</p>
-            )}
-          </div>
 
-          {/* Mayor count */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-              {t('lobby.mayorCount')}
-            </p>
-            <div className="flex gap-1.5">
-              {[0, 1].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => onChange({ ...settings, mayorCount: n })}
-                  className={[
-                    'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                    settings.mayorCount === n
-                      ? 'bg-indigo-950/60 border-indigo-700/50 text-indigo-400'
-                      : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                  ].join(' ')}
-                >
-                  {n}
-                </button>
-              ))}
+            {/* ── Neutral (unlocked at 10+ players) ─────────────────────── */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-sky-400">
+                ⚪ {t('lobby.teamNeutral', { defaultValue: 'Neutral' })}
+              </p>
+              <RoleStepper
+                icon="🃏"
+                label={t('lobby.jesterCount', { defaultValue: 'Jester' })}
+                description={t('lobby.jesterDesc', { defaultValue: 'Wins alone if voted out. Does not help villagers or imposters.' })}
+                value={settings.jesterCount ?? 0}
+                max={maxJester}
+                onChange={(v) => onChange({ ...settings, jesterCount: v })}
+                accent="sky"
+                lockedReason={neutralLockReason}
+              />
             </div>
-            {settings.mayorCount > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.mayorDesc')}</p>
-            )}
           </div>
-
-          {/* Infiltrator count — imposter-side, counts toward the 1/3 evil cap */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-              {t('lobby.infiltratorCount')}
-            </p>
-            <div className="flex gap-1.5">
-              {[0, 1, 2].map((n) => {
-                const allowed = n <= maxInfiltratorsLobby
-                return (
-                  <button
-                    key={n}
-                    disabled={!allowed}
-                    onClick={() => { if (allowed) onChange({ ...settings, infiltratorCount: n }) }}
-                    className={[
-                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                      !allowed
-                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
-                        : settings.infiltratorCount === n
-                        ? 'bg-fuchsia-950/60 border-fuchsia-700/50 text-fuchsia-400'
-                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                    ].join(' ')}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
-            </div>
-            {settings.infiltratorCount > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.infiltratorDesc')}</p>
-            )}
-          </div>
-
-          {/* Jester count */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-              {t('lobby.jesterCount')}
-            </p>
-            <div className="flex gap-1.5">
-              {[0, 1].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => onChange({ ...settings, jesterCount: n })}
-                  className={[
-                    'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                    settings.jesterCount === n
-                      ? 'bg-pink-950/60 border-pink-700/50 text-pink-400'
-                      : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                  ].join(' ')}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-            {settings.jesterCount > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.jesterDesc')}</p>
-            )}
-          </div>
-
-          {/* Judge count — villager side, max 1 */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-              {t('lobby.judgeCount')}
-            </p>
-            <div className="flex gap-1.5">
-              {[0, 1].map((n) => {
-                const allowed = n <= maxJudgeLobby
-                return (
-                  <button
-                    key={n}
-                    disabled={!allowed}
-                    onClick={() => { if (allowed) onChange({ ...settings, judgeCount: n }) }}
-                    className={[
-                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                      !allowed
-                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
-                        : settings.judgeCount === n
-                        ? 'bg-emerald-950/60 border-emerald-700/50 text-emerald-400'
-                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                    ].join(' ')}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
-            </div>
-            {settings.judgeCount > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.judgeDesc')}</p>
-            )}
-          </div>
-
-          {/* Revenant count — villager side, max 1 */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-              {t('lobby.revenantCount')}
-            </p>
-            <div className="flex gap-1.5">
-              {[0, 1].map((n) => {
-                const allowed = n <= maxRevenantLobby
-                return (
-                  <button
-                    key={n}
-                    disabled={!allowed}
-                    onClick={() => { if (allowed) onChange({ ...settings, revenantCount: n }) }}
-                    className={[
-                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                      !allowed
-                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
-                        : settings.revenantCount === n
-                        ? 'bg-teal-950/60 border-teal-700/50 text-teal-400'
-                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                    ].join(' ')}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
-            </div>
-            {settings.revenantCount > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.revenantDesc')}</p>
-            )}
-          </div>
-
-          {/* Kamikaze count — imposter side, max 1 */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-              {t('lobby.kamikazeCount')}
-            </p>
-            <div className="flex gap-1.5">
-              {[0, 1].map((n) => {
-                const allowed = n <= maxKamikazeLobby
-                return (
-                  <button
-                    key={n}
-                    disabled={!allowed}
-                    onClick={() => { if (allowed) onChange({ ...settings, kamikazeCount: n }) }}
-                    className={[
-                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                      !allowed
-                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
-                        : settings.kamikazeCount === n
-                        ? 'bg-red-950/60 border-red-700/50 text-red-400'
-                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                    ].join(' ')}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
-            </div>
-            {settings.kamikazeCount > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.kamikazeDesc')}</p>
-            )}
-          </div>
-
-          {/* Corruptor count — imposter side, max 1 */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-              {t('lobby.corruptorCount')}
-            </p>
-            <div className="flex gap-1.5">
-              {[0, 1].map((n) => {
-                const allowed = n <= maxCorruptorLobby
-                return (
-                  <button
-                    key={n}
-                    disabled={!allowed}
-                    onClick={() => { if (allowed) onChange({ ...settings, corruptorCount: n }) }}
-                    className={[
-                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                      !allowed
-                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
-                        : settings.corruptorCount === n
-                        ? 'bg-orange-950/60 border-orange-700/50 text-orange-400'
-                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                    ].join(' ')}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
-            </div>
-            {settings.corruptorCount > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.corruptorDesc')}</p>
-            )}
-          </div>
-
-          {/* Inverter count — imposter side, max 1 */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-              {t('lobby.inverterCount')}
-            </p>
-            <div className="flex gap-1.5">
-              {[0, 1].map((n) => {
-                const allowed = n <= maxInverterLobby
-                return (
-                  <button
-                    key={n}
-                    disabled={!allowed}
-                    onClick={() => { if (allowed) onChange({ ...settings, inverterCount: n }) }}
-                    className={[
-                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                      !allowed
-                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
-                        : settings.inverterCount === n
-                        ? 'bg-rose-950/60 border-rose-700/50 text-rose-400'
-                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                    ].join(' ')}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
-            </div>
-            {settings.inverterCount > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.inverterDesc')}</p>
-            )}
-          </div>
-
-          {/* Evil Twins — pair (twin_villager + twin_imposter), max 1 pair */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-              {t('lobby.evilTwinsCount')}
-            </p>
-            <div className="flex gap-1.5">
-              {[0, 1].map((n) => {
-                const allowed = n === 0 || evilTwinsAllowed
-                return (
-                  <button
-                    key={n}
-                    disabled={!allowed}
-                    onClick={() => { if (allowed) onChange({ ...settings, evilTwinsEnabled: n }) }}
-                    className={[
-                      'flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border',
-                      !allowed
-                        ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
-                        : settings.evilTwinsEnabled === n
-                        ? 'bg-purple-950/60 border-purple-700/50 text-purple-400'
-                        : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-                    ].join(' ')}
-                  >
-                    {n}
-                  </button>
-                )
-              })}
-            </div>
-            {settings.evilTwinsEnabled > 0 && (
-              <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.evilTwinsDesc')}</p>
-            )}
-          </div>
-        </div>
         )
       })()}
+
 
       {/* Category picker */}
       <div>
