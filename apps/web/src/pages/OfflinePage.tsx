@@ -1326,6 +1326,8 @@ function VotePhase({ alivePlayers, detectiveUsedSet, revealedRoles, protectedPla
 
   const otherPlayers = alivePlayers.filter((p) => p.name !== voter.name)
 
+  const voterRoleInfo = voter ? ROLES[voter.role] : null
+
   return (
     <div className="space-y-5 animate-slide-up">
       <div className="text-center">
@@ -1333,6 +1335,23 @@ function VotePhase({ alivePlayers, detectiveUsedSet, revealedRoles, protectedPla
           {t('offline.voteOf', { current: voterIndex + 1, total: alivePlayers.length })}
         </p>
         <h2 className="text-xl font-extrabold text-white">{t('offline.votingPhase')}</h2>
+        {step === 'voting' && voterRoleInfo && (
+          <div className="mt-2 flex justify-center">
+            <div
+              className={[
+                'inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-semibold',
+                voterRoleInfo.bgClass,
+                voterRoleInfo.borderClass,
+                voterRoleInfo.textClass,
+              ].join(' ')}
+            >
+              <span className="text-sm leading-none">{voterRoleInfo.icon}</span>
+              <span className="text-neutral-300">{voter.name}</span>
+              <span className="text-neutral-600">·</span>
+              <span>{voterRoleInfo.label}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {step === 'pass' ? (
