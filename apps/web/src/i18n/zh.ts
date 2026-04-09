@@ -658,7 +658,7 @@ export default {
     imReadyToVote: '准备投票',
     whoIsImposter: '{{name}}，谁是冒牌者？',
     voteArrow: '投票 →',
-    cancelVote: '取消投票',
+    cancelVote: '跳过我的投票',
     wasEliminated: '{{name}} 被淘汰了！',
     noOneEliminated: '没有人被淘汰 — 平局！',
     theyWere: '他/她是',

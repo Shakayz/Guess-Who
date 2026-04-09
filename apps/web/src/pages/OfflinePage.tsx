@@ -1285,7 +1285,6 @@ interface VotePhaseProps {
   onInverterActivate: () => void
   onCorruptorPick: (corruptorName: string, targetName: string) => void
   onVotesDone: (votes: VoteRecord[], eliminated: PlayerRole | null, extras?: VoteExtras) => void
-  onCancel: () => void
 }
 
 type VoteStep = 'pass' | 'voting'
@@ -1426,7 +1425,6 @@ function VotePhase({
   onInverterActivate,
   onCorruptorPick,
   onVotesDone,
-  onCancel,
 }: VotePhaseProps) {
   const { t } = useTranslation()
   const ROLES = getRoleConfig(t)
@@ -1456,6 +1454,48 @@ function VotePhase({
   const canDoubleVote = isMayor && !mayorDoubleVoteUsedSet.has(voter.name) && !isGhostVoter
   const canActivateInverter = isInverter && !inverterUsedSet.has(voter.name) && !inverterActiveThisRound && !isGhostVoter
   const needsCorruptorPick = isCorruptor && !corruptorTargets[voter.name] && !isGhostVoter
+  // Corruptor reminder: once they've picked, highlight that target on every later vote turn
+  const corruptedTargetName = isCorruptor && !needsCorruptorPick ? corruptorTargets[voter.name] : null
+
+  const finalizeRound = (newVotes: VoteRecord[]) => {
+    // Apply Corruptor silencing: votes cast by a silenced voter don't count
+    const aliveCorruptors = alivePlayers.filter((p) => p.role === 'corruptor')
+    const silenced = new Set<string>()
+    for (const c of aliveCorruptors) {
+      const tgt = corruptorTargets[c.name]
+      if (tgt) silenced.add(tgt)
+    }
+    const tally: Record<string, number> = {}
+    for (const v of newVotes) {
+      if (silenced.has(v.voterName)) continue
+      tally[v.targetName] = (tally[v.targetName] ?? 0) + 1
+    }
+    const tallyValues = Object.values(tally)
+    if (tallyValues.length === 0) {
+      onVotesDone(newVotes, null)
+      return
+    }
+    const maxVotes = Math.max(...tallyValues)
+    const minVotes = Math.min(...tallyValues)
+    const threshold = inverterActiveThisRound ? minVotes : maxVotes
+    const topCandidates = Object.entries(tally)
+      .filter(([, c]) => c === threshold)
+      .map(([n]) => n)
+    if (topCandidates.length > 1) {
+      // Tie — check for an eligible Judge (alive, not in the tied set)
+      const eligibleJudge = alivePlayers.find(
+        (p) => p.role === 'judge' && !topCandidates.includes(p.name),
+      )
+      if (eligibleJudge) {
+        onVotesDone(newVotes, null, { judgeTie: { judge: eligibleJudge, candidates: topCandidates } })
+      } else {
+        onVotesDone(newVotes, null)
+      }
+    } else {
+      const eliminated = alivePlayers.find((p) => p.name === topCandidates[0]) ?? null
+      onVotesDone(newVotes, eliminated)
+    }
+  }
 
   const castVote = (targetName: string) => {
     const extra: VoteRecord[] = mayorDoublingThisVote ? [{ voterName: voter.name, targetName }] : []
@@ -1464,45 +1504,21 @@ function VotePhase({
     const nextIndex = voterIndex + 1
 
     if (nextIndex >= allVoters.length) {
-      // Apply Corruptor silencing: votes cast by a silenced voter don't count
-      const aliveCorruptors = alivePlayers.filter((p) => p.role === 'corruptor')
-      const silenced = new Set<string>()
-      for (const c of aliveCorruptors) {
-        const tgt = corruptorTargets[c.name]
-        if (tgt) silenced.add(tgt)
-      }
-      const tally: Record<string, number> = {}
-      for (const v of newVotes) {
-        if (silenced.has(v.voterName)) continue
-        tally[v.targetName] = (tally[v.targetName] ?? 0) + 1
-      }
-      const tallyValues = Object.values(tally)
-      if (tallyValues.length === 0) {
-        onVotesDone(newVotes, null)
-        return
-      }
-      const maxVotes = Math.max(...tallyValues)
-      const minVotes = Math.min(...tallyValues)
-      const threshold = inverterActiveThisRound ? minVotes : maxVotes
-      const topCandidates = Object.entries(tally)
-        .filter(([, c]) => c === threshold)
-        .map(([n]) => n)
-      if (topCandidates.length > 1) {
-        // Tie — check for an eligible Judge (alive, not in the tied set)
-        const eligibleJudge = alivePlayers.find(
-          (p) => p.role === 'judge' && !topCandidates.includes(p.name),
-        )
-        if (eligibleJudge) {
-          onVotesDone(newVotes, null, { judgeTie: { judge: eligibleJudge, candidates: topCandidates } })
-        } else {
-          onVotesDone(newVotes, null)
-        }
-      } else {
-        const eliminated = alivePlayers.find((p) => p.name === topCandidates[0]) ?? null
-        onVotesDone(newVotes, eliminated)
-      }
+      finalizeRound(newVotes)
     } else {
       setVotes(newVotes)
+      setVoterIndex(nextIndex)
+      setStep('pass')
+    }
+  }
+
+  const skipVote = () => {
+    // Don't allow corruptors to skip before picking their target
+    if (needsCorruptorPick) return
+    const nextIndex = voterIndex + 1
+    if (nextIndex >= allVoters.length) {
+      finalizeRound(votes)
+    } else {
       setVoterIndex(nextIndex)
       setStep('pass')
     }
@@ -1519,8 +1535,10 @@ function VotePhase({
     setGuardianProtectedThisRound((prev) => new Set(prev).add(voter.name))
   }
 
-  // Target list: never includes the voter themselves; ghost revenants can't be voted for
-  const otherPlayers = alivePlayers.filter((p) => p.name !== voter?.name)
+  // Target list: never the voter themselves; ghost revenants can never be targeted
+  const otherPlayers = alivePlayers.filter(
+    (p) => p.name !== voter?.name && !ghostVoterNames.has(p.name),
+  )
 
   const voterRoleInfo = voter ? ROLES[voter.role] : null
 
@@ -1633,16 +1651,30 @@ function VotePhase({
               {otherPlayers.map((p) => {
                 const revealed = revealedRoles[p.name]
                 const revealedRc = revealed ? ROLES[revealed] : null
+                const isCorruptedTarget = corruptedTargetName === p.name
                 return (
                   <div
                     key={p.name}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl bg-neutral-800/60 border border-neutral-700/40"
+                    className={[
+                      'flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors',
+                      isCorruptedTarget
+                        ? 'bg-orange-950/30 border-orange-500/70'
+                        : 'bg-neutral-800/60 border-neutral-700/40',
+                    ].join(' ')}
                   >
                     <span className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center text-base shrink-0">
                       {p.name[0].toUpperCase()}
                     </span>
                     <span className="text-white text-sm font-semibold flex-1 min-w-0 truncate">
                       {p.name}
+                      {isCorruptedTarget && (
+                        <span
+                          className="ml-2 text-xs text-orange-400"
+                          title={t('game.corruptorPickDesc')}
+                        >
+                          🕷️
+                        </span>
+                      )}
                       {isDetective && revealedRc && (
                         <span className={`ml-2 text-xs ${revealedRc.textClass}`}>
                           {revealedRc.icon} {revealedRc.label}
@@ -1703,8 +1735,9 @@ function VotePhase({
       )}
 
       <button
-        onClick={onCancel}
-        className="w-full py-2.5 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/60 border border-neutral-700/40 text-neutral-500 hover:text-neutral-300 text-sm font-semibold transition-all"
+        onClick={skipVote}
+        disabled={needsCorruptorPick}
+        className="w-full py-2.5 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/60 border border-neutral-700/40 text-neutral-500 hover:text-neutral-300 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-neutral-800/60 disabled:hover:text-neutral-500"
       >
         {t('offline.cancelVote')}
       </button>
@@ -1718,44 +1751,61 @@ interface VoteResultProps {
   votes: VoteRecord[]
   eliminated: PlayerRole | null
   protectedPlayerName?: string | null
+  silencedVoterNames: Set<string>
   onContinue: () => void
 }
 
-function VoteResult({ votes, eliminated, protectedPlayerName, onContinue }: VoteResultProps) {
+function VoteResult({ votes, eliminated, protectedPlayerName, silencedVoterNames, onContinue }: VoteResultProps) {
   const { t } = useTranslation()
   const ROLES = getRoleConfig(t)
+  // Filter out silenced (corrupted) voters so the displayed tally matches the actual elimination logic
   const tally: Record<string, number> = {}
   for (const v of votes) {
+    if (silencedVoterNames.has(v.voterName)) continue
     tally[v.targetName] = (tally[v.targetName] ?? 0) + 1
   }
   const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1])
+  const totalCounted = Object.values(tally).reduce((a, b) => a + b, 0)
 
   const eliminatedRc = eliminated ? ROLES[eliminated.role] : null
 
   return (
     <div className="space-y-5 animate-slide-up">
-      <div className="text-center space-y-2">
-        {protectedPlayerName ? (
-          <>
-            <div className="text-4xl">🛡️</div>
-            <h2 className="text-xl font-extrabold text-yellow-400">
-              {t('offline.protectionTriggered', { name: protectedPlayerName })}
-            </h2>
-          </>
-        ) : (
-          <>
-            <div className="text-4xl">{eliminated ? '🗳️' : '🤷'}</div>
-            <h2 className="text-xl font-extrabold text-white">
-              {eliminated ? t('offline.wasEliminated', { name: eliminated.name }) : t('offline.noOneEliminated')}
-            </h2>
-            {eliminated && eliminatedRc && (
-              <p className={`text-sm font-semibold ${eliminatedRc.textClass}`}>
-                {t('offline.theyWere')} {eliminatedRc.icon} {eliminatedRc.label}
+      {protectedPlayerName ? (
+        <div className="text-center space-y-2">
+          <div className="text-4xl">🛡️</div>
+          <h2 className="text-xl font-extrabold text-yellow-400">
+            {t('offline.protectionTriggered', { name: protectedPlayerName })}
+          </h2>
+        </div>
+      ) : eliminated && eliminatedRc ? (
+        <div className="w-full max-w-sm mx-auto">
+          <div
+            className={`rounded-3xl border-2 p-6 text-center space-y-4 shadow-2xl ${eliminatedRc.bgClass} ${eliminatedRc.borderClass}`}
+          >
+            <div className="text-xs font-bold uppercase tracking-widest text-red-400">
+              🗳️ {t('offline.eliminated')}
+            </div>
+            <div className="text-6xl">{eliminatedRc.icon}</div>
+            <div>
+              <p className="text-3xl font-extrabold text-white mb-2">{eliminated.name}</p>
+              <p className={`text-[11px] font-bold uppercase tracking-widest ${eliminatedRc.badgeClass}`}>
+                {t('offline.theyWere')}
               </p>
-            )}
-          </>
-        )}
-      </div>
+              <p className={`text-2xl font-extrabold ${eliminatedRc.textClass}`}>
+                {eliminatedRc.label}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="text-center space-y-2">
+          <div className="text-4xl">🤷</div>
+          <h2 className="text-xl font-extrabold text-white">
+            {t('offline.noOneEliminated')}
+          </h2>
+        </div>
+      )}
 
       <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-2">
         <p className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">{t('offline.voteTally')}</p>
@@ -1768,7 +1818,7 @@ function VoteResult({ votes, eliminated, protectedPlayerName, onContinue }: Vote
                   'h-2 rounded-full transition-all',
                   eliminated?.name === name ? 'bg-red-500' : 'bg-neutral-600',
                 ].join(' ')}
-                style={{ width: `${(count / votes.length) * 100}%` }}
+                style={{ width: `${(count / Math.max(totalCounted, 1)) * 100}%` }}
               />
             </div>
             <span className="text-xs text-neutral-400 w-6 text-right">{count}</span>
@@ -1813,6 +1863,9 @@ function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRol
   const [subPhase, setSubPhase] = useState<PlayingSubPhase>('main')
   const [lastVotes, setLastVotes] = useState<VoteRecord[]>([])
   const [lastEliminated, setLastEliminated] = useState<PlayerRole | null>(null)
+  // Snapshot of who was silenced when the last vote was finalized — used so the
+  // displayed tally on the result screen matches the elimination logic exactly.
+  const [lastSilencedVoters, setLastSilencedVoters] = useState<Set<string>>(new Set())
 
   // Detective state: once per game per detective, revealed roles persist across rounds
   const [detectiveUsedSet, setDetectiveUsedSet] = useState<Set<string>>(new Set())
@@ -1892,6 +1945,15 @@ function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRol
 
   const handleVotesDone = (votes: VoteRecord[], eliminated: PlayerRole | null, extras?: VoteExtras) => {
     setLastVotes(votes)
+
+    // Capture the set of silenced voters at this exact moment so VoteResult
+    // can render a tally matching the actual elimination logic.
+    const silenced = new Set<string>()
+    for (const c of alivePlayers.filter((p) => p.role === 'corruptor')) {
+      const tgt = corruptorTargets[c.name]
+      if (tgt) silenced.add(tgt)
+    }
+    setLastSilencedVoters(silenced)
 
     // Tie with eligible judge — go to judge sub-phase
     if (extras?.judgeTie) {
@@ -2067,7 +2129,6 @@ function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRol
         onInverterActivate={handleInverterActivate}
         onCorruptorPick={handleCorruptorPick}
         onVotesDone={handleVotesDone}
-        onCancel={() => setSubPhase('main')}
       />
     )
   }
@@ -2098,6 +2159,7 @@ function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRol
         votes={lastVotes}
         eliminated={lastEliminated}
         protectedPlayerName={protectionTriggeredName}
+        silencedVoterNames={lastSilencedVoters}
         onContinue={handleContinueAfterVote}
       />
     )

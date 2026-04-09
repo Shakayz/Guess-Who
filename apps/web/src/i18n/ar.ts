@@ -662,7 +662,7 @@ export default {
     imReadyToVote: 'جاهز للتصويت',
     whoIsImposter: '{{name}}، من هو المحتال؟',
     voteArrow: 'صوّت →',
-    cancelVote: 'إلغاء التصويت',
+    cancelVote: 'تخطي تصويتي',
     wasEliminated: 'تم إقصاء {{name}}!',
     noOneEliminated: 'لم يُقصَ أحد — تعادل!',
     theyWere: 'كان',

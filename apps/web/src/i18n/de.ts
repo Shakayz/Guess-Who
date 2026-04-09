@@ -648,7 +648,7 @@ export default {
     imReadyToVote: 'Bereit zum Abstimmen',
     whoIsImposter: '{{name}}, wer ist der Hochstapler?',
     voteArrow: 'Abstimmen →',
-    cancelVote: 'Abstimmung abbrechen',
+    cancelVote: 'Stimme überspringen',
     wasEliminated: '{{name}} wurde ausgeschieden!',
     noOneEliminated: 'Niemand wurde ausgeschieden — Gleichstand!',
     theyWere: 'War ein(e)',

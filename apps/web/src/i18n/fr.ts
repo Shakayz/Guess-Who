@@ -659,7 +659,7 @@ export default {
     imReadyToVote: 'Prêt à Voter',
     whoIsImposter: '{{name}}, qui est l\'imposteur ?',
     voteArrow: 'Voter →',
-    cancelVote: 'Annuler le Vote',
+    cancelVote: 'Passer mon vote',
     wasEliminated: '{{name}} a été éliminé !',
     noOneEliminated: 'Personne n\'est éliminé — égalité !',
     theyWere: 'C\'était un(e)',
