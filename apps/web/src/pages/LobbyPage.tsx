@@ -20,17 +20,6 @@ interface Friend {
   user: { id: string; username: string; avatarUrl: string | null }
 }
 
-const LANGUAGE_OPTIONS: { value: Locale; country: string; label: string }[] = [
-  { value: 'en', country: 'gb', label: 'English' },
-  { value: 'fr', country: 'fr', label: 'Français' },
-  { value: 'es', country: 'es', label: 'Español' },
-  { value: 'pt', country: 'br', label: 'Português' },
-  { value: 'ar', country: 'sa', label: 'العربية' },
-  { value: 'it', country: 'it', label: 'Italiano' },
-  { value: 'zh', country: 'cn', label: '中文' },
-  { value: 'de', country: 'de', label: 'Deutsch' },
-]
-
 interface Settings {
   maxPlayers: number
   imposterCount: number
@@ -481,29 +470,6 @@ function SettingsPanel({
         )}
       </div>
 
-      {/* Language */}
-      <div>
-        <p className="text-xs text-neutral-500 mb-2">{t('lobby.language')}</p>
-        <div className="grid grid-cols-4 md:grid-cols-8 gap-1.5 md:gap-2">
-          {LANGUAGE_OPTIONS.map((lang) => (
-            <button
-              key={lang.value}
-              onClick={() => onChange({ ...settings, language: lang.value })}
-              className={[
-                'flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl text-xs font-semibold transition-all border',
-                settings.language === lang.value
-                  ? 'bg-brand-950/60 border-brand-700/50 text-brand-300'
-                  : 'bg-neutral-800/60 border-neutral-700/50 text-neutral-400 hover:text-white',
-              ].join(' ')}
-            >
-              <img src={`https://flagcdn.com/w20/${lang.country}.png`} alt="" className="w-5 h-3.5 object-cover rounded-sm" />
-              <span className="truncate w-full text-center text-[10px]">{lang.label}</span>
-            </button>
-          ))}
-        </div>
-        <p className="text-[10px] text-neutral-600 mt-1">{t('lobby.languageDesc')}</p>
-      </div>
-
       {/* Numeric settings */}
       <div className="space-y-3 pt-1 border-t border-neutral-800">
         {settings.gameMode === 'ranked' ? (
@@ -688,6 +654,25 @@ export default function LobbyPage() {
     }
     socket.on('connect', handleConnect)
 
+    // ── Heartbeat: re-emit room:join every 8s as a safety net ────────────────
+    // Under certain network conditions (mobile sleep, flaky WebSocket, proxies
+    // that drop idle connections), the socket can silently drift out of the
+    // socket.io room channel without triggering a `disconnect` event. When
+    // that happens, the client keeps its `room:updated` listener registered
+    // but the server no longer broadcasts to it. Re-emitting `room:join` is
+    // idempotent on the server (it just updates the socket.id and re-broadcasts
+    // the current room state), so this heartbeat guarantees the lobby stays
+    // in sync even if the socket got wedged. Cheap — one tiny packet every 8s.
+    const heartbeat = setInterval(() => {
+      const s = getSocket()
+      if (!s.connected) {
+        log.info('heartbeat: socket disconnected, reconnecting', { code })
+        connectSocket()
+        return
+      }
+      s.emit('room:join', { roomCode: code })
+    }, 8000)
+
     const modeParam = searchParams.get('mode')
     if (modeParam === 'normal' || modeParam === 'special') {
       setTimeout(() => {
@@ -776,12 +761,28 @@ export default function LobbyPage() {
       setSocketError(msg)
       setTimeout(() => setSocketError(null), 4000)
     })
+    // Game start was refused because at least one player can't afford the
+    // entry cost. Stays non-blocking: everyone stays in the lobby. We read the
+    // latest players list from the store rather than capturing it in the
+    // closure — the effect deps are [code], so any captured array is stale.
+    socket.on('game:start:failed' as any, (data: { reason?: string; userId?: string; required?: number }) => {
+      if (data?.reason !== 'INSUFFICIENT_STARS') return
+      const currentRoom = useGameStore.getState().room
+      const player = currentRoom?.players?.find((p: any) => p.userId === data.userId)
+      const username = (player as any)?.username ?? 'A player'
+      const msg = t('results.insufficientStarsPlayer', { username, required: data.required ?? 10 })
+      log.warn('game:start:failed', { userId: data.userId })
+      setSocketError(msg)
+      setTimeout(() => setSocketError(null), 5000)
+    })
 
     return () => {
+      clearInterval(heartbeat)
       socket.off('connect', handleConnect)
       socket.off('room:updated')
       socket.off('game:started')
       socket.off('error')
+      socket.off('game:start:failed' as any)
     }
   }, [code])
 

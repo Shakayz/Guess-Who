@@ -1,6 +1,7 @@
 // Cache-bust: 2026-04-03T17
 import React, { Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from './store/auth'
 import { useSocialStore } from './store/social'
 import { useGameStore } from './store/game'
@@ -9,28 +10,33 @@ import { api } from './lib/api'
 import { BottomNav } from './components/BottomNav'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { createLogger } from './lib/logger'
+import { lazyWithRetry } from './lib/lazyWithRetry'
 
 const log = createLogger('app')
 
-const HomePage        = React.lazy(() => import('./pages/HomePage'))
-const LobbyPage       = React.lazy(() => import('./pages/LobbyPage'))
-const GamePage        = React.lazy(() => import('./pages/GamePage'))
-const ProfilePage     = React.lazy(() => import('./pages/ProfilePage'))
-// const PremiumPage     = React.lazy(() => import('./pages/PremiumPage'))  // TODO: re-enable when premium is ready
-const LeaderboardPage = React.lazy(() => import('./pages/LeaderboardPage'))
-const ResultsPage     = React.lazy(() => import('./pages/ResultsPage'))
-const AuthPage              = React.lazy(() => import('./pages/AuthPage'))
-const ForgotPasswordPage    = React.lazy(() => import('./pages/ForgotPasswordPage'))
-const ResetPasswordPage     = React.lazy(() => import('./pages/ResetPasswordPage'))
-const HistoryPage     = React.lazy(() => import('./pages/HistoryPage'))
-const GameDetailPage  = React.lazy(() => import('./pages/GameDetailPage'))
-const FriendsPage         = React.lazy(() => import('./pages/FriendsPage'))
-const PlayerProfilePage   = React.lazy(() => import('./pages/PlayerProfilePage'))
-const OfflinePage         = React.lazy(() => import('./pages/OfflinePage'))
-const HowToPlayPage       = React.lazy(() => import('./pages/HowToPlayPage'))
-const SettingsPage        = React.lazy(() => import('./pages/SettingsPage'))
-const TermsPage           = React.lazy(() => import('./pages/TermsPage'))
-const PrivacyPage         = React.lazy(() => import('./pages/PrivacyPage'))
+// All lazy-loaded routes go through lazyWithRetry so that stale chunk hashes
+// (after a deploy with --delete) auto-recover via a one-shot hard reload
+// instead of surfacing "Failed to fetch dynamically imported module" to the
+// user. See apps/web/src/lib/lazyWithRetry.ts for details.
+const HomePage        = lazyWithRetry(() => import('./pages/HomePage'))
+const LobbyPage       = lazyWithRetry(() => import('./pages/LobbyPage'))
+const GamePage        = lazyWithRetry(() => import('./pages/GamePage'))
+const ProfilePage     = lazyWithRetry(() => import('./pages/ProfilePage'))
+// const PremiumPage     = lazyWithRetry(() => import('./pages/PremiumPage'))  // TODO: re-enable when premium is ready
+const LeaderboardPage = lazyWithRetry(() => import('./pages/LeaderboardPage'))
+const ResultsPage     = lazyWithRetry(() => import('./pages/ResultsPage'))
+const AuthPage              = lazyWithRetry(() => import('./pages/AuthPage'))
+const ForgotPasswordPage    = lazyWithRetry(() => import('./pages/ForgotPasswordPage'))
+const ResetPasswordPage     = lazyWithRetry(() => import('./pages/ResetPasswordPage'))
+const HistoryPage     = lazyWithRetry(() => import('./pages/HistoryPage'))
+const GameDetailPage  = lazyWithRetry(() => import('./pages/GameDetailPage'))
+const FriendsPage         = lazyWithRetry(() => import('./pages/FriendsPage'))
+const PlayerProfilePage   = lazyWithRetry(() => import('./pages/PlayerProfilePage'))
+const OfflinePage         = lazyWithRetry(() => import('./pages/OfflinePage'))
+const HowToPlayPage       = lazyWithRetry(() => import('./pages/HowToPlayPage'))
+const SettingsPage        = lazyWithRetry(() => import('./pages/SettingsPage'))
+const TermsPage           = lazyWithRetry(() => import('./pages/TermsPage'))
+const PrivacyPage         = lazyWithRetry(() => import('./pages/PrivacyPage'))
 // const SeasonPassPage      = React.lazy(() => import('./pages/SeasonPassPage'))  // TODO: re-enable when premium is ready
 // const WordPacksPage       = React.lazy(() => import('./pages/WordPacksPage'))  // TODO: re-enable when premium is ready
 
@@ -153,6 +159,7 @@ function GlobalSocketListeners() {
   const setPendingInvite = useSocialStore((s) => s.setPendingInvite)
   const setPendingFriendRequest = useSocialStore((s) => s.setPendingFriendRequest)
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     if (!token) {
@@ -185,6 +192,10 @@ function GlobalSocketListeners() {
     // The GamePage has its own handler that navigates to /results/:code;
     // this one is a fallback for when the player is elsewhere.
     const handleGameFinished = (data: any) => {
+      // Star balance changed on the server (base reward + daily/streak bonus)
+      // — refetch /auth/me so the header chip and profile page update.
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+
       const store = useGameStore.getState()
       // Only act if the game store still has an active room (not yet reset)
       if (store.room && !store.result) {
@@ -205,7 +216,7 @@ function GlobalSocketListeners() {
       sock.off('friend:request', handleFriendRequest)
       sock.off('game:finished', handleGameFinished)
     }
-  }, [token, activeDm, incrementUnread, setPendingInvite, setPendingFriendRequest, navigate])
+  }, [token, activeDm, incrementUnread, setPendingInvite, setPendingFriendRequest, navigate, queryClient])
 
   return null
 }

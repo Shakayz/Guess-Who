@@ -65,13 +65,41 @@ export default function HomePage() {
       setMatchmaking(false)
       navigate(`/lobby/${d.roomCode}`)
     }
+    const handleError = (d: { reason?: string; required?: number; message?: string }) => {
+      setMatchmaking(false)
+      if (d?.reason === 'INSUFFICIENT_STARS') {
+        setError(t('results.insufficientStars', { required: d.required ?? 10 }))
+      } else {
+        setError(d?.message ?? t('common.error'))
+      }
+    }
     sock.on('matchmaking:status', handleStatus)
     sock.on('matchmaking:found', handleFound)
+    sock.on('matchmaking:error', handleError)
+
+    // ── Connection sanity heartbeat ──────────────────────────────────────────
+    // Every 5 seconds, if the socket got wedged (disconnected silently), kick
+    // the reconnection. On successful reconnect, the server re-tracks the
+    // user in `onlineUsers` so `matchmaking:status` broadcasts resume. We do
+    // NOT re-emit `matchmaking:join` here — that would reset the user's queue
+    // position and wait time. The server's internal tick already broadcasts
+    // status every 1-2s to every online user in the queue, so a healthy
+    // socket is all we need.
+    const heartbeat = setInterval(() => {
+      const s = getSocket()
+      if (!s.connected) {
+        log.info('matchmaking heartbeat: socket disconnected, reconnecting')
+        connectSocket()
+      }
+    }, 5000)
+
     return () => {
+      clearInterval(heartbeat)
       sock.off('matchmaking:status', handleStatus)
       sock.off('matchmaking:found', handleFound)
+      sock.off('matchmaking:error', handleError)
     }
-  }, [matchmaking])
+  }, [matchmaking, t])
 
   const toggleCategory = (key: WordCategory) => {
     setCategories((prev) =>
@@ -94,7 +122,13 @@ export default function HomePage() {
         navigate(`/lobby/${room.code}?mode=${lobbyGameMode}`)
       } catch (err: any) {
         log.error('lobby creation failed', { error: err.message })
-        setError(err.message)
+        // The API returns 402 { error: 'INSUFFICIENT_STARS', required } when
+        // the host can't afford to create a private lobby.
+        if (err?.data?.error === 'INSUFFICIENT_STARS') {
+          setError(t('results.insufficientStars', { required: err.data.required ?? 10 }))
+        } else {
+          setError(err.message)
+        }
       } finally {
         setLoading(false)
       }
