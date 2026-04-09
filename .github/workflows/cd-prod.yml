@@ -1,7 +1,9 @@
 name: CD — Production
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CD — Staging"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -26,8 +28,11 @@ jobs:
     name: Build, push & deploy (prod)
     runs-on: ubuntu-latest
     environment: production
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: pnpm/action-setup@v3
         with:
