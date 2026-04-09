@@ -2,7 +2,7 @@ name: CD — Staging
 
 on:
   push:
-    branches: [develop, staging]
+    branches: [main, develop, staging]
   workflow_dispatch:
 
 concurrency:
