@@ -576,7 +576,7 @@ export default {
     normal: 'Normal',
     normalDesc: 'Villageois vs Imposteurs',
     special: 'Spécial',
-    specialDesc: 'Détective, Agent Double & Gardien',
+    specialDesc: '12 rôles uniques avec pouvoirs spéciaux',
     detectiveInfo: 'Connaît le mot villageois, peut enquêter sur un joueur par partie',
     doubleAgentInfo: 'Ressemble à un villageois, mais travaille avec les imposteurs',
     guardianInfo: 'Dans l\'équipe village, peut protéger un joueur de l\'élimination à chaque tour',

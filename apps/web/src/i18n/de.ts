@@ -572,7 +572,7 @@ export default {
     normal: 'Normal',
     normalDesc: 'Dorfbewohner vs Hochstapler',
     special: 'Spezial',
-    specialDesc: 'Detektiv, Doppelagent & Wächter',
+    specialDesc: '12 einzigartige Rollen mit Spezialkräften',
     detectiveInfo: 'Kennt das Dorfbewohner-Wort, kann pro Spiel einen Spieler untersuchen',
     doubleAgentInfo: 'Sieht aus wie ein Dorfbewohner, arbeitet aber mit den Hochstaplern',
     guardianInfo: 'Im Dorfteam, kann pro Runde einen Spieler vor der Eliminierung schützen',

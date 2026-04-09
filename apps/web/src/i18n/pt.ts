@@ -582,7 +582,7 @@ export default {
     normal: 'Normal',
     normalDesc: 'Aldeões vs Impostores',
     special: 'Especial',
-    specialDesc: 'Detetive, Agente Duplo e Guardião',
+    specialDesc: '12 papéis únicos com poderes especiais',
     detectiveInfo: 'Conhece a palavra dos aldeões, pode investigar um jogador por partida',
     doubleAgentInfo: 'Parece um aldeão, mas trabalha com os impostores',
     guardianInfo: 'No time dos aldeões, pode proteger um jogador da eliminação a cada rodada',

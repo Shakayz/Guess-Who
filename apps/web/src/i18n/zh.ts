@@ -582,7 +582,7 @@ export default {
     normal: '普通',
     normalDesc: '村民 vs 冒牌者',
     special: '特殊',
-    specialDesc: '侦探、双面间谍和守护者',
+    specialDesc: '12 个独特角色，各有特殊能力',
     detectiveInfo: '知道村民词汇，每局可调查一名玩家',
     doubleAgentInfo: '看起来像村民，但为冒牌者工作',
     guardianInfo: '属于村民阵营，每轮可以保护一名玩家免于淘汰',

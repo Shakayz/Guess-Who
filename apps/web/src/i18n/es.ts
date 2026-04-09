@@ -582,7 +582,7 @@ export default {
     normal: 'Normal',
     normalDesc: 'Aldeanos vs Impostores',
     special: 'Especial',
-    specialDesc: 'Detective, Agente Doble y Guardián',
+    specialDesc: '12 roles únicos con poderes especiales',
     detectiveInfo: 'Conoce la palabra de los aldeanos, puede investigar a un jugador por partida',
     doubleAgentInfo: 'Parece un aldeano, pero trabaja con los impostores',
     guardianInfo: 'En el equipo de aldeanos, puede proteger a un jugador de la eliminación en cada ronda',

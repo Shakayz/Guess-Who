@@ -449,20 +449,65 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
         </div>
         {gameMode === 'special' && (
           <div className="bg-amber-950/30 border border-amber-800/30 rounded-xl p-3 space-y-1.5">
-            <div className="flex items-center gap-2 text-xs">
-              <span>🔍</span>
-              <span className="text-blue-400 font-semibold">{t('offline.detective')}</span>
-              <span className="text-neutral-500">— {t('offline.detectiveInfo')}</span>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🔍</span>
+              <span className="text-blue-400 font-semibold shrink-0">{t('offline.detective')}</span>
+              <span className="text-neutral-500">— {t('offline.htpDetectiveDesc')}</span>
             </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span>🕵️</span>
-              <span className="text-amber-400 font-semibold">{t('offline.doubleAgent')}</span>
-              <span className="text-neutral-500">— {t('offline.doubleAgentInfo')}</span>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🕵️</span>
+              <span className="text-amber-400 font-semibold shrink-0">{t('offline.doubleAgent')}</span>
+              <span className="text-neutral-500">— {t('offline.htpDoubleAgentDesc')}</span>
             </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span>🛡️</span>
-              <span className="text-yellow-400 font-semibold">{t('offline.guardian')}</span>
-              <span className="text-neutral-500">— {t('offline.guardianInfo')}</span>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🛡️</span>
+              <span className="text-yellow-400 font-semibold shrink-0">{t('offline.guardian')}</span>
+              <span className="text-neutral-500">— {t('offline.htpGuardianDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">⚖️</span>
+              <span className="text-indigo-400 font-semibold shrink-0">{t('offline.mayor')}</span>
+              <span className="text-neutral-500">— {t('offline.htpMayorDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🥷</span>
+              <span className="text-fuchsia-400 font-semibold shrink-0">{t('offline.infiltrator')}</span>
+              <span className="text-neutral-500">— {t('offline.htpInfiltratorDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🃏</span>
+              <span className="text-pink-400 font-semibold shrink-0">{t('offline.jester')}</span>
+              <span className="text-neutral-500">— {t('offline.htpJesterDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">👨‍⚖️</span>
+              <span className="text-emerald-300 font-semibold shrink-0">{t('offline.judge')}</span>
+              <span className="text-neutral-500">— {t('offline.htpJudgeDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">👻</span>
+              <span className="text-teal-300 font-semibold shrink-0">{t('offline.revenant')}</span>
+              <span className="text-neutral-500">— {t('offline.htpRevenantDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">💥</span>
+              <span className="text-red-300 font-semibold shrink-0">{t('offline.kamikaze')}</span>
+              <span className="text-neutral-500">— {t('offline.htpKamikazeDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🕷️</span>
+              <span className="text-orange-300 font-semibold shrink-0">{t('offline.corruptor')}</span>
+              <span className="text-neutral-500">— {t('offline.htpCorruptorDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🔄</span>
+              <span className="text-rose-300 font-semibold shrink-0">{t('offline.inverter')}</span>
+              <span className="text-neutral-500">— {t('offline.htpInverterDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">👯</span>
+              <span className="text-purple-300 font-semibold shrink-0">{t('offline.evilTwins')}</span>
+              <span className="text-neutral-500">— {t('offline.htpEvilTwinsDesc')}</span>
             </div>
           </div>
         )}
@@ -782,21 +827,66 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
             <span className="text-[10px] text-neutral-600 px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700/40">{t('offline.htpMinPlayers', { count: 5 })}</span>
           </div>
           <p className="text-xs text-neutral-400 leading-relaxed">{t('offline.htpSpecialDesc')}</p>
-          <div className="space-y-1 ml-1">
-            <div className="flex items-center gap-2 text-xs">
-              <span>🔍</span>
-              <span className="text-blue-400 font-semibold">{t('offline.detective')}</span>
+          <div className="space-y-1.5 ml-1">
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🔍</span>
+              <span className="text-blue-400 font-semibold shrink-0">{t('offline.detective')}</span>
               <span className="text-neutral-500">— {t('offline.htpDetectiveDesc')}</span>
             </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span>🕵️</span>
-              <span className="text-amber-400 font-semibold">{t('offline.doubleAgent')}</span>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🕵️</span>
+              <span className="text-amber-400 font-semibold shrink-0">{t('offline.doubleAgent')}</span>
               <span className="text-neutral-500">— {t('offline.htpDoubleAgentDesc')}</span>
             </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span>🛡️</span>
-              <span className="text-yellow-400 font-semibold">{t('offline.guardian')}</span>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🛡️</span>
+              <span className="text-yellow-400 font-semibold shrink-0">{t('offline.guardian')}</span>
               <span className="text-neutral-500">— {t('offline.htpGuardianDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">⚖️</span>
+              <span className="text-indigo-400 font-semibold shrink-0">{t('offline.mayor')}</span>
+              <span className="text-neutral-500">— {t('offline.htpMayorDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🥷</span>
+              <span className="text-fuchsia-400 font-semibold shrink-0">{t('offline.infiltrator')}</span>
+              <span className="text-neutral-500">— {t('offline.htpInfiltratorDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🃏</span>
+              <span className="text-pink-400 font-semibold shrink-0">{t('offline.jester')}</span>
+              <span className="text-neutral-500">— {t('offline.htpJesterDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">👨‍⚖️</span>
+              <span className="text-emerald-300 font-semibold shrink-0">{t('offline.judge')}</span>
+              <span className="text-neutral-500">— {t('offline.htpJudgeDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">👻</span>
+              <span className="text-teal-300 font-semibold shrink-0">{t('offline.revenant')}</span>
+              <span className="text-neutral-500">— {t('offline.htpRevenantDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">💥</span>
+              <span className="text-red-300 font-semibold shrink-0">{t('offline.kamikaze')}</span>
+              <span className="text-neutral-500">— {t('offline.htpKamikazeDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🕷️</span>
+              <span className="text-orange-300 font-semibold shrink-0">{t('offline.corruptor')}</span>
+              <span className="text-neutral-500">— {t('offline.htpCorruptorDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">🔄</span>
+              <span className="text-rose-300 font-semibold shrink-0">{t('offline.inverter')}</span>
+              <span className="text-neutral-500">— {t('offline.htpInverterDesc')}</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs">
+              <span className="shrink-0">👯</span>
+              <span className="text-purple-300 font-semibold shrink-0">{t('offline.evilTwins')}</span>
+              <span className="text-neutral-500">— {t('offline.htpEvilTwinsDesc')}</span>
             </div>
           </div>
         </div>

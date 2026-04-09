@@ -582,7 +582,7 @@ export default {
     normal: 'Normale',
     normalDesc: 'Villici vs Impostori',
     special: 'Speciale',
-    specialDesc: 'Investigatore, Agente Doppio e Guardiano',
+    specialDesc: '12 ruoli unici con poteri speciali',
     detectiveInfo: 'Conosce la parola dei villici, può indagare su un giocatore per partita',
     doubleAgentInfo: 'Sembra un villico, ma lavora con gli impostori',
     guardianInfo: 'Nella squadra dei villici, può proteggere un giocatore dall\'eliminazione ogni turno',
