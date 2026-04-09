@@ -78,7 +78,8 @@ interface GameSettings {
 
 // ─── Role helpers ────────────────────────────────────────────────────────────
 
-function getRoleConfig(t: (key: string) => string): Record<PlayerRoleType, { label: string; icon: string; color: string; bgClass: string; borderClass: string; textClass: string; badgeClass: string }> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getRoleConfig(t: any): Record<PlayerRoleType, { label: string; icon: string; color: string; bgClass: string; borderClass: string; textClass: string; badgeClass: string }> {
   return {
     villager:     { label: t('offline.villager'),                         icon: '🟢', color: 'emerald', bgClass: 'bg-emerald-950/70', borderClass: 'border-emerald-700/60', textClass: 'text-emerald-400', badgeClass: 'text-emerald-500' },
     imposter:     { label: t('offline.imposter'),                         icon: '🔴', color: 'red',     bgClass: 'bg-red-950/70',     borderClass: 'border-red-700/60',     textClass: 'text-red-400',     badgeClass: 'text-red-500' },
