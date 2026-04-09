@@ -8,7 +8,27 @@ import type { WordCategory } from '@imposter/shared'
 
 type Phase = 'setup' | 'dealing' | 'playing' | 'results'
 type GameMode = 'normal' | 'special'
-type PlayerRoleType = 'villager' | 'imposter' | 'detective' | 'doubleAgent' | 'guardian'
+
+// All role types available in offline pass-and-play. Mechanics with special
+// runtime requirements (kamikaze drag-down, corruptor silent drop, inverter
+// vote flip, revenant post-death votes, evil twins paired win) are documented
+// on the role card and resolved manually by the players.
+type PlayerRoleType =
+  | 'villager'
+  | 'imposter'
+  | 'detective'
+  | 'doubleAgent'
+  | 'guardian'
+  | 'mayor'
+  | 'judge'
+  | 'revenant'
+  | 'infiltrator'
+  | 'jester'
+  | 'kamikaze'
+  | 'corruptor'
+  | 'inverter'
+  | 'twinVillager'
+  | 'twinImposter'
 
 interface PlayerRole {
   name: string
@@ -22,12 +42,36 @@ interface VoteRecord {
   targetName: string
 }
 
+interface SpecialRoleCounts {
+  detective: number
+  doubleAgent: number
+  guardian: number
+  mayor: number
+  judge: number
+  revenant: number
+  infiltrator: number
+  jester: number
+  kamikaze: number
+  corruptor: number
+  inverter: number
+  evilTwins: number // 0 or 1: enables the paired twin_villager + twin_imposter duo
+}
+
 interface GameSettings {
   names: string[]
   imposterCount: number
   detectiveCount: number
   doubleAgentCount: number
   guardianCount: number
+  mayorCount: number
+  judgeCount: number
+  revenantCount: number
+  infiltratorCount: number
+  jesterCount: number
+  kamikazeCount: number
+  corruptorCount: number
+  inverterCount: number
+  evilTwinsCount: number
   categories: WordCategory[]
   gameMode: GameMode
 }
@@ -36,16 +80,31 @@ interface GameSettings {
 
 function getRoleConfig(t: (key: string) => string): Record<PlayerRoleType, { label: string; icon: string; color: string; bgClass: string; borderClass: string; textClass: string; badgeClass: string }> {
   return {
-    villager:    { label: t('offline.villager'),     icon: '🟢', color: 'emerald', bgClass: 'bg-emerald-950/70', borderClass: 'border-emerald-700/60', textClass: 'text-emerald-400', badgeClass: 'text-emerald-500' },
-    imposter:    { label: t('offline.imposter'),     icon: '🔴', color: 'red',     bgClass: 'bg-red-950/70',     borderClass: 'border-red-700/60',     textClass: 'text-red-400',     badgeClass: 'text-red-500' },
-    detective:   { label: t('offline.detective'),    icon: '🔍', color: 'blue',    bgClass: 'bg-blue-950/70',    borderClass: 'border-blue-700/60',    textClass: 'text-blue-400',    badgeClass: 'text-blue-500' },
-    doubleAgent: { label: t('offline.doubleAgent'),  icon: '🕵️', color: 'amber',   bgClass: 'bg-amber-950/70',   borderClass: 'border-amber-700/60',   textClass: 'text-amber-400',   badgeClass: 'text-amber-500' },
-    guardian:    { label: t('offline.guardian'),     icon: '🛡️', color: 'yellow',  bgClass: 'bg-yellow-950/70',  borderClass: 'border-yellow-700/60',  textClass: 'text-yellow-400',  badgeClass: 'text-yellow-500' },
+    villager:     { label: t('offline.villager'),                         icon: '🟢', color: 'emerald', bgClass: 'bg-emerald-950/70', borderClass: 'border-emerald-700/60', textClass: 'text-emerald-400', badgeClass: 'text-emerald-500' },
+    imposter:     { label: t('offline.imposter'),                         icon: '🔴', color: 'red',     bgClass: 'bg-red-950/70',     borderClass: 'border-red-700/60',     textClass: 'text-red-400',     badgeClass: 'text-red-500' },
+    detective:    { label: t('offline.detective'),                        icon: '🔍', color: 'blue',    bgClass: 'bg-blue-950/70',    borderClass: 'border-blue-700/60',    textClass: 'text-blue-400',    badgeClass: 'text-blue-500' },
+    doubleAgent:  { label: t('offline.doubleAgent'),                      icon: '🕵️', color: 'amber',   bgClass: 'bg-amber-950/70',   borderClass: 'border-amber-700/60',   textClass: 'text-amber-400',   badgeClass: 'text-amber-500' },
+    guardian:     { label: t('offline.guardian'),                         icon: '🛡️', color: 'yellow',  bgClass: 'bg-yellow-950/70',  borderClass: 'border-yellow-700/60',  textClass: 'text-yellow-400',  badgeClass: 'text-yellow-500' },
+    mayor:        { label: t('offline.mayor',        'Mayor'),            icon: '👑', color: 'indigo',  bgClass: 'bg-indigo-950/70',  borderClass: 'border-indigo-700/60',  textClass: 'text-indigo-400',  badgeClass: 'text-indigo-500' },
+    judge:        { label: t('offline.judge',        'Judge'),            icon: '⚖️', color: 'emerald', bgClass: 'bg-emerald-950/70', borderClass: 'border-emerald-700/60', textClass: 'text-emerald-300', badgeClass: 'text-emerald-500' },
+    revenant:     { label: t('offline.revenant',     'Revenant'),         icon: '👻', color: 'teal',    bgClass: 'bg-teal-950/70',    borderClass: 'border-teal-700/60',    textClass: 'text-teal-300',    badgeClass: 'text-teal-500' },
+    infiltrator:  { label: t('offline.infiltrator',  'Infiltrator'),      icon: '🥷', color: 'fuchsia', bgClass: 'bg-fuchsia-950/70', borderClass: 'border-fuchsia-700/60', textClass: 'text-fuchsia-400', badgeClass: 'text-fuchsia-500' },
+    jester:       { label: t('offline.jester',       'Jester'),           icon: '🃏', color: 'pink',    bgClass: 'bg-pink-950/70',    borderClass: 'border-pink-700/60',    textClass: 'text-pink-400',    badgeClass: 'text-pink-500' },
+    kamikaze:     { label: t('offline.kamikaze',     'Kamikaze'),         icon: '💥', color: 'red',     bgClass: 'bg-red-950/70',     borderClass: 'border-red-700/60',     textClass: 'text-red-300',     badgeClass: 'text-red-500' },
+    corruptor:    { label: t('offline.corruptor',    'Corruptor'),        icon: '🕷️', color: 'orange',  bgClass: 'bg-orange-950/70',  borderClass: 'border-orange-700/60',  textClass: 'text-orange-300', badgeClass: 'text-orange-500' },
+    inverter:     { label: t('offline.inverter',     'Inverter'),         icon: '🔄', color: 'rose',    bgClass: 'bg-rose-950/70',    borderClass: 'border-rose-700/60',    textClass: 'text-rose-300',    badgeClass: 'text-rose-500' },
+    twinVillager: { label: t('offline.twinVillager', 'Villager Twin'),    icon: '👯', color: 'purple',  bgClass: 'bg-purple-950/70',  borderClass: 'border-purple-700/60',  textClass: 'text-purple-300', badgeClass: 'text-purple-500' },
+    twinImposter: { label: t('offline.twinImposter', 'Imposter Twin'),    icon: '👯', color: 'purple',  bgClass: 'bg-purple-950/70',  borderClass: 'border-purple-700/60',  textClass: 'text-purple-300', badgeClass: 'text-purple-500' },
   }
 }
 
+// Imposter-side roles play for the imposter team (know the imposter word).
+const EVIL_ROLES: PlayerRoleType[] = [
+  'imposter', 'doubleAgent', 'infiltrator', 'kamikaze', 'corruptor', 'inverter', 'twinImposter',
+]
+
 function isEvilRole(role: PlayerRoleType) {
-  return role === 'imposter' || role === 'doubleAgent'
+  return EVIL_ROLES.includes(role)
 }
 
 const LANGUAGES = [
@@ -59,11 +118,82 @@ const LANGUAGES = [
   { code: 'de', label: 'Deutsch', flag: 'de' },
 ]
 
+// ─── Sub-component: Role stepper (used in setup phase) ──────────────────────
+
+interface RoleStepperProps {
+  icon: string
+  label: string
+  description: string
+  value: number
+  max: number
+  onChange: (v: number) => void
+  accent: 'emerald' | 'red' | 'sky' | 'purple'
+  lockedReason?: string | null
+}
+
+function RoleStepper({ icon, label, description, value, max, onChange, accent, lockedReason }: RoleStepperProps) {
+  const isLocked = !!lockedReason
+  const canDec = !isLocked && value > 0
+  const canInc = !isLocked && value < max
+  const ACCENT = {
+    emerald: 'border-emerald-700/40 bg-emerald-950/40 text-emerald-300',
+    red:     'border-red-700/40 bg-red-950/40 text-red-300',
+    sky:     'border-sky-700/40 bg-sky-950/40 text-sky-300',
+    purple:  'border-purple-700/40 bg-purple-950/40 text-purple-300',
+  } as const
+  return (
+    <div
+      title={isLocked ? lockedReason! : description}
+      className={[
+        'flex items-center justify-between gap-3 px-3 py-2 rounded-xl border transition-colors',
+        isLocked
+          ? 'bg-neutral-900/40 border-neutral-800/60 opacity-50'
+          : 'bg-neutral-900/50 border-neutral-800/60 hover:border-neutral-700',
+      ].join(' ')}
+    >
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <span className={['inline-flex items-center justify-center w-8 h-8 rounded-lg border text-base shrink-0', ACCENT[accent]].join(' ')}>
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-white truncate">{label}</p>
+          <p className="text-[10px] text-neutral-500 leading-tight line-clamp-2">
+            {isLocked ? lockedReason : description}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={() => { if (canDec) onChange(value - 1) }}
+          disabled={!canDec}
+          className="w-8 h-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >−</button>
+        <span className={`text-base font-mono font-bold w-7 text-center ${isLocked ? 'text-neutral-600' : 'text-white'}`}>
+          {value}
+        </span>
+        <button
+          type="button"
+          onClick={() => { if (canInc) onChange(value + 1) }}
+          disabled={!canInc}
+          className="w-8 h-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >+</button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Sub-component: Setup Phase ──────────────────────────────────────────────
 
 interface SetupPhaseProps {
   initialSettings: GameSettings | null
-  onStart: (names: string[], imposterCount: number, detectiveCount: number, doubleAgentCount: number, guardianCount: number, categories: WordCategory[], gameMode: GameMode) => void
+  onStart: (
+    names: string[],
+    imposterCount: number,
+    counts: SpecialRoleCounts,
+    categories: WordCategory[],
+    gameMode: GameMode,
+  ) => void
 }
 
 function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
@@ -73,6 +203,15 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
   const [detectiveCount, setDetectiveCount] = useState(initialSettings?.detectiveCount ?? 1)
   const [doubleAgentCount, setDoubleAgentCount] = useState(initialSettings?.doubleAgentCount ?? 0)
   const [guardianCount, setGuardianCount] = useState(initialSettings?.guardianCount ?? 0)
+  const [mayorCount, setMayorCount] = useState(initialSettings?.mayorCount ?? 0)
+  const [judgeCount, setJudgeCount] = useState(initialSettings?.judgeCount ?? 0)
+  const [revenantCount, setRevenantCount] = useState(initialSettings?.revenantCount ?? 0)
+  const [infiltratorCount, setInfiltratorCount] = useState(initialSettings?.infiltratorCount ?? 0)
+  const [jesterCount, setJesterCount] = useState(initialSettings?.jesterCount ?? 0)
+  const [kamikazeCount, setKamikazeCount] = useState(initialSettings?.kamikazeCount ?? 0)
+  const [corruptorCount, setCorruptorCount] = useState(initialSettings?.corruptorCount ?? 0)
+  const [inverterCount, setInverterCount] = useState(initialSettings?.inverterCount ?? 0)
+  const [evilTwinsCount, setEvilTwinsCount] = useState(initialSettings?.evilTwinsCount ?? 0)
   const [categories, setCategories] = useState<WordCategory[]>(initialSettings?.categories ?? [])
   const [gameMode, setGameMode] = useState<GameMode>(initialSettings?.gameMode ?? 'normal')
 
@@ -99,16 +238,40 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
     }
   }, [filledCount, maxImposters])
 
-  // In special mode the imposter side = imposterCount + doubleAgentCount must
-  // also respect the ≤ 1/3 rule. Decrease doubleAgentCount whenever the cap
-  // is breached (e.g. player count dropped or imposterCount was raised).
+  // In special mode the full imposter side (imposter + all imposter-aligned
+  // special roles) must respect the ≤ 1/3 rule. Decrease the side roles
+  // whenever the cap is breached.
   useEffect(() => {
     const evilCap = Math.max(1, Math.floor(filledCount / 3))
-    const maxDa = Math.max(0, evilCap - imposterCount)
-    if (doubleAgentCount > maxDa) {
-      setDoubleAgentCount(maxDa)
+    const evilExtras =
+      doubleAgentCount + infiltratorCount + kamikazeCount +
+      corruptorCount + inverterCount + evilTwinsCount
+    const excess = Math.max(0, imposterCount + evilExtras - evilCap)
+    if (excess > 0) {
+      // Reduce in reverse priority order: evilTwins → inverter → corruptor →
+      // kamikaze → infiltrator → doubleAgent (preserve the baseline imposters).
+      let remaining = excess
+      const reducers: [number, (n: number) => void][] = [
+        [evilTwinsCount,   setEvilTwinsCount],
+        [inverterCount,    setInverterCount],
+        [corruptorCount,   setCorruptorCount],
+        [kamikazeCount,    setKamikazeCount],
+        [infiltratorCount, setInfiltratorCount],
+        [doubleAgentCount, setDoubleAgentCount],
+      ]
+      for (const [current, setter] of reducers) {
+        if (remaining <= 0) break
+        const reduceBy = Math.min(current, remaining)
+        if (reduceBy > 0) {
+          setter(current - reduceBy)
+          remaining -= reduceBy
+        }
+      }
     }
-  }, [filledCount, imposterCount, doubleAgentCount])
+  }, [
+    filledCount, imposterCount, doubleAgentCount, infiltratorCount,
+    kamikazeCount, corruptorCount, inverterCount, evilTwinsCount,
+  ])
 
   // Auto-adjust double agent availability based on player count
   useEffect(() => {
@@ -142,19 +305,64 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
   const handleStart = () => {
     const validNames = names.map((n) => n.trim()).filter((n) => n.length > 0)
     if (validNames.length < 3) return
-    onStart(validNames, imposterCount, gameMode === 'special' ? detectiveCount : 0, gameMode === 'special' ? doubleAgentCount : 0, gameMode === 'special' ? guardianCount : 0, categories, gameMode)
+    const zeroCounts: SpecialRoleCounts = {
+      detective: 0, doubleAgent: 0, guardian: 0, mayor: 0, judge: 0,
+      revenant: 0, infiltrator: 0, jester: 0, kamikaze: 0, corruptor: 0,
+      inverter: 0, evilTwins: 0,
+    }
+    const specialCounts: SpecialRoleCounts = gameMode === 'special'
+      ? {
+          detective:   detectiveCount,
+          doubleAgent: doubleAgentCount,
+          guardian:    guardianCount,
+          mayor:       mayorCount,
+          judge:       judgeCount,
+          revenant:    revenantCount,
+          infiltrator: infiltratorCount,
+          jester:      jesterCount,
+          kamikaze:    kamikazeCount,
+          corruptor:   corruptorCount,
+          inverter:    inverterCount,
+          evilTwins:   evilTwinsCount,
+        }
+      : zeroCounts
+    onStart(validNames, imposterCount, specialCounts, categories, gameMode)
   }
 
-  // Evil-team cap: the imposter side (imposter + double_agent) must never
-  // exceed 1/3 of the players. This matches the main imposter-cap rule.
+  // Evil-team cap: imposter + all imposter-aligned special roles ≤ floor(N/3).
+  // Evil Twins takes 1 slot on each side (twin_imposter + twin_villager).
   const evilTeamCap = Math.max(1, Math.floor(filledCount / 3))
-  const maxDoubleAgents = Math.min(2, Math.max(0, evilTeamCap - imposterCount))
+  const evilExtras =
+    doubleAgentCount + infiltratorCount + kamikazeCount +
+    corruptorCount + inverterCount + evilTwinsCount
+  const currentEvil = imposterCount + evilExtras
+  const evilHeadroom = Math.max(0, evilTeamCap - currentEvil)
 
-  // Villager-side special slots (detective + guardian). Must leave at least
-  // one "pure" villager so there is someone neutral to protect/detect.
-  const maxSpecialTotal = Math.max(0, filledCount - imposterCount - doubleAgentCount - 1)
-  const maxDetectives = Math.min(3, maxSpecialTotal)
-  const maxGuardians = Math.min(2, Math.max(0, maxSpecialTotal - detectiveCount))
+  const maxDoubleAgents = Math.min(2, doubleAgentCount + evilHeadroom)
+  const maxInfiltrators = Math.min(2, infiltratorCount + evilHeadroom)
+  const maxKamikaze     = Math.min(2, kamikazeCount    + evilHeadroom)
+  const maxCorruptor    = Math.min(1, corruptorCount   + evilHeadroom)
+  const maxInverter     = Math.min(1, inverterCount    + evilHeadroom)
+
+  // Villager-side special slots. Must leave at least 1 pure villager AND the
+  // twin_villager slot that the Evil Twins pair reserves.
+  const currentGoodSpecial =
+    detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount
+  const slotsUsed = currentEvil + currentGoodSpecial + evilTwinsCount // +twinVillager
+  const goodHeadroom = Math.max(0, filledCount - slotsUsed - 1)
+
+  const maxDetectives = Math.min(3, detectiveCount + goodHeadroom)
+  const maxGuardians  = Math.min(2, guardianCount  + goodHeadroom)
+  const maxMayor      = Math.min(1, mayorCount     + goodHeadroom)
+  const maxJudge      = Math.min(1, judgeCount     + goodHeadroom)
+  const maxRevenant   = Math.min(1, revenantCount  + goodHeadroom)
+
+  // Neutral roles (jester) only unlock with ≥ 10 players.
+  const neutralUnlocked = filledCount >= 10
+  const maxJester = neutralUnlocked ? Math.min(1, jesterCount + goodHeadroom) : 0
+
+  // Evil Twins (pair): consumes 1 slot on each side.
+  const maxEvilTwins = Math.min(1, evilTwinsCount + Math.min(evilHeadroom, goodHeadroom))
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -328,79 +536,144 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
         </p>
       </div>
 
-      {/* Special role counts */}
+      {/* Special role counts — grouped by team, all roles from the online lobby */}
       {gameMode === 'special' && (
-        <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-4">
-          {/* Detective count */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">
-              🔍 {t('offline.detectiveCount')}
+        <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-5">
+          {/* Villager side */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-400">
+              🟢 {t('offline.teamVillagers', 'Villagers')}
             </p>
-            <div className="flex gap-2">
-              {[0, 1, 2, 3].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => { if (n <= maxDetectives) setDetectiveCount(n) }}
-                  className={[
-                    'flex-1 py-3 rounded-xl border font-bold text-lg transition-all',
-                    n > maxDetectives ? 'opacity-30 cursor-not-allowed bg-neutral-900 border-neutral-800 text-neutral-600' :
-                    detectiveCount === n
-                      ? 'bg-blue-950/60 border-blue-700/60 text-blue-400 shadow-md shadow-blue-950/30'
-                      : 'bg-neutral-800/60 border-neutral-700/40 text-neutral-400 hover:border-neutral-600/60 hover:text-neutral-300',
-                  ].join(' ')}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
+            <RoleStepper
+              icon="🔍"
+              label={t('offline.detective')}
+              description={t('offline.htpDetectiveDesc', 'Once per round, secretly reveals another player\'s role.')}
+              value={detectiveCount}
+              max={maxDetectives}
+              onChange={setDetectiveCount}
+              accent="emerald"
+            />
+            <RoleStepper
+              icon="🛡️"
+              label={t('offline.guardian')}
+              description={t('offline.htpGuardianDesc', 'Protects one player from elimination each round.')}
+              value={guardianCount}
+              max={maxGuardians}
+              onChange={setGuardianCount}
+              accent="emerald"
+            />
+            <RoleStepper
+              icon="👑"
+              label={t('offline.mayor', 'Mayor')}
+              description={t('offline.htpMayorDesc', 'Villager whose vote counts double during the voting phase.')}
+              value={mayorCount}
+              max={maxMayor}
+              onChange={setMayorCount}
+              accent="emerald"
+            />
+            <RoleStepper
+              icon="⚖️"
+              label={t('offline.judge', 'Judge')}
+              description={t('offline.htpJudgeDesc', 'In a tied vote, the Judge decides who gets eliminated — but cannot save themselves.')}
+              value={judgeCount}
+              max={maxJudge}
+              onChange={setJudgeCount}
+              accent="emerald"
+            />
+            <RoleStepper
+              icon="👻"
+              label={t('offline.revenant', 'Revenant')}
+              description={t('offline.htpRevenantDesc', 'After being voted out, secretly casts votes for 2 more rounds.')}
+              value={revenantCount}
+              max={maxRevenant}
+              onChange={setRevenantCount}
+              accent="emerald"
+            />
           </div>
 
-          {/* Double Agent count */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">
-              🕵️ {t('offline.doubleAgentCount')}
+          {/* Imposter side */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
+              🔴 {t('offline.teamImposters', 'Imposters')}
             </p>
-            <div className="flex gap-2">
-              {[0, 1, 2].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => { if (n <= maxDoubleAgents) setDoubleAgentCount(n) }}
-                  className={[
-                    'flex-1 py-3 rounded-xl border font-bold text-lg transition-all',
-                    n > maxDoubleAgents ? 'opacity-30 cursor-not-allowed bg-neutral-900 border-neutral-800 text-neutral-600' :
-                    doubleAgentCount === n
-                      ? 'bg-amber-950/60 border-amber-700/60 text-amber-400 shadow-md shadow-amber-950/30'
-                      : 'bg-neutral-800/60 border-neutral-700/40 text-neutral-400 hover:border-neutral-600/60 hover:text-neutral-300',
-                  ].join(' ')}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
+            <RoleStepper
+              icon="🕵️"
+              label={t('offline.doubleAgent')}
+              description={t('offline.htpDoubleAgentDesc', 'Knows the imposter word and plays for them, but looks like a villager.')}
+              value={doubleAgentCount}
+              max={maxDoubleAgents}
+              onChange={setDoubleAgentCount}
+              accent="red"
+            />
+            <RoleStepper
+              icon="🥷"
+              label={t('offline.infiltrator', 'Infiltrator')}
+              description={t('offline.htpInfiltratorDesc', 'Knows the villager word but plays for the imposters. Appears as villager to the detective.')}
+              value={infiltratorCount}
+              max={maxInfiltrators}
+              onChange={setInfiltratorCount}
+              accent="red"
+            />
+            <RoleStepper
+              icon="💥"
+              label={t('offline.kamikaze', 'Kamikaze')}
+              description={t('offline.htpKamikazeDesc', 'If voted out, takes one player of their choice down with them.')}
+              value={kamikazeCount}
+              max={maxKamikaze}
+              onChange={setKamikazeCount}
+              accent="red"
+            />
+            <RoleStepper
+              icon="🕷️"
+              label={t('offline.corruptor', 'Corruptor')}
+              description={t('offline.htpCorruptorDesc', 'Picks one target at game start — their votes are silently dropped until the Corruptor dies.')}
+              value={corruptorCount}
+              max={maxCorruptor}
+              onChange={setCorruptorCount}
+              accent="red"
+            />
+            <RoleStepper
+              icon="🔄"
+              label={t('offline.inverter', 'Inverter')}
+              description={t('offline.htpInverterDesc', 'Once per game, flips the vote tally — the player with the fewest votes is eliminated instead.')}
+              value={inverterCount}
+              max={maxInverter}
+              onChange={setInverterCount}
+              accent="red"
+            />
           </div>
 
-          {/* Guardian count */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">
-              🛡️ {t('offline.guardianCount')}
+          {/* Pair */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-purple-400">
+              👯 {t('offline.teamPair', 'Pair')}
             </p>
-            <div className="flex gap-2">
-              {[0, 1, 2].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => { if (n <= maxGuardians) setGuardianCount(n) }}
-                  className={[
-                    'flex-1 py-3 rounded-xl border font-bold text-lg transition-all',
-                    n > maxGuardians ? 'opacity-30 cursor-not-allowed bg-neutral-900 border-neutral-800 text-neutral-600' :
-                    guardianCount === n
-                      ? 'bg-yellow-950/60 border-yellow-700/60 text-yellow-400 shadow-md shadow-yellow-950/30'
-                      : 'bg-neutral-800/60 border-neutral-700/40 text-neutral-400 hover:border-neutral-600/60 hover:text-neutral-300',
-                  ].join(' ')}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
+            <RoleStepper
+              icon="👯"
+              label={t('offline.evilTwins', 'Evil Twins')}
+              description={t('offline.htpEvilTwinsDesc', 'A linked pair (one villager, one imposter) who win together if both survive. Counts as 2 players.')}
+              value={evilTwinsCount}
+              max={maxEvilTwins}
+              onChange={setEvilTwinsCount}
+              accent="purple"
+            />
+          </div>
+
+          {/* Neutral */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-sky-400">
+              ⚪ {t('offline.teamNeutral', 'Neutral')}
+            </p>
+            <RoleStepper
+              icon="🃏"
+              label={t('offline.jester', 'Jester')}
+              description={t('offline.htpJesterDesc', 'Solo role. Wins alone if voted out by the group.')}
+              value={jesterCount}
+              max={maxJester}
+              onChange={setJesterCount}
+              accent="sky"
+              lockedReason={neutralUnlocked ? null : t('offline.neutralUnlockHint', 'Unlocks at 10+ players.')}
+            />
           </div>
         </div>
       )}
@@ -581,11 +854,21 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
 
   const getRoleInstruction = (role: PlayerRoleType) => {
     switch (role) {
-      case 'imposter': return t('offline.roleInstructionImposter')
-      case 'villager': return t('offline.roleInstructionVillager')
-      case 'detective': return t('offline.roleInstructionDetective')
-      case 'doubleAgent': return t('offline.roleInstructionDoubleAgent')
-      case 'guardian': return t('offline.roleInstructionGuardian')
+      case 'imposter':     return t('offline.roleInstructionImposter')
+      case 'villager':     return t('offline.roleInstructionVillager')
+      case 'detective':    return t('offline.roleInstructionDetective')
+      case 'doubleAgent':  return t('offline.roleInstructionDoubleAgent')
+      case 'guardian':     return t('offline.roleInstructionGuardian')
+      case 'mayor':        return t('offline.roleInstructionMayor',        'You are the Mayor. Your vote counts double during the voting phase — announce it clearly when voting.')
+      case 'judge':        return t('offline.roleInstructionJudge',        'You are the Judge. If a vote ends in a tie, you pick who gets eliminated — but you cannot save yourself.')
+      case 'revenant':     return t('offline.roleInstructionRevenant',     'You are the Revenant. If you get voted out, you still cast votes for the next 2 rounds (announce a player when eliminated).')
+      case 'infiltrator':  return t('offline.roleInstructionInfiltrator',  'You are the Infiltrator. You know the VILLAGER word but you play for the imposters. Blend in and help them win — you look like a villager to the Detective.')
+      case 'jester':       return t('offline.roleInstructionJester',       'You are the Jester. You win alone if the group votes you out. Act suspicious without being too obvious.')
+      case 'kamikaze':     return t('offline.roleInstructionKamikaze',     'You are a Kamikaze imposter. If you get voted out, pick one player to take down with you — they are eliminated too.')
+      case 'corruptor':    return t('offline.roleInstructionCorruptor',    'You are the Corruptor. At game start, secretly pick one target — their votes don\'t count until you are eliminated.')
+      case 'inverter':     return t('offline.roleInstructionInverter',     'You are the Inverter. Once per game, before a vote is tallied, call "Invert!" — the player with the FEWEST votes is eliminated instead.')
+      case 'twinVillager': return t('offline.roleInstructionTwinVillager', 'You are the Villager Twin. You and the Imposter Twin win together if both survive — find your twin without getting caught.')
+      case 'twinImposter': return t('offline.roleInstructionTwinImposter', 'You are the Imposter Twin. You and the Villager Twin win together if both survive — protect your twin.')
     }
   }
 
@@ -1295,9 +1578,9 @@ interface ResultsPhaseProps {
 function ResultsPhase({ players, gameMode, wordPair, onPlayAgain, onHome }: ResultsPhaseProps) {
   const { t } = useTranslation()
   const ROLES = getRoleConfig(t)
-  const imposters = players.filter((p) => p.role === 'imposter')
-  const doubleAgents = players.filter((p) => p.role === 'doubleAgent')
-  const evilTeam = [...imposters, ...doubleAgents]
+  // All imposter-side roles (including special imposter roles) count as "evil"
+  // for the win check. The villagers win iff every evil player is eliminated.
+  const evilTeam = players.filter((p) => isEvilRole(p.role))
   const eliminatedEvil = evilTeam.filter((p) => p.isEliminated)
   const impostersWon = eliminatedEvil.length < evilTeam.length
 
@@ -1421,9 +1704,32 @@ export default function OfflinePage() {
   const [lastSettings, setLastSettings] = useState<GameSettings | null>(null)
 
   const handleStart = useCallback(
-    (names: string[], imposterCount: number, detectiveCount: number, doubleAgentCount: number, guardianCount: number, categories: WordCategory[], mode: GameMode) => {
+    (
+      names: string[],
+      imposterCount: number,
+      counts: SpecialRoleCounts,
+      categories: WordCategory[],
+      mode: GameMode,
+    ) => {
       // Save settings for Play Again
-      setLastSettings({ names, imposterCount, detectiveCount, doubleAgentCount, guardianCount, categories, gameMode: mode })
+      setLastSettings({
+        names,
+        imposterCount,
+        detectiveCount:   counts.detective,
+        doubleAgentCount: counts.doubleAgent,
+        guardianCount:    counts.guardian,
+        mayorCount:       counts.mayor,
+        judgeCount:       counts.judge,
+        revenantCount:    counts.revenant,
+        infiltratorCount: counts.infiltrator,
+        jesterCount:      counts.jester,
+        kamikazeCount:    counts.kamikaze,
+        corruptorCount:   counts.corruptor,
+        inverterCount:    counts.inverter,
+        evilTwinsCount:   counts.evilTwins,
+        categories,
+        gameMode: mode,
+      })
       setGameMode(mode)
 
       const rawPair = pickRandomWordPair(categories, shuffleArray, i18n.language)
@@ -1432,32 +1738,53 @@ export default function OfflinePage() {
         ? { villagerWord: rawPair.imposterWord, imposterWord: rawPair.villagerWord }
         : rawPair
       const playerOrder = shuffleArray([...names])
-      const totalPlayers = playerOrder.length
 
       let roles: PlayerRole[]
 
-      if (mode === 'special' && (detectiveCount > 0 || doubleAgentCount > 0 || guardianCount > 0)) {
-        // Special mode: assign detectives + double agents + guardians + imposters + villagers
+      if (mode === 'special') {
+        // Build a queue of roles in a fixed team order, then assign to players.
+        // Imposter side first (they get the imposter word except infiltrator),
+        // then villager side (villager word), then neutral.
+        const queue: PlayerRoleType[] = []
+        for (let i = 0; i < imposterCount;       i++) queue.push('imposter')
+        for (let i = 0; i < counts.doubleAgent;  i++) queue.push('doubleAgent')
+        for (let i = 0; i < counts.infiltrator;  i++) queue.push('infiltrator')
+        for (let i = 0; i < counts.kamikaze;     i++) queue.push('kamikaze')
+        for (let i = 0; i < counts.corruptor;    i++) queue.push('corruptor')
+        for (let i = 0; i < counts.inverter;     i++) queue.push('inverter')
+        if (counts.evilTwins > 0) {
+          queue.push('twinImposter')
+          queue.push('twinVillager')
+        }
+        for (let i = 0; i < counts.detective;    i++) queue.push('detective')
+        for (let i = 0; i < counts.guardian;     i++) queue.push('guardian')
+        for (let i = 0; i < counts.mayor;        i++) queue.push('mayor')
+        for (let i = 0; i < counts.judge;        i++) queue.push('judge')
+        for (let i = 0; i < counts.revenant;     i++) queue.push('revenant')
+        for (let i = 0; i < counts.jester;       i++) queue.push('jester')
+        // Fill the rest with plain villagers
+        while (queue.length < playerOrder.length) queue.push('villager')
+        // Truncate if somehow over-assigned (safety)
+        queue.length = playerOrder.length
+
         roles = playerOrder.map((name, i) => {
-          let role: PlayerRoleType
-          let word: string
-          if (i < imposterCount) {
-            role = 'imposter'
-            word = pair.imposterWord
-          } else if (i < imposterCount + detectiveCount) {
-            role = 'detective'
-            word = pair.villagerWord
-          } else if (i < imposterCount + detectiveCount + doubleAgentCount) {
-            role = 'doubleAgent'
-            word = pair.villagerWord
-          } else if (i < imposterCount + detectiveCount + doubleAgentCount + guardianCount) {
-            role = 'guardian'
-            word = pair.villagerWord
-          } else {
-            role = 'villager'
-            word = pair.villagerWord
+          const role = queue[i]
+          // Which side's word does this role get?
+          // Imposter word: imposter, double_agent, kamikaze, corruptor, inverter, twin_imposter
+          // Villager word: everything else (including infiltrator — that's the twist)
+          const getsImposterWord =
+            role === 'imposter' ||
+            role === 'doubleAgent' ||
+            role === 'kamikaze' ||
+            role === 'corruptor' ||
+            role === 'inverter' ||
+            role === 'twinImposter'
+          return {
+            name,
+            role,
+            word: getsImposterWord ? pair.imposterWord : pair.villagerWord,
+            isEliminated: false,
           }
-          return { name, role, word, isEliminated: false }
         })
       } else {
         // Normal mode
