@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client'
-import pino from 'pino'
+import { childLogger } from './logger'
 
-const log = pino({ name: 'prisma' })
+const log = childLogger('prisma')
 
 declare global {
   var __prisma: PrismaClient | undefined

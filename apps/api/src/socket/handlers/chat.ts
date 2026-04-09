@@ -1,8 +1,8 @@
 import type { Server, Socket } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
-import pino from 'pino'
+import { childLogger } from '../../config/logger'
 
-const log = pino({ name: 'socket:chat' })
+const log = childLogger('socket:chat')
 
 /** Strip HTML tags and trim whitespace to prevent XSS via stored/reflected content */
 function sanitizeText(input: unknown, maxLen: number): string | null {

@@ -1,11 +1,11 @@
 import type { Server, Socket } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
-import pino from 'pino'
 import { redis } from '../../config/redis'
 import { prisma } from '../../config/prisma'
+import { childLogger } from '../../config/logger'
 import { tryEarlyResolve, tryEarlyVoting, tryEarlyTiebreakerVoting, tryEarlyTiebreakerResolve, eliminatePlayerForWord } from '../gameLoop'
 
-const log = pino({ name: 'socket:game' })
+const log = childLogger('socket:game')
 
 // Whole-word, case-insensitive match
 function containsWord(text: string, word: string): boolean {

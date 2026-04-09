@@ -1,12 +1,12 @@
 import type { Server, Socket } from 'socket.io'
 import { generateRoomCode, MATCHMAKING_CONFIG } from '@imposter/shared'
 import type { MatchmakingStatus } from '@imposter/shared'
-import pino from 'pino'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
+import { childLogger } from '../../config/logger'
 import { onlineUsers } from '../onlineUsers'
 
-const log = pino({ name: 'socket:matchmaking' })
+const log = childLogger('socket:matchmaking')
 
 const { IDEAL_PLAYERS, MIN_PLAYERS, MAX_WAIT_SECONDS, TICK_INTERVAL_MS, THRESHOLDS } = MATCHMAKING_CONFIG
 

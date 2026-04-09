@@ -20,13 +20,13 @@ import {
 /** Final winner label used across all end-game branches. */
 type Winner = 'villagers' | 'imposters' | 'jester' | 'evil_twins' | 'draw'
 import type { RankTier } from '@imposter/shared'
-import pino from 'pino'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
+import { childLogger } from '../config/logger'
 import { onlineUsers } from './onlineUsers'
 import { sendPushNotifications, sendPushNotification } from '../services/push'
 
-const logger = pino({ name: 'game-loop' })
+const logger = childLogger('game-loop')
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents>
 
@@ -655,13 +655,25 @@ async function _resolveRound(io: IO, roomId: string) {
   const currentRound = state.rounds?.[state.currentRound - 1]
   if (!currentRound) return
 
-  logger.info({ roomId, round: state.currentRound }, 'resolving round')
+  logger.info(
+    {
+      roomId,
+      round: state.currentRound,
+      voteCount: (currentRound.votes ?? []).length,
+      aliveCount: (state.players as any[]).filter((p) => p.status === 'alive').length,
+    },
+    '[resolveRound] resolving round',
+  )
 
   // Find most-voted player (by userId). Uses the weighted tally helper so the
   // Mayor's one-shot double vote + Corruptor silent drop + Inverter flip are honored.
-  const { mostVotedId, tiedIds: weightedTiedIds } = tallyVotes(
+  const { mostVotedId, tiedIds: weightedTiedIds, weightedTally, inverted } = tallyVotes(
     currentRound.votes ?? [],
     state.players,
+  )
+  logger.info(
+    { roomId, round: state.currentRound, mostVotedId, weightedTiedIds, weightedTally, inverted },
+    '[resolveRound] tally complete',
   )
   let eliminatedRole: string | null = null
   // Flag that the jester won this round; drives the immediate end-of-game path below.
@@ -675,6 +687,10 @@ async function _resolveRound(io: IO, roomId: string) {
     // ── Guardian protection check ──────────────────────────────────────────────
     if (targetPlayer && targetPlayer.guardianProtected) {
       // Protection triggered — cancel elimination
+      logger.info(
+        { roomId, protectedUserId: mostVotedId, round: state.currentRound },
+        '[resolveRound] guardian protection triggered',
+      )
       targetPlayer.guardianProtected = false
       currentRound.eliminatedPlayerId = null
       currentRound.eliminatedRole = null
@@ -689,16 +705,28 @@ async function _resolveRound(io: IO, roomId: string) {
       if (targetPlayer) {
         targetPlayer.status = 'eliminated'
         eliminatedRole = targetPlayer.role ?? null
+        logger.info(
+          {
+            roomId,
+            round: state.currentRound,
+            eliminatedUserId: mostVotedId,
+            eliminatedRole,
+            reason: 'vote',
+          },
+          '[resolveRound] player eliminated by vote',
+        )
         // ── Post-elimination housekeeping (corruptor freeing, revenant start) ──
         onPlayerEliminated(state, mostVotedId)
         // ── Jester solo-win check ──
         // Eliminated by vote (not said_word) → jester wins alone immediately.
         if (targetPlayer.role === 'jester') {
           jesterWonThisRound = true
+          logger.info({ roomId, jesterUserId: mostVotedId }, '[resolveRound] JESTER WIN — voted out')
         }
         // ── Kamikaze: gets one last target pick before we proceed ──
         if (targetPlayer.role === 'kamikaze') {
           kamikazePending = true
+          logger.info({ roomId, kamikazeUserId: mostVotedId }, '[resolveRound] kamikaze pending target pick')
         }
       }
       currentRound.eliminatedPlayerId = mostVotedId
@@ -717,6 +745,10 @@ async function _resolveRound(io: IO, roomId: string) {
     const tiedPlayerIds = weightedTiedIds.length > 0
       ? weightedTiedIds
       : getTiedPlayerIds(currentRound.votes ?? [])
+    logger.info(
+      { roomId, round: state.currentRound, tiedPlayerIds },
+      '[resolveRound] tie detected — starting tiebreaker',
+    )
     currentRound.eliminatedPlayerId = null
     currentRound.eliminatedRole = null
 
@@ -837,6 +869,7 @@ async function _resolveRound(io: IO, roomId: string) {
     jesterWonThisRound ? 'jester' : checkWinCondition(state.players as any)
 
   if (winner) {
+    logger.info({ roomId, round: state.currentRound, winner }, '[resolveRound] winner decided')
     await finishGameWithWinner(io, roomId, state, winner, roundPayload)
   } else {
     // Start next round
@@ -1153,8 +1186,14 @@ async function finalizeTiebreakerElimination(
       }
       // Housekeeping: corruptor free + revenant setup
       onPlayerEliminated(state, eliminatedId)
-      if (player.role === 'jester') jesterWonTiebreaker = true
-      if (player.role === 'kamikaze') kamikazePending = true
+      if (player.role === 'jester') {
+        jesterWonTiebreaker = true
+        logger.info({ roomId, jesterUserId: eliminatedId }, '[tiebreaker] JESTER WIN — voted out in tiebreaker')
+      }
+      if (player.role === 'kamikaze') {
+        kamikazePending = true
+        logger.info({ roomId, kamikazeUserId: eliminatedId }, '[tiebreaker] kamikaze pending target pick')
+      }
     }
     // Persist elimination to DB
     const dbRound = currentRound

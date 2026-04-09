@@ -1,14 +1,14 @@
 import type { Server, Socket } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
 import { shuffleArray } from '@imposter/shared'
-import pino from 'pino'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
+import { childLogger } from '../../config/logger'
 import { startRound, forfeitPlayer } from '../gameLoop'
 import { onlineUsers } from '../onlineUsers'
 import { sendPushNotifications } from '../../services/push'
 
-const log = pino({ name: 'socket:room' })
+const log = childLogger('socket:room')
 
 // Default word pairs when no word pack is configured
 const FALLBACK_WORDS = [
@@ -142,6 +142,23 @@ async function startGameForRoom(
         twinI.twinPartnerUserId = twinV.userId
       }
     }
+
+    // ── Log the final role distribution so we can audit assignment fairness
+    // from apps/api/logs/api.log when a game feels off.
+    const roleDistribution = players.reduce<Record<string, number>>((acc, p) => {
+      const key = (p.role as string) ?? 'unknown'
+      acc[key] = (acc[key] ?? 0) + 1
+      return acc
+    }, {})
+    log.info(
+      {
+        roomId,
+        gameMode: state.gameMode ?? 'normal',
+        playerCount: players.length,
+        roles: roleDistribution,
+      },
+      'roles assigned for new game',
+    )
 
     // Pick words
     const selectedCategories: string[] = state.categories ?? []

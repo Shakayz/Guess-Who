@@ -1,8 +1,8 @@
 import type { Server } from 'socket.io'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
 import jwt from 'jsonwebtoken'
-import pino from 'pino'
 import { env } from '../config/env'
+import { childLogger } from '../config/logger'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
 import { registerRoomHandlers } from './handlers/room'
@@ -11,7 +11,7 @@ import { registerChatHandlers } from './handlers/chat'
 import { registerMatchmakingHandlers, cleanupEmptyQueue } from './handlers/matchmaking'
 import { sendPushNotification } from '../services/push'
 
-const log = pino({ name: 'socket' })
+const log = childLogger('socket')
 
 // Track online users: userId -> socketId (shared module)
 import { onlineUsers } from './onlineUsers'

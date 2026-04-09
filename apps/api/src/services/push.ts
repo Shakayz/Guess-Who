@@ -1,6 +1,6 @@
-import pino from 'pino'
+import { childLogger } from '../config/logger'
 
-const logger = pino({ name: 'push' })
+const logger = childLogger('push')
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
 

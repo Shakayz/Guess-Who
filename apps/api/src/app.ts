@@ -6,6 +6,7 @@ import rateLimit from '@fastify/rate-limit'
 import multipart from '@fastify/multipart'
 import { Server as SocketServer } from 'socket.io'
 import { env } from './config/env'
+import { rootLogger, getLogFilePath } from './config/logger'
 import { authRoutes } from './routes/auth'
 import { oauthRoutes } from './routes/oauth'
 import { roomRoutes } from './routes/rooms'
@@ -21,14 +22,15 @@ import { wordPacksRoutes } from './routes/wordPacks'
 import { registerSocketHandlers } from './socket'
 
 export async function buildApp() {
-  const app = Fastify({
-    logger: {
-      level: env.LOG_LEVEL,
-      transport: env.NODE_ENV === 'development'
-        ? { target: 'pino-pretty', options: { colorize: true } }
-        : undefined,
-    },
-  })
+  // Fastify shares our root pino instance so every HTTP request line lands in
+  // the same structured log stream (stdout + apps/api/logs/api.log when
+  // LOG_TO_FILE is on). See apps/api/src/config/logger.ts for details.
+  const app = Fastify({ logger: rootLogger })
+
+  const logFile = getLogFilePath()
+  if (logFile) {
+    rootLogger.info({ logFile }, 'api logs are being written to file')
+  }
 
   // Plugins
   await app.register(cors, {

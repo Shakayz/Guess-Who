@@ -329,7 +329,7 @@ describe('room:settings', () => {
   it('force-disables special roles when gameMode is normal', async () => {
     const io = makeIo()
     const socket = makeSocket('host-1', 'Host', ['room:room-1'])
-    const state = { ...waitingState, gameMode: 'special', enableDetective: true, enableDoubleAgent: true }
+    const state = { ...waitingState, gameMode: 'special', detectiveCount: 1, doubleAgentCount: 1 }
     mockRedis.get.mockResolvedValue(JSON.stringify(state))
 
     registerRoomHandlers(io, socket)
@@ -337,8 +337,8 @@ describe('room:settings', () => {
 
     const setCall = mockRedis.set.mock.calls[0]
     const savedState = JSON.parse(setCall[1])
-    expect(savedState.enableDetective).toBe(false)
-    expect(savedState.enableDoubleAgent).toBe(false)
+    expect(savedState.detectiveCount).toBe(0)
+    expect(savedState.doubleAgentCount).toBe(0)
   })
 
   it('does nothing if socket is not in a room', async () => {
@@ -708,8 +708,8 @@ describe('room:settings — full options', () => {
     registerRoomHandlers(io, socket)
     await socket._fire('room:settings', {
       gameMode: 'special',
-      enableDetective: true,
-      enableDoubleAgent: true,
+      detectiveCount: 1,
+      doubleAgentCount: 1,
       maxRounds: 10,
       speakingTimeSeconds: 60,
       votingTimeSeconds: 45,
@@ -721,8 +721,8 @@ describe('room:settings — full options', () => {
     }))
     const setCall = mockRedis.set.mock.calls[0]
     const savedState = JSON.parse(setCall[1])
-    expect(savedState.enableDetective).toBe(true)
-    expect(savedState.enableDoubleAgent).toBe(true)
+    expect(savedState.detectiveCount).toBe(1)
+    expect(savedState.doubleAgentCount).toBe(1)
     expect(savedState.maxRounds).toBe(10)
   })
 

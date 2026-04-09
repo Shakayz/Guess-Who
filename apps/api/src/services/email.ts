@@ -1,7 +1,7 @@
-import pino from 'pino'
 import { env } from '../config/env'
+import { childLogger } from '../config/logger'
 
-const logger = pino({ name: 'email-service' })
+const logger = childLogger('email-service')
 
 const EMAIL_HTML = (code: string) => `
 <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">

@@ -1,10 +1,10 @@
 import { Queue, Worker } from 'bullmq'
 import Redis from 'ioredis'
-import pino from 'pino'
 import { prisma } from '../config/prisma'
 import { env } from '../config/env'
+import { childLogger } from '../config/logger'
 
-const logger = pino({ name: 'lp-decay' })
+const logger = childLogger('lp-decay')
 
 // BullMQ requires maxRetriesPerRequest: null
 const bullRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })

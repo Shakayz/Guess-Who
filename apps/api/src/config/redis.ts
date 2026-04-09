@@ -1,8 +1,8 @@
 import Redis from 'ioredis'
-import pino from 'pino'
 import { env } from './env'
+import { childLogger } from './logger'
 
-const log = pino({ name: 'redis' })
+const log = childLogger('redis')
 
 export const redis = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: 3,
