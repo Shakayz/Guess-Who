@@ -22,10 +22,22 @@ interface FriendRequest {
   createdAt: string
 }
 
+type SearchFriendship =
+  | { id: string; status: 'accepted' }
+  | { id: string; status: 'pending_outgoing' }
+  | { id: string; status: 'pending_incoming' }
+
 interface SearchUser {
   id: string
   username: string
   avatarUrl: string | null
+  friendship: SearchFriendship | null
+}
+
+interface OutgoingRequest {
+  friendshipId: string
+  to: FriendUser
+  createdAt: string
 }
 
 function InitialsAvatar({ username }: { username: string }) {
@@ -125,6 +137,7 @@ export default function FriendsPage() {
 
   const [friends, setFriends] = useState<FriendEntry[]>([])
   const [requests, setRequests] = useState<FriendRequest[]>([])
+  const [outgoing, setOutgoing] = useState<OutgoingRequest[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchUser[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
@@ -133,7 +146,8 @@ export default function FriendsPage() {
   const [loadingRequests, setLoadingRequests] = useState(true)
 
   const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({})
-  const [actionFeedback, setActionFeedback] = useState<Record<string, 'sent' | 'error'>>({})
+  type Feedback = { kind: 'sent' } | { kind: 'error'; messageKey: string }
+  const [actionFeedback, setActionFeedback] = useState<Record<string, Feedback>>({})
 
 
   const fetchFriends = useCallback(() => {
@@ -154,10 +168,18 @@ export default function FriendsPage() {
       .finally(() => setLoadingRequests(false))
   }, [])
 
+  const fetchOutgoing = useCallback(() => {
+    api
+      .get<{ requests: OutgoingRequest[] }>('/friends/requests/outgoing')
+      .then((res) => setOutgoing(res.requests))
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     fetchFriends()
     fetchRequests()
-  }, [fetchFriends, fetchRequests])
+    fetchOutgoing()
+  }, [fetchFriends, fetchRequests, fetchOutgoing])
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -180,6 +202,14 @@ export default function FriendsPage() {
     try {
       await api.put(`/friends/${friendshipId}/accept`, {})
       setRequests((prev) => prev.filter((r) => r.friendshipId !== friendshipId))
+      // Reflect the new 'accepted' state in any visible search result
+      setSearchResults((prev) =>
+        prev.map((u) =>
+          u.friendship?.id === friendshipId
+            ? { ...u, friendship: { id: friendshipId, status: 'accepted' as const } }
+            : u,
+        ),
+      )
       fetchFriends()
     } finally {
       setPendingActions((p) => ({ ...p, [friendshipId]: false }))
@@ -206,21 +236,51 @@ export default function FriendsPage() {
     }
   }
 
+  const mapBackendErrorToKey = (message: string | undefined): string => {
+    switch (message) {
+      case 'Request already sent':
+        return 'friends.requestPending'
+      case 'Already friends':
+        return 'friends.alreadyFriend'
+      case 'User not found':
+        return 'friends.userNotFound'
+      case 'Cannot add yourself':
+        return 'friends.cannotAddSelf'
+      default:
+        return 'friends.requestFailed'
+    }
+  }
+
   const handleAddFriend = async (username: string) => {
     setPendingActions((p) => ({ ...p, [username]: true }))
     try {
       await api.post('/friends/request', { username })
-      setActionFeedback((p) => ({ ...p, [username]: 'sent' }))
+      setActionFeedback((p) => ({ ...p, [username]: { kind: 'sent' } }))
+      // Refresh outgoing list so the new pending request shows up immediately
+      fetchOutgoing()
       setTimeout(() => setSearchResults((prev) => prev.filter((u) => u.username !== username)), 1200)
-    } catch {
-      setActionFeedback((p) => ({ ...p, [username]: 'error' }))
-      setTimeout(() => setActionFeedback((p) => ({ ...p, [username]: undefined as any })), 2500)
+    } catch (err) {
+      const message = (err as { message?: string })?.message
+      setActionFeedback((p) => ({ ...p, [username]: { kind: 'error', messageKey: mapBackendErrorToKey(message) } }))
+      setTimeout(() => setActionFeedback((p) => {
+        const next = { ...p }
+        delete next[username]
+        return next
+      }), 3000)
     } finally {
       setPendingActions((p) => ({ ...p, [username]: false }))
     }
   }
 
-  const friendIds = new Set(friends.map((f) => f.user.id))
+  const handleCancelOutgoing = async (friendshipId: string) => {
+    setPendingActions((p) => ({ ...p, [friendshipId]: true }))
+    try {
+      await api.delete(`/friends/${friendshipId}`)
+      setOutgoing((prev) => prev.filter((r) => r.friendshipId !== friendshipId))
+    } finally {
+      setPendingActions((p) => ({ ...p, [friendshipId]: false }))
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -232,6 +292,40 @@ export default function FriendsPage() {
 
           {/* Share the app */}
           <ShareCard />
+
+          {/* Outgoing Pending Requests */}
+          {outgoing.length > 0 && (
+            <section className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
+                {t('friends.sentRequests')}
+                <span className="ml-2 bg-neutral-700 text-neutral-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  {outgoing.length}
+                </span>
+              </p>
+              <div className="space-y-2">
+                {outgoing.map((req) => (
+                  <div key={req.friendshipId} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40">
+                    <InitialsAvatar username={req.to.username} />
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/player/${req.to.id}`)}
+                      className="flex-1 text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
+                    >
+                      {req.to.username}
+                    </button>
+                    <span className="text-xs text-neutral-400 font-semibold mr-1">{t('friends.requestPending')}</span>
+                    <button
+                      onClick={() => handleCancelOutgoing(req.friendshipId)}
+                      disabled={pendingActions[req.friendshipId]}
+                      className="px-3 py-1 rounded-lg bg-neutral-800 hover:bg-red-950/60 hover:border-red-800/40 hover:text-red-400 border border-neutral-700 text-neutral-500 text-xs font-semibold transition-colors disabled:opacity-50"
+                    >
+                      {t('common.cancel')}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Pending Requests */}
           {(loadingRequests || requests.length > 0) && (
@@ -255,7 +349,13 @@ export default function FriendsPage() {
                   {requests.map((req) => (
                     <div key={req.friendshipId} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40">
                       <InitialsAvatar username={req.from.username} />
-                      <span className="flex-1 text-white font-medium text-sm">{req.from.username}</span>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/player/${req.from.id}`)}
+                        className="flex-1 text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
+                      >
+                        {req.from.username}
+                      </button>
                       <div className="flex gap-1.5">
                         <button
                           onClick={() => handleAccept(req.friendshipId)}
@@ -363,17 +463,43 @@ export default function FriendsPage() {
             {!searchLoading && searchResults.length > 0 && (
               <div className="mt-3 space-y-2">
                 {searchResults.map((u) => {
-                  const alreadyFriend = friendIds.has(u.id)
+                  const feedback = actionFeedback[u.username]
+                  const f = u.friendship
                   return (
                     <div key={u.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40">
                       <InitialsAvatar username={u.username} />
-                      <span className="flex-1 text-white font-medium text-sm">{u.username}</span>
-                      {alreadyFriend ? (
-                        <span className="text-xs text-emerald-400 font-semibold">{t('friends.alreadyFriend')}</span>
-                      ) : actionFeedback[u.username] === 'sent' ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/player/${u.id}`)}
+                        className="flex-1 text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
+                      >
+                        {u.username}
+                      </button>
+                      {/* Transient post-click feedback takes priority */}
+                      {feedback?.kind === 'sent' ? (
                         <span className="text-xs text-emerald-400 font-semibold">{t('friends.requestSent')}</span>
-                      ) : actionFeedback[u.username] === 'error' ? (
-                        <span className="text-xs text-red-400 font-semibold">{t('friends.alreadySent')}</span>
+                      ) : feedback?.kind === 'error' ? (
+                        <span
+                          className={
+                            feedback.messageKey === 'friends.requestPending' || feedback.messageKey === 'friends.alreadyFriend'
+                              ? 'text-xs text-neutral-400 font-semibold'
+                              : 'text-xs text-red-400 font-semibold'
+                          }
+                        >
+                          {t(feedback.messageKey)}
+                        </span>
+                      ) : f?.status === 'accepted' ? (
+                        <span className="text-xs text-emerald-400 font-semibold">{t('friends.alreadyFriend')}</span>
+                      ) : f?.status === 'pending_outgoing' ? (
+                        <span className="text-xs text-neutral-400 font-semibold">{t('friends.requestPending')}</span>
+                      ) : f?.status === 'pending_incoming' ? (
+                        <button
+                          onClick={() => handleAccept(f.id)}
+                          disabled={pendingActions[f.id]}
+                          className="px-3 py-1 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                        >
+                          {t('friends.accept')}
+                        </button>
                       ) : (
                         <button
                           onClick={() => handleAddFriend(u.username)}

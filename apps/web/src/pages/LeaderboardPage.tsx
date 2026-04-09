@@ -1,4 +1,5 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
@@ -31,6 +32,7 @@ function SkeletonRow() {
 
 export default function LeaderboardPage() {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const locale = i18n.language?.split('-')[0] ?? 'en'
   const [search, setSearch] = React.useState('')
   const { data: users = [], isLoading } = useQuery<LeaderboardUser[]>({
@@ -68,18 +70,32 @@ export default function LeaderboardPage() {
 
           {/* Top 3 podium (when data available and no search) */}
           {!isLoading && !search.trim() && users.length >= 3 && (
-            <div className="grid grid-cols-3 gap-3 md:gap-5 mb-8">
+            <div className="grid grid-cols-3 gap-3 md:gap-5 mb-8 items-start">
               {[users[1], users[0], users[2]].map((u, podiumIdx) => {
                 const realIdx = podiumIdx === 0 ? 1 : podiumIdx === 1 ? 0 : 2
                 const rank = RANK_CONFIG[u.rankTier]
-                const sizes = ['h-24 md:h-32', 'h-32 md:h-40', 'h-20 md:h-28']
+                const offsets = ['mt-6', '', 'mt-10']
+                const isFirst = realIdx === 0
                 return (
-                  <div key={u.id} className={['card flex flex-col items-center justify-end pb-4 pt-3 md:pb-6 md:pt-4 transition-colors hover:border-neutral-700', sizes[podiumIdx]].join(' ')}>
-                    <span className="text-2xl md:text-3xl mb-1">{MEDAL[realIdx]}</span>
-                    <Avatar src={u.avatarUrl} username={u.username} size="sm" className="mb-1" />
-                    <p className="text-xs font-semibold text-white truncate max-w-full px-1">{u.username}</p>
-                    <p className="text-xs text-neutral-500">{u.rankPoints} LP</p>
-                  </div>
+                  <button
+                    type="button"
+                    key={u.id}
+                    onClick={() => navigate(`/player/${u.id}`)}
+                    className={[
+                      'card w-full flex flex-col items-center justify-center gap-1.5',
+                      'py-4 md:py-5 transition-colors hover:border-neutral-700',
+                      isFirst ? 'ring-1 ring-amber-500/40' : '',
+                      offsets[podiumIdx],
+                    ].join(' ')}
+                  >
+                    <span className="text-2xl md:text-3xl leading-none">{MEDAL[realIdx]}</span>
+                    <Avatar src={u.avatarUrl} username={u.username} size="md" />
+                    <p className="block w-full text-center text-sm font-semibold text-white truncate px-2">
+                      {u.username}
+                    </p>
+                    <Badge variant="rank" className="text-[10px]">{rank.icon} {rank.label}</Badge>
+                    <p className="text-xs text-neutral-500 tabular-nums">{u.rankPoints.toLocaleString()} LP</p>
+                  </button>
                 )
               })}
             </div>
@@ -100,7 +116,12 @@ export default function LeaderboardPage() {
               : filtered.map((u, i) => {
                   const rank = RANK_CONFIG[u.rankTier]
                   return (
-                    <div key={u.id} className={['card flex items-center gap-3 md:gap-4 md:px-5 md:py-4 transition-colors hover:border-neutral-700', i < 3 ? 'border-neutral-700' : ''].join(' ')}>
+                    <button
+                      type="button"
+                      key={u.id}
+                      onClick={() => navigate(`/player/${u.id}`)}
+                      className={['card w-full text-left flex items-center gap-3 md:gap-4 md:px-5 md:py-4 transition-colors hover:border-neutral-700', i < 3 ? 'border-neutral-700' : ''].join(' ')}
+                    >
                       <span className="text-sm w-6 text-right font-mono text-neutral-500">
                         {MEDAL[i] ?? i + 1}
                       </span>
@@ -108,7 +129,7 @@ export default function LeaderboardPage() {
                       <span className="flex-1 font-semibold text-white text-sm md:text-base">{u.username}</span>
                       <Badge variant="rank">{rank.icon} {rank.label}</Badge>
                       <span className="text-sm font-mono text-neutral-400 tabular-nums">{u.rankPoints.toLocaleString()} LP</span>
-                    </div>
+                    </button>
                   )
                 })
             }

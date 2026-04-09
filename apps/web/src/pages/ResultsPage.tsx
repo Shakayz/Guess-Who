@@ -557,6 +557,35 @@ export default function ResultsPage() {
               )}
             </div>
 
+            {/* Daily / streak bonuses — shown only when the server awarded them */}
+            {((rewards?.dailyBonusEarned ?? 0) > 0 || (rewards?.streakBonusEarned ?? 0) > 0 || (rewards?.newStreakCount ?? 0) > 0 || (rewards?.gameCostPaid ?? 0) > 0) && (
+              <div className="mt-3 pt-3 border-t border-neutral-800 space-y-2">
+                {(rewards?.gameCostPaid ?? 0) > 0 && (
+                  <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-900/60 border border-neutral-700/60 animate-slide-up">
+                    <span className="text-sm text-neutral-300 font-semibold">🎟️ {t('results.gameCost')}</span>
+                    <span className="text-sm font-bold text-red-300 tabular-nums">−{rewards!.gameCostPaid} ⭐</span>
+                  </div>
+                )}
+                {(rewards?.dailyBonusEarned ?? 0) > 0 && (
+                  <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-amber-950/30 border border-amber-800/40 animate-slide-up">
+                    <span className="text-sm text-amber-200 font-semibold">🌅 {t('results.dailyBonus')}</span>
+                    <span className="text-sm font-bold text-amber-300 tabular-nums">+{rewards!.dailyBonusEarned} ⭐</span>
+                  </div>
+                )}
+                {(rewards?.streakBonusEarned ?? 0) > 0 && (
+                  <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-orange-950/40 border border-orange-700/50 animate-slide-up">
+                    <span className="text-sm text-orange-200 font-semibold">🔥 {t('results.streakBonus')}</span>
+                    <span className="text-sm font-bold text-orange-300 tabular-nums">+{rewards!.streakBonusEarned} ⭐</span>
+                  </div>
+                )}
+                {(rewards?.newStreakCount ?? 0) > 0 && (
+                  <div className="text-center text-xs text-neutral-500 pt-1">
+                    {t('results.streakProgress', { count: ((rewards!.newStreakCount! - 1) % 7) + 1 })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {(rewards?.achievements?.length ?? 0) > 0 && (
               <div className="mt-3 pt-3 border-t border-neutral-800">
                 <p className="text-xs text-neutral-500 mb-2">{t('results.achievementsUnlocked')}</p>

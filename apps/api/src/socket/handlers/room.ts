@@ -7,6 +7,7 @@ import { childLogger } from '../../config/logger'
 import { startRound, forfeitPlayer } from '../gameLoop'
 import { onlineUsers } from '../onlineUsers'
 import { sendPushNotifications } from '../../services/push'
+import { DAILY_COST } from '../../services/dailyRewards'
 
 const log = childLogger('socket:room')
 
@@ -40,6 +41,41 @@ async function startGameForRoom(
     if (state.players.length < 3) return
     // All players must be ready (matchmade rooms auto-ready everyone)
     if (state.players.some((p: any) => !p.isReady)) return
+
+    // ── Charge 10 ⭐ per player for public/matchmade rooms ────────────────────
+    // Private lobbies already charged the host at creation (POST /rooms), so
+    // only public rooms (unranked matchmaking, special, ranked) debit here.
+    // The whole debit runs in a single transaction — if any player lacks the
+    // funds we abort the start entirely and tell the room who's short.
+    if (room.isPrivate === false) {
+      const playerIds: string[] = state.players.map((p: any) => p.userId)
+      let failedUserId: string | null = null
+      try {
+        await prisma.$transaction(async (tx) => {
+          for (const uid of playerIds) {
+            const debit = await tx.user.updateMany({
+              where: { id: uid, starCoins: { gte: DAILY_COST } },
+              data:  { starCoins: { decrement: DAILY_COST } },
+            })
+            if (debit.count === 0) {
+              failedUserId = uid
+              throw new Error('INSUFFICIENT_STARS')
+            }
+          }
+        })
+      } catch {
+        log.warn({ roomId, failedUserId }, 'game start refused: insufficient stars')
+        io.to(`room:${roomId}`).emit('game:start:failed' as any, {
+          reason: 'INSUFFICIENT_STARS',
+          userId: failedUserId ?? '',
+          required: DAILY_COST,
+        })
+        // Release the 10s lock immediately so the host can retry once the
+        // broke player leaves or tops up.
+        await (redis as any).del(startLockKey)
+        return
+      }
+    }
 
     // Assign roles
     const players: any[] = shuffleArray([...state.players])

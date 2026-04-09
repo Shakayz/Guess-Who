@@ -5,6 +5,7 @@ import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
 import { childLogger } from '../../config/logger'
 import { onlineUsers } from '../onlineUsers'
+import { DAILY_COST } from '../../services/dailyRewards'
 
 const log = childLogger('socket:matchmaking')
 
@@ -375,9 +376,26 @@ export function registerMatchmakingHandlers(
   socket.on('matchmaking:join', async (data: { gameMode: string; categories: string[] }) => {
     const gameMode = data?.gameMode ?? 'normal'
 
-    // Fetch user's locale from DB — the queue is language-scoped
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
+    // Fetch user's locale + balance from DB — the queue is language-scoped
+    // and we want to bounce broke players before they enter the queue.
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { locale: true, starCoins: true },
+    })
     const locale = user?.locale ?? 'en'
+
+    // Preventive insufficient-stars check — saves the player from waiting in
+    // queue only to be kicked out of startGameForRoom with INSUFFICIENT_STARS.
+    if ((user?.starCoins ?? 0) < DAILY_COST) {
+      log.info({ userId, starCoins: user?.starCoins }, 'matchmaking:join refused: insufficient stars')
+      socket.emit('matchmaking:error' as any, {
+        reason: 'INSUFFICIENT_STARS',
+        required: DAILY_COST,
+        message: `You need at least ${DAILY_COST} ⭐ to start a game.`,
+      })
+      return
+    }
+
     const queueKey = `matchmaking:${gameMode}:${locale}`
     log.info({ userId, gameMode, locale, queueKey }, 'matchmaking:join')
 

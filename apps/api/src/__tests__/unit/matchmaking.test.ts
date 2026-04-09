@@ -63,7 +63,7 @@ beforeEach(async () => {
   ;(mockRedis as any).lrem.mockResolvedValue(1)
   ;(mockRedis as any).expire.mockResolvedValue(1)
 
-  mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', locale: 'en', rankPoints: 100 })
+  mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', locale: 'en', rankPoints: 100, starCoins: 100 })
   mockPrisma.room.create.mockResolvedValue({
     id: 'room-new', code: 'NEWC', hostId: 'user-1',
     maxPlayers: 8, imposterCount: 1,
@@ -132,7 +132,7 @@ describe('matchmaking:join', () => {
     const socket = makeSocket('user-1')
     ;(mockRedis as any).llen.mockResolvedValue(1)
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-1', locale: 'en' })
+      .mockResolvedValueOnce({ id: 'user-1', locale: 'en', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-1', rankPoints: 500 })
 
     registerMatchmakingHandlers(io, socket)
@@ -165,7 +165,7 @@ describe('matchmaking:join', () => {
     const io = makeIo()
     const socket = makeSocket('user-fr')
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-fr', locale: 'fr' })
+      .mockResolvedValueOnce({ id: 'user-fr', locale: 'fr', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-fr', rankPoints: 0 })
     ;(mockRedis as any).llen.mockResolvedValue(1)
 
@@ -245,7 +245,7 @@ describe('matchmaking queue status correctness', () => {
     const io = makeIo()
     const socket = makeSocket('user-1')
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-1', locale: 'en' })
+      .mockResolvedValueOnce({ id: 'user-1', locale: 'en', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-1', rankPoints: 750 })
     ;(mockRedis as any).llen.mockResolvedValue(1)
 
@@ -299,7 +299,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
     const socket = makeSocket('user-de1')
     // Use unique locale to get unique queue key: matchmaking:normal:de
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-de1', locale: 'de' })
+      .mockResolvedValueOnce({ id: 'user-de1', locale: 'de', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-de1', rankPoints: 0 })
 
     // IDEAL_PLAYERS = 10 — use 10 entries to trigger instant match
@@ -339,7 +339,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
     const socket = makeSocket('user-it1')
 
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-it1', locale: 'it' })
+      .mockResolvedValueOnce({ id: 'user-it1', locale: 'it', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-it1', rankPoints: 1000 })
 
     // Simulate 10 ranked players with similar LP (within ±50 of each other)
@@ -374,7 +374,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
     const io = makeIo()
     const socket = makeSocket('user-pt1')
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-pt1', locale: 'pt' })
+      .mockResolvedValueOnce({ id: 'user-pt1', locale: 'pt', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-pt1', rankPoints: 0 })
 
     // Use 10 entries for instant match at IDEAL_PLAYERS
@@ -406,7 +406,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
     const io = makeIo()
     const socket = makeSocket('user-zh1')
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-zh1', locale: 'zh' })
+      .mockResolvedValueOnce({ id: 'user-zh1', locale: 'zh', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-zh1', rankPoints: 0 })
 
     // Use 10 entries for instant match (IDEAL_PLAYERS), then 5 remain
@@ -443,7 +443,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
     const io = makeIo()
     const socket = makeSocket('user-arsmall')
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-arsmall', locale: 'ar' })
+      .mockResolvedValueOnce({ id: 'user-arsmall', locale: 'ar', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-arsmall', rankPoints: 0 })
 
     // Only 2 players — not enough for MIN_PLAYERS (3)
@@ -469,7 +469,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
     const io = makeIo()
     const socket = makeSocket('user-es1')
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-es1', locale: 'es' })
+      .mockResolvedValueOnce({ id: 'user-es1', locale: 'es', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-es1', rankPoints: 0 })
 
     // 4 players — meets MIN_PLAYERS but below IDEAL_PLAYERS (10)
@@ -507,7 +507,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
     const io = makeIo()
     const socket = makeSocket('user-pl-found')
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-pl-found', locale: 'pl' })
+      .mockResolvedValueOnce({ id: 'user-pl-found', locale: 'pl', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-pl-found', rankPoints: 0 })
 
     const entries = Array.from({ length: 10 }, (_, i) =>
@@ -545,7 +545,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
     const socket = makeSocket('user-ko1')
 
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-ko1', locale: 'ko' })
+      .mockResolvedValueOnce({ id: 'user-ko1', locale: 'ko', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-ko1', rankPoints: 2000 })
 
     const now = Date.now()
@@ -576,7 +576,7 @@ describe('executeMatch — stops window when queue empties after match (lines 15
     const io = makeIo()
     const socket = makeSocket('user-fi1')
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-fi1', locale: 'fi' })
+      .mockResolvedValueOnce({ id: 'user-fi1', locale: 'fi', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-fi1', rankPoints: 0 })
 
     const entries = Array.from({ length: 10 }, (_, i) =>
@@ -621,7 +621,7 @@ describe('tickMatchmakingQueue — stops window when queue is empty (lines 165-1
     const socket = makeSocket('user-nl1')
 
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-nl1', locale: 'nl' })
+      .mockResolvedValueOnce({ id: 'user-nl1', locale: 'nl', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-nl1', rankPoints: 0 })
 
     // Player joins but queue appears empty on the first tick (queue drained)
@@ -651,7 +651,7 @@ describe('tickRankedQueue — stops window when queue is empty (lines 215-217)',
     const socket = makeSocket('user-sv1')
 
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'user-sv1', locale: 'sv' })
+      .mockResolvedValueOnce({ id: 'user-sv1', locale: 'sv', starCoins: 100 })
       .mockResolvedValueOnce({ id: 'user-sv1', rankPoints: 500 })
 
     // After joining, the queue will appear empty on the ranked tick

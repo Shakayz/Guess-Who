@@ -101,6 +101,8 @@ beforeEach(() => {
     fn({ game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
          round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
          gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+         // Star-coin debit loop in startGameForRoom — always succeeds in tests
+         user: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
        }),
   )
 })
@@ -564,6 +566,7 @@ describe('game:start — full start flow', () => {
         game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
         round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
         gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+        user: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       })
     )
 
@@ -933,6 +936,7 @@ describe('game:start — detective role assigned (line 54)', () => {
         game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
         round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
         gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+        user: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       })
     )
 
@@ -984,6 +988,7 @@ describe('game:start — specific wordPack lookup by ID (lines 68-71)', () => {
         game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
         round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
         gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+        user: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       })
     )
 
@@ -1033,6 +1038,7 @@ describe('game:start — double_agent role assigned (line 51)', () => {
         game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
         round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
         gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+        user: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       })
     )
 
@@ -1079,6 +1085,7 @@ describe('game:start — word swap branch (line 83-85)', () => {
         game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
         round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
         gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+        user: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       })
     )
 
@@ -1134,6 +1141,7 @@ describe('game:start — socket ID fallback emit (lines 142-144)', () => {
         game: { create: vi.fn().mockResolvedValue({ id: 'game-1' }) },
         round: { create: vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 }) },
         gameParticipation: { createMany: vi.fn().mockResolvedValue({}) },
+        user: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       })
     )
 

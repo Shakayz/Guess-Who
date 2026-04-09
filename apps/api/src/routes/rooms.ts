@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
 import { generateRoomCode } from '@imposter/shared'
+import { DAILY_COST } from '../services/dailyRewards'
 
 const createRoomSchema = z.object({
   settings: z.object({
@@ -103,6 +104,21 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     const isRanked = settings?.gameMode === 'ranked'
     const rankedMaxPlayers    = 10
     const rankedImposterCount = 3
+
+    // Private lobbies: only the host pays 10 ⭐ at creation. Public (matchmade)
+    // rooms charge every player when the game actually starts — see
+    // startGameForRoom in socket/handlers/room.ts.
+    const isPrivateLobby = settings?.isPrivate === true
+    if (isPrivateLobby) {
+      const debit = await prisma.user.updateMany({
+        where: { id: payload.sub, starCoins: { gte: DAILY_COST } },
+        data:  { starCoins: { decrement: DAILY_COST } },
+      })
+      if (debit.count === 0) {
+        req.log.warn({ userId: payload.sub }, 'lobby creation refused: insufficient stars')
+        return reply.status(402).send({ error: 'INSUFFICIENT_STARS', required: DAILY_COST })
+      }
+    }
 
     const room = await prisma.room.create({
       data: {

@@ -589,11 +589,18 @@ export default function HomePage() {
                   {t('home.creating')}
                 </span>
               ) : (
-                <>
-                  {selectedMode === 'normal' && t('home.findGame')}
-                  {selectedMode === 'ranked' && t('home.findRanked')}
-                  {selectedMode === 'lobby' && t('home.createLobby')}
-                </>
+                <span className="flex flex-col items-center gap-1">
+                  <span>
+                    {selectedMode === 'normal' && t('home.findGame')}
+                    {selectedMode === 'ranked' && t('home.findRanked')}
+                    {selectedMode === 'lobby' && t('home.createLobby')}
+                  </span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-white/70">
+                    {selectedMode === 'lobby'
+                      ? t('home.costHintHost', { cost: 10 })
+                      : t('home.costHint', { cost: 10 })}
+                  </span>
+                </span>
               )}
             </button>
           )}

@@ -210,6 +210,7 @@ describe('Room Lifecycle - Integration Tests', () => {
 
     it('creates a room with custom settings', async () => {
       mockPrismaUser.findUnique.mockResolvedValue({ locale: 'en' })
+      mockPrismaUser.updateMany.mockResolvedValue({ count: 1 })
       mockPrismaRoom.create.mockResolvedValue({
         id: 'room-2',
         code: 'ABC123',
