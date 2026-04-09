@@ -189,12 +189,6 @@ export default function ProfilePage() {
     ? 100
     : Math.min(100, Math.max(0, (xpInLevel / xpForNextLevel) * 100))
 
-  const stats = [
-    { label: t('profile.starCoins'), value: me ? String(me.starCoins) : '—', icon: '⭐' },
-    { label: t('profile.honorPoints'), value: me ? String(me.honorPoints) : '—', icon: '🎖️' },
-    { label: t('profile.rankPoints'), value: me ? String(me.rankPoints) : '—', icon: '📊' },
-  ]
-
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
@@ -204,7 +198,14 @@ export default function ProfilePage() {
           {/* Profile card */}
           <div className="card relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-brand-600/5 via-transparent to-transparent pointer-events-none" />
-            <div className="relative flex items-center gap-4">
+
+            {/* Star coins chip (top-right) */}
+            <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-700/50 bg-amber-950/50 text-amber-300 text-sm font-bold shadow-md shadow-amber-950/40">
+              <span className="text-base leading-none">⭐</span>
+              <span className="font-mono">{isLoading ? '—' : (me?.starCoins ?? 0).toLocaleString()}</span>
+            </div>
+
+            <div className="relative flex items-center gap-4 pr-24">
               {isLoading ? (
                 <div className="w-16 h-16 rounded-full bg-neutral-800 animate-pulse" />
               ) : (
@@ -412,25 +413,18 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Currency & rank stats grid */}
-          <div className="grid grid-cols-3 gap-3 md:gap-4">
-            {stats.map((s) => (
-              <div key={s.label} className="card text-center hover:border-neutral-700 transition-colors">
-                <p className="text-2xl mb-1">{s.icon}</p>
-                {isLoading ? (
-                  <div className="h-6 w-10 bg-neutral-800 rounded animate-pulse mx-auto my-1" />
-                ) : (
-                  <p className="text-xl font-bold text-white">{s.value}</p>
-                )}
-                <p className="text-xs text-neutral-500">{s.label}</p>
-              </div>
-            ))}
-          </div>
-
           {/* Stats & Honors — tabbed by mode */}
           {(() => {
             const isRanked = statsTab === 'ranked'
-            const activeStats  = isRanked ? profileStats?.statsRanked  : profileStats?.statsUnranked
+            // Prefer the split buckets (statsRanked / statsUnranked), but fall
+            // back to the aggregated `stats` field if the API hasn't been
+            // updated yet — this prevents the skeleton from hanging forever
+            // against a stale backend. For ranked, the fallback stays empty so
+            // we don't misreport unranked games as ranked.
+            const fallbackStats = profileStats?.stats
+            const activeStats  = isRanked
+              ? (profileStats?.statsRanked ?? null)
+              : (profileStats?.statsUnranked ?? fallbackStats ?? null)
             const activeHonors = isRanked ? profileStats?.honorsRanked : profileStats?.honorsUnranked
             const countByType = new Map((activeHonors ?? []).map((h) => [h.type, h.count]))
 
@@ -467,7 +461,7 @@ export default function ProfilePage() {
                   <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
                     {t('profile.gamesPlayed', { defaultValue: 'Games' })}
                   </p>
-                  {isLoading || !activeStats ? (
+                  {isLoading && !profileStats ? (
                     <div className="grid grid-cols-3 gap-3">
                       {Array.from({ length: 6 }).map((_, i) => (
                         <div key={i} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60">
@@ -476,7 +470,7 @@ export default function ProfilePage() {
                         </div>
                       ))}
                     </div>
-                  ) : activeStats.totalGames === 0 ? (
+                  ) : !activeStats || activeStats.totalGames === 0 ? (
                     <p className="text-xs text-neutral-500 text-center py-4">
                       {isRanked
                         ? t('profile.noRankedGames',   { defaultValue: 'No ranked games played yet.' })
