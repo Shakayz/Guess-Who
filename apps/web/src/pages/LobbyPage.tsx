@@ -639,6 +639,14 @@ export default function LobbyPage() {
   const [copied, setCopied] = useState(false)
 
   const handleSettingsChange = (s: Settings) => {
+    // TEMP DEBUG: trace every settings change so we can see mayor/judge/revenant flow
+    // eslint-disable-next-line no-console
+    console.log('[lobby] settings change →', {
+      mayor: s.mayorCount, judge: s.judgeCount, revenant: s.revenantCount,
+      detective: s.detectiveCount, guardian: s.guardianCount,
+      imposter: s.imposterCount, doubleAgent: s.doubleAgentCount,
+      maxPlayers: s.maxPlayers, gameMode: s.gameMode,
+    })
     setSettings(s)
     getSocket().emit('room:settings' as any, {
       gameMode: s.gameMode,
@@ -688,6 +696,16 @@ export default function LobbyPage() {
     }
 
     socket.on('room:updated', (r) => {
+      // TEMP DEBUG: trace every room:updated payload from the server
+      // eslint-disable-next-line no-console
+      console.log('[lobby] room:updated ←', {
+        mayor: (r.settings as any)?.mayorCount,
+        judge: (r.settings as any)?.judgeCount,
+        revenant: (r.settings as any)?.revenantCount,
+        detective: (r.settings as any)?.detectiveCount,
+        imposter: r.settings?.imposterCount,
+        gameMode: (r.settings as any)?.gameMode,
+      })
       // If the game already started (e.g. we missed game:started), navigate immediately
       if ((r as any).status === 'in_progress' || (r as any).status === 'voting') {
         log.info('room already in progress, navigating to game', { code })
