@@ -118,13 +118,14 @@ jobs:
       - name: Deploy to VM
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           ALLOWED_ORIGINS: https://app.aghazzaf.com
           ECR_PW: ${{ steps.ecr.outputs.pw }}
         run: |
           ssh -i ~/.ssh/deploy ubuntu@${{ env.VM_HOST }} \
             "cd /opt/imposter \
              && sudo touch .env && sudo chmod 600 .env \
-             && for kv in 'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}' 'ALLOWED_ORIGINS=${ALLOWED_ORIGINS}'; do \
+             && for kv in 'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}' 'GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}' 'ALLOWED_ORIGINS=${ALLOWED_ORIGINS}'; do \
                   key=\${kv%%=*}; \
                   if sudo grep -q \"^\${key}=\" .env; then \
                     sudo sed -i \"s|^\${key}=.*|\${kv}|\" .env; \
