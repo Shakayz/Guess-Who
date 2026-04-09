@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
 import { xpProgressInLevel } from '@imposter/shared'
+import { evaluateEvent } from '../services/achievements'
 import bcrypt from 'bcryptjs'
 
 const patchMeSchema = z.object({
@@ -64,6 +65,8 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     })
 
     req.log.info({ userId, mimetype: data.mimetype, bytes: buffer.byteLength }, 'avatar uploaded')
+    // Fire avatar_changed achievement event
+    await evaluateEvent((fastify as any).io ?? null, 'avatar_changed', { userId }).catch(() => {})
     return reply.send(updated)
   })
 
@@ -150,7 +153,40 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       select: { id: true, username: true, avatarUrl: true },
       take: 10,
     })
-    return reply.send({ users })
+
+    // Annotate each result with the current user's friendship status so the
+    // client can render the correct action (Add / Pending / Accept / Friend)
+    // without first clicking and getting a misleading error.
+    let friendships: { id: string; requesterId: string; addresseeId: string; status: string }[] = []
+    if (users.length > 0) {
+      const otherIds = users.map((u) => u.id)
+      friendships = await prisma.friendship.findMany({
+        where: {
+          OR: [
+            { requesterId: userId, addresseeId: { in: otherIds } },
+            { requesterId: { in: otherIds }, addresseeId: userId },
+          ],
+        },
+        select: { id: true, requesterId: true, addresseeId: true, status: true },
+      })
+    }
+
+    const byOtherId = new Map<string, { id: string; status: 'accepted' | 'pending_outgoing' | 'pending_incoming' }>()
+    for (const f of friendships) {
+      const otherId = f.requesterId === userId ? f.addresseeId : f.requesterId
+      let status: 'accepted' | 'pending_outgoing' | 'pending_incoming'
+      if (f.status === 'accepted') status = 'accepted'
+      else if (f.requesterId === userId) status = 'pending_outgoing'
+      else status = 'pending_incoming'
+      byOtherId.set(otherId, { id: f.id, status })
+    }
+
+    const result = users.map((u) => ({
+      ...u,
+      friendship: byOtherId.get(u.id) ?? null,
+    }))
+
+    return reply.send({ users: result })
   })
 
   fastify.get('/:id', async (req, reply) => {

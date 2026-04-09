@@ -10,6 +10,7 @@ import { registerGameHandlers } from './handlers/game'
 import { registerChatHandlers } from './handlers/chat'
 import { registerMatchmakingHandlers, cleanupEmptyQueue } from './handlers/matchmaking'
 import { sendPushNotification } from '../services/push'
+import { evaluateEvent } from '../services/achievements'
 
 const log = childLogger('socket')
 
@@ -107,6 +108,8 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         }
         // Confirm to sender
         socket.emit('dm:receive' as any, payload)
+        // Fire dm_sent achievement event
+        await evaluateEvent(io, 'dm_sent', { userId: socket.data.userId, otherUserId: data.toUserId }).catch(() => {})
       } catch {}
     })
 
@@ -338,6 +341,11 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
             honorType: data.honorType,
           })
         }
+        // Fire achievement events for sender (honor_given) + receiver (honor_received)
+        await Promise.all([
+          evaluateEvent(io, 'honor_given',    { userId,               otherUserId: data.targetUserId }),
+          evaluateEvent(io, 'honor_received', { userId: data.targetUserId, otherUserId: userId }),
+        ]).catch(() => {})
       } catch (err) {
         log.error({ err, userId }, 'honor:give error')
       }

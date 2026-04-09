@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { AchievementSummaryChip } from '../components/achievements/AchievementSummaryChip'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../store/auth'
@@ -31,16 +32,6 @@ interface MeResponse {
   xpInLevel?: number
   xpForNextLevel?: number
   hasPlayedRanked?: boolean
-}
-
-interface AchievementItem {
-  id: string
-  key: string
-  name: string
-  description: string
-  icon: string
-  unlocked: boolean
-  unlockedAt: string | null
 }
 
 interface UserStats {
@@ -97,16 +88,11 @@ export default function ProfilePage() {
   const [usernameInput, setUsernameInput] = useState('')
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const [statsTab, setStatsTab] = useState<'unranked' | 'ranked'>('unranked')
+  const navigate = useNavigate()
 
   const { data: me, isLoading } = useQuery<MeResponse>({
     queryKey: ['me'],
     queryFn: () => api.get('/auth/me'),
-    retry: false,
-  })
-
-  const { data: achievements, isLoading: achievementsLoading } = useQuery<AchievementItem[]>({
-    queryKey: ['achievements'],
-    queryFn: () => api.get('/achievements'),
     retry: false,
   })
 
@@ -539,58 +525,8 @@ export default function ProfilePage() {
             )
           })()}
 
-          {/* Achievements */}
-          <div className="card">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
-              {t('profile.achievements')}{achievements ? ` (${achievements.filter((a) => a.unlocked).length}/${achievements.length})` : ''}
-            </p>
-            {achievementsLoading ? (
-              <div className="grid grid-cols-2 gap-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60">
-                    <div className="w-10 h-10 rounded-xl bg-neutral-700 animate-pulse flex-shrink-0" />
-                    <div className="flex-1 space-y-1">
-                      <div className="h-4 w-24 bg-neutral-700 rounded animate-pulse" />
-                      <div className="h-3 w-32 bg-neutral-700 rounded animate-pulse" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : !achievements || achievements.length === 0 ? (
-              <div className="flex flex-col items-center py-6 text-center">
-                <span className="text-4xl mb-2">🏅</span>
-                <p className="text-white font-semibold text-sm">{t('profile.noAchievements')}</p>
-                <p className="text-neutral-500 text-xs mt-1">{t('profile.playToUnlock')}</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {achievements.map((a) => (
-                  <div
-                    key={a.id}
-                    className={[
-                      'flex items-center gap-3 p-3 rounded-xl border transition-colors',
-                      a.unlocked
-                        ? 'bg-brand-950/40 border-brand-800/40'
-                        : 'bg-neutral-800/40 border-neutral-700/40 opacity-50',
-                    ].join(' ')}
-                  >
-                    <div className={[
-                      'w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0',
-                      a.unlocked ? 'bg-brand-800/40' : 'bg-neutral-700/60',
-                    ].join(' ')}>
-                      {a.unlocked ? a.icon : '🔒'}
-                    </div>
-                    <div className="min-w-0">
-                      <p className={['text-sm font-semibold truncate', a.unlocked ? 'text-white' : 'text-neutral-500'].join(' ')}>
-                        {a.name}
-                      </p>
-                      <p className="text-[10px] text-neutral-500 leading-tight line-clamp-2">{a.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Achievements — compact summary chip; full grid lives on /achievements */}
+          <AchievementSummaryChip onOpen={() => navigate('/achievements')} />
 
           {/* Recent games */}
           {(profileStats?.recentGames?.length ?? 0) > 0 && (

@@ -30,6 +30,8 @@ model User {
   emailVerificationCode    String?   @db.VarChar(6)
   emailVerificationExpires DateTime?
   pushToken     String?
+  lastPlayedAt     DateTime?
+  dailyStreakCount Int       @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -248,7 +250,7 @@ model Achievement {
   description String
   icon        String
   category    String   @default("general") @db.VarChar(30)  // gameplay, social, ranked, imposter, detective, milestones, secret
-  difficulty  String   @default("bronze") @db.VarChar(15)    // bronze, silver, gold, platinum, diamond
+  difficulty  String   @default("bronze") @db.VarChar(15)    // bronze, silver, gold, platinum, diamond, mythic
   xpReward    Int      @default(10)
   coinReward  Int      @default(0)
   isSecret    Boolean  @default(false)
@@ -262,15 +264,17 @@ model Achievement {
 }
 
 model UserAchievement {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
   achievementId String
-  unlockedAt    DateTime @default(now())
+  unlockedAt    DateTime  @default(now())
+  claimedAt     DateTime?
 
   user        User        @relation(fields: [userId],        references: [id])
   achievement Achievement @relation(fields: [achievementId], references: [id])
 
   @@unique([userId, achievementId])
+  @@index([userId, claimedAt])
   @@map("user_achievements")
 }
 

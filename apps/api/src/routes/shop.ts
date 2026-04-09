@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
+import { evaluateEvent } from '../services/achievements'
 // import { GOLD_COIN_PACKS } from '@imposter/shared'  // TODO: re-enable when premium is ready
 // import { env } from '../config/env'                  // TODO: re-enable when premium is ready
 
@@ -48,6 +49,12 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
       }),
     ])
     req.log.info({ userId: payload.sub, cosmeticId: id, price: cosmetic.price }, 'cosmetic purchased')
+    // Fire shop_purchase achievement event
+    await evaluateEvent((fastify as any).io ?? null, 'shop_purchase', {
+      userId: payload.sub,
+      cosmeticId: id,
+      pricePaid: cosmetic.price,
+    }).catch(() => {})
     return reply.send({ success: true })
   })
 

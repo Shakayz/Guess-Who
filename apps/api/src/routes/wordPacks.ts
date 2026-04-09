@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../config/prisma'
+import { evaluateEvent } from '../services/achievements'
 
 const createPackSchema = z.object({
   name:        z.string().min(1).max(60),
@@ -80,6 +81,8 @@ export const wordPacksRoutes: FastifyPluginAsync = async (fastify) => {
     })
 
     req.log.info({ userId, packId: pack.id, name: pack.name }, 'word pack created')
+    // Fire word_pack_created achievement event
+    await evaluateEvent((fastify as any).io ?? null, 'word_pack_created', { userId }).catch(() => {})
     return reply.status(201).send(pack)
   })
 

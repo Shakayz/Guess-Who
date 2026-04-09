@@ -11,6 +11,15 @@ interface PendingFriendRequest {
   fromUsername: string
 }
 
+export interface AchievementToast {
+  id: string
+  key: string
+  name: string
+  icon: string
+  difficulty: string
+  starsReward: number
+}
+
 interface SocialStore {
   activeDm: ActiveDm | null
   setActiveDm: (dm: ActiveDm | null) => void
@@ -21,6 +30,9 @@ interface SocialStore {
   setPendingInvite: (invite: { fromUsername: string; roomCode: string } | null) => void
   pendingFriendRequest: PendingFriendRequest | null
   setPendingFriendRequest: (req: PendingFriendRequest | null) => void
+  achievementToasts: AchievementToast[]
+  pushAchievementToast: (data: Omit<AchievementToast, 'id'>) => void
+  dismissAchievementToast: (id: string) => void
 }
 
 export const useSocialStore = create<SocialStore>((set) => ({
@@ -43,4 +55,16 @@ export const useSocialStore = create<SocialStore>((set) => ({
   setPendingInvite: (invite) => set({ pendingInvite: invite }),
   pendingFriendRequest: null,
   setPendingFriendRequest: (req) => set({ pendingFriendRequest: req }),
+  achievementToasts: [],
+  pushAchievementToast: (data) =>
+    set((s) => ({
+      achievementToasts: [
+        ...s.achievementToasts,
+        { ...data, id: `${data.key}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` },
+      ],
+    })),
+  dismissAchievementToast: (id) =>
+    set((s) => ({
+      achievementToasts: s.achievementToasts.filter((t) => t.id !== id),
+    })),
 }))

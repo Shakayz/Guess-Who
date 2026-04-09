@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { prisma } from '../config/prisma'
 import { sendPushNotification } from '../services/push'
+import { evaluateEvent } from '../services/achievements'
 
 export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
 
@@ -39,6 +40,25 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
       requests: requests.map((r) => ({
         friendshipId: r.id,
         from: r.requester,
+        createdAt: r.createdAt,
+      })),
+    })
+  })
+
+  // GET /api/friends/requests/outgoing — pending requests the current user sent
+  fastify.get('/requests/outgoing', { preHandler: [fastify.authenticate] }, async (req, reply) => {
+    const userId = req.user.sub
+    const requests = await prisma.friendship.findMany({
+      where: { requesterId: userId, status: 'pending' },
+      include: {
+        addressee: { select: { id: true, username: true, avatarUrl: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    return reply.send({
+      requests: requests.map((r) => ({
+        friendshipId: r.id,
+        to: r.addressee,
         createdAt: r.createdAt,
       })),
     })
@@ -132,6 +152,13 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
         { type: 'friend_accepted', friendshipId: id },
       ).catch((err) => req.log.error({ err }, 'push: friend accepted notification error'))
     }
+
+    // Fire friend_added achievement event for BOTH sides of the new friendship.
+    const io = (fastify as any).io ?? null
+    await Promise.all([
+      evaluateEvent(io, 'friend_added', { userId, otherUserId: f.requesterId }),
+      evaluateEvent(io, 'friend_added', { userId: f.requesterId, otherUserId: userId }),
+    ]).catch(() => {})
 
     return reply.send({ friendship: { id: updated.id, status: updated.status } })
   })

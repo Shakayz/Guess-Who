@@ -12,19 +12,60 @@ import {
   LP_REWARDS,
   XP_REWARDS,
   LEVEL_CAP,
-  LEVEL_MILESTONES,
   levelFromXp,
   xpProgressInLevel,
 } from '@imposter/shared'
+import { evaluateEvent } from '../services/achievements'
 
 /** Final winner label used across all end-game branches. */
 type Winner = 'villagers' | 'imposters' | 'jester' | 'evil_twins' | 'draw'
+
+/**
+ * Server-side mirror of the `didWin` computation in ResultsPage.tsx:308. Used
+ * to credit role-aware star rewards when a game ends. The evil-twins override
+ * is important: a surviving twin whose partner died loses individually even
+ * if their natural team won the round.
+ */
+function didPlayerWin(player: any, winner: Winner, allPlayers: any[]): boolean {
+  if (winner === 'draw') return false
+  const role = player.role
+  const isImposterSide = isImposterSideRole(role)
+  const isVillagerSide = isVillagerSideRole(role)
+  const isJester = isJesterRole(role)
+  const isTwin = isTwinRole(role)
+
+  // Twin whose partner died loses individually.
+  let twinPartnerDead = false
+  if (isTwin && player.twinPartnerUserId) {
+    const partner = allPlayers.find((p) => p.userId === player.twinPartnerUserId)
+    twinPartnerDead = !!partner && partner.status !== 'alive'
+  }
+
+  return (
+    (winner === 'villagers'  && isVillagerSide && !twinPartnerDead) ||
+    (winner === 'imposters'  && isImposterSide && !twinPartnerDead) ||
+    (winner === 'jester'     && isJester) ||
+    (winner === 'evil_twins' && isTwin)
+  )
+}
+
+/** Role/winner-aware base star reward. Losers get a small consolation. */
+function starCoinsForPlayer(winner: Winner, didWin: boolean): number {
+  if (winner === 'draw') return 20
+  if (!didWin) return 10
+  if (winner === 'villagers')  return 50
+  if (winner === 'imposters')  return 80
+  if (winner === 'jester')     return 60
+  if (winner === 'evil_twins') return 90
+  return 10
+}
 import type { RankTier } from '@imposter/shared'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
 import { childLogger } from '../config/logger'
 import { onlineUsers } from './onlineUsers'
 import { sendPushNotifications, sendPushNotification } from '../services/push'
+import { applyGameEndRewards, DAILY_COST } from '../services/dailyRewards'
 
 const logger = childLogger('game-loop')
 
@@ -268,6 +309,8 @@ async function applyRankedLP(
       if (tierChanged) {
         const socketId = onlineUsers.get(player.userId)
         if (socketId) io.to(socketId).emit('rank:updated' as any, { oldTier, newTier, newLP, promoted })
+        // Fire rank_changed for tier-reached achievements
+        await evaluateEvent(io, 'rank_changed', { userId: player.userId, newTier })
       }
     })
   )
@@ -300,13 +343,6 @@ async function applyXpAndLevel(
     select: { id: true, xp: true, level: true, hasPlayedRanked: true },
   })
   const userMap = new Map(users.map((u) => [u.id, u]))
-
-  // Pre-fetch level-milestone achievement IDs once for batch unlocks
-  const milestoneKeys = LEVEL_MILESTONES.map((n) => `reach_level_${n}`)
-  const milestoneAchs = await prisma.achievement
-    .findMany({ where: { key: { in: milestoneKeys } }, select: { id: true, key: true } })
-    .catch(() => [] as { id: string; key: string }[])
-  const achByKey = new Map(milestoneAchs.map((a) => [a.key, a.id]))
 
   await Promise.allSettled(
     players.map(async (player: any) => {
@@ -370,25 +406,10 @@ async function applyXpAndLevel(
         })
       }
 
-      // Unlock level-milestone achievements crossed by this game
+      // Fire level_up event so the achievement evaluator can unlock any
+      // level_N thresholds the player just crossed.
       if (promoted) {
-        const crossed = LEVEL_MILESTONES.filter((m) => m > oldLevel && m <= newLevel)
-        for (const milestone of crossed) {
-          const achId = achByKey.get(`reach_level_${milestone}`)
-          if (!achId) continue
-          await prisma.userAchievement
-            .upsert({
-              where:  { userId_achievementId: { userId: user.id, achievementId: achId } },
-              create: { userId: user.id, achievementId: achId },
-              update: {},
-            })
-            .catch(() => {})
-          if (socketId) {
-            io.to(socketId).emit('achievement:unlocked' as any, {
-              key: `reach_level_${milestone}`,
-            })
-          }
-        }
+        await evaluateEvent(io, 'level_up', { userId: user.id, newLevel })
       }
     })
   )
@@ -415,6 +436,15 @@ async function finishGameWithWinner(
 
   state.status = 'finished'
   await saveState(roomId, state)
+  // Snapshot the room row so we can know who paid for entry:
+  // - matchmade / public rooms: every player paid 10 ⭐ at startGameForRoom
+  // - private lobby: the host paid 10 ⭐ at lobby creation, joiners played free
+  const roomRow = await prisma.room.findUnique({
+    where: { id: roomId },
+    select: { isPrivate: true, hostId: true },
+  }).catch(() => null)
+  const roomIsPrivate = roomRow?.isPrivate ?? false
+  const roomHostId = roomRow?.hostId ?? null
   await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
 
   const finishedGame = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
@@ -450,9 +480,33 @@ async function finishGameWithWinner(
     io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
   }
 
-  // Achievement triggers — skipped on draw (no winning team)
-  if (winner !== 'draw') {
-    await checkAndUnlockAchievements(io, roomId, winner, state, finishedGame?.id ?? null)
+  // Achievement triggers — dispatched per-participant through the modular
+  // evaluator registry. We fire even on draw so game-count progressions tick.
+  try {
+    const gameMode = (state.gameMode === 'ranked' ? 'ranked' :
+                      state.gameMode === 'special' ? 'special' : 'normal') as 'normal' | 'special' | 'ranked'
+    const playerCount = state.players.length
+    const language = state.language ?? 'en'
+    for (const p of state.players as any[]) {
+      const role = p.role ?? ''
+      const isImposter = isImposterSideRole(role)
+      const isWinner = didPlayerWin(p, winner, state.players)
+      const survived = p.status === 'alive'
+      await evaluateEvent(io, 'game_end', {
+        userId: p.userId,
+        gameId: finishedGame?.id ?? null,
+        role,
+        survived,
+        isWinner,
+        isImposter,
+        winner,
+        gameMode,
+        playerCount,
+        language,
+      })
+    }
+  } catch (err) {
+    logger.error({ err }, '[achievements] evaluateEvent(game_end) failed')
   }
 
   const isRanked = state.gameMode === 'ranked'
@@ -473,22 +527,96 @@ async function finishGameWithWinner(
     ? (winner === 'villagers' ? LP_REWARDS.VILLAGER_WIN : LP_REWARDS.VILLAGER_LOSS)
     : 0
 
-  const starCoinsEarned =
-    winner === 'villagers'  ? 50 :
-    winner === 'imposters'  ? 80 :
-    winner === 'jester'     ? 60 :
-    winner === 'evil_twins' ? 90 :
-    20 // draw
   const xpEarned = winner === 'draw' ? 60 : 120
 
-  const rewards = { starCoinsEarned, xpEarned, lpChange, achievements: [] }
+  // ── Per-player star credits ────────────────────────────────────────────────
+  // Each player gets a role-aware base reward plus their individual daily /
+  // streak bonus. Credits are atomic per player via applyGameEndRewards; if a
+  // credit fails we still emit game:finished with zeroed bonuses so the UI
+  // doesn't hang.
+  const perPlayerRewards = new Map<
+    string,
+    { base: number; daily: number; streak: number; newStreakCount: number }
+  >()
+  for (const p of state.players) {
+    const didWin = didPlayerWin(p, winner, state.players)
+    const base = starCoinsForPlayer(winner, didWin)
+    const applied = await applyGameEndRewards(p.userId, base)
+    perPlayerRewards.set(p.userId, {
+      base: applied.baseStarCoinsEarned,
+      daily: applied.dailyBonusEarned,
+      streak: applied.streakBonusEarned,
+      newStreakCount: applied.newStreakCount,
+    })
+    // Fire daily_login achievement event if the streak actually ticked forward.
+    if (applied.dailyBonusEarned > 0) {
+      await evaluateEvent(io, 'daily_login', {
+        userId: p.userId,
+        newStreakCount: applied.newStreakCount,
+      }).catch(() => {})
+    }
+  }
+
+  // Resolve what each player actually paid for this game, so the Results
+  // screen can display the full net breakdown (base reward, bonuses, and
+  // the entry fee that was debited at start / lobby creation).
+  const costForPlayer = (userId: string): number => {
+    if (roomIsPrivate) {
+      // Private lobby: host paid 10 ⭐ at POST /rooms, joiners played free.
+      return userId === roomHostId ? DAILY_COST : 0
+    }
+    // Matchmade / public: everyone paid 10 ⭐ at startGameForRoom.
+    return DAILY_COST
+  }
 
   setTimeout(async () => { try {
-    io.to(`room:${roomId}`).emit('game:finished', {
-      winner: winner as any,
-      finalRound: roundPayload as any,
-      rewards,
-    })
+    // Emit per-socket so each player sees their own bonus breakdown.
+    let emittedToSomeone = false
+    for (const p of state.players) {
+      const sid = onlineUsers.get(p.userId)
+      if (!sid) continue
+      emittedToSomeone = true
+      const r = perPlayerRewards.get(p.userId)
+      const rewards = {
+        starCoinsEarned: r?.base ?? 0,
+        xpEarned,
+        lpChange,
+        achievements: [] as any[],
+        dailyBonusEarned: r?.daily ?? 0,
+        streakBonusEarned: r?.streak ?? 0,
+        newStreakCount: r?.newStreakCount ?? 0,
+        gameCostPaid: costForPlayer(p.userId),
+      }
+      io.to(sid).emit('game:finished', {
+        winner: winner as any,
+        finalRound: roundPayload as any,
+        rewards,
+      })
+    }
+    // Fallback: if nobody was online for a per-socket emit (everyone
+    // disconnected, or socket mapping stale), broadcast to the room so
+    // anyone still listening — or anyone who reconnects in time — gets the
+    // result. The broadcast uses the first player's bonus breakdown as a
+    // representative payload.
+    if (!emittedToSomeone) {
+      const firstPlayer = state.players[0]
+      const r = firstPlayer ? perPlayerRewards.get(firstPlayer.userId) : undefined
+      const fallbackRewards = {
+        starCoinsEarned: r?.base ?? 0,
+        xpEarned,
+        lpChange,
+        achievements: [] as any[],
+        dailyBonusEarned: r?.daily ?? 0,
+        streakBonusEarned: r?.streak ?? 0,
+        newStreakCount: r?.newStreakCount ?? 0,
+        gameCostPaid: firstPlayer ? costForPlayer(firstPlayer.userId) : 0,
+      }
+      io.to(`room:${roomId}`).emit('game:finished', {
+        winner: winner as any,
+        finalRound: roundPayload as any,
+        rewards: fallbackRewards,
+      })
+    }
     await resetRoomAfterGame(roomId, state)
   } catch (err) { logger.error({ err }, '[finishGameWithWinner] emit error') } }, 3000)
 }
@@ -1641,128 +1769,6 @@ async function _forfeitEndGame(
 }
 
 // ─── Achievement auto-triggers ────────────────────────────────────────────────
-
-async function checkAndUnlockAchievements(
-  io: IO,
-  roomId: string,
-  winner: string,
-  state: any,
-  gameId: string | null,
-) {
-  try {
-    const achievements = await prisma.achievement.findMany()
-    const achMap = new Map(achievements.map((a) => [a.key, a.id]))
-
-    const participants = gameId
-      ? await prisma.gameParticipation.findMany({ where: { gameId } })
-      : []
-
-    // onlineUsers map (userId → socketId) used for direct delivery below
-
-    for (const p of participants) {
-      const userId = p.userId
-      const role = p.role as any
-      // Twin loss override: a surviving twin whose partner died does NOT win
-      // with their natural team — the pair failed the twin co-win condition.
-      // For achievement purposes we look at the live state players list.
-      const isTwin = isTwinRole(role)
-      const twinPair = isTwin
-        ? (state.players as any[]).find((pl: any) => pl.userId === p.userId)
-        : null
-      const twinPartner = twinPair
-        ? (state.players as any[]).find((pl: any) => pl.userId === twinPair.twinPartnerUserId)
-        : null
-      const twinPairIntact = !!(twinPair && twinPair.status === 'alive' && twinPartner && twinPartner.status === 'alive')
-
-      const isWinner =
-        (winner === 'villagers' && isVillagerSideRole(role) && !(isTwin && !twinPairIntact && twinPair?.status === 'alive')) ||
-        (winner === 'imposters' && isImposterSideRole(role) && !(isTwin && !twinPairIntact && twinPair?.status === 'alive')) ||
-        (winner === 'jester'    && isJesterRole(role)) ||
-        (winner === 'evil_twins' && isTwin)
-      const isImposter = isImposterSideRole(role)
-      const survived = p.survived
-
-      // Gather stats for this user. Role/winnerTeam pairs cover all 14 roles.
-      const VILLAGER_WIN_PAIRS = ['villager','detective','guardian','mayor','judge','revenant','twin_villager']
-        .map((r) => ({ role: r, game: { winnerTeam: 'villagers' } }))
-      const IMPOSTER_WIN_PAIRS = ['imposter','double_agent','infiltrator','kamikaze','corruptor','inverter','twin_imposter']
-        .map((r) => ({ role: r, game: { winnerTeam: 'imposters' } }))
-      const EVIL_TWINS_WIN_PAIRS = ['twin_villager','twin_imposter']
-        .map((r) => ({ role: r, game: { winnerTeam: 'evil_twins' } }))
-      const [totalWins, imposterWins, totalGames, friends] = await Promise.all([
-        prisma.gameParticipation.count({ where: { userId, game: { winnerTeam: { not: null } },
-          OR: [
-            ...VILLAGER_WIN_PAIRS,
-            ...IMPOSTER_WIN_PAIRS,
-            ...EVIL_TWINS_WIN_PAIRS,
-            { role: 'jester', game: { winnerTeam: 'jester' } },
-          ] } }),
-        prisma.gameParticipation.count({ where: { userId, OR: IMPOSTER_WIN_PAIRS } }),
-        prisma.gameParticipation.count({ where: { userId } }),
-        prisma.friendship.count({ where: { OR: [{ requesterId: userId }, { addresseeId: userId }], status: 'accepted' } }),
-      ]).catch(() => [0, 0, 0, 0] as [number, number, number, number])
-
-      const toUnlock: string[] = []
-
-      if (isWinner && totalWins === 1) toUnlock.push('first_win')
-      if (isImposter && isWinner && imposterWins === 1) toUnlock.push('first_imposter')
-      if (isImposter && isWinner && survived) toUnlock.push('perfect_imposter')
-      if (totalWins >= 10) toUnlock.push('ten_wins')
-      if (imposterWins >= 10) toUnlock.push('imposter_x10')
-      if (survived && isWinner) toUnlock.push('survivor')
-      if (friends >= 5) toUnlock.push('social_butterfly')
-
-      // Check correct_voter: batch query instead of N+1
-      if (gameId) {
-        const rounds = await prisma.round.findMany({
-          where: { gameId, eliminatedId: { not: null } },
-          select: { id: true, eliminatedId: true },
-        })
-        // Find rounds where an imposter-side player was eliminated
-        const imposterRoundIds = rounds
-          .filter((r) => {
-            const eliminated = participants.find((pp) => pp.userId === r.eliminatedId)
-            return isImposterSideRole(eliminated?.role as any)
-          })
-          .map((r) => ({ roundId: r.id, targetId: r.eliminatedId! }))
-
-        if (imposterRoundIds.length > 0) {
-          // Single query: did this player vote for any eliminated imposter?
-          const correctVote = await prisma.roundVote.findFirst({
-            where: {
-              voterId: userId,
-              OR: imposterRoundIds.map((ir) => ({
-                roundId: ir.roundId,
-                targetId: ir.targetId,
-              })),
-            },
-          })
-          if (correctVote) toUnlock.push('correct_voter')
-        }
-      }
-
-      // Unlock and notify
-      // Batch-check already unlocked for this user
-      const alreadyUnlocked = new Set(
-        (await prisma.userAchievement.findMany({
-          where: { userId, achievementId: { in: toUnlock.map((k) => achMap.get(k)!).filter(Boolean) } },
-          select: { achievementId: true },
-        })).map((ua) => ua.achievementId)
-      )
-
-      for (const key of toUnlock) {
-        const achId = achMap.get(key)
-        if (!achId) continue
-        if (alreadyUnlocked.has(achId)) continue
-        await prisma.userAchievement.create({ data: { userId, achievementId: achId } }).catch(() => {})
-        const ach = achievements.find((a) => a.key === key)
-        if (ach) {
-          const socketId = onlineUsers.get(userId)
-          if (socketId) io.to(socketId).emit('achievement:unlocked' as any, { key: ach.key, name: ach.name, icon: ach.icon })
-        }
-      }
-    }
-  } catch (err) {
-    logger.error({ err }, '[achievements] error')
-  }
-}
+// Replaced in favour of the modular evaluator registry in
+// ../services/achievements. Game-end unlocks are now dispatched from
+// finishGameWithWinner() via evaluateEvent('game_end', ctx).

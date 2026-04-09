@@ -218,6 +218,7 @@ export interface ServerToClientEvents {
   'round:ended': (data: { round: Round; nextRound?: Round }) => void
   'round:word-said': (data: { playerId: string; username: string; clueText: string; role: PlayerRole }) => void
   'game:finished': (data: { winner: 'villagers' | 'imposters' | 'draw' | 'jester' | 'evil_twins'; finalRound: Round; rewards: RewardSummary }) => void
+  'game:start:failed': (data: { reason: 'INSUFFICIENT_STARS'; userId: string; required: number }) => void
   'mayor:double-ack': (data: { userId: string }) => void
   'inverter:activate-ack': (data: { userId: string }) => void
   'corruptor:target-ack': (data: { targetUserId: string; targetUsername: string }) => void
@@ -235,6 +236,7 @@ export interface ServerToClientEvents {
   'player:left': (playerId: string) => void
   'player:ready': (data: { playerId: string; isReady: boolean }) => void
   'chat:message': (message: ChatMessage) => void
+  'achievement:unlocked': (data: { key: string; name: string; icon: string; difficulty: string; category: string; starsReward: number; xpReward: number }) => void
   error: (data: { code: string; message: string }) => void
 }
 
@@ -288,6 +290,19 @@ export interface RewardSummary {
   xpEarned: number
   lpChange: number
   achievements: Achievement[]
+  /** +20 star bonus for the first online game finished today (UTC). */
+  dailyBonusEarned?: number
+  /** +100 star bonus given every 7 consecutive days played. */
+  streakBonusEarned?: number
+  /** Rolling consecutive-day counter used for the "Day N/7" chip. */
+  newStreakCount?: number
+  /**
+   * Entry fee the player actually paid to play this game (in stars).
+   * 10 for matchmade/public games, 10 for private-lobby hosts (charged at
+   * lobby creation), 0 for private-lobby joiners and offline games. Surfaced
+   * so the Results screen can show the full net breakdown.
+   */
+  gameCostPaid?: number
 }
 
 export interface Achievement {

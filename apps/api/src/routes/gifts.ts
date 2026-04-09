@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import { onlineUsers } from '../socket'
+import { evaluateEvent } from '../services/achievements'
 
 const sendGiftSchema = z.object({
   receiverUsername: z.string().min(1),
@@ -93,6 +94,12 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
         message: gift.message,
       })
     }
+
+    // Fire gift_sent / gift_received achievement events
+    await Promise.all([
+      evaluateEvent(io ?? null, 'gift_sent',     { userId: senderId,    otherUserId: receiver.id }),
+      evaluateEvent(io ?? null, 'gift_received', { userId: receiver.id, otherUserId: senderId }),
+    ]).catch(() => {})
 
     return reply.send({ success: true, gift })
   })

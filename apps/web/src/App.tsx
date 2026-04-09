@@ -9,6 +9,7 @@ import { getSocket, connectSocket, disconnectSocket } from './lib/socket'
 import { api } from './lib/api'
 import { BottomNav } from './components/BottomNav'
 import { ConnectionStatus } from './components/ConnectionStatus'
+import { AchievementToastBanner } from './components/achievements/AchievementToastBanner'
 import { createLogger } from './lib/logger'
 import { lazyWithRetry } from './lib/lazyWithRetry'
 
@@ -35,6 +36,7 @@ const PlayerProfilePage   = lazyWithRetry(() => import('./pages/PlayerProfilePag
 const OfflinePage         = lazyWithRetry(() => import('./pages/OfflinePage'))
 const HowToPlayPage       = lazyWithRetry(() => import('./pages/HowToPlayPage'))
 const SettingsPage        = lazyWithRetry(() => import('./pages/SettingsPage'))
+const AchievementsPage    = lazyWithRetry(() => import('./pages/AchievementsPage'))
 const TermsPage           = lazyWithRetry(() => import('./pages/TermsPage'))
 const PrivacyPage         = lazyWithRetry(() => import('./pages/PrivacyPage'))
 // const SeasonPassPage      = React.lazy(() => import('./pages/SeasonPassPage'))  // TODO: re-enable when premium is ready
@@ -205,16 +207,40 @@ function GlobalSocketListeners() {
       }
     }
 
+    // Achievement unlock notifications — invalidate queries so AchievementsPage
+    // and the profile chip refresh immediately, and drop a pending toast.
+    const handleAchievementUnlocked = (data: {
+      key: string
+      name: string
+      icon: string
+      difficulty: string
+      category: string
+      starsReward: number
+      xpReward: number
+    }) => {
+      queryClient.invalidateQueries({ queryKey: ['achievements'] })
+      queryClient.invalidateQueries({ queryKey: ['achievements-summary'] })
+      useSocialStore.getState().pushAchievementToast({
+        key: data.key,
+        name: data.name,
+        icon: data.icon,
+        difficulty: data.difficulty,
+        starsReward: data.starsReward,
+      })
+    }
+
     sock.on('dm:receive', handleDmReceive)
     sock.on('room:invited', handleRoomInvited)
     sock.on('friend:request', handleFriendRequest)
     sock.on('game:finished', handleGameFinished)
+    sock.on('achievement:unlocked', handleAchievementUnlocked)
 
     return () => {
       sock.off('dm:receive', handleDmReceive)
       sock.off('room:invited', handleRoomInvited)
       sock.off('friend:request', handleFriendRequest)
       sock.off('game:finished', handleGameFinished)
+      sock.off('achievement:unlocked', handleAchievementUnlocked)
     }
   }, [token, activeDm, incrementUnread, setPendingInvite, setPendingFriendRequest, navigate, queryClient])
 
@@ -326,6 +352,7 @@ export default function App() {
       <AuthenticatedConnectionStatus />
       <InviteBanner />
       <FriendRequestBanner />
+      <AchievementToastBanner />
       <BottomNav />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
@@ -345,6 +372,7 @@ export default function App() {
         <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
         <Route path="/player/:userId" element={<ProtectedRoute><PlayerProfilePage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+        <Route path="/achievements" element={<ProtectedRoute><AchievementsPage /></ProtectedRoute>} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         {/* <Route path="/season-pass" element={<ProtectedRoute><SeasonPassPage /></ProtectedRoute>} /> */}
