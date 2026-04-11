@@ -224,13 +224,11 @@ function SettingsPanel({
       {/* Special roles */}
       {settings.gameMode === 'special' && (() => {
         // ── Capacity math ────────────────────────────────────────────────
-        // Evil team cap: imposter + all imposter-side special roles ≤ floor(N/3).
+        // Special evil roles must fit within imposterCount budget.
         // Evil Twins counts as 2 slots (1 villager + 1 imposter).
-        const evilCap = Math.max(1, Math.floor(settings.maxPlayers / 3))
         const twinSlot = settings.evilTwinsEnabled ?? 0 // 0 or 1 (a twin PAIR)
 
-        const currentEvil =
-          settings.imposterCount +
+        const evilExtras =
           settings.doubleAgentCount +
           (settings.infiltratorCount ?? 0) +
           (settings.kamikazeCount ?? 0) +
@@ -239,23 +237,18 @@ function SettingsPanel({
           twinSlot // twin_imposter
 
         // Villager-side special slots (detective/guardian/mayor/judge/revenant).
-        // Must leave at least 1 pure villager AND the twin_villager slot.
         const currentGoodSpecial =
           settings.detectiveCount +
           settings.guardianCount +
           (settings.mayorCount ?? 0) +
           (settings.judgeCount ?? 0) +
           (settings.revenantCount ?? 0)
-        const villagerSlotsUsed = currentEvil + currentGoodSpecial + twinSlot // +twinSlot = twin_villager
-        const maxVillagerSpecialTotal = Math.max(0, settings.maxPlayers - currentEvil - twinSlot - 1)
+        const villagerSlotsUsed = settings.imposterCount + currentGoodSpecial + twinSlot // +twinSlot = twin_villager
 
         // Per-role maxima: how high each role can go WITHOUT breaking the rules
-        // (and assuming other counts stay fixed). For villager-side roles we also
-        // have individual hard caps (3 detectives, 2 guardians, 1 mayor, etc).
-        const evilHeadroom = Math.max(0, evilCap - currentEvil)
-        const goodHeadroom = Math.max(0, settings.maxPlayers - villagerSlotsUsed - 1)
-        void villagerSlotsUsed
-        void maxVillagerSpecialTotal
+        // (and assuming other counts stay fixed).
+        const evilHeadroom = Math.max(0, settings.imposterCount - evilExtras)
+        const goodHeadroom = Math.max(0, settings.maxPlayers - villagerSlotsUsed)
 
         const maxDetective  = Math.min(3, settings.detectiveCount  + goodHeadroom)
         const maxGuardian   = Math.min(2, settings.guardianCount   + goodHeadroom)
@@ -498,20 +491,31 @@ function SettingsPanel({
               min={3}
               max={20}
               onChange={(v) => {
-                // Cap imposters to floor(N/3) so we never exceed the 1/3 rule
-                // 1/3 evil-team cap: imposter + double_agent + infiltrator ≤ floor(N/3)
+                // Cap imposters to floor(N/3) when player count drops
                 const evilCap = Math.max(1, Math.floor(v / 3))
                 const cappedImposters = Math.min(settings.imposterCount, evilCap)
-                const headroomAfterImposters = Math.max(0, evilCap - cappedImposters)
-                const cappedDoubleAgents = Math.min(settings.doubleAgentCount, headroomAfterImposters)
-                const headroomAfterDa = Math.max(0, headroomAfterImposters - cappedDoubleAgents)
-                const cappedInfiltrators = Math.min(settings.infiltratorCount ?? 0, headroomAfterDa)
+                // Auto-reduce special evil roles if they exceed new imposterCount
+                const specials = settings.doubleAgentCount +
+                  (settings.infiltratorCount ?? 0) + (settings.kamikazeCount ?? 0) +
+                  (settings.corruptorCount ?? 0) + (settings.inverterCount ?? 0) +
+                  (settings.evilTwinsEnabled ?? 0)
+                let remaining = Math.max(0, specials - cappedImposters)
+                const reduced = { ...settings }
+                const keys: (keyof typeof reduced)[] = [
+                  'evilTwinsEnabled', 'inverterCount', 'corruptorCount',
+                  'kamikazeCount', 'infiltratorCount', 'doubleAgentCount',
+                ]
+                for (const k of keys) {
+                  if (remaining <= 0) break
+                  const cur = (reduced[k] as number) ?? 0
+                  const r = Math.min(cur, remaining)
+                  ;(reduced as any)[k] = cur - r
+                  remaining -= r
+                }
                 onChange({
-                  ...settings,
+                  ...reduced,
                   maxPlayers: v,
                   imposterCount: cappedImposters,
-                  doubleAgentCount: cappedDoubleAgents,
-                  infiltratorCount: cappedInfiltrators,
                 })
               }}
             />
@@ -521,18 +525,27 @@ function SettingsPanel({
               min={1}
               max={Math.min(6, Math.max(1, Math.floor(settings.maxPlayers / 3)))}
               onChange={(v) => {
-                // Keep imposter + double_agent + infiltrator ≤ floor(N/3) when the
-                // imposter count grows past the headroom.
-                const evilCap = Math.max(1, Math.floor(settings.maxPlayers / 3))
-                const headroomAfterImposters = Math.max(0, evilCap - v)
-                const cappedDoubleAgents = Math.min(settings.doubleAgentCount, headroomAfterImposters)
-                const headroomAfterDa = Math.max(0, headroomAfterImposters - cappedDoubleAgents)
-                const cappedInfiltrators = Math.min(settings.infiltratorCount ?? 0, headroomAfterDa)
+                // Auto-reduce special evil roles if they exceed new imposterCount
+                const specials = settings.doubleAgentCount +
+                  (settings.infiltratorCount ?? 0) + (settings.kamikazeCount ?? 0) +
+                  (settings.corruptorCount ?? 0) + (settings.inverterCount ?? 0) +
+                  (settings.evilTwinsEnabled ?? 0)
+                let remaining = Math.max(0, specials - v)
+                const reduced = { ...settings }
+                const keys: (keyof typeof reduced)[] = [
+                  'evilTwinsEnabled', 'inverterCount', 'corruptorCount',
+                  'kamikazeCount', 'infiltratorCount', 'doubleAgentCount',
+                ]
+                for (const k of keys) {
+                  if (remaining <= 0) break
+                  const cur = (reduced[k] as number) ?? 0
+                  const r = Math.min(cur, remaining)
+                  ;(reduced as any)[k] = cur - r
+                  remaining -= r
+                }
                 onChange({
-                  ...settings,
+                  ...reduced,
                   imposterCount: v,
-                  doubleAgentCount: cappedDoubleAgents,
-                  infiltratorCount: cappedInfiltrators,
                 })
               }}
             />

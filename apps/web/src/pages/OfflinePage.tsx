@@ -244,15 +244,13 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
     }
   }, [filledCount, maxImposters])
 
-  // In special mode the full imposter side (imposter + all imposter-aligned
-  // special roles) must respect the ≤ 1/3 rule. Decrease the side roles
-  // whenever the cap is breached.
+  // In special mode, special evil roles must fit within imposterCount.
+  // Decrease the special roles whenever they exceed the imposter budget.
   useEffect(() => {
-    const evilCap = Math.max(1, Math.floor(filledCount / 3))
     const evilExtras =
       doubleAgentCount + infiltratorCount + kamikazeCount +
       corruptorCount + inverterCount + evilTwinsCount
-    const excess = Math.max(0, imposterCount + evilExtras - evilCap)
+    const excess = Math.max(0, evilExtras - imposterCount)
     if (excess > 0) {
       // Reduce in reverse priority order: evilTwins → inverter → corruptor →
       // kamikaze → infiltrator → doubleAgent (preserve the baseline imposters).
@@ -335,14 +333,12 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
     onStart(validNames, imposterCount, specialCounts, categories, gameMode)
   }
 
-  // Evil-team cap: imposter + all imposter-aligned special roles ≤ floor(N/3).
+  // Special evil roles must fit within imposterCount budget.
   // Evil Twins takes 1 slot on each side (twin_imposter + twin_villager).
-  const evilTeamCap = Math.max(1, Math.floor(filledCount / 3))
   const evilExtras =
     doubleAgentCount + infiltratorCount + kamikazeCount +
     corruptorCount + inverterCount + evilTwinsCount
-  const currentEvil = imposterCount + evilExtras
-  const evilHeadroom = Math.max(0, evilTeamCap - currentEvil)
+  const evilHeadroom = Math.max(0, imposterCount - evilExtras)
 
   const maxDoubleAgents = Math.min(2, doubleAgentCount + evilHeadroom)
   const maxInfiltrators = Math.min(2, infiltratorCount + evilHeadroom)
@@ -350,12 +346,11 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
   const maxCorruptor    = Math.min(1, corruptorCount   + evilHeadroom)
   const maxInverter     = Math.min(1, inverterCount    + evilHeadroom)
 
-  // Villager-side special slots. Must leave at least 1 pure villager AND the
-  // twin_villager slot that the Evil Twins pair reserves.
+  // Villager-side special slots. evilTwins adds 1 villager-side slot (twinVillager).
   const currentGoodSpecial =
     detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount
-  const slotsUsed = currentEvil + currentGoodSpecial + evilTwinsCount // +twinVillager
-  const goodHeadroom = Math.max(0, filledCount - slotsUsed - 1)
+  const slotsUsed = imposterCount + currentGoodSpecial + evilTwinsCount // +twinVillager
+  const goodHeadroom = Math.max(0, filledCount - slotsUsed)
 
   const maxDetectives = Math.min(3, detectiveCount + goodHeadroom)
   const maxGuardians  = Math.min(2, guardianCount  + goodHeadroom)
@@ -1044,7 +1039,7 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
 
       {!showingCard ? (
         <div className="text-center space-y-6 px-4">
-          <div className="text-6xl">🤲</div>
+          <div className="text-6xl">📱</div>
           <div>
             <p className="text-neutral-400 text-lg mb-2">{t('offline.passDevice')}</p>
             <p className="text-3xl font-extrabold text-brand-400">{current.name}</p>
@@ -1309,7 +1304,7 @@ function JudgeTieBreakPhase({ judge, candidates, onDecide }: JudgeTieBreakPhaseP
 
       {!ready ? (
         <div className="text-center space-y-5 py-6">
-          <div className="text-5xl">🤲</div>
+          <div className="text-5xl">📱</div>
           <div>
             <p className="text-neutral-400 text-base mb-2">{t('offline.passDevice')}</p>
             <p className="text-2xl font-extrabold text-emerald-300">{judge.name}</p>
@@ -1368,7 +1363,7 @@ function KamikazeDragPhase({ kamikaze, targets, onDragDown }: KamikazeDragPhaseP
 
       {!ready ? (
         <div className="text-center space-y-5 py-6">
-          <div className="text-5xl">🤲</div>
+          <div className="text-5xl">📱</div>
           <div>
             <p className="text-neutral-400 text-base mb-2">{t('offline.passDevice')}</p>
             <p className="text-2xl font-extrabold text-red-300">{kamikaze.name}</p>
@@ -1579,7 +1574,7 @@ function VotePhase({
 
       {step === 'pass' ? (
         <div className="text-center space-y-5 py-6">
-          <div className="text-5xl">{isGhostVoter ? '👻' : '🤲'}</div>
+          <div className="text-5xl">{isGhostVoter ? '👻' : '📱'}</div>
           <div>
             <p className="text-neutral-400 text-base mb-2">{t('offline.passDevice')}</p>
             <p className="text-2xl font-extrabold text-brand-400">{voter.name}</p>
@@ -1734,13 +1729,15 @@ function VotePhase({
         </div>
       )}
 
-      <button
-        onClick={skipVote}
-        disabled={needsCorruptorPick}
-        className="w-full py-2.5 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/60 border border-neutral-700/40 text-neutral-500 hover:text-neutral-300 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-neutral-800/60 disabled:hover:text-neutral-500"
-      >
-        {t('offline.cancelVote')}
-      </button>
+      {step === 'voting' && (
+        <button
+          onClick={skipVote}
+          disabled={needsCorruptorPick}
+          className="w-full py-2.5 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/60 border border-neutral-700/40 text-neutral-500 hover:text-neutral-300 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-neutral-800/60 disabled:hover:text-neutral-500"
+        >
+          {t('offline.cancelVote')}
+        </button>
+      )}
     </div>
   )
 }
@@ -1842,7 +1839,7 @@ interface PlayingPhaseProps {
   players: PlayerRole[]
   gameMode: GameMode
   wordPair: { villagerWord: string; imposterWord: string }
-  onRevealRoles: (updatedPlayers: PlayerRole[]) => void
+  onRevealRoles: (updatedPlayers: PlayerRole[], manual?: boolean) => void
 }
 
 type PlayingSubPhase = 'main' | 'voting' | 'voteResult' | 'kamikazeDrag' | 'judgeTieBreak'
@@ -2228,7 +2225,7 @@ function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRol
           </button>
         )}
         <button
-          onClick={() => onRevealRoles(players)}
+          onClick={() => onRevealRoles(players, true)}
           className="w-full py-3.5 rounded-2xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700/60 text-white font-bold text-base transition-all active:scale-[0.98]"
         >
           {t('offline.revealRoles')}
@@ -2250,18 +2247,19 @@ interface ResultsPhaseProps {
   players: PlayerRole[]
   gameMode: GameMode
   wordPair: { villagerWord: string; imposterWord: string }
+  manualReveal: boolean
   onPlayAgain: () => void
   onHome: () => void
 }
 
-function ResultsPhase({ players, gameMode, wordPair, onPlayAgain, onHome }: ResultsPhaseProps) {
+function ResultsPhase({ players, gameMode, wordPair, manualReveal, onPlayAgain, onHome }: ResultsPhaseProps) {
   const { t } = useTranslation()
   const ROLES = getRoleConfig(t)
   // All imposter-side roles (including special imposter roles) count as "evil"
   // for the win check. The villagers win iff every evil player is eliminated.
   const evilTeam = players.filter((p) => isEvilRole(p.role))
   const eliminatedEvil = evilTeam.filter((p) => p.isEliminated)
-  const impostersWon = eliminatedEvil.length < evilTeam.length
+  const impostersWon = !manualReveal && eliminatedEvil.length < evilTeam.length
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -2271,11 +2269,15 @@ function ResultsPhase({ players, gameMode, wordPair, onPlayAgain, onHome }: Resu
         <h1 className="text-3xl font-extrabold text-white">{t('offline.gameOver')}</h1>
         <div className={[
           'inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold',
-          impostersWon
-            ? 'bg-red-950/60 border-red-700/50 text-red-400'
-            : 'bg-emerald-950/60 border-emerald-700/50 text-emerald-400',
+          manualReveal
+            ? 'bg-neutral-800/60 border-neutral-600/50 text-neutral-300'
+            : impostersWon
+              ? 'bg-red-950/60 border-red-700/50 text-red-400'
+              : 'bg-emerald-950/60 border-emerald-700/50 text-emerald-400',
         ].join(' ')}>
-          {impostersWon ? `🔴 ${t('offline.impostersWin')}` : `🟢 ${t('offline.villagersWin')}`}
+          {manualReveal
+            ? `👁️ ${t('offline.rolesRevealed')}`
+            : impostersWon ? `🔴 ${t('offline.impostersWin')}` : `🟢 ${t('offline.villagersWin')}`}
         </div>
       </div>
 
@@ -2425,7 +2427,11 @@ export default function OfflinePage() {
         // Imposter side first (they get the imposter word except infiltrator),
         // then villager side (villager word), then neutral.
         const queue: PlayerRoleType[] = []
-        for (let i = 0; i < imposterCount;       i++) queue.push('imposter')
+        const specialEvilCount =
+          counts.doubleAgent + counts.infiltrator + counts.kamikaze +
+          counts.corruptor + counts.inverter + counts.evilTwins
+        const normalImposters = Math.max(0, imposterCount - specialEvilCount)
+        for (let i = 0; i < normalImposters;     i++) queue.push('imposter')
         for (let i = 0; i < counts.doubleAgent;  i++) queue.push('doubleAgent')
         for (let i = 0; i < counts.infiltrator;  i++) queue.push('infiltrator')
         for (let i = 0; i < counts.kamikaze;     i++) queue.push('kamikaze')
@@ -2487,7 +2493,9 @@ export default function OfflinePage() {
     setPhase('playing')
   }, [])
 
-  const handleRevealRoles = useCallback((updatedPlayers: PlayerRole[]) => {
+  const [manualReveal, setManualReveal] = useState(false)
+  const handleRevealRoles = useCallback((updatedPlayers: PlayerRole[], manual = false) => {
+    setManualReveal(manual)
     setPlayers(updatedPlayers)
     setPhase('results')
   }, [])
@@ -2546,6 +2554,7 @@ export default function OfflinePage() {
             players={players}
             gameMode={gameMode}
             wordPair={wordPair}
+            manualReveal={manualReveal}
             onPlayAgain={handlePlayAgain}
             onHome={handleHome}
           />

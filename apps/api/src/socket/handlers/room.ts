@@ -98,34 +98,39 @@ async function startGameForRoom(
     const evilTwinsEnabled  = Math.min(1, Math.max(0, state.evilTwinsEnabled ?? 0))
     const evilTwinSlots     = evilTwinsEnabled * 2
 
+    // imposterCount is the TOTAL evil budget; special evil roles come from within it.
+    const specialEvilCount = doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled
+    const normalImposters = Math.max(0, imposterCount - specialEvilCount)
+
     // Safety: total non-villager slots must not exceed player count.
+    // imposterCount already includes special evil roles, so don't double-count.
     const totalSpecial =
-      imposterCount + doubleAgentCount + infiltratorCount +
+      imposterCount +
       detectiveCount + guardianCount + mayorCount + jesterCount +
-      judgeCount + revenantCount + kamikazeCount + corruptorCount + inverterCount +
-      evilTwinSlots
+      judgeCount + revenantCount +
+      evilTwinsEnabled // +1 for twin_villager (villager-side half)
     if (totalSpecial > players.length) {
       log.warn({ roomId, totalSpecial, playerCount: players.length }, 'too many special roles — some will fall through to villager')
     }
 
     // Cumulative bounds — each role occupies a contiguous slice of the
-    // shuffled players array. Kamikaze/corruptor/inverter are imposter-side;
-    // judge/revenant are villager-side; twins use two dedicated slots.
+    // shuffled players array. normalImposters fills whatever is left after
+    // special evil roles are subtracted from imposterCount.
     const bounds = {
-      imposter:    imposterCount,
-      doubleAgent: imposterCount + doubleAgentCount,
-      infiltrator: imposterCount + doubleAgentCount + infiltratorCount,
-      kamikaze:    imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount,
-      corruptor:   imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount,
-      inverter:    imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount,
-      twinImposter: imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled,
-      detective:   imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount,
-      guardian:    imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount,
-      mayor:       imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount,
-      judge:       imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount,
-      revenant:    imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount,
-      twinVillager: imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount + evilTwinsEnabled,
-      jester:      imposterCount + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount + evilTwinsEnabled + jesterCount,
+      imposter:    normalImposters,
+      doubleAgent: normalImposters + doubleAgentCount,
+      infiltrator: normalImposters + doubleAgentCount + infiltratorCount,
+      kamikaze:    normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount,
+      corruptor:   normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount,
+      inverter:    normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount,
+      twinImposter: normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled,
+      detective:   normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount,
+      guardian:    normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount,
+      mayor:       normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount,
+      judge:       normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount,
+      revenant:    normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount,
+      twinVillager: normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount + evilTwinsEnabled,
+      jester:      normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount + evilTwinsEnabled + jesterCount,
     }
     let roleIdx = 0
     players.forEach((p) => {
@@ -631,14 +636,10 @@ export function registerRoomHandlers(
       dbUpdate.imposterCount = cappedImposters
     }
 
-    // In special mode, also enforce that the full imposter-side team
-    // (imposterCount + all imposter-aligned special roles) stays ≤ evilCap.
-    // Clamp in priority order: reduce most-recently-touched roles first,
-    // favoring imposter > doubleAgent > infiltrator > kamikaze > corruptor >
-    // inverter > twinImposter until the sum fits under the cap.
+    // In special mode, enforce that special evil roles fit within imposterCount.
+    // imposterCount is the total evil budget; specials must not exceed it.
     if (state.gameMode === 'special') {
-      const roleKeys = [
-        'imposterCount',       // derived from dbUpdate/cappedImposters below
+      const specialKeys = [
         'doubleAgentCount',
         'infiltratorCount',
         'kamikazeCount',
@@ -647,25 +648,23 @@ export function registerRoomHandlers(
         'evilTwinsEnabled',
       ] as const
 
-      const imposterResolved = cappedImposters
-      let sumEvil = imposterResolved
-        + (state.doubleAgentCount ?? 0)
+      let sumSpecialEvil =
+        (state.doubleAgentCount ?? 0)
         + (state.infiltratorCount ?? 0)
         + (state.kamikazeCount ?? 0)
         + (state.corruptorCount ?? 0)
         + (state.inverterCount ?? 0)
         + (state.evilTwinsEnabled ?? 0)
 
-      if (sumEvil > evilCap) {
-        // Reduce in reverse priority order (skip imposterCount, keep the
-        // baseline imposters). Lower the tail until we fit.
-        for (let i = roleKeys.length - 1; i > 0 && sumEvil > evilCap; i--) {
-          const key = roleKeys[i]
+      if (sumSpecialEvil > cappedImposters) {
+        // Reduce in reverse priority order until specials fit within imposterCount.
+        for (let i = specialKeys.length - 1; i >= 0 && sumSpecialEvil > cappedImposters; i--) {
+          const key = specialKeys[i]
           const current = (state as any)[key] ?? 0
-          const excess = sumEvil - evilCap
+          const excess = sumSpecialEvil - cappedImposters
           const reduceBy = Math.min(current, excess)
           ;(state as any)[key] = current - reduceBy
-          sumEvil -= reduceBy
+          sumSpecialEvil -= reduceBy
         }
       }
     }

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  Switch,
   ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -17,8 +16,16 @@ import { useAuthStore } from '../../store/auth'
 import { useGameStore } from '../../store/game'
 import { connectSocket, getSocket } from '../../lib/socket'
 import { api } from '../../lib/api'
-import { WORD_CATEGORIES } from '@imposter/shared'
-import type { Room, GameMode, WordCategory } from '@imposter/shared'
+import {
+  WORD_CATEGORIES,
+  ZERO_SPECIAL_COUNTS,
+  autoReduceOverflow,
+  clampImposterCount,
+  computeMaxRoleCounts,
+  isNeutralUnlocked,
+  maxImpostersFor,
+} from '@imposter/shared'
+import type { Room, GameMode, WordCategory, SpecialRoleCounts } from '@imposter/shared'
 import { useResponsive } from '../../lib/responsive'
 import { createLogger } from '../../lib/logger'
 import { SoundManager } from '../../lib/sounds'
@@ -69,6 +76,145 @@ function NumStepper({
   )
 }
 
+// ─── RoleStepper ─────────────────────────────────────────────────────────────
+// Single special-role row used by villager / imposter / pair / neutral
+// sections. Mirrors the web `RoleStepper` shape with NativeWind classes.
+
+const ROLE_STEPPER_ACCENT = {
+  emerald: {
+    chip: 'bg-emerald-950/40 border-emerald-700/40',
+    chipText: 'text-emerald-300',
+    value: 'text-emerald-300',
+  },
+  red: {
+    chip: 'bg-red-950/40 border-red-700/40',
+    chipText: 'text-red-300',
+    value: 'text-red-300',
+  },
+  sky: {
+    chip: 'bg-sky-950/40 border-sky-700/40',
+    chipText: 'text-sky-300',
+    value: 'text-sky-300',
+  },
+} as const
+
+function RoleStepper({
+  icon,
+  label,
+  description,
+  value,
+  min = 0,
+  max,
+  onChange,
+  accent,
+  lockedReason,
+}: {
+  icon: string
+  label: string
+  description: string
+  value: number
+  min?: number
+  max: number
+  onChange: (v: number) => void
+  accent: keyof typeof ROLE_STEPPER_ACCENT
+  lockedReason?: string | null
+}) {
+  const isLocked = !!lockedReason
+  const canDec = !isLocked && value > min
+  const canInc = !isLocked && value < max
+  const a = ROLE_STEPPER_ACCENT[accent]
+  return (
+    <View
+      className={[
+        'flex-row items-center justify-between gap-3 px-3 py-2 rounded-xl border',
+        isLocked
+          ? 'bg-neutral-900/40 border-neutral-800/60 opacity-50'
+          : 'bg-neutral-900/50 border-neutral-800/60',
+      ].join(' ')}
+    >
+      <View className="flex-row items-center gap-2 flex-1 min-w-0">
+        <View
+          className={['w-7 h-7 rounded-lg border items-center justify-center', a.chip].join(' ')}
+        >
+          <Text className={['text-sm', a.chipText].join(' ')}>{icon}</Text>
+        </View>
+        <View className="flex-1 min-w-0">
+          <Text className="text-sm font-semibold text-white" numberOfLines={1}>
+            {label}
+          </Text>
+          <Text className="text-[10px] text-neutral-500" numberOfLines={1}>
+            {isLocked ? lockedReason : description}
+          </Text>
+        </View>
+      </View>
+      <View className="flex-row items-center gap-2 shrink-0">
+        <TouchableOpacity
+          onPress={() => {
+            if (canDec) onChange(Math.max(min, value - 1))
+          }}
+          disabled={!canDec}
+          className="w-7 h-7 rounded-lg bg-neutral-800 items-center justify-center"
+          style={{ opacity: canDec ? 1 : 0.3 }}
+        >
+          <Text className="text-white font-bold">−</Text>
+        </TouchableOpacity>
+        <Text
+          className={[
+            'text-sm font-mono font-bold w-7 text-center',
+            isLocked ? 'text-neutral-600' : a.value,
+          ].join(' ')}
+        >
+          {value}
+        </Text>
+        <TouchableOpacity
+          onPress={() => {
+            if (canInc) onChange(Math.min(max, value + 1))
+          }}
+          disabled={!canInc}
+          className="w-7 h-7 rounded-lg bg-neutral-800 items-center justify-center"
+          style={{ opacity: canInc ? 1 : 0.3 }}
+        >
+          <Text className="text-white font-bold">+</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  )
+}
+
+// ─── RoleGuideRow ────────────────────────────────────────────────────────────
+// Compact role description row for the "Role Guide" section at the bottom of
+// the lobby. Shows icon, name, and a one-liner of what the role does.
+
+const ROLE_GUIDE_ACCENT = {
+  emerald: { border: 'border-emerald-800/40', name: 'text-emerald-300' },
+  red:     { border: 'border-red-800/40',     name: 'text-red-300' },
+  amber:   { border: 'border-amber-800/40',   name: 'text-amber-300' },
+  sky:     { border: 'border-sky-800/40',      name: 'text-sky-300' },
+} as const
+
+function RoleGuideRow({
+  icon,
+  name,
+  desc,
+  accent,
+}: {
+  icon: string
+  name: string
+  desc: string
+  accent: keyof typeof ROLE_GUIDE_ACCENT
+}) {
+  const a = ROLE_GUIDE_ACCENT[accent]
+  return (
+    <View className={['flex-row items-start gap-2.5 px-3 py-2.5 rounded-xl border bg-neutral-900/40', a.border].join(' ')}>
+      <Text style={{ fontSize: 16, marginTop: 1 }}>{icon}</Text>
+      <View className="flex-1">
+        <Text className={['text-xs font-bold', a.name].join(' ')}>{name}</Text>
+        <Text className="text-[11px] text-neutral-500 mt-0.5 leading-[15px]">{desc}</Text>
+      </View>
+    </View>
+  )
+}
+
 // ─── SettingsPanel ────────────────────────────────────────────────────────────
 
 interface Settings {
@@ -79,8 +225,39 @@ interface Settings {
   maxRounds: number
   gameMode: GameMode | 'special'
   categories: WordCategory[]
-  hasDetective: boolean
-  hasDoubleAgent: boolean
+  // Per-role counts (mirror web). `evilTwinsEnabled` is the wire field name
+  // for the twin pair toggle (0 or 1).
+  detectiveCount: number
+  doubleAgentCount: number
+  guardianCount: number
+  mayorCount: number
+  judgeCount: number
+  revenantCount: number
+  infiltratorCount: number
+  jesterCount: number
+  kamikazeCount: number
+  corruptorCount: number
+  inverterCount: number
+  evilTwinsEnabled: number
+}
+
+/** Pull a `SpecialRoleCounts` shape out of the lobby `Settings` for the
+ *  shared math helpers. The shared `evilTwins` field maps to `evilTwinsEnabled`. */
+function settingsToCounts(s: Settings): SpecialRoleCounts {
+  return {
+    detective:   s.detectiveCount,
+    guardian:    s.guardianCount,
+    mayor:       s.mayorCount,
+    judge:       s.judgeCount,
+    revenant:    s.revenantCount,
+    doubleAgent: s.doubleAgentCount,
+    infiltrator: s.infiltratorCount,
+    kamikaze:    s.kamikazeCount,
+    corruptor:   s.corruptorCount,
+    inverter:    s.inverterCount,
+    evilTwins:   s.evilTwinsEnabled,
+    jester:      s.jesterCount,
+  }
 }
 
 function SettingsPanel({
@@ -110,16 +287,28 @@ function SettingsPanel({
           {(['normal', 'special', 'ranked'] as const).map((mode) => (
             <TouchableOpacity
               key={mode}
-              onPress={() =>
+              onPress={() => {
+                // Reset all role counts when leaving special mode.
+                const reset = mode === 'special' ? {} : { ...ZERO_SPECIAL_COUNTS }
                 onChange({
                   ...settings,
                   gameMode: mode,
                   categories: mode === 'ranked' ? [] : settings.categories,
-                  // Reset special roles when leaving special mode
-                  hasDetective: mode === 'special' ? settings.hasDetective : false,
-                  hasDoubleAgent: mode === 'special' ? settings.hasDoubleAgent : false,
+                  detectiveCount:   mode === 'special' ? settings.detectiveCount   : 0,
+                  doubleAgentCount: mode === 'special' ? settings.doubleAgentCount : 0,
+                  guardianCount:    mode === 'special' ? settings.guardianCount    : 0,
+                  mayorCount:       mode === 'special' ? settings.mayorCount       : 0,
+                  judgeCount:       mode === 'special' ? settings.judgeCount       : 0,
+                  revenantCount:    mode === 'special' ? settings.revenantCount    : 0,
+                  infiltratorCount: mode === 'special' ? settings.infiltratorCount : 0,
+                  jesterCount:      mode === 'special' ? settings.jesterCount      : 0,
+                  kamikazeCount:    mode === 'special' ? settings.kamikazeCount    : 0,
+                  corruptorCount:   mode === 'special' ? settings.corruptorCount   : 0,
+                  inverterCount:    mode === 'special' ? settings.inverterCount    : 0,
+                  evilTwinsEnabled: mode === 'special' ? settings.evilTwinsEnabled : 0,
                 })
-              }
+                void reset
+              }}
               className={[
                 'flex-1 py-2.5 rounded-xl items-center border',
                 settings.gameMode === mode
@@ -158,39 +347,154 @@ function SettingsPanel({
       </View>
 
       {/* Special Roles (special mode only) */}
-      {settings.gameMode === 'special' && (
-        <View className="gap-3 pt-2 border-t border-neutral-800">
-          <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-            Special Roles
-          </Text>
+      {settings.gameMode === 'special' && (() => {
+        const counts = settingsToCounts(settings)
+        const max = computeMaxRoleCounts(settings.maxPlayers, settings.imposterCount, counts)
+        const neutralUnlocked = isNeutralUnlocked(settings.maxPlayers)
+        const neutralLockReason = neutralUnlocked ? null : 'Unlocked at 10+ players.'
+        return (
+          <View className="gap-4 pt-2 border-t border-neutral-800">
+            <Text className="text-xs text-neutral-500">Special Roles</Text>
 
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1">
-              <Text className="text-sm text-neutral-300">🔍 Detective</Text>
-              <Text className="text-xs text-neutral-600">Can reveal one player's role per game</Text>
+            {/* Villager side */}
+            <View className="gap-2">
+              <Text className="text-[10px] font-semibold uppercase tracking-widest text-emerald-400">
+                🟢 Villagers
+              </Text>
+              <RoleStepper
+                icon="🔍"
+                label="Detective"
+                description="Each round, secretly checks if a chosen player is an imposter."
+                value={settings.detectiveCount}
+                max={max.detective}
+                onChange={(v) => onChange({ ...settings, detectiveCount: v })}
+                accent="emerald"
+              />
+              <RoleStepper
+                icon="🛡️"
+                label="Guardian"
+                description="Protects a chosen player from elimination for one round."
+                value={settings.guardianCount}
+                max={max.guardian}
+                onChange={(v) => onChange({ ...settings, guardianCount: v })}
+                accent="emerald"
+              />
+              <RoleStepper
+                icon="👑"
+                label="Mayor"
+                description="Their vote counts double during the voting phase."
+                value={settings.mayorCount}
+                max={max.mayor}
+                onChange={(v) => onChange({ ...settings, mayorCount: v })}
+                accent="emerald"
+              />
+              <RoleStepper
+                icon="⚖️"
+                label="Judge"
+                description="Can veto one elimination per game."
+                value={settings.judgeCount}
+                max={max.judge}
+                onChange={(v) => onChange({ ...settings, judgeCount: v })}
+                accent="emerald"
+              />
+              <RoleStepper
+                icon="👻"
+                label="Revenant"
+                description="If eliminated, returns once during the next round."
+                value={settings.revenantCount}
+                max={max.revenant}
+                onChange={(v) => onChange({ ...settings, revenantCount: v })}
+                accent="emerald"
+              />
             </View>
-            <Switch
-              value={settings.hasDetective}
-              onValueChange={(v) => onChange({ ...settings, hasDetective: v })}
-              trackColor={{ false: '#404040', true: '#0e7490' }}
-              thumbColor={settings.hasDetective ? '#22d3ee' : '#a3a3a3'}
-            />
-          </View>
 
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1">
-              <Text className="text-sm text-neutral-300">🕵️ Double Agent</Text>
-              <Text className="text-xs text-neutral-600">Knows the imposters but plays as villager</Text>
+            {/* Imposter side */}
+            <View className="gap-2">
+              <Text className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
+                🔴 Imposters
+              </Text>
+              <RoleStepper
+                icon="🕵️"
+                label="Double Agent"
+                description="Pretends to be a villager but wins with the imposters."
+                value={settings.doubleAgentCount}
+                max={max.doubleAgent}
+                onChange={(v) => onChange({ ...settings, doubleAgentCount: v })}
+                accent="red"
+              />
+              <RoleStepper
+                icon="🥷"
+                label="Infiltrator"
+                description="An extra imposter who starts knowing the villager word."
+                value={settings.infiltratorCount}
+                max={max.infiltrator}
+                onChange={(v) => onChange({ ...settings, infiltratorCount: v })}
+                accent="red"
+              />
+              <RoleStepper
+                icon="💣"
+                label="Kamikaze"
+                description="When voted out, takes the player who cast the most votes with them."
+                value={settings.kamikazeCount}
+                max={max.kamikaze}
+                onChange={(v) => onChange({ ...settings, kamikazeCount: v })}
+                accent="red"
+              />
+              <RoleStepper
+                icon="🧪"
+                label="Corruptor"
+                description="Silences one villager's vote each round."
+                value={settings.corruptorCount}
+                max={max.corruptor}
+                onChange={(v) => onChange({ ...settings, corruptorCount: v })}
+                accent="red"
+              />
+              <RoleStepper
+                icon="🔀"
+                label="Inverter"
+                description="Once per game, swaps the result of a vote (majority ↔ minority)."
+                value={settings.inverterCount}
+                max={max.inverter}
+                onChange={(v) => onChange({ ...settings, inverterCount: v })}
+                accent="red"
+              />
             </View>
-            <Switch
-              value={settings.hasDoubleAgent}
-              onValueChange={(v) => onChange({ ...settings, hasDoubleAgent: v })}
-              trackColor={{ false: '#404040', true: '#0e7490' }}
-              thumbColor={settings.hasDoubleAgent ? '#22d3ee' : '#a3a3a3'}
-            />
+
+            {/* Pair */}
+            <View className="gap-2">
+              <Text className="text-[10px] font-semibold uppercase tracking-widest text-amber-400">
+                ⚖️ Pair
+              </Text>
+              <RoleStepper
+                icon="👯"
+                label="Evil Twins"
+                description="One secret villager twin + one secret imposter twin (counts as 2 players)."
+                value={settings.evilTwinsEnabled}
+                max={max.evilTwins}
+                onChange={(v) => onChange({ ...settings, evilTwinsEnabled: v })}
+                accent="sky"
+              />
+            </View>
+
+            {/* Neutral */}
+            <View className="gap-2">
+              <Text className="text-[10px] font-semibold uppercase tracking-widest text-sky-400">
+                ⚪ Neutral
+              </Text>
+              <RoleStepper
+                icon="🃏"
+                label="Jester"
+                description="Wins alone if voted out. Plays for nobody."
+                value={settings.jesterCount}
+                max={max.jester}
+                onChange={(v) => onChange({ ...settings, jesterCount: v })}
+                accent="sky"
+                lockedReason={neutralLockReason}
+              />
+            </View>
           </View>
-        </View>
-      )}
+        )
+      })()}
 
       {/* Categories (normal / special only) */}
       {settings.gameMode !== 'ranked' && (
@@ -257,14 +561,48 @@ function SettingsPanel({
           value={settings.maxPlayers}
           min={3}
           max={20}
-          onChange={(v) => onChange({ ...settings, maxPlayers: v })}
+          onChange={(v) => {
+            // Auto-clamp imposters and reduce evil-side overflow when player count drops.
+            const nextImposters = clampImposterCount(v, settings.imposterCount)
+            const reduced = autoReduceOverflow(v, nextImposters, settingsToCounts(settings))
+            onChange({
+              ...settings,
+              maxPlayers: v,
+              imposterCount: nextImposters,
+              detectiveCount:   reduced.counts.detective,
+              guardianCount:    reduced.counts.guardian,
+              mayorCount:       reduced.counts.mayor,
+              judgeCount:       reduced.counts.judge,
+              revenantCount:    reduced.counts.revenant,
+              doubleAgentCount: reduced.counts.doubleAgent,
+              infiltratorCount: reduced.counts.infiltrator,
+              kamikazeCount:    reduced.counts.kamikaze,
+              corruptorCount:   reduced.counts.corruptor,
+              inverterCount:    reduced.counts.inverter,
+              evilTwinsEnabled: reduced.counts.evilTwins,
+              jesterCount:      isNeutralUnlocked(v) ? settings.jesterCount : 0,
+            })
+          }}
         />
         <NumStepper
           label="Imposters"
           value={settings.imposterCount}
           min={1}
-          max={4}
-          onChange={(v) => onChange({ ...settings, imposterCount: v })}
+          max={maxImpostersFor(settings.maxPlayers)}
+          onChange={(v) => {
+            const clamped = clampImposterCount(settings.maxPlayers, v)
+            const reduced = autoReduceOverflow(settings.maxPlayers, clamped, settingsToCounts(settings))
+            onChange({
+              ...settings,
+              imposterCount: clamped,
+              doubleAgentCount: reduced.counts.doubleAgent,
+              infiltratorCount: reduced.counts.infiltrator,
+              kamikazeCount:    reduced.counts.kamikaze,
+              corruptorCount:   reduced.counts.corruptor,
+              inverterCount:    reduced.counts.inverter,
+              evilTwinsEnabled: reduced.counts.evilTwins,
+            })
+          }}
         />
         <NumStepper
           label="Max Rounds"
@@ -315,8 +653,18 @@ const DEFAULT_SETTINGS: Settings = {
   maxRounds: 0,
   gameMode: 'normal',
   categories: [],
-  hasDetective: false,
-  hasDoubleAgent: false,
+  detectiveCount:   0,
+  doubleAgentCount: 0,
+  guardianCount:    0,
+  mayorCount:       0,
+  judgeCount:       0,
+  revenantCount:    0,
+  infiltratorCount: 0,
+  jesterCount:      0,
+  kamikazeCount:    0,
+  corruptorCount:   0,
+  inverterCount:    0,
+  evilTwinsEnabled: 0,
 }
 
 export default function LobbyScreen() {
@@ -330,6 +678,7 @@ export default function LobbyScreen() {
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [codeCopied, setCodeCopied] = useState(false)
+  const [socketError, setSocketError] = useState<string | null>(null)
 
   // Friends invite state
   const [friends, setFriends] = useState<Friend[]>([])
@@ -350,8 +699,18 @@ export default function LobbyScreen() {
       speakingTimeSeconds: s.speakingTimeSeconds,
       votingTimeSeconds: s.votingTimeSeconds,
       maxRounds: s.maxRounds,
-      hasDetective: s.hasDetective,
-      hasDoubleAgent: s.hasDoubleAgent,
+      detectiveCount:   s.detectiveCount,
+      doubleAgentCount: s.doubleAgentCount,
+      guardianCount:    s.guardianCount,
+      mayorCount:       s.mayorCount,
+      judgeCount:       s.judgeCount,
+      revenantCount:    s.revenantCount,
+      infiltratorCount: s.infiltratorCount,
+      jesterCount:      s.jesterCount,
+      kamikazeCount:    s.kamikazeCount,
+      corruptorCount:   s.corruptorCount,
+      inverterCount:    s.inverterCount,
+      evilTwinsEnabled: s.evilTwinsEnabled,
     })
   }
 
@@ -418,19 +777,43 @@ export default function LobbyScreen() {
       log.debug('room updated', { players: r.players?.length, status: (r as any).status })
       setRoom(r as Room)
       if (r.settings) {
+        const rs: any = r.settings
         setSettings((prev) => ({
           ...prev,
           maxPlayers: r.settings.maxPlayers,
           imposterCount: r.settings.imposterCount,
           speakingTimeSeconds: r.settings.speakingTimeSeconds,
           votingTimeSeconds: r.settings.votingTimeSeconds,
-          maxRounds: (r.settings as any).maxRounds ?? 0,
-          gameMode: (r.settings as any).gameMode ?? 'normal',
-          categories: (r.settings as any).categories ?? [],
-          hasDetective: (r.settings as any).hasDetective ?? false,
-          hasDoubleAgent: (r.settings as any).hasDoubleAgent ?? false,
+          maxRounds: rs.maxRounds ?? 0,
+          gameMode: rs.gameMode ?? 'normal',
+          categories: rs.categories ?? [],
+          detectiveCount:   rs.detectiveCount   ?? (rs.hasDetective ? 1 : 0),
+          doubleAgentCount: rs.doubleAgentCount ?? (rs.hasDoubleAgent ? 1 : 0),
+          guardianCount:    rs.guardianCount    ?? 0,
+          mayorCount:       rs.mayorCount       ?? 0,
+          judgeCount:       rs.judgeCount       ?? 0,
+          revenantCount:    rs.revenantCount    ?? 0,
+          infiltratorCount: rs.infiltratorCount ?? 0,
+          jesterCount:      rs.jesterCount      ?? 0,
+          kamikazeCount:    rs.kamikazeCount    ?? 0,
+          corruptorCount:   rs.corruptorCount   ?? 0,
+          inverterCount:    rs.inverterCount    ?? 0,
+          evilTwinsEnabled: rs.evilTwinsEnabled ?? 0,
         }))
       }
+    })
+
+    // Game start was refused because at least one player can't afford the
+    // entry cost. Stays non-blocking — everyone stays in the lobby and the
+    // host sees a toast naming the broke player.
+    socket.on('game:start:failed' as any, (data: { reason?: string; userId?: string; required?: number }) => {
+      if (data?.reason !== 'INSUFFICIENT_STARS') return
+      const currentRoom = useGameStore.getState().room
+      const player = currentRoom?.players?.find((p: any) => p.userId === data.userId)
+      const username = (player as any)?.username ?? 'A player'
+      log.warn('game:start:failed', { userId: data.userId })
+      setSocketError(`${username} doesn't have enough stars (needs ${data.required ?? 10}⭐)`)
+      setTimeout(() => setSocketError(null), 5000)
     })
 
     socket.on('game:started', ({ round, yourWord, yourRole }) => {
@@ -457,6 +840,7 @@ export default function LobbyScreen() {
       socket.off('matchmaking:found' as any)
       socket.off('matchmaking:cancelled' as any)
       socket.off('error')
+      socket.off('game:start:failed' as any)
     }
   }, [code])
 
@@ -481,9 +865,22 @@ export default function LobbyScreen() {
   const isHost = room?.hostId === user?.id
   const players = room?.players ?? []
   const allReady = players.length >= 2 && players.every((p) => p.isReady || p.isHost)
-  const minPlayers = 4
+  const minPlayers = settings.gameMode === 'special' ? 5 : 3
   const activeCats =
     settings.categories.length > 0 ? settings.categories.length : WORD_CATEGORIES.length
+  const totalSpecialRoles =
+    settings.detectiveCount +
+    settings.doubleAgentCount +
+    settings.guardianCount +
+    settings.mayorCount +
+    settings.judgeCount +
+    settings.revenantCount +
+    settings.infiltratorCount +
+    settings.jesterCount +
+    settings.kamikazeCount +
+    settings.corruptorCount +
+    settings.inverterCount +
+    settings.evilTwinsEnabled
 
   const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
@@ -501,6 +898,13 @@ export default function LobbyScreen() {
           <Text className="font-extrabold text-white" style={{ fontSize: (isTablet ? 28 : 24) }}>Lobby</Text>
           <Text className="text-neutral-500 mt-1" style={{ fontSize: 14 * fontScale }}>Share the code below to invite friends</Text>
         </View>
+
+        {/* Socket error toast (e.g. INSUFFICIENT_STARS on game start) */}
+        {socketError && (
+          <View className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800 mb-2">
+            <Text className="text-red-300 text-xs flex-1">⚠ {socketError}</Text>
+          </View>
+        )}
 
         {/* Room code + share */}
         <TouchableOpacity
@@ -781,16 +1185,10 @@ export default function LobbyScreen() {
                 <Text className="text-xs text-neutral-500">{settings.categories.length} categories</Text>
               </>
             )}
-            {settings.gameMode === 'special' && settings.hasDetective && (
+            {settings.gameMode === 'special' && totalSpecialRoles > 0 && (
               <>
                 <Text className="text-neutral-700">·</Text>
-                <Text className="text-xs text-cyan-500">🔍 Detective</Text>
-              </>
-            )}
-            {settings.gameMode === 'special' && settings.hasDoubleAgent && (
-              <>
-                <Text className="text-neutral-700">·</Text>
-                <Text className="text-xs text-cyan-500">🕵️ Double Agent</Text>
+                <Text className="text-xs text-cyan-500">{totalSpecialRoles} special role{totalSpecialRoles === 1 ? '' : 's'}</Text>
               </>
             )}
           </View>
@@ -857,6 +1255,77 @@ export default function LobbyScreen() {
             <Text className="text-amber-600 text-center" style={{ fontSize: 12 * fontScale }}>
               Waiting for all players to be ready
             </Text>
+          </View>
+        )}
+
+        {/* How to Play link */}
+        <TouchableOpacity
+          onPress={() => router.push('/how-to-play')}
+          className="flex-row items-center justify-center gap-2 py-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50 mt-2"
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 14 }}>📖</Text>
+          <Text className="text-neutral-400 font-medium" style={{ fontSize: 13 * fontScale }}>How to Play</Text>
+        </TouchableOpacity>
+
+        {/* Special roles guide (visible when special mode is selected) */}
+        {settings.gameMode === 'special' && (
+          <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 gap-4 mt-1">
+            <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+              Role Guide
+            </Text>
+
+            {/* Villager roles */}
+            <View className="gap-2">
+              <Text className="text-[10px] font-semibold uppercase tracking-widest text-emerald-400">
+                🟢 Villager Side
+              </Text>
+              <RoleGuideRow icon="🔍" name="Detective" accent="emerald"
+                desc="Once per game, secretly reveal another player's role. Use it wisely to confirm suspicions." />
+              <RoleGuideRow icon="🛡️" name="Guardian" accent="emerald"
+                desc="Once per game, protect a player from being voted out. The vote still happens, but the target survives." />
+              <RoleGuideRow icon="👑" name="Mayor" accent="emerald"
+                desc="Once per game, activate double vote — your vote counts as two during that round's vote." />
+              <RoleGuideRow icon="⚖️" name="Judge" accent="emerald"
+                desc="When a vote is tied, the Judge breaks the tie and decides who is eliminated." />
+              <RoleGuideRow icon="👻" name="Revenant" accent="emerald"
+                desc="After being eliminated, continues to secretly cast votes for 2 more rounds as a ghost." />
+            </View>
+
+            {/* Imposter roles */}
+            <View className="gap-2">
+              <Text className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
+                🔴 Imposter Side
+              </Text>
+              <RoleGuideRow icon="🕵️" name="Double Agent" accent="red"
+                desc="Knows the imposters' word and plays for their team, but appears as a villager." />
+              <RoleGuideRow icon="🥷" name="Infiltrator" accent="red"
+                desc="An imposter who knows the villager word. Appears as villager to the Detective." />
+              <RoleGuideRow icon="💣" name="Kamikaze" accent="red"
+                desc="When voted out, picks one player to drag down with them — both are eliminated." />
+              <RoleGuideRow icon="🧪" name="Corruptor" accent="red"
+                desc="At game start, picks a target whose votes are silently dropped for the rest of the game." />
+              <RoleGuideRow icon="🔀" name="Inverter" accent="red"
+                desc="Once per game, flips the vote — the player with the fewest votes is eliminated instead." />
+            </View>
+
+            {/* Pair */}
+            <View className="gap-2">
+              <Text className="text-[10px] font-semibold uppercase tracking-widest text-amber-400">
+                ⚖️ Pair
+              </Text>
+              <RoleGuideRow icon="👯" name="Evil Twins" accent="amber"
+                desc="A linked pair — one villager, one imposter. They know each other. Both win if both survive to the end." />
+            </View>
+
+            {/* Neutral */}
+            <View className="gap-2">
+              <Text className="text-[10px] font-semibold uppercase tracking-widest text-sky-400">
+                ⚪ Neutral
+              </Text>
+              <RoleGuideRow icon="🃏" name="Jester" accent="sky"
+                desc="Wins alone if voted out by the group. Has no team — plays for themselves. Requires 10+ players." />
+            </View>
           </View>
         )}
         </View>
