@@ -66,7 +66,11 @@ export default function HomeScreen() {
     const onError = (data: any) => {
       setInQueue(false)
       setLoading(false)
-      setError(data.message ?? 'Matchmaking error')
+      if (data?.reason === 'INSUFFICIENT_STARS') {
+        setError(t('results.insufficientStars', { required: data.required ?? 10, defaultValue: `Not enough stars (need ${data.required ?? 10}⭐)` }))
+      } else {
+        setError(data?.message ?? 'Matchmaking error')
+      }
     }
 
     socket.on('matchmaking:status' as any, onStatus)
@@ -120,11 +124,19 @@ export default function HomeScreen() {
       })
       router.push(`/lobby/${room.code}`)
     } catch (err: any) {
-      setError(err.message)
+      const code = err?.data?.error ?? err?.error
+      const required = err?.data?.required ?? 10
+      if (code === 'INSUFFICIENT_STARS') {
+        setError(t('results.insufficientStars', { required, defaultValue: `Not enough stars (need ${required}⭐)` }))
+      } else {
+        setError(err.message ?? 'Failed to create room')
+      }
     } finally {
       setLoading(false)
     }
   }
+
+  const showCostHint = selectedMode === 'ranked' || selectedMode === 'lobby'
 
   const handleJoin = () => {
     const code = roomCode.trim().toUpperCase()
@@ -332,34 +344,41 @@ export default function HomeScreen() {
 
             {/* Create / Find button */}
             {selectedMode && !inQueue && (
-              <TouchableOpacity
-                onPress={selectedMode === 'lobby' ? handleCreate : handleMatchmaking}
-                disabled={loading}
-                className={[
-                  'rounded-2xl items-center overflow-hidden',
-                  loading ? 'opacity-60' : '',
-                  selectedMode === 'ranked'
-                    ? 'bg-amber-600'
-                    : 'bg-violet-600',
-                ].join(' ')}
-                style={{ paddingVertical: isTablet ? 18 : 16 }}
-                activeOpacity={0.8}
-              >
-                {/* Subtle shine overlay */}
-                <View
-                  className="absolute top-0 left-0 right-0 h-1/2 rounded-t-2xl"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
-                />
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text className="text-white font-extrabold tracking-wide" style={{ fontSize: 17 * fontScale }}>
-                    {selectedMode === 'normal' && t('home.findGame')}
-                    {selectedMode === 'ranked' && t('home.findRanked')}
-                    {selectedMode === 'lobby' && t('home.createLobby')}
+              <View className="gap-2">
+                <TouchableOpacity
+                  onPress={selectedMode === 'lobby' ? handleCreate : handleMatchmaking}
+                  disabled={loading}
+                  className={[
+                    'rounded-2xl items-center overflow-hidden',
+                    loading ? 'opacity-60' : '',
+                    selectedMode === 'ranked'
+                      ? 'bg-amber-600'
+                      : 'bg-violet-600',
+                  ].join(' ')}
+                  style={{ paddingVertical: isTablet ? 18 : 16 }}
+                  activeOpacity={0.8}
+                >
+                  {/* Subtle shine overlay */}
+                  <View
+                    className="absolute top-0 left-0 right-0 h-1/2 rounded-t-2xl"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
+                  />
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text className="text-white font-extrabold tracking-wide" style={{ fontSize: 17 * fontScale }}>
+                      {selectedMode === 'normal' && t('home.findGame')}
+                      {selectedMode === 'ranked' && t('home.findRanked')}
+                      {selectedMode === 'lobby' && t('home.createLobby')}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+                {showCostHint && (
+                  <Text className="text-center text-amber-500/80" style={{ fontSize: 11 * fontScale }}>
+                    {t('home.costPerPlay', { cost: 10, defaultValue: 'Costs 10⭐ per play' })}
                   </Text>
                 )}
-              </TouchableOpacity>
+              </View>
             )}
 
             {/* Matchmaking queue */}

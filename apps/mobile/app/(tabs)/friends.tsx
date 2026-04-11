@@ -68,8 +68,8 @@ export default function FriendsScreen() {
 
   const fetchRequests = useCallback(async () => {
     try {
-      const data = await api.get<FriendRequest[]>('/friends/requests')
-      setRequests(data)
+      const data = await api.get<{ requests: FriendRequest[] }>('/friends/requests')
+      setRequests(data.requests)
     } catch {
       // silently fail
     } finally {
@@ -79,8 +79,8 @@ export default function FriendsScreen() {
 
   const fetchFriends = useCallback(async () => {
     try {
-      const data = await api.get<Friend[]>('/friends')
-      setFriends(data)
+      const data = await api.get<{ friends: Friend[] }>('/friends')
+      setFriends(data.friends)
     } catch {
       // silently fail
     } finally {

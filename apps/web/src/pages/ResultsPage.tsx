@@ -13,6 +13,7 @@ import { PlayerActionMenu } from '../components/PlayerActionMenu'
 
 /** Full-screen cinematic intro overlay that auto-dismisses */
 const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: () => void }) => {
+  const { t } = useTranslation()
   const [stage, setStage] = useState<'in' | 'hold' | 'out'>('in')
 
   useEffect(() => {
@@ -112,13 +113,13 @@ const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: ()
               opacity: stage === 'in' ? 0 : 1,
             }}
           >
-            {didWin ? 'VICTORY' : 'DEFEAT'}
+            {didWin ? t('results.victory', 'VICTORY') : t('results.defeat', 'DEFEAT')}
           </h1>
           <p className="text-neutral-400 text-sm mt-2" style={{
             animation: stage !== 'in' ? 'cin-rise 0.5s ease 0.3s both' : undefined,
             opacity: stage === 'in' ? 0 : 1,
           }}>
-            Tap to continue
+            {t('results.tapToContinue', 'Tap to continue')}
           </p>
         </div>
       </div>
@@ -128,6 +129,7 @@ const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: ()
 
 /** Collapsible round recap row */
 const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: string; username: string }[] }) => {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const getName = (id: string) => players.find(p => p.userId === id)?.username ?? id.slice(0, 8)
   const eliminated = round.eliminatedPlayerId
@@ -150,14 +152,14 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
                 💀 <span className="font-semibold text-white">{eliminated.username}</span>
                 {' '}
                 <span className="text-neutral-500 text-xs">
-                  ({round.eliminatedRole === 'imposter' ? '🎭 Imposter' : round.eliminatedRole === 'double_agent' ? '🕵️ D.Agent' : round.eliminatedRole === 'detective' ? '🔍 Detective' : '👤 Villager'})
+                  ({round.eliminatedRole === 'imposter' ? `🎭 ${t('game.roleImposter', 'Imposter')}` : round.eliminatedRole === 'double_agent' ? `🕵️ ${t('game.roleDoubleAgent', 'Double Agent')}` : round.eliminatedRole === 'detective' ? `🔍 ${t('game.roleDetective', 'Detective')}` : `👤 ${t('game.roleVillager', 'Villager')}`})
                 </span>
               </span>
             ) : (
-              <span className="text-sm text-neutral-500">🤝 No elimination — tie</span>
+              <span className="text-sm text-neutral-500">🤝 {t('game.tie', "No elimination — tie")}</span>
             )}
           </div>
-          <span className="text-neutral-600 text-xs">{round.clues.length} clues {open ? '▲' : '▼'}</span>
+          <span className="text-neutral-600 text-xs">{round.clues.length} {t('game.phaseClues', 'clues')} {open ? '▲' : '▼'}</span>
         </div>
         {round.wordReveal && (
           <div className="flex items-center gap-3 ml-9 text-xs">
@@ -186,7 +188,7 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
           {/* Clues */}
           {round.clues.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">Clues</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">{t('game.phaseClues', 'Clues')}</p>
               {round.clues.map((c, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <span className="text-xs text-neutral-500 mt-0.5 w-4 text-center">{i + 1}.</span>
@@ -201,7 +203,7 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
           {/* Votes */}
           {round.votes.length > 0 && (
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600 mb-1.5">Votes</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600 mb-1.5">{t('common.votes', 'Votes')}</p>
               <div className="space-y-1">
                 {round.votes.map((v, i) => (
                   <div key={i} className="flex items-center gap-1.5 text-xs">

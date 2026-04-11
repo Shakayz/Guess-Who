@@ -1,274 +1,300 @@
-import React, { useRef, useState } from 'react'
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-} from 'react-native'
+import React from 'react'
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import { useResponsive } from '../lib/responsive'
+import { LanguagePicker } from '../components/LanguagePicker'
+import {
+  OFFLINE_ROLE_REGISTRY,
+  VILLAGER_OFFLINE_ROLES,
+  IMPOSTER_OFFLINE_ROLES,
+  NEUTRAL_OFFLINE_ROLES,
+  type OfflineRole,
+  type OfflineRoleColor,
+} from '@imposter/shared'
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window')
-
-interface Slide {
-  icon: string
-  title: string
-  subtitle: string
-  content: { icon?: string; text: string }[]
-  accent: string
-  accentText: string
+const COLOR_TEXT: Record<OfflineRoleColor, string> = {
+  emerald: 'text-emerald-300',
+  red: 'text-red-300',
+  blue: 'text-blue-300',
+  amber: 'text-amber-300',
+  yellow: 'text-yellow-300',
+  indigo: 'text-indigo-300',
+  teal: 'text-teal-300',
+  fuchsia: 'text-fuchsia-300',
+  pink: 'text-pink-300',
+  orange: 'text-orange-300',
+  rose: 'text-rose-300',
+  purple: 'text-purple-300',
 }
 
-const SLIDES: Slide[] = [
-  {
-    icon: '🎮',
-    title: 'The Setup',
-    subtitle: 'How the game begins',
-    accent: '#7c3aed',
-    accentText: '#a78bfa',
-    content: [
-      { icon: '👥', text: 'Join a room with 4–10 players' },
-      { icon: '🔒', text: 'Each player gets a secret role and word' },
-      { icon: '🎯', text: 'Only you know your role — keep it hidden!' },
-      { icon: '🌐', text: 'Play online or offline with friends nearby' },
-    ],
-  },
-  {
-    icon: '🎭',
-    title: 'The Roles',
-    subtitle: 'Who are you playing as?',
-    accent: '#4f46e5',
-    accentText: '#818cf8',
-    content: [
-      { icon: '🏘️', text: 'Villager: You get the real word. Find the imposter!' },
-      { icon: '🔪', text: 'Imposter: You get a similar word. Blend in and survive!' },
-      { icon: '🔍', text: 'Detective (Special): Can reveal one player\'s role per game' },
-      { icon: '🕵️', text: 'Double Agent (Special): Knows both words. Works with impostors' },
-    ],
-  },
-  {
-    icon: '💬',
-    title: 'Speaking Phase',
-    subtitle: 'Give your clue wisely',
-    accent: '#7c3aed',
-    accentText: '#c4b5fd',
-    content: [
-      { icon: '1️⃣', text: 'Each player says one clue about their word' },
-      { icon: '🎯', text: 'Too obvious? The imposter learns the real word' },
-      { icon: '😶', text: 'Too vague? You look like the imposter!' },
-      { icon: '⚠️', text: 'Say your actual word = instant elimination!' },
-    ],
-  },
-  {
-    icon: '🗳️',
-    title: 'Voting Phase',
-    subtitle: 'Root out the imposter',
-    accent: '#b45309',
-    accentText: '#fbbf24',
-    content: [
-      { icon: '🤔', text: 'Discuss who gave suspicious clues' },
-      { icon: '☝️', text: 'Everyone votes for who they think is the imposter' },
-      { icon: '💀', text: 'Most votes = eliminated and role revealed' },
-      { icon: '🤝', text: 'Tie vote = no elimination, next round begins' },
-    ],
-  },
-  {
-    icon: '🏆',
-    title: 'Winning',
-    subtitle: 'How to claim victory',
-    accent: '#b45309',
-    accentText: '#fde68a',
-    content: [
-      { icon: '✅', text: 'Villagers win when all impostors are eliminated' },
-      { icon: '😈', text: 'Impostors win when they equal or outnumber villagers' },
-      { icon: '⚖️', text: 'Ties lead to tiebreaker rounds — no round limit!' },
-      { icon: '🎖️', text: 'Ranked games affect your LP and tier ranking' },
-    ],
-  },
-  {
-    icon: '💡',
-    title: 'Pro Tips',
-    subtitle: 'Play like a champion',
-    accent: '#065f46',
-    accentText: '#34d399',
-    content: [
-      { icon: '👂', text: 'Listen to every clue — patterns reveal roles' },
-      { icon: '🎨', text: 'Be creative but not too clever with your clues' },
-      { icon: '🧠', text: 'As imposter, use others\' clues to deduce the word' },
-      { icon: '👁️', text: 'Watch body language in real-life games!' },
-    ],
-  },
-]
+interface RoleRowProps {
+  roleKey: OfflineRole
+  fontScale: number
+  isTablet: boolean
+}
+
+function RoleRow({ roleKey, fontScale, isTablet }: RoleRowProps) {
+  const { t } = useTranslation()
+  const def = OFFLINE_ROLE_REGISTRY[roleKey]
+  const labelClass = COLOR_TEXT[def.colorToken]
+  return (
+    <View
+      className="flex-row items-start gap-3 rounded-2xl border border-neutral-800/60 bg-neutral-900/60"
+      style={{ padding: isTablet ? 14 : 12 }}
+    >
+      <Text style={{ fontSize: 22, marginTop: 1 }}>{def.iconEmoji}</Text>
+      <View className="flex-1">
+        <Text className={['font-bold', labelClass].join(' ')} style={{ fontSize: 13 * fontScale }}>
+          {t(def.i18nLabelKey)}
+        </Text>
+        <Text className="text-neutral-400 mt-0.5" style={{ fontSize: 12 * fontScale, lineHeight: 16 * fontScale }}>
+          {t(def.i18nDescKey)}
+        </Text>
+      </View>
+    </View>
+  )
+}
+
+function TeamSection({
+  title,
+  emoji,
+  accent,
+  roles,
+  fontScale,
+  isTablet,
+}: {
+  title: string
+  emoji: string
+  accent: string
+  roles: readonly OfflineRole[]
+  fontScale: number
+  isTablet: boolean
+}) {
+  return (
+    <View className="gap-2">
+      <View className="flex-row items-center gap-2 px-1">
+        <Text style={{ fontSize: 16 }}>{emoji}</Text>
+        <Text
+          className={['font-extrabold uppercase tracking-widest', accent].join(' ')}
+          style={{ fontSize: 12 * fontScale }}
+        >
+          {title}
+        </Text>
+      </View>
+      <View className="gap-2">
+        {roles.map((r) => (
+          <RoleRow key={r} roleKey={r} fontScale={fontScale} isTablet={isTablet} />
+        ))}
+      </View>
+    </View>
+  )
+}
+
+const HOW_IT_WORKS_STEPS = [
+  'offline.htpStep1',
+  'offline.htpStep2',
+  'offline.htpStep3',
+  'offline.htpStep4',
+] as const
 
 export default function HowToPlayScreen() {
   const router = useRouter()
-  const scrollRef = useRef<ScrollView>(null)
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const { isTablet, fontScale } = useResponsive()
-
-  const slideWidth = isTablet ? Math.min(SCREEN_WIDTH, 600) : SCREEN_WIDTH
-
-  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetX = e.nativeEvent.contentOffset.x
-    const index = Math.round(offsetX / slideWidth)
-    setCurrentIndex(Math.max(0, Math.min(index, SLIDES.length - 1)))
-  }
-
-  const goToNext = () => {
-    if (currentIndex < SLIDES.length - 1) {
-      scrollRef.current?.scrollTo({ x: (currentIndex + 1) * slideWidth, animated: true })
-      setCurrentIndex(currentIndex + 1)
-    } else {
-      router.back()
-    }
-  }
-
-  const goToPrev = () => {
-    if (currentIndex > 0) {
-      scrollRef.current?.scrollTo({ x: (currentIndex - 1) * slideWidth, animated: true })
-      setCurrentIndex(currentIndex - 1)
-    }
-  }
-
-  const isLast = currentIndex === SLIDES.length - 1
-  const slide = SLIDES[currentIndex]
+  const { t } = useTranslation()
+  const { isTablet, px, fontScale } = useResponsive()
+  const contentStyle = isTablet
+    ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const }
+    : {}
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-950" edges={['bottom']}>
-      {/* Slides */}
       <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={handleScroll}
-        scrollEnabled
-        style={{ flex: 1 }}
-        contentContainerStyle={{ width: slideWidth * SLIDES.length }}
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 32 }}
+        showsVerticalScrollIndicator={false}
       >
-        {SLIDES.map((s, i) => (
-          <View
-            key={i}
-            style={{ width: slideWidth }}
-            className="flex-1 px-6 pt-6 pb-4"
-          >
-            {/* Accent top border */}
-            <View style={{ height: 3, backgroundColor: s.accent, borderRadius: 2, marginBottom: 24 }} />
-
-            {/* Icon + Title */}
-            <View className="items-center mb-8">
-              <View
-                className="rounded-3xl items-center justify-center mb-4"
-                style={{
-                  width: isTablet ? 96 : 80,
-                  height: isTablet ? 96 : 80,
-                  backgroundColor: `${s.accent}22`,
-                  borderWidth: 1,
-                  borderColor: `${s.accent}55`,
-                }}
-              >
-                <Text style={{ fontSize: isTablet ? 44 : 36 }}>{s.icon}</Text>
-              </View>
-              <Text
-                className="font-extrabold text-white text-center mb-1"
-                style={{ fontSize: (isTablet ? 30 : 26) * fontScale }}
-              >
-                {s.title}
-              </Text>
-              <Text
-                className="text-center font-medium"
-                style={{ fontSize: 14 * fontScale, color: s.accentText }}
-              >
-                {s.subtitle}
-              </Text>
+        <View style={contentStyle}>
+          {/* Hero header */}
+          <View className="items-center pt-6 pb-6" style={{ paddingHorizontal: px }}>
+            <View className="self-end mb-2">
+              <LanguagePicker />
             </View>
+            <Text
+              className="font-extrabold text-white text-center leading-tight tracking-tight"
+              style={{ fontSize: isTablet ? 36 : 30 }}
+            >
+              {t('howToPlay.title', { defaultValue: 'How to Play' })}
+            </Text>
+            <Text
+              className="text-neutral-400 mt-2 text-center"
+              style={{ fontSize: 13 * fontScale }}
+            >
+              {t('howToPlay.subtitle', {
+                defaultValue: 'Master the art of deception and deduction.',
+              })}
+            </Text>
+          </View>
 
-            {/* Content items */}
-            <View className="space-y-3">
-              {s.content.map((item, j) => (
-                <View
-                  key={j}
-                  className="flex-row items-start gap-3 rounded-2xl border border-neutral-800/60 bg-neutral-900/60"
-                  style={{ padding: isTablet ? 16 : 14 }}
-                >
-                  {item.icon && (
-                    <Text style={{ fontSize: 20 * fontScale, marginTop: 1 }}>{item.icon}</Text>
-                  )}
+          {/* How it works */}
+          <View
+            className="rounded-2xl border border-neutral-800 bg-neutral-900/60 gap-2"
+            style={{ marginHorizontal: px, padding: isTablet ? 18 : 14 }}
+          >
+            <Text className="text-neutral-200 font-bold" style={{ fontSize: 13 * fontScale }}>
+              {t('offline.htpHowItWorks', { defaultValue: 'How it works' })}
+            </Text>
+            <View className="gap-1.5">
+              {HOW_IT_WORKS_STEPS.map((stepKey, idx) => (
+                <View key={stepKey} className="flex-row gap-2">
+                  <Text className="text-violet-400 font-bold" style={{ fontSize: 12 * fontScale }}>
+                    {idx + 1}.
+                  </Text>
                   <Text
-                    className="text-neutral-300 flex-1 leading-relaxed"
-                    style={{ fontSize: 14 * fontScale }}
+                    className="text-neutral-400 flex-1"
+                    style={{ fontSize: 12 * fontScale, lineHeight: 16 * fontScale }}
                   >
-                    {item.text}
+                    {t(stepKey, { defaultValue: '' })}
                   </Text>
                 </View>
               ))}
             </View>
           </View>
-        ))}
-      </ScrollView>
 
-      {/* Bottom controls */}
-      <View className="px-6 pb-6 pt-4">
-        {/* Pagination dots */}
-        <View className="flex-row justify-center gap-1.5 mb-5">
-          {SLIDES.map((_, i) => (
-            <TouchableOpacity
-              key={i}
-              onPress={() => {
-                scrollRef.current?.scrollTo({ x: i * slideWidth, animated: true })
-                setCurrentIndex(i)
-              }}
-              style={{
-                width: i === currentIndex ? 20 : 8,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: i === currentIndex ? slide.accent : '#404040',
-                transition: 'width 0.2s',
-              }}
+          {/* Normal mode card */}
+          <View
+            className="rounded-2xl border border-neutral-800 bg-neutral-900/60 gap-3 mt-4"
+            style={{ marginHorizontal: px, padding: isTablet ? 18 : 14 }}
+          >
+            <View className="flex-row items-center gap-2">
+              <Text style={{ fontSize: 18 }}>🎲</Text>
+              <Text className="text-violet-400 font-bold" style={{ fontSize: 14 * fontScale }}>
+                {t('offline.normal', { defaultValue: 'Normal' })}
+              </Text>
+              <View className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700/40">
+                <Text className="text-neutral-500 font-semibold" style={{ fontSize: 9 * fontScale }}>
+                  {t('offline.htpMinPlayers', { count: 3, defaultValue: '3+ players' })}
+                </Text>
+              </View>
+            </View>
+            <Text className="text-neutral-400" style={{ fontSize: 12 * fontScale, lineHeight: 16 * fontScale }}>
+              {t('offline.htpNormalDesc', {
+                defaultValue:
+                  'Each player gets a secret word. Imposters get a similar but different word and must blend in.',
+              })}
+            </Text>
+            <View className="gap-2">
+              <RoleRow roleKey="villager" fontScale={fontScale} isTablet={isTablet} />
+              <RoleRow roleKey="imposter" fontScale={fontScale} isTablet={isTablet} />
+            </View>
+          </View>
+
+          {/* Special mode card */}
+          <View
+            className="rounded-2xl border border-neutral-800 bg-neutral-900/60 gap-4 mt-4"
+            style={{ marginHorizontal: px, padding: isTablet ? 18 : 14 }}
+          >
+            <View className="flex-row items-center gap-2">
+              <Text style={{ fontSize: 18 }}>⚡</Text>
+              <Text className="text-amber-400 font-bold" style={{ fontSize: 14 * fontScale }}>
+                {t('offline.special', { defaultValue: 'Special' })}
+              </Text>
+              <View className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700/40">
+                <Text className="text-neutral-500 font-semibold" style={{ fontSize: 9 * fontScale }}>
+                  {t('offline.htpMinPlayers', { count: 5, defaultValue: '5+ players' })}
+                </Text>
+              </View>
+            </View>
+            <Text className="text-neutral-400" style={{ fontSize: 12 * fontScale, lineHeight: 16 * fontScale }}>
+              {t('offline.htpSpecialDesc', {
+                defaultValue:
+                  'Add roles like Detective, Guardian, or Corruptor for deeper deduction and chaos.',
+              })}
+            </Text>
+
+            <TeamSection
+              title={t('offline.teamVillagers', { defaultValue: 'Villagers' })}
+              emoji="🟢"
+              accent="text-emerald-400"
+              roles={VILLAGER_OFFLINE_ROLES}
+              fontScale={fontScale}
+              isTablet={isTablet}
             />
-          ))}
-        </View>
 
-        {/* Navigation buttons */}
-        <View className="flex-row gap-3">
-          {currentIndex > 0 ? (
+            <TeamSection
+              title={t('offline.teamImposters', { defaultValue: 'Imposters' })}
+              emoji="🔴"
+              accent="text-red-400"
+              roles={IMPOSTER_OFFLINE_ROLES}
+              fontScale={fontScale}
+              isTablet={isTablet}
+            />
+
+            {/* Pair (Evil Twins) */}
+            <View className="gap-2">
+              <View className="flex-row items-center gap-2 px-1">
+                <Text style={{ fontSize: 16 }}>👯</Text>
+                <Text className="text-purple-400 font-extrabold uppercase tracking-widest" style={{ fontSize: 12 * fontScale }}>
+                  {t('offline.teamPair', { defaultValue: 'Pair' })}
+                </Text>
+              </View>
+              <View
+                className="flex-row items-start gap-3 rounded-2xl border border-neutral-800/60 bg-neutral-900/60"
+                style={{ padding: isTablet ? 14 : 12 }}
+              >
+                <Text style={{ fontSize: 22, marginTop: 1 }}>👯</Text>
+                <View className="flex-1">
+                  <Text className="text-purple-300 font-bold" style={{ fontSize: 13 * fontScale }}>
+                    {t('offline.evilTwins', { defaultValue: 'Evil Twins' })}
+                  </Text>
+                  <Text className="text-neutral-400 mt-0.5" style={{ fontSize: 12 * fontScale, lineHeight: 16 * fontScale }}>
+                    {t('offline.htpEvilTwinsDesc', {
+                      defaultValue:
+                        'A linked pair (one villager, one imposter) who win together if both survive — but lose individually if separated.',
+                    })}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <TeamSection
+              title={t('offline.teamNeutral', { defaultValue: 'Neutral' })}
+              emoji="⚪"
+              accent="text-sky-400"
+              roles={NEUTRAL_OFFLINE_ROLES}
+              fontScale={fontScale}
+              isTablet={isTablet}
+            />
+          </View>
+
+          {/* CTAs */}
+          <View
+            className="flex-row gap-3 mt-6"
+            style={{ marginHorizontal: px }}
+          >
             <TouchableOpacity
-              onPress={goToPrev}
-              className="flex-1 py-4 rounded-2xl border border-neutral-700 bg-neutral-800 items-center"
-              activeOpacity={0.8}
+              onPress={() => router.replace('/')}
+              className="flex-1 rounded-2xl items-center bg-violet-600"
+              style={{ paddingVertical: isTablet ? 16 : 14 }}
+              activeOpacity={0.85}
             >
-              <Text className="text-neutral-300 font-bold" style={{ fontSize: 16 * fontScale }}>
-                ← Back
+              <Text className="text-white font-extrabold" style={{ fontSize: 15 * fontScale }}>
+                {t('howToPlay.playNow', { defaultValue: 'Play Now' })}
               </Text>
             </TouchableOpacity>
-          ) : (
             <TouchableOpacity
               onPress={() => router.back()}
-              className="flex-1 py-4 rounded-2xl border border-neutral-700 bg-neutral-800 items-center"
-              activeOpacity={0.8}
+              className="px-6 rounded-2xl bg-neutral-800 border border-neutral-700 items-center justify-center"
+              style={{ paddingVertical: isTablet ? 16 : 14 }}
+              activeOpacity={0.85}
             >
-              <Text className="text-neutral-400 font-bold" style={{ fontSize: 16 * fontScale }}>
-                Skip
+              <Text className="text-neutral-300 font-semibold" style={{ fontSize: 14 * fontScale }}>
+                {t('common.close', { defaultValue: 'Close' })}
               </Text>
             </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            onPress={goToNext}
-            className="flex-1 py-4 rounded-2xl items-center"
-            style={{ backgroundColor: slide.accent }}
-            activeOpacity={0.8}
-          >
-            <Text className="text-white font-extrabold" style={{ fontSize: 16 * fontScale }}>
-              {isLast ? 'Done ✓' : 'Next →'}
-            </Text>
-          </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   )
 }

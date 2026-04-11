@@ -8,11 +8,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Modal,
+  FlatList,
 } from 'react-native'
+import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
-import * as AppleAuthentication from 'expo-apple-authentication'
+// Lazy-load Apple auth to avoid "not available" warning on Android
+const AppleAuthentication = Platform.OS === 'ios'
+  ? require('expo-apple-authentication')
+  : null
 import * as WebBrowser from 'expo-web-browser'
 import * as AuthSession from 'expo-auth-session'
 import * as Crypto from 'expo-crypto'
@@ -28,14 +34,33 @@ WebBrowser.maybeCompleteAuthSession()
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const GOOGLE_CLIENT_ID = '' // TODO: fill in your Google OAuth client ID
+const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || ''
 
-const LANGUAGES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh'] as const
+const LANGUAGES = [
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'fr', label: 'Français', flag: '🇫🇷' },
+  { code: 'ar', label: 'العربية', flag: '🇸🇦' },
+  { code: 'es', label: 'Español', flag: '🇪🇸' },
+  { code: 'it', label: 'Italiano', flag: '🇮🇹' },
+  { code: 'pt', label: 'Português', flag: '🇧🇷' },
+  { code: 'zh', label: '中文', flag: '🇨🇳' },
+] as const
 
 const googleDiscovery = {
   authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
   tokenEndpoint: 'https://oauth2.googleapis.com/token',
   revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
+}
+
+function GoogleIcon() {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 48 48">
+      <Path d="M43.611 20.083H42V20H24v8h11.303C33.654 32.657 29.332 36 24 36c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" fill="#FFC107" />
+      <Path d="M6.306 14.691l6.571 4.819C14.655 15.108 19.001 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" fill="#FF3D00" />
+      <Path d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.315 0-9.827-3.337-11.567-8H6.27A19.945 19.945 0 0 0 24 44z" fill="#4CAF50" />
+      <Path d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" fill="#1976D2" />
+    </Svg>
+  )
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -65,19 +90,19 @@ export default function AuthScreen() {
   const [setupToken, setSetupToken] = useState<string | null>(null)
   const [setupUsername, setSetupUsername] = useState('')
 
-  // Language switcher state
-  const [currentLangIndex, setCurrentLangIndex] = useState(
-    LANGUAGES.indexOf(i18n.language as typeof LANGUAGES[number]) >= 0
-      ? LANGUAGES.indexOf(i18n.language as typeof LANGUAGES[number])
-      : 0,
-  )
+  // Language picker state
+  const [showLangPicker, setShowLangPicker] = useState(false)
+  const currentLang = LANGUAGES.find((l) => l.code === i18n.language) ?? LANGUAGES[0]
 
   // ─── Google OAuth ────────────────────────────────────────────────────────
+
+  const redirectUri = AuthSession.makeRedirectUri({ scheme: 'imposter', path: 'oauthredirect' })
 
   const [googleRequest, googleResponse, googlePromptAsync] =
     AuthSession.useAuthRequest(
       {
-        clientId: GOOGLE_CLIENT_ID,
+        clientId: GOOGLE_CLIENT_ID || 'not-configured',
+        redirectUri: redirectUri || 'imposter://oauthredirect',
         scopes: ['openid', 'profile', 'email'],
         responseType: AuthSession.ResponseType.Token,
         usePKCE: false,
@@ -137,7 +162,14 @@ export default function AuthScreen() {
     }
     setError(null)
     setLoading(true)
-    await googlePromptAsync()
+    try {
+      const result = await googlePromptAsync()
+      if (!result || result.type !== 'success') {
+        setLoading(false)
+      }
+    } catch {
+      setLoading(false)
+    }
   }
 
   // ─── Username setup (for new Google OAuth users) ─────────────────────────
@@ -165,12 +197,11 @@ export default function AuthScreen() {
     }
   }
 
-  // ─── Language switcher ───────────────────────────────────────────────────
+  // ─── Language picker ─────────────────────────────────────────────────────
 
-  const cycleLanguage = () => {
-    const nextIndex = (currentLangIndex + 1) % LANGUAGES.length
-    setCurrentLangIndex(nextIndex)
-    i18n.changeLanguage(LANGUAGES[nextIndex])
+  const selectLanguage = (code: string) => {
+    i18n.changeLanguage(code)
+    setShowLangPicker(false)
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -187,12 +218,27 @@ export default function AuthScreen() {
 
   const handleSubmit = async () => {
     setError(null)
+    if (mode === 'signup' && form.username.trim().length < 3) {
+      setError(t('auth.usernameMinLength'))
+      return
+    }
+    if (!form.email.includes('@')) {
+      setError(t('auth.invalidEmail'))
+      return
+    }
+    if (form.password.length < 8) {
+      setError(t('auth.passwordMinLength'))
+      return
+    }
     setLoading(true)
     log.info('auth attempt', { mode })
     try {
+      const payload = mode === 'signin'
+        ? { identifier: form.email, password: form.password }
+        : { username: form.username, email: form.email, password: form.password, locale: i18n.language }
       const data = await api.post<{ token: string; user: { id: string; username: string; email: string } }>(
         mode === 'signin' ? '/auth/signin' : '/auth/signup',
-        form,
+        payload,
       )
       log.info('auth success', { userId: data.user?.id, mode })
       setAuth(data.token, data.user)
@@ -208,6 +254,7 @@ export default function AuthScreen() {
   // ─── Apple ───────────────────────────────────────────────────────────────
 
   const handleApple = async () => {
+    if (!AppleAuthentication) return
     setError(null)
     setLoading(true)
     log.info('apple oauth attempt')
@@ -252,10 +299,10 @@ export default function AuthScreen() {
                   <Text style={{ fontSize: isTablet ? 40 : 30 }}>🎭</Text>
                 </View>
                 <Text className="font-extrabold text-white tracking-tight" style={{ fontSize: isTablet ? 28 : 24 }}>
-                  Choose a Username
+                  {t('auth.chooseUsername')}
                 </Text>
                 <Text className="text-neutral-500 text-sm mt-1.5">
-                  Pick a display name for your account
+                  {t('auth.chooseUsernameDesc')}
                 </Text>
               </View>
 
@@ -263,7 +310,7 @@ export default function AuthScreen() {
                 <View className="mb-4">
                   <TextInput
                     className="bg-neutral-800 text-white px-4 py-3 rounded-xl border border-neutral-700"
-                    placeholder="Username"
+                    placeholder={t('auth.username')}
                     placeholderTextColor="#737373"
                     value={setupUsername}
                     onChangeText={setSetupUsername}
@@ -292,7 +339,7 @@ export default function AuthScreen() {
                   {loading ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
-                    <Text className="text-white font-semibold text-base">Continue</Text>
+                    <Text className="text-white font-semibold text-base">{t('auth.continue')}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -305,7 +352,7 @@ export default function AuthScreen() {
                 }}
                 className="mt-4 items-center"
               >
-                <Text className="text-neutral-500 text-xs">Cancel</Text>
+                <Text className="text-neutral-500 text-xs">{t('common.cancel')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -318,18 +365,49 @@ export default function AuthScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-950">
-      {/* Language switcher */}
+      {/* Language picker button */}
       <View className="flex-row justify-end px-4 pt-2">
         <TouchableOpacity
-          onPress={cycleLanguage}
-          className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700"
+          onPress={() => setShowLangPicker(true)}
+          className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700"
           activeOpacity={0.7}
         >
-          <Text className="text-white text-xs font-bold uppercase">
-            {LANGUAGES[currentLangIndex].toUpperCase()}
-          </Text>
+          <Text style={{ fontSize: 14 }}>{currentLang.flag}</Text>
+          <Text className="text-white text-xs font-bold uppercase">{currentLang.code}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Language picker modal */}
+      <Modal visible={showLangPicker} transparent animationType="fade">
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setShowLangPicker(false)}
+          className="flex-1 bg-black/60 items-center justify-center"
+        >
+          <View className="bg-neutral-900 rounded-2xl border border-neutral-700 overflow-hidden" style={{ width: 280 }}>
+            <View className="px-5 py-4 border-b border-neutral-800">
+              <Text className="text-white font-bold text-base text-center">{t('auth.language')}</Text>
+            </View>
+            <FlatList
+              data={LANGUAGES}
+              keyExtractor={(item) => item.code}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  onPress={() => selectLanguage(item.code)}
+                  className={`flex-row items-center gap-3 px-5 py-3.5 ${item.code === currentLang.code ? 'bg-violet-900/40' : ''}`}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 20 }}>{item.flag}</Text>
+                  <Text className="text-white text-sm flex-1">{item.label}</Text>
+                  {item.code === currentLang.code && (
+                    <View className="w-2 h-2 rounded-full bg-violet-400" />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <KeyboardAvoidingView
         className="flex-1"
@@ -354,19 +432,21 @@ export default function AuthScreen() {
                 <Text className="font-extrabold text-white tracking-tight" style={{ fontSize: isTablet ? 36 : 30 }}>Imposter Game</Text>
                 <View className="flex-row items-center gap-1.5 mt-2 px-3 py-1 rounded-full border border-violet-800/40 bg-violet-950/30">
                   <View className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-                  <Text className="text-violet-400 font-semibold" style={{ fontSize: 12 * fontScale }}>Deceive. Detect. Dominate.</Text>
+                  <Text className="text-violet-400 font-semibold" style={{ fontSize: 12 * fontScale }}>{t('home.subtitle')}</Text>
                 </View>
               </View>
 
               {/* OAuth buttons */}
               <View className="gap-2.5 mb-5">
-                <AppleAuthentication.AppleAuthenticationButton
-                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                  cornerRadius={14}
-                  style={{ width: '100%', height: 50 }}
-                  onPress={handleApple}
-                />
+                {Platform.OS === 'ios' && AppleAuthentication && (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                    cornerRadius={14}
+                    style={{ width: '100%', height: 50 }}
+                    onPress={handleApple}
+                  />
+                )}
                 <TouchableOpacity
                   onPress={handleGoogleSignIn}
                   disabled={loading}
@@ -374,17 +454,15 @@ export default function AuthScreen() {
                   activeOpacity={0.85}
                   style={{ height: 50 }}
                 >
-                  <View className="w-5 h-5 rounded-full bg-neutral-100 items-center justify-center">
-                    <Text style={{ fontSize: 14, lineHeight: 18, fontWeight: '700', color: '#4285F4' }}>G</Text>
-                  </View>
-                  <Text className="text-neutral-900 font-semibold" style={{ fontSize: 15 * fontScale }}>Continue with Google</Text>
+                  <GoogleIcon />
+                  <Text className="text-neutral-900 font-semibold" style={{ fontSize: 15 * fontScale }}>{t('auth.continueWithGoogle')}</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Divider */}
               <View className="flex-row items-center gap-3 mb-5">
                 <View className="flex-1 h-px bg-neutral-800" />
-                <Text className="text-neutral-600 text-xs font-medium uppercase tracking-widest">or</Text>
+                <Text className="text-neutral-600 text-xs font-medium uppercase tracking-widest">{t('common.or')}</Text>
                 <View className="flex-1 h-px bg-neutral-800" />
               </View>
 
@@ -515,6 +593,19 @@ export default function AuthScreen() {
                   <Text className="text-violet-500 text-xs font-medium">
                     {mode === 'signin' ? t('auth.signUp') : t('auth.signIn')}
                   </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Offline mode */}
+              <View className="items-center mt-5">
+                <TouchableOpacity
+                  onPress={() => router.push('/offline')}
+                  className="flex-row items-center gap-2 px-5 py-2.5 rounded-xl bg-neutral-800/80 border border-neutral-700/50"
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 14 }}>📱</Text>
+                  <Text className="text-neutral-300 text-sm font-semibold">{t('auth.playOffline')}</Text>
+                  <Text className="text-neutral-500 text-xs"> — {t('auth.playOfflineDesc')}</Text>
                 </TouchableOpacity>
               </View>
 

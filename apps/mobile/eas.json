@@ -14,10 +14,20 @@
       "distribution": "internal",
       "ios": {
         "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://staging.aghazzaf.com/api",
+        "EXPO_PUBLIC_SOCKET_URL": "https://staging.aghazzaf.com",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": ""
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://aghazzaf.com/api",
+        "EXPO_PUBLIC_SOCKET_URL": "https://aghazzaf.com",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": ""
+      }
     }
   },
   "submit": {

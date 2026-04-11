@@ -13,9 +13,14 @@
       "backgroundColor": "#09090b"
     },
     "ios": {
+      "usesAppleSignIn": true,
       "supportsTablet": true,
       "bundleIdentifier": "com.imposter.game",
       "requireFullScreen": false,
+      "associatedDomains": [
+        "applinks:aghazzaf.com",
+        "applinks:staging.aghazzaf.com"
+      ],
       "infoPlist": {
         "NSCameraUsageDescription": "Take a photo for your profile picture",
         "NSPhotoLibraryUsageDescription": "Choose a profile picture from your gallery",
@@ -31,8 +36,15 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "data": [{ "scheme": "imposter" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "data": [
+            {
+              "scheme": "imposter"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "permissions": [
@@ -58,7 +70,8 @@
           "photosPermission": "Allow Imposter Game to access your photos for profile pictures",
           "cameraPermission": "Allow Imposter Game to use the camera for profile pictures"
         }
-      ]
+      ],
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true

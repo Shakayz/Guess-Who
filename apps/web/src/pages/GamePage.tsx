@@ -198,7 +198,7 @@ const PlayerClueHistoryModal = memo(({
               )}
               {(player.status === 'eliminated' || player.status === 'forfeited') && (
                 <p className="text-xs text-red-400 font-semibold mt-0.5">
-                  {player.status === 'forfeited' ? '🏳 Forfeited' : '💀 Eliminated'}
+                  {player.status === 'forfeited' ? `🏳 ${t('game.statusForfeited', 'Forfeited')}` : `💀 ${t('game.statusEliminated', 'Eliminated')}`}
                 </p>
               )}
             </div>
@@ -1422,7 +1422,7 @@ export default function GamePage() {
                           {player ? getDisplayName(player.userId, player.username) : 'Unknown'}
                         </span>
                         <span className="text-neutral-700 text-[10px]">#{i + 1}</span>
-                        {isMe && <span className="text-[10px] text-brand-400 font-bold">YOU</span>}
+                        {isMe && <span className="text-[10px] text-brand-400 font-bold">{t('results.you', 'YOU')}</span>}
                         {clue.flaggedForWord && (
                           <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider ml-auto">
                             ⚠ {t('game.saidTheWordBadge')}

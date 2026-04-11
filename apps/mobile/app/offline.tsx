@@ -7,6 +7,7 @@ import {
   ScrollView,
   Animated,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import {
@@ -53,6 +54,8 @@ interface OfflinePlayer {
   isEliminated: boolean
   /** Set when a Jester wins by being voted out (or dragged down). */
   jesterWon?: boolean
+  /** For Evil Twins: the name of their twin partner. */
+  twinPartner?: string
 }
 
 interface JudgeTiePending {
@@ -992,6 +995,15 @@ function RoleRevealCard({
           </Text>
         </View>
 
+        {(player.role === 'twinImposter' || player.role === 'twinVillager') && player.twinPartner && (
+          <View className="mt-3 px-4 py-3 rounded-xl bg-purple-900/30 border border-purple-700/40 flex-row items-center gap-2">
+            <Text style={{ fontSize: 16 }}>👯</Text>
+            <Text className="text-purple-300 font-semibold flex-1" style={{ fontSize: 13 * fontScale }}>
+              {t('game.twinPartnerBanner', { name: player.twinPartner, defaultValue: 'Your twin: {{name}}' })}
+            </Text>
+          </View>
+        )}
+
         <TouchableOpacity
           onPress={onGotIt}
           className={['mt-5 rounded-xl items-center', c.buttonBg].join(' ')}
@@ -1386,6 +1398,14 @@ function VotePhase({
                 defaultValue: `Ghost vote (${revenantGhostRounds[voter.name] ?? 0} left)`,
               })}
             </Text>
+          )}
+          {step === 'voting' && (voter.role === 'twinImposter' || voter.role === 'twinVillager') && voter.twinPartner && (
+            <View className="mt-2 flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-900/30 border border-purple-700/40">
+              <Text style={{ fontSize: 12 }}>👯</Text>
+              <Text className="text-purple-300 font-semibold" style={{ fontSize: 11 * fontScale }}>
+                {t('game.twinPartnerBanner', { name: voter.twinPartner, defaultValue: 'Your twin: {{name}}' })}
+              </Text>
+            </View>
           )}
         </View>
 
@@ -2478,6 +2498,14 @@ export default function OfflineScreen() {
             isEliminated: false,
           }
         })
+
+        // Link Evil Twins so each knows their partner's name
+        const twinI = roles.find((p) => p.role === 'twinImposter')
+        const twinV = roles.find((p) => p.role === 'twinVillager')
+        if (twinI && twinV) {
+          twinI.twinPartner = twinV.name
+          twinV.twinPartner = twinI.name
+        }
       } else {
         roles = playerOrder.map((name, i) => ({
           name,
@@ -2509,7 +2537,7 @@ export default function OfflineScreen() {
   const handleHome = useCallback(() => router.back(), [router])
 
   return (
-    <View className="flex-1 bg-neutral-950">
+    <SafeAreaView className="flex-1 bg-neutral-950" edges={['bottom']}>
       <View className="flex-1" style={contentStyle}>
         {phase === 'setup' && (
           <SetupPhase
@@ -2556,6 +2584,6 @@ export default function OfflineScreen() {
           />
         )}
       </View>
-    </View>
+    </SafeAreaView>
   )
 }

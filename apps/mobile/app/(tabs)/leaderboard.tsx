@@ -28,6 +28,7 @@ export default function LeaderboardScreen() {
   const { t } = useTranslation()
   const router = useRouter()
 
+  const { isTablet, px, fontScale } = useResponsive()
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -55,7 +56,7 @@ export default function LeaderboardScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-neutral-950 items-center justify-center">
+      <SafeAreaView className="flex-1 bg-neutral-950 items-center justify-center" edges={['bottom']}>
         <ActivityIndicator size="large" color="#8b5cf6" />
       </SafeAreaView>
     )
@@ -63,7 +64,7 @@ export default function LeaderboardScreen() {
 
   if (error) {
     return (
-      <SafeAreaView className="flex-1 bg-neutral-950 items-center justify-center px-6">
+      <SafeAreaView className="flex-1 bg-neutral-950 items-center justify-center px-6" edges={['bottom']}>
         <Text className="text-red-400 text-sm text-center mb-4">{error}</Text>
         <TouchableOpacity
           onPress={fetchLeaderboard}
@@ -89,7 +90,6 @@ export default function LeaderboardScreen() {
     ? [{ circle: 64, font: 22 }, { circle: 80, font: 28 }, { circle: 64, font: 22 }]
     : top3.map(() => ({ circle: 64, font: 22 }))
 
-  const { isTablet, px, fontScale } = useResponsive()
   const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
   const renderItem = ({ item, index }: { item: LeaderboardEntry; index: number }) => {

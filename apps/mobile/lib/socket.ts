@@ -1,9 +1,11 @@
 import { io, Socket } from 'socket.io-client'
+import { Platform } from 'react-native'
 import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
 import { useAuthStore } from '../store/auth'
 import { createLogger } from './logger'
 
-const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL || 'http://localhost:3001'
+const DEFAULT_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost'
+const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL || `http://${DEFAULT_HOST}:3001`
 
 const log = createLogger('socket')
 
@@ -15,6 +17,10 @@ export function connectSocket(): AppSocket {
   if (socket?.connected) return socket
 
   const token = useAuthStore.getState().token
+  if (!token) {
+    log.warn('No auth token — skipping socket connection')
+    return null as unknown as AppSocket
+  }
   log.info('Connecting to socket server', { url: SOCKET_URL })
 
   socket = io(SOCKET_URL, {

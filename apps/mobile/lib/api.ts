@@ -1,7 +1,9 @@
+import { Platform } from 'react-native'
 import { useAuthStore } from '../store/auth'
 import { createLogger } from './logger'
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api'
+const DEFAULT_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost'
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || `http://${DEFAULT_HOST}:3001/api`
 
 const log = createLogger('api')
 

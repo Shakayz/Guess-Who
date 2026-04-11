@@ -1,3 +1,4 @@
+import '../global.css'
 import React, { useEffect, useCallback } from 'react'
 import { View, Text, TouchableOpacity, useWindowDimensions } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
@@ -10,6 +11,7 @@ import { connectSocket, getSocket } from '../lib/socket'
 import { registerForPushNotifications } from '../lib/notifications'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { ConnectionStatus } from '../components/ConnectionStatus'
+import { AchievementToastBanner } from '../components/achievements/AchievementToast'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -17,10 +19,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const segments = useSegments()
 
   useEffect(() => {
-    const inAuthGroup = segments[0] === 'auth'
-    if (!token && !inAuthGroup) {
+    const inPublicRoute = segments[0] === 'auth' || segments[0] === 'offline' || segments[0] === 'how-to-play'
+    if (!token && !inPublicRoute) {
       router.replace('/auth')
-    } else if (token && inAuthGroup) {
+    } else if (token && segments[0] === 'auth') {
       router.replace('/')
     }
   }, [token, segments])
@@ -36,7 +38,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function GlobalSocketListeners() {
   const token = useAuthStore((s) => s.token)
-  const { setPendingInvite, setPendingFriendRequest, incrementUnread } = useSocialStore()
+  const { setPendingInvite, setPendingFriendRequest, incrementUnread, pushAchievementToast } = useSocialStore()
 
   useEffect(() => {
     if (!token) return
@@ -60,10 +62,21 @@ function GlobalSocketListeners() {
       incrementUnread(data.senderId)
     })
 
+    socket.on('achievement:unlocked' as any, (data: any) => {
+      pushAchievementToast({
+        key: data.key,
+        name: data.name,
+        icon: data.icon,
+        difficulty: data.difficulty,
+        starsReward: data.starsReward ?? 0,
+      })
+    })
+
     return () => {
       socket.off('room:invited' as any)
       socket.off('friend:request' as any)
       socket.off('dm:receive' as any)
+      socket.off('achievement:unlocked' as any)
     }
   }, [token])
 
@@ -192,6 +205,7 @@ export default function RootLayout() {
         <ConnectionStatus />
         <InviteBanner />
         <FriendRequestBanner />
+        <AchievementToastBanner />
         <Stack
           screenOptions={{
             headerStyle: { backgroundColor: '#09090b' },

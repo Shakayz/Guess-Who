@@ -1,22 +1,26 @@
 import { useState, useEffect } from 'react'
 import { View, Text } from 'react-native'
 import { getSocket } from '../lib/socket'
+import { useAuthStore } from '../store/auth'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 export function ConnectionStatus() {
   const [connected, setConnected] = useState(true)
   const [showBanner, setShowBanner] = useState(false)
+  const token = useAuthStore((s) => s.token)
   const insets = useSafeAreaInsets()
 
   useEffect(() => {
+    if (!token) return
     const socket = getSocket()
+    if (!socket) return
     const onConnect = () => { setConnected(true); setTimeout(() => setShowBanner(false), 2000) }
     const onDisconnect = () => { setConnected(false); setShowBanner(true) }
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     if (!socket.connected) { setConnected(false); setShowBanner(true) }
     return () => { socket.off('connect', onConnect); socket.off('disconnect', onDisconnect) }
-  }, [])
+  }, [token])
 
   if (!showBanner) return null
 

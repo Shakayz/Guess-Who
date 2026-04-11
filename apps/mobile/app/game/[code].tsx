@@ -234,6 +234,7 @@ export default function GameScreen() {
     myVillagerWord,
     detectiveRevealUsed,
     revealedPlayer,
+    twinPartner,
     messages,
     addMessage,
     setResult,
@@ -516,6 +517,12 @@ export default function GameScreen() {
       }
     )
 
+    // Twin partner revealed
+    socket.on('twin:partner' as any, ({ twinUserId, twinUsername, twinRole }: any) => {
+      log.info('twin partner revealed', { twinUserId, twinUsername, twinRole })
+      useGameStore.getState().setTwinPartner({ twinUserId, twinUsername, twinRole })
+    })
+
     // Detective reveal result
     socket.on('detective:result', ({ targetUserId, targetUsername, role }: any) => {
       setDetectiveRevealUsed()
@@ -600,6 +607,7 @@ export default function GameScreen() {
       socket.off('chat:message')
       socket.off('deadchat:message' as any)
       socket.off('emote:receive' as any)
+      socket.off('twin:partner' as any)
       socket.off('detective:result')
       socket.off('round:word-said' as any)
       socket.off('vote:update' as any)
@@ -951,6 +959,16 @@ export default function GameScreen() {
                     ))}
                 </View>
               )}
+            </View>
+          )}
+
+          {/* ─── Twin partner banner ──────────────────────────────────────── */}
+          {(myRole === 'twin_villager' || myRole === 'twin_imposter') && twinPartner && (
+            <View className="rounded-xl border border-purple-700/40 bg-purple-900/30 px-4 py-2.5 flex-row items-center gap-2">
+              <Text style={{ fontSize: 14 }}>👯</Text>
+              <Text className="text-purple-300 font-semibold text-xs">
+                {t('game.twinPartnerBanner', { name: twinPartner.twinUsername, defaultValue: 'Your twin: {{name}}' })}
+              </Text>
             </View>
           )}
 

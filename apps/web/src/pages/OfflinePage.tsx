@@ -37,6 +37,8 @@ interface PlayerRole {
   isEliminated: boolean
   /** Set to true when a Jester wins by being voted out. */
   jesterWon?: boolean
+  /** For Evil Twins: the name of their twin partner. */
+  twinPartner?: string
 }
 
 interface VoteRecord {
@@ -1121,6 +1123,13 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
               </div>
             )}
 
+            {(current.role === 'twinImposter' || current.role === 'twinVillager') && current.twinPartner && (
+              <div className="flex items-center gap-2 bg-purple-950/40 border border-purple-800/40 rounded-xl px-4 py-2.5 text-sm font-semibold text-purple-300">
+                <span>👯</span>
+                <span>{t('game.twinPartnerBanner', { name: current.twinPartner, defaultValue: 'Your twin: {{name}}' })}</span>
+              </div>
+            )}
+
             <p className={`text-xs leading-relaxed ${instructionColor}`}>
               {getRoleInstruction(current.role)}
             </p>
@@ -1569,6 +1578,12 @@ function VotePhase({
           <p className="mt-2 text-[11px] text-teal-300 font-semibold">
             👻 {t('game.revenantGhostVoter', { count: revenantGhostRounds[voter.name] ?? 0 })}
           </p>
+        )}
+        {step === 'voting' && (voter.role === 'twinImposter' || voter.role === 'twinVillager') && voter.twinPartner && (
+          <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-950/40 border border-purple-800/40 text-xs font-semibold text-purple-300">
+            <span>👯</span>
+            <span>{t('game.twinPartnerBanner', { name: voter.twinPartner, defaultValue: 'Your twin: {{name}}' })}</span>
+          </div>
         )}
       </div>
 
@@ -2471,6 +2486,14 @@ export default function OfflinePage() {
             isEliminated: false,
           }
         })
+
+        // Link Evil Twins so each knows their partner's name
+        const twinI = roles.find((p) => p.role === 'twinImposter')
+        const twinV = roles.find((p) => p.role === 'twinVillager')
+        if (twinI && twinV) {
+          twinI.twinPartner = twinV.name
+          twinV.twinPartner = twinI.name
+        }
       } else {
         // Normal mode
         roles = playerOrder.map((name, i) => ({

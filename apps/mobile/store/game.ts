@@ -10,6 +10,12 @@ interface GameResult {
   rewards: RewardSummary
 }
 
+interface TwinPartner {
+  twinUserId: string
+  twinUsername: string
+  twinRole: string
+}
+
 interface GameState {
   room: Room | null
   currentRound: Round | null
@@ -19,6 +25,7 @@ interface GameState {
   myVillagerWord: string | null
   detectiveRevealUsed: boolean
   revealedPlayer: { userId: string; username: string; role: string } | null
+  twinPartner: TwinPartner | null
   messages: ChatMessage[]
   result: GameResult | null
   setRoom: (room: Room) => void
@@ -27,6 +34,7 @@ interface GameState {
   setRoleAndWord: (role: string, word: string, villagerWord?: string) => void
   setDetectiveRevealUsed: () => void
   setRevealedPlayer: (player: { userId: string; username: string; role: string } | null) => void
+  setTwinPartner: (partner: TwinPartner | null) => void
   addMessage: (msg: ChatMessage) => void
   setResult: (result: GameResult) => void
   reset: () => void
@@ -41,6 +49,7 @@ export const useGameStore = create<GameState>((set) => ({
   myVillagerWord: null,
   detectiveRevealUsed: false,
   revealedPlayer: null,
+  twinPartner: null,
   messages: [],
   result: null,
   setRoom: (room) => {
@@ -59,6 +68,10 @@ export const useGameStore = create<GameState>((set) => ({
   },
   setDetectiveRevealUsed: () => set({ detectiveRevealUsed: true }),
   setRevealedPlayer: (revealedPlayer) => set({ revealedPlayer }),
+  setTwinPartner: (twinPartner) => {
+    log.info('twin partner set', { twinPartner })
+    set({ twinPartner })
+  },
   addMessage: (msg) =>
     set((s) => ({ messages: [...s.messages.slice(-99), msg] })),
   setResult: (result) => {
@@ -76,6 +89,7 @@ export const useGameStore = create<GameState>((set) => ({
       myVillagerWord: null,
       detectiveRevealUsed: false,
       revealedPlayer: null,
+      twinPartner: null,
       messages: [],
       result: null,
     })
