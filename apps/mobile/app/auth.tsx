@@ -15,10 +15,7 @@ import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
-// Lazy-load Apple auth to avoid "not available" warning on Android
-const AppleAuthentication = Platform.OS === 'ios'
-  ? require('expo-apple-authentication')
-  : null
+import * as AppleAuth from 'expo-apple-authentication'
 import * as WebBrowser from 'expo-web-browser'
 import * as AuthSession from 'expo-auth-session'
 import * as Crypto from 'expo-crypto'
@@ -89,6 +86,19 @@ export default function AuthScreen() {
   // Google OAuth username setup state
   const [setupToken, setSetupToken] = useState<string | null>(null)
   const [setupUsername, setSetupUsername] = useState('')
+
+  // Apple Sign-In availability
+  const [appleAvailable, setAppleAvailable] = useState(false)
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      AppleAuth.isAvailableAsync()
+        .then((available) => {
+          log.info('Apple Sign-In available:', available)
+          setAppleAvailable(available)
+        })
+        .catch(() => setAppleAvailable(false))
+    }
+  }, [])
 
   // Language picker state
   const [showLangPicker, setShowLangPicker] = useState(false)
@@ -254,15 +264,14 @@ export default function AuthScreen() {
   // ─── Apple ───────────────────────────────────────────────────────────────
 
   const handleApple = async () => {
-    if (!AppleAuthentication) return
     setError(null)
     setLoading(true)
     log.info('apple oauth attempt')
     try {
-      const credential = await AppleAuthentication.signInAsync({
+      const credential = await AppleAuth.signInAsync({
         requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          AppleAuth.AppleAuthenticationScope.FULL_NAME,
+          AppleAuth.AppleAuthenticationScope.EMAIL,
         ],
       })
       const name = credential.fullName
@@ -438,10 +447,10 @@ export default function AuthScreen() {
 
               {/* OAuth buttons */}
               <View className="gap-2.5 mb-5">
-                {Platform.OS === 'ios' && AppleAuthentication && (
-                  <AppleAuthentication.AppleAuthenticationButton
-                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                {Platform.OS === 'ios' && appleAvailable && (
+                  <AppleAuth.AppleAuthenticationButton
+                    buttonType={AppleAuth.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={AppleAuth.AppleAuthenticationButtonStyle.BLACK}
                     cornerRadius={14}
                     style={{ width: '100%', height: 50 }}
                     onPress={handleApple}
@@ -455,7 +464,7 @@ export default function AuthScreen() {
                   style={{ height: 50 }}
                 >
                   <GoogleIcon />
-                  <Text className="text-neutral-900 font-semibold" style={{ fontSize: 15 * fontScale }}>{t('auth.continueWithGoogle')}</Text>
+                  <Text className="text-neutral-900 font-semibold" style={{ fontSize: 15 * fontScale }}>Continue with Google</Text>
                 </TouchableOpacity>
               </View>
 

@@ -71,7 +71,9 @@
           "cameraPermission": "Allow Imposter Game to use the camera for profile pictures"
         }
       ],
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

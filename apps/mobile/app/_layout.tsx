@@ -1,7 +1,15 @@
 import '../global.css'
 import React, { useEffect, useCallback } from 'react'
-import { View, Text, TouchableOpacity, useWindowDimensions } from 'react-native'
-import { Stack, useRouter, useSegments } from 'expo-router'
+import { View, Text, TouchableOpacity, useWindowDimensions, LogBox } from 'react-native'
+
+// Suppress noisy socket reconnection logs in dev LogBox
+LogBox.ignoreLogs([
+  'Connection error',
+  'websocket error',
+  'Reconnect attempt',
+  'Reconnect failed',
+])
+import { Stack, Redirect, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as Linking from 'expo-linking'
 import '../i18n'
@@ -15,23 +23,26 @@ import { AchievementToastBanner } from '../components/achievements/AchievementTo
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
-  const router = useRouter()
   const segments = useSegments()
-
-  useEffect(() => {
-    const inPublicRoute = segments[0] === 'auth' || segments[0] === 'offline' || segments[0] === 'how-to-play'
-    if (!token && !inPublicRoute) {
-      router.replace('/auth')
-    } else if (token && segments[0] === 'auth') {
-      router.replace('/')
-    }
-  }, [token, segments])
 
   useEffect(() => {
     if (token) {
       registerForPushNotifications().catch(() => {})
     }
   }, [token])
+
+  const inPublicRoute = segments[0] === 'auth' || segments[0] === 'offline' || segments[0] === 'how-to-play'
+
+  // Use declarative <Redirect> instead of router.replace() in useEffect.
+  // router.replace() in useEffect fires before expo-router marks the navigator as ready,
+  // causing "Attempted to navigate before mounting the Root Layout" error.
+  if (!token && !inPublicRoute) {
+    return <Redirect href="/auth" />
+  }
+
+  if (token && segments[0] === 'auth') {
+    return <Redirect href="/" />
+  }
 
   return <>{children}</>
 }

@@ -987,14 +987,14 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
       case 'doubleAgent':  return t('offline.roleInstructionDoubleAgent')
       case 'guardian':     return t('offline.roleInstructionGuardian')
       case 'mayor':        return t('offline.roleInstructionMayor',        'You are the Mayor. Your vote counts double during the voting phase — announce it clearly when voting.')
-      case 'judge':        return t('offline.roleInstructionJudge',        'You are the Judge. If a vote ends in a tie, you pick who gets eliminated — but you cannot save yourself.')
+      case 'judge':        return t('offline.roleInstructionJudge',        'You are the Judge. If a vote ends in a tie, you pick who gets eliminated.')
       case 'revenant':     return t('offline.roleInstructionRevenant',     'You are the Revenant. If you get voted out, you still cast votes for the next 2 rounds (announce a player when eliminated).')
       case 'infiltrator':  return t('offline.roleInstructionInfiltrator',  'You are the Infiltrator. You know the VILLAGER word but you play for the imposters. Blend in and help them win — you look like a villager to the Detective.')
       case 'jester':       return t('offline.roleInstructionJester',       'You are the Jester. You win alone if the group votes you out. Act suspicious without being too obvious.')
       case 'kamikaze':     return t('offline.roleInstructionKamikaze',     'You are a Kamikaze imposter. If you get voted out, pick one player to take down with you — they are eliminated too.')
       case 'corruptor':    return t('offline.roleInstructionCorruptor',    'You are the Corruptor. At game start, secretly pick one target — their votes don\'t count until you are eliminated.')
       case 'inverter':     return t('offline.roleInstructionInverter',     'You are the Inverter. Once per game, before a vote is tallied, call "Invert!" — the player with the FEWEST votes is eliminated instead.')
-      case 'twinVillager': return t('offline.roleInstructionTwinVillager', 'You are the Villager Twin. You and the Imposter Twin win together if both survive — find your twin without getting caught.')
+      case 'twinVillager': return t('offline.roleInstructionTwinVillager', 'You are the Villager Twin. You and the Imposter Twin win together if both survive — work with your twin without getting caught.')
       case 'twinImposter': return t('offline.roleInstructionTwinImposter', 'You are the Imposter Twin. You and the Villager Twin win together if both survive — protect your twin.')
     }
   }

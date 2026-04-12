@@ -11,14 +11,29 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = options.method ?? 'GET'
   log.debug(`${method} ${path}`)
   const token = useAuthStore.getState().token
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers ?? {}),
-    },
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10000)
+  let res: Response
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers ?? {}),
+      },
+    })
+  } catch (err: any) {
+    clearTimeout(timeout)
+    if (err.name === 'AbortError') {
+      log.warn(`${method} ${path} timed out`)
+      throw new Error('Request timed out — server may be unreachable')
+    }
+    log.warn(`${method} ${path} network error`, { message: err.message })
+    throw new Error('Network error — check your connection')
+  }
+  clearTimeout(timeout)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     const message = (err as any).error ?? `HTTP ${res.status}`

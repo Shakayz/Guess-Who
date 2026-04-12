@@ -16,6 +16,16 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, "node_modules"),
 ];
 
+// Force React-related packages to resolve from the mobile app's own node_modules
+// (prevents monorepo hoisting from pulling in the wrong React version)
+const mobileModules = path.resolve(projectRoot, "node_modules");
+config.resolver.extraNodeModules = {
+  react: path.resolve(mobileModules, "react"),
+  "react-native": path.resolve(mobileModules, "react-native"),
+  "react/jsx-runtime": path.resolve(mobileModules, "react/jsx-runtime"),
+  "react/jsx-dev-runtime": path.resolve(mobileModules, "react/jsx-dev-runtime"),
+};
+
 // Custom resolver for @imposter/shared subpath imports (Metro doesn't support "exports" natively)
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {

@@ -12,6 +12,7 @@ const log = createLogger('socket')
 type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
 let socket: AppSocket | null = null
+let connectErrorCount = 0
 
 export function connectSocket(): AppSocket {
   if (socket?.connected) return socket
@@ -23,15 +24,20 @@ export function connectSocket(): AppSocket {
   }
   log.info('Connecting to socket server', { url: SOCKET_URL })
 
+  connectErrorCount = 0
+
   socket = io(SOCKET_URL, {
     auth: { token },
     transports: ['websocket'],
     reconnection: true,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
+    reconnectionDelayMax: 30000,
+    randomizationFactor: 0.5,
   }) as AppSocket
 
   socket.on('connect', () => {
+    connectErrorCount = 0
     log.info('Connected', { id: socket?.id })
   })
 
@@ -40,11 +46,15 @@ export function connectSocket(): AppSocket {
   })
 
   socket.on('connect_error', (err) => {
-    log.error('Connection error', { message: err.message })
+    connectErrorCount++
+    // Only log the first failure — suppress all repeats to avoid flooding LogBox
+    if (connectErrorCount === 1) {
+      log.info('Connection error (retrying in background)', { message: err.message })
+    }
   })
 
-  socket.io.on('reconnect_attempt', (attempt) => {
-    log.info('Reconnect attempt', { attempt })
+  socket.io.on('reconnect_attempt', () => {
+    // intentionally silent — avoid flooding LogBox
   })
 
   socket.io.on('reconnect', (attempt) => {
@@ -52,7 +62,7 @@ export function connectSocket(): AppSocket {
   })
 
   socket.io.on('reconnect_failed', () => {
-    log.error('Reconnect failed — all attempts exhausted')
+    log.warn('Reconnect failed — all attempts exhausted')
   })
 
   return socket
