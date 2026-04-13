@@ -10,6 +10,7 @@ import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
 import { createLogger } from '../lib/logger'
 import { SoundManager } from '../lib/sounds'
+import { OnboardingTutorial, hasTutorialCompleted } from '../components/OnboardingTutorial'
 
 const log = createLogger('home')
 
@@ -199,6 +200,7 @@ export default function HomePage() {
   ]
 
   const [showHowToPlay, setShowHowToPlay] = useState(false)
+  const [showTutorial, setShowTutorial] = useState(() => !hasTutorialCompleted())
 
   const LOBBY_GAME_MODES: { id: SubGameMode; icon: string; labelKey: string; descKey: string }[] = [
     { id: 'normal',  icon: '🎭', labelKey: 'home.normalGameMode',  descKey: 'home.normalGameModeDesc' },
@@ -714,6 +716,11 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Onboarding tutorial — shown on first sign-in */}
+        {showTutorial && (
+          <OnboardingTutorial onClose={() => setShowTutorial(false)} />
         )}
       </main>
     </div>
