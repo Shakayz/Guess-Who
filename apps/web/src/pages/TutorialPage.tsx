@@ -111,11 +111,15 @@ export default function TutorialPage() {
   }, [queryClient])
 
   // Auto-grant the reward the first time the user lands on the 'done' step.
+  // NOTE: we must bail out on `claimError` too — otherwise a failed request
+  // sets claiming=false + claimError=<msg>, which re-fires this effect and
+  // immediately retries, trapping the user on the spinner forever with no
+  // visible error UI. The manual "Retry" button clears claimError itself.
   useEffect(() => {
     if (currentStep !== 'done') return
-    if (claimResult || claiming) return
+    if (claimResult || claiming || claimError) return
     grantReward()
-  }, [currentStep, claimResult, claiming, grantReward])
+  }, [currentStep, claimResult, claiming, claimError, grantReward])
 
   const exitWithConfirm = useCallback(() => {
     if (currentStep === 'done') {
