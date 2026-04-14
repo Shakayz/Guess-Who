@@ -83,6 +83,13 @@ export default {
         // Arrivals
         'float-soft':     'floatSoft 3.5s ease-in-out infinite',
         'tilt-idle':      'tiltIdle 4s ease-in-out infinite',
+
+        // ── Reward reveal (3D card flip + coin rain) ──────────────────
+        'card-flip-in':   'cardFlipIn 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+        'card-flip-hero': 'cardFlipHero 1.1s cubic-bezier(0.34, 1.4, 0.5, 1) forwards',
+        'coin-rain':      'coinRain 1.8s ease-in forwards',
+        'coin-spin':      'coinSpin 1.4s linear infinite',
+        'sheen-sweep':    'sheenSweep 2.4s ease-in-out 0.6s infinite',
       },
       keyframes: {
         fadeIn:   { from: { opacity: '0' },                 to: { opacity: '1' } },
@@ -261,6 +268,34 @@ export default {
         tiltIdle: {
           '0%,100%': { transform: 'rotate(-2deg)' },
           '50%':     { transform: 'rotate(2deg)' },
+        },
+
+        // ── Reward reveal keyframes ───────────────────────────────────
+        cardFlipIn: {
+          '0%':   { opacity: '0', transform: 'perspective(900px) rotateY(-90deg) scale(0.85)' },
+          '55%':  { opacity: '1', transform: 'perspective(900px) rotateY(18deg)  scale(1.03)' },
+          '80%':  {                transform: 'perspective(900px) rotateY(-6deg)  scale(0.99)' },
+          '100%': { opacity: '1', transform: 'perspective(900px) rotateY(0deg)   scale(1)' },
+        },
+        cardFlipHero: {
+          '0%':   { opacity: '0', transform: 'perspective(1200px) rotateX(70deg) rotateY(-30deg) scale(0.7)' },
+          '45%':  { opacity: '1', transform: 'perspective(1200px) rotateX(-8deg) rotateY(10deg)  scale(1.06)' },
+          '70%':  {                transform: 'perspective(1200px) rotateX(3deg)  rotateY(-3deg) scale(0.99)' },
+          '100%': { opacity: '1', transform: 'perspective(1200px) rotateX(0deg)  rotateY(0deg)  scale(1)' },
+        },
+        coinRain: {
+          '0%':   { opacity: '0', transform: 'translate(var(--cx,0), -10px) rotate(0deg)  scale(0.6)' },
+          '12%':  { opacity: '1' },
+          '100%': { opacity: '0', transform: 'translate(var(--cx,0), 220px) rotate(540deg) scale(1.1)' },
+        },
+        coinSpin: {
+          '0%':   { transform: 'rotateY(0deg)' },
+          '100%': { transform: 'rotateY(360deg)' },
+        },
+        sheenSweep: {
+          '0%':   { transform: 'translateX(-120%) skewX(-18deg)', opacity: '0' },
+          '20%':  { opacity: '0.6' },
+          '100%': { transform: 'translateX(220%) skewX(-18deg)',  opacity: '0' },
         },
       },
     },

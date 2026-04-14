@@ -582,6 +582,8 @@ export default {
     dailyBonus: 'First game of the day',
     streakBonus: '7-day streak!',
     streakProgress: 'Day {{count}} / 7',
+    coinsWon: 'Coins won',
+    baseReward: 'Match',
     gameCost: 'Game entry fee',
     insufficientStars: 'Not enough stars — you need {{required}} ⭐ to play.',
   },

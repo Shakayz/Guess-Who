@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
-  Animated,
-  Easing,
-  useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -19,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import { useResponsive } from '../../lib/responsive'
 import { HapticManager } from '../../lib/haptics'
 import { SoundManager } from '../../lib/sounds'
+import { CoinsRevealCard } from '../../components/CoinsRevealCard'
 
 const HONOR_OPTIONS: { type: HonorType; label: string; icon: string }[] = [
   { type: 'teamplayer', label: 'Team Player', icon: '🤝' },
@@ -50,126 +48,12 @@ export default function ResultsScreen() {
   const isImposter = myRole === 'imposter' || myRole === 'double_agent'
   const didWin = (winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter)
 
-  // ── Entrance animations ─────────────────────────────────────────
-  const { width: winW, height: winH } = useWindowDimensions()
-
-  // Hero (trophy/skull) — spring in + continuous gentle bob
-  const heroScale = useRef(new Animated.Value(0)).current
-  const heroBob   = useRef(new Animated.Value(0)).current
-  const heroGlow  = useRef(new Animated.Value(0)).current
-  // Badge & rewards cards stagger-in
-  const badgeOp   = useRef(new Animated.Value(0)).current
-  const badgeY    = useRef(new Animated.Value(20)).current
-  const rewardsOp = useRef(new Animated.Value(0)).current
-  const rewardsY  = useRef(new Animated.Value(30)).current
-  const listOp    = useRef(new Animated.Value(0)).current
-  const listY     = useRef(new Animated.Value(30)).current
-  const ctaOp     = useRef(new Animated.Value(0)).current
-  const ctaY      = useRef(new Animated.Value(30)).current
-
-  // Animated LP/coin/XP numbers (count-up)
-  const starCount = useRef(new Animated.Value(0)).current
-  const xpCount   = useRef(new Animated.Value(0)).current
-  const lpCount   = useRef(new Animated.Value(0)).current
-  const [starDisplay, setStarDisplay] = useState(0)
-  const [xpDisplay, setXpDisplay]     = useState(0)
-  const [lpDisplay, setLpDisplay]     = useState(0)
-
-  // Confetti on victory — prepared once per mount
-  const confetti = useMemo(() => {
-    if (!didWin) return []
-    const hues = ['#fbbf24', '#f59e0b', '#fde68a', '#ffffff', '#34d399', '#60a5fa']
-    return Array.from({ length: 32 }, (_, i) => ({
-      id: i,
-      left: Math.random() * winW,
-      size: 6 + Math.random() * 7,
-      sway: -60 + Math.random() * 120,
-      delay: Math.random() * 600,
-      duration: 1800 + Math.random() * 1400,
-      hue: hues[i % hues.length],
-      rot: Math.random() * 360,
-      anim: new Animated.Value(0),
-    }))
-  }, [didWin, winW])
-
   useEffect(() => {
     SoundManager.play(didWin ? 'success' : 'error')
     if (didWin) {
       HapticManager.success()
     } else {
       HapticManager.error()
-    }
-
-    // Stage 1: hero spring-in
-    Animated.spring(heroScale, {
-      toValue: 1,
-      friction: 5,
-      tension: 120,
-      useNativeDriver: true,
-    }).start()
-
-    // Stage 2: stagger the rest (badge → rewards → list → CTA)
-    Animated.stagger(110, [
-      Animated.parallel([
-        Animated.timing(badgeOp, { toValue: 1, duration: 320, useNativeDriver: true }),
-        Animated.timing(badgeY,  { toValue: 0, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      ]),
-      Animated.parallel([
-        Animated.timing(rewardsOp, { toValue: 1, duration: 360, useNativeDriver: true }),
-        Animated.spring (rewardsY, { toValue: 0, friction: 7, tension: 90,  useNativeDriver: true }),
-      ]),
-      Animated.parallel([
-        Animated.timing(listOp, { toValue: 1, duration: 360, useNativeDriver: true }),
-        Animated.spring (listY, { toValue: 0, friction: 7, tension: 90,  useNativeDriver: true }),
-      ]),
-      Animated.parallel([
-        Animated.timing(ctaOp, { toValue: 1, duration: 360, useNativeDriver: true }),
-        Animated.spring (ctaY, { toValue: 0, friction: 7, tension: 90,  useNativeDriver: true }),
-      ]),
-    ]).start()
-
-    // Stage 3: count-up reward numbers (JS-driven since setState per-tick)
-    const COUNT_DURATION = 1100
-    const starListener = starCount.addListener(({ value }) => setStarDisplay(Math.round(value)))
-    const xpListener   = xpCount.addListener(({ value }) => setXpDisplay(Math.round(value)))
-    const lpListener   = lpCount.addListener(({ value }) => setLpDisplay(Math.round(value)))
-    Animated.parallel([
-      Animated.timing(starCount, { toValue: rewards.starCoinsEarned ?? 0, duration: COUNT_DURATION, easing: Easing.out(Easing.cubic), delay: 500, useNativeDriver: false }),
-      Animated.timing(xpCount,   { toValue: rewards.xpEarned        ?? 0, duration: COUNT_DURATION, easing: Easing.out(Easing.cubic), delay: 600, useNativeDriver: false }),
-      Animated.timing(lpCount,   { toValue: rewards.lpChange        ?? 0, duration: COUNT_DURATION, easing: Easing.out(Easing.cubic), delay: 700, useNativeDriver: false }),
-    ]).start()
-
-    // Stage 4: subtle hero bob + glow breathe (loop)
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(heroBob, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(heroBob, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ]),
-    ).start()
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(heroGlow, { toValue: 1, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(heroGlow, { toValue: 0, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ]),
-    ).start()
-
-    // Stage 5: confetti on victory
-    if (didWin) {
-      confetti.forEach(c => {
-        Animated.timing(c.anim, {
-          toValue: 1,
-          duration: c.duration,
-          delay: c.delay,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }).start()
-      })
-    }
-
-    return () => {
-      starCount.removeListener(starListener)
-      xpCount.removeListener(xpListener)
-      lpCount.removeListener(lpListener)
     }
   }, [])
 
@@ -206,20 +90,6 @@ export default function ResultsScreen() {
             className={['absolute inset-0', didWin ? 'bg-emerald-950' : 'bg-red-950'].join(' ')}
             style={{ opacity: 0.35 }}
           />
-          {/* Breathing hero glow ring */}
-          <Animated.View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              top: -60,
-              width: 280,
-              height: 280,
-              borderRadius: 140,
-              backgroundColor: didWin ? 'rgba(52,211,153,0.28)' : 'rgba(248,113,113,0.22)',
-              opacity: heroGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.55] }),
-              transform: [{ scale: heroGlow.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.05] }) }],
-            }}
-          />
           {/* Top accent bar */}
           <View
             className={[
@@ -233,28 +103,10 @@ export default function ResultsScreen() {
             style={{ backgroundColor: didWin ? 'rgba(5,46,22,0.3)' : 'rgba(69,10,10,0.3)' }}
           />
 
-          <Animated.Text
-            style={{
-              fontSize: isTablet ? 80 : 64,
-              marginBottom: 14,
-              transform: [
-                { scale: heroScale },
-                { translateY: heroBob.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) },
-              ],
-              textShadowColor: didWin ? 'rgba(251,191,36,0.75)' : 'rgba(248,113,113,0.55)',
-              textShadowOffset: { width: 0, height: 0 },
-              textShadowRadius: 28,
-            }}
-          >
-            {didWin ? '🏆' : '💀'}
-          </Animated.Text>
+          <Text style={{ fontSize: isTablet ? 80 : 64, marginBottom: 14 }}>{didWin ? '🏆' : '💀'}</Text>
 
           {/* WIN / LOSS badge */}
-          <Animated.View
-            style={{
-              opacity: badgeOp,
-              transform: [{ translateY: badgeY }],
-            }}
+          <View
             className={[
               'flex-row items-center gap-2 px-5 py-2 rounded-full border mb-3',
               didWin
@@ -271,56 +123,51 @@ export default function ResultsScreen() {
             >
               {didWin ? 'Victory' : 'Defeat'}
             </Text>
-          </Animated.View>
+          </View>
 
-          <Animated.View style={{ opacity: badgeOp, transform: [{ translateY: badgeY }] }}>
-            <Text
-              className={['font-semibold text-center px-6', didWin ? 'text-emerald-500' : 'text-red-500'].join(' ')}
-              style={{ fontSize: 13 * fontScale }}
-            >
-              {winner === 'villagers'
-                ? 'Villagers found the imposters'
-                : 'Imposters escaped detection'}
-            </Text>
-          </Animated.View>
+          <Text
+            className={['font-semibold text-center px-6', didWin ? 'text-emerald-500' : 'text-red-500'].join(' ')}
+            style={{ fontSize: 13 * fontScale }}
+          >
+            {winner === 'villagers'
+              ? 'Villagers found the imposters'
+              : 'Imposters escaped detection'}
+          </Text>
 
           {/* Role indicator */}
-          <Animated.View
-            style={{ opacity: badgeOp, transform: [{ translateY: badgeY }] }}
-            className="flex-row items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full bg-black/20 border border-white/10"
-          >
+          <View className="flex-row items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full bg-black/20 border border-white/10">
             <Text style={{ fontSize: 12 }}>
               {isImposter ? '🎭' : '🏘️'}
             </Text>
             <Text className="text-neutral-400 text-xs font-semibold">
               You played as {isImposter ? 'Imposter' : 'Villager'}
             </Text>
-          </Animated.View>
+          </View>
         </View>
 
         {/* Rewards */}
-        <Animated.View
-          style={{ opacity: rewardsOp, transform: [{ translateY: rewardsY }] }}
-          className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 overflow-hidden"
-        >
+        <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 overflow-hidden">
           <View className="absolute top-0 left-0 right-0 h-0.5 bg-amber-700/50" />
           <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
             Rewards Earned
           </Text>
-          <View className="flex-row gap-2">
-            {/* Star Coins */}
-            <View className="flex-1 items-center gap-1.5 py-4 px-2 rounded-2xl bg-amber-950/30 border border-amber-800/40">
-              <Text style={{ fontSize: 22 }}>⭐</Text>
-              <Text className="text-lg font-extrabold text-amber-300">+{starDisplay}</Text>
-              <Text className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider">Coins</Text>
-            </View>
-            {/* XP */}
+
+          {/* Hero: modern "coins won" reveal card */}
+          <CoinsRevealCard
+            baseEarned={rewards.starCoinsEarned}
+            dailyBonus={rewards.dailyBonusEarned ?? 0}
+            streakBonus={rewards.streakBonusEarned ?? 0}
+            gameCost={rewards.gameCostPaid ?? 0}
+            newStreakCount={rewards.newStreakCount ?? 0}
+          />
+
+          {/* XP / LP secondary chips (coins live in the hero card above) */}
+          <View className="flex-row gap-2 mt-3">
             <View className="flex-1 items-center gap-1.5 py-4 px-2 rounded-2xl bg-violet-950/30 border border-violet-800/40">
               <Text style={{ fontSize: 22 }}>⚡</Text>
-              <Text className="text-lg font-extrabold text-violet-300">+{xpDisplay}</Text>
+              <Text className="text-lg font-extrabold text-violet-300">+{rewards.xpEarned}</Text>
               <Text className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider">XP</Text>
             </View>
-            {/* LP */}
             <View
               className={[
                 'flex-1 items-center gap-1.5 py-4 px-2 rounded-2xl border',
@@ -336,43 +183,11 @@ export default function ResultsScreen() {
                   rewards.lpChange >= 0 ? 'text-emerald-300' : 'text-red-300',
                 ].join(' ')}
               >
-                {lpDisplay >= 0 ? '+' : ''}{lpDisplay}
+                {rewards.lpChange >= 0 ? '+' : ''}{rewards.lpChange}
               </Text>
               <Text className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider">LP</Text>
             </View>
           </View>
-
-          {/* Daily / streak / cost bonus rows */}
-          {((rewards.dailyBonusEarned ?? 0) > 0 ||
-            (rewards.streakBonusEarned ?? 0) > 0 ||
-            (rewards.newStreakCount ?? 0) > 0 ||
-            (rewards.gameCostPaid ?? 0) > 0) && (
-            <View className="mt-3 pt-3 border-t border-neutral-800 gap-2">
-              {(rewards.gameCostPaid ?? 0) > 0 && (
-                <View className="flex-row items-center justify-between px-3 py-2 rounded-lg bg-neutral-900/60 border border-neutral-700/60">
-                  <Text className="text-neutral-300 font-semibold" style={{ fontSize: 13 * fontScale }}>🎟️ {t('results.gameCost', { defaultValue: 'Entry fee' })}</Text>
-                  <Text className="font-bold text-red-300" style={{ fontSize: 13 * fontScale }}>−{rewards.gameCostPaid} ⭐</Text>
-                </View>
-              )}
-              {(rewards.dailyBonusEarned ?? 0) > 0 && (
-                <View className="flex-row items-center justify-between px-3 py-2 rounded-lg bg-amber-950/30 border border-amber-800/40">
-                  <Text className="text-amber-200 font-semibold" style={{ fontSize: 13 * fontScale }}>🌅 {t('results.dailyBonus', { defaultValue: 'Daily bonus' })}</Text>
-                  <Text className="font-bold text-amber-300" style={{ fontSize: 13 * fontScale }}>+{rewards.dailyBonusEarned} ⭐</Text>
-                </View>
-              )}
-              {(rewards.streakBonusEarned ?? 0) > 0 && (
-                <View className="flex-row items-center justify-between px-3 py-2 rounded-lg bg-orange-950/40 border border-orange-700/50">
-                  <Text className="text-orange-200 font-semibold" style={{ fontSize: 13 * fontScale }}>🔥 {t('results.streakBonus', { defaultValue: '7-day streak bonus' })}</Text>
-                  <Text className="font-bold text-orange-300" style={{ fontSize: 13 * fontScale }}>+{rewards.streakBonusEarned} ⭐</Text>
-                </View>
-              )}
-              {(rewards.newStreakCount ?? 0) > 0 && (
-                <Text className="text-center text-neutral-500 pt-0.5" style={{ fontSize: 11 * fontScale }}>
-                  {t('results.streakProgress', { count: ((rewards.newStreakCount! - 1) % 7) + 1, defaultValue: `Day ${((rewards.newStreakCount! - 1) % 7) + 1}/7 of your streak` })}
-                </Text>
-              )}
-            </View>
-          )}
 
           {/* Achievements */}
           {rewards.achievements.length > 0 && (
@@ -390,13 +205,10 @@ export default function ResultsScreen() {
               </View>
             </View>
           )}
-        </Animated.View>
+        </View>
 
         {/* Player role reveal */}
-        <Animated.View
-          style={{ opacity: listOp, transform: [{ translateY: listY }] }}
-          className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 overflow-hidden"
-        >
+        <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 overflow-hidden">
           <View className="absolute top-0 left-0 right-0 h-0.5 bg-violet-800/50" />
           <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
             Player Roles
@@ -490,13 +302,10 @@ export default function ResultsScreen() {
               )
             })}
           </View>
-        </Animated.View>
+        </View>
 
         {/* Give honor */}
-        <Animated.View
-          style={{ opacity: listOp, transform: [{ translateY: listY }] }}
-          className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4"
-        >
+        <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
           <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
             Give Honor
           </Text>
@@ -546,13 +355,10 @@ export default function ResultsScreen() {
                 </View>
               ))}
           </View>
-        </Animated.View>
+        </View>
 
         {/* Action buttons */}
-        <Animated.View
-          style={{ opacity: ctaOp, transform: [{ translateY: ctaY }] }}
-          className="flex-row gap-3 pt-2"
-        >
+        <View className="flex-row gap-3 pt-2">
           <TouchableOpacity
             onPress={handlePlayAgain}
             className="flex-1 rounded-2xl items-center overflow-hidden bg-violet-600"
@@ -571,35 +377,10 @@ export default function ResultsScreen() {
           >
             <Text className="text-neutral-300 font-semibold" style={{ fontSize: 14 * fontScale }}>Home</Text>
           </TouchableOpacity>
-        </Animated.View>
+        </View>
 
         </View>
       </ScrollView>
-
-      {/* Victory confetti — overlays everything, no interaction */}
-      {didWin && confetti.map((c) => {
-        const ty = c.anim.interpolate({ inputRange: [0, 1], outputRange: [-40, winH + 40] })
-        const tx = c.anim.interpolate({ inputRange: [0, 1], outputRange: [0, c.sway] })
-        const op = c.anim.interpolate({ inputRange: [0, 0.1, 0.8, 1], outputRange: [0, 1, 1, 0] })
-        const rot = c.anim.interpolate({ inputRange: [0, 1], outputRange: [`${c.rot}deg`, `${c.rot + 720}deg`] })
-        return (
-          <Animated.View
-            key={c.id}
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              left: c.left,
-              top: 0,
-              width: c.size,
-              height: c.size * 1.6,
-              backgroundColor: c.hue,
-              opacity: op,
-              transform: [{ translateY: ty }, { translateX: tx }, { rotate: rot }],
-              borderRadius: 1,
-            }}
-          />
-        )
-      })}
     </SafeAreaView>
   )
 }
