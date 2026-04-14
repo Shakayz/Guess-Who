@@ -24,27 +24,72 @@ export default {
         },
       },
       animation: {
-        'fade-in':     'fadeIn 0.2s ease-out',
-        'slide-up':    'slideUp 0.3s ease-out',
-        'pulse-slow':  'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'float-up':    'floatUp 2.8s ease-out forwards',
-        'count-up':    'countUp 1.5s ease-out forwards',
-        'confetti':    'confetti 3s ease-out forwards',
-        'bounce-in':   'bounceIn 0.5s ease-out',
-        'scale-in':    'scaleIn 0.3s ease-out',
-        'shimmer':     'shimmer 1.5s ease-in-out forwards',
+        // ── Base entrance / exit ──────────────────────────────────────
+        'fade-in':      'fadeIn 0.2s ease-out',
+        'fade-in-slow': 'fadeIn 0.6s ease-out',
+        'slide-up':     'slideUp 0.3s ease-out',
+        'slide-down':   'slideDown 0.3s ease-out',
+        'slide-left':   'slideLeft 0.35s cubic-bezier(0.16,1,0.3,1)',
+        'slide-right':  'slideRight 0.35s cubic-bezier(0.16,1,0.3,1)',
+        'pulse-slow':   'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'float-up':     'floatUp 2.8s ease-out forwards',
+        'count-up':     'countUp 1.5s ease-out forwards',
+        'confetti':     'confetti 3s ease-out forwards',
+        'bounce-in':    'bounceIn 0.5s ease-out',
+        'scale-in':     'scaleIn 0.3s ease-out',
+        'shimmer':      'shimmer 1.5s ease-in-out forwards',
         'shimmer-slow': 'shimmer 3s linear infinite',
-        // Achievement claim-burst animations
-        'burst-pop':     'burstPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
-        'radial-glow':   'radialGlow 0.8s ease-out forwards',
-        'star-fly':      'starFly 1.1s ease-out forwards',
-        'burst-label':   'burstLabel 1.1s ease-out forwards',
-        'coin-tick':     'coinTick 0.6s ease-out',
+
+        // ── Achievement / unlock bursts ───────────────────────────────
+        'burst-pop':      'burstPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+        'radial-glow':    'radialGlow 0.8s ease-out forwards',
+        'star-fly':       'starFly 1.1s ease-out forwards',
+        'burst-label':    'burstLabel 1.1s ease-out forwards',
+        'coin-tick':      'coinTick 0.6s ease-out',
         'rainbow-border': 'rainbowShift 3s linear infinite',
+
+        // ── Game-feel (Duolingo / Clash style) ────────────────────────
+        // Juicy entrance with squash-and-stretch
+        'pop-in':         'popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both',
+        'pop-in-soft':    'popIn 0.6s cubic-bezier(0.25, 1.2, 0.5, 1.1) both',
+        'card-flip':      'cardFlip 0.8s cubic-bezier(0.68,-0.55,0.27,1.55) forwards',
+        'card-flip-slow': 'cardFlip 1.2s cubic-bezier(0.68,-0.55,0.27,1.55) forwards',
+        'flip-in':        'flipIn 0.7s cubic-bezier(0.68,-0.55,0.27,1.55) both',
+        'stamp-in':       'stampIn 0.55s cubic-bezier(0.68,-0.55,0.27,1.55) both',
+
+        // Elimination / death
+        'death-fall':     'deathFall 1.2s cubic-bezier(0.45,0.05,0.55,0.95) forwards',
+        'death-fade':     'deathFade 2s ease-out forwards',
+        'desaturate':     'desaturate 1.2s ease-out forwards',
+
+        // Emphasis / feedback
+        'shake':          'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+        'wobble':         'wobble 0.8s ease-in-out',
+        'jelly':          'jelly 0.6s ease-out',
+        'tada':           'tada 0.9s ease-out',
+        'heartbeat':      'heartbeat 1.4s ease-in-out infinite',
+        'breathe':        'breathe 2.8s ease-in-out infinite',
+        'glow-pulse':     'glowPulse 2s ease-in-out infinite',
+        'ring-pulse':     'ringPulse 1.6s ease-out infinite',
+        'urgent-pulse':   'urgentPulse 0.8s ease-in-out infinite',
+
+        // Particles / celebration
+        'confetti-rain':  'confettiRain 2.2s linear forwards',
+        'sparkle':        'sparkle 1.2s ease-out forwards',
+        'ray-spin':       'raySpin 7s linear infinite',
+        'ring-out':       'ringOut 1.4s cubic-bezier(0.16,1,0.3,1) forwards',
+        'screen-flash':   'screenFlash 0.5s ease-out forwards',
+
+        // Arrivals
+        'float-soft':     'floatSoft 3.5s ease-in-out infinite',
+        'tilt-idle':      'tiltIdle 4s ease-in-out infinite',
       },
       keyframes: {
         fadeIn:   { from: { opacity: '0' },                 to: { opacity: '1' } },
         slideUp:  { from: { opacity: '0', transform: 'translateY(12px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+        slideDown:{ from: { opacity: '0', transform: 'translateY(-12px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+        slideLeft:{ from: { opacity: '0', transform: 'translateX(24px)' }, to: { opacity: '1', transform: 'translateX(0)' } },
+        slideRight:{ from: { opacity: '0', transform: 'translateX(-24px)' }, to: { opacity: '1', transform: 'translateX(0)' } },
         shimmer:  {
           '0%':   { transform: 'translateX(-100%)' },
           '100%': { transform: 'translateX(200%)' },
@@ -98,6 +143,124 @@ export default {
         rainbowShift: {
           '0%':   { backgroundPosition: '0% 50%' },
           '100%': { backgroundPosition: '200% 50%' },
+        },
+
+        // ── Game-feel keyframes ───────────────────────────────────────
+        popIn: {
+          '0%':   { opacity: '0', transform: 'scale(0.3) translateY(10px)' },
+          '55%':  { opacity: '1', transform: 'scale(1.12) translateY(-4px)' },
+          '75%':  { transform: 'scale(0.94)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
+        cardFlip: {
+          '0%':   { transform: 'perspective(900px) rotateY(0deg) scale(0.95)' },
+          '50%':  { transform: 'perspective(900px) rotateY(90deg) scale(1.05)' },
+          '100%': { transform: 'perspective(900px) rotateY(180deg) scale(1)' },
+        },
+        flipIn: {
+          '0%':   { opacity: '0', transform: 'perspective(900px) rotateX(-90deg) translateY(-40px)' },
+          '60%':  { opacity: '1', transform: 'perspective(900px) rotateX(20deg) translateY(6px)' },
+          '100%': { opacity: '1', transform: 'perspective(900px) rotateX(0deg) translateY(0)' },
+        },
+        stampIn: {
+          '0%':   { opacity: '0', transform: 'scale(3) rotate(-18deg)', filter: 'blur(6px)' },
+          '60%':  { opacity: '1', transform: 'scale(0.92) rotate(-6deg)', filter: 'blur(0)' },
+          '80%':  { transform: 'scale(1.06) rotate(-10deg)' },
+          '100%': { opacity: '1', transform: 'scale(1) rotate(-8deg)', filter: 'blur(0)' },
+        },
+        deathFall: {
+          '0%':   { opacity: '1', transform: 'translateY(0) rotate(0deg) scale(1)', filter: 'grayscale(0)' },
+          '30%':  { transform: 'translateY(-8px) rotate(-6deg) scale(1.02)' },
+          '100%': { opacity: '0.15', transform: 'translateY(80px) rotate(30deg) scale(0.7)', filter: 'grayscale(1)' },
+        },
+        deathFade: {
+          '0%':   { opacity: '1', filter: 'grayscale(0) brightness(1)' },
+          '100%': { opacity: '0.5', filter: 'grayscale(1) brightness(0.6)' },
+        },
+        desaturate: {
+          '0%':   { filter: 'grayscale(0) brightness(1)' },
+          '100%': { filter: 'grayscale(1) brightness(0.55)' },
+        },
+        shake: {
+          '10%,90%':  { transform: 'translate3d(-1px,0,0)' },
+          '20%,80%':  { transform: 'translate3d(2px,0,0)' },
+          '30%,50%,70%': { transform: 'translate3d(-6px,0,0)' },
+          '40%,60%':  { transform: 'translate3d(6px,0,0)' },
+        },
+        wobble: {
+          '0%':   { transform: 'translateX(0)' },
+          '15%':  { transform: 'translateX(-12px) rotate(-4deg)' },
+          '30%':  { transform: 'translateX(10px)  rotate(3deg)' },
+          '45%':  { transform: 'translateX(-8px) rotate(-3deg)' },
+          '60%':  { transform: 'translateX(6px)  rotate(2deg)' },
+          '75%':  { transform: 'translateX(-3px) rotate(-1deg)' },
+          '100%': { transform: 'translateX(0)' },
+        },
+        jelly: {
+          '0%,100%': { transform: 'scale(1,1)' },
+          '25%':     { transform: 'scale(1.12,0.88)' },
+          '50%':     { transform: 'scale(0.92,1.08)' },
+          '75%':     { transform: 'scale(1.04,0.96)' },
+        },
+        tada: {
+          '0%':   { transform: 'scale(1) rotate(0)' },
+          '10%,20%': { transform: 'scale(0.92) rotate(-3deg)' },
+          '30%,50%,70%,90%': { transform: 'scale(1.1) rotate(3deg)' },
+          '40%,60%,80%':     { transform: 'scale(1.1) rotate(-3deg)' },
+          '100%': { transform: 'scale(1) rotate(0)' },
+        },
+        heartbeat: {
+          '0%,100%': { transform: 'scale(1)' },
+          '14%':     { transform: 'scale(1.1)' },
+          '28%':     { transform: 'scale(1)' },
+          '42%':     { transform: 'scale(1.1)' },
+          '70%':     { transform: 'scale(1)' },
+        },
+        breathe: {
+          '0%,100%': { transform: 'scale(1)',     opacity: '0.95' },
+          '50%':     { transform: 'scale(1.04)',  opacity: '1' },
+        },
+        glowPulse: {
+          '0%,100%': { boxShadow: '0 0 0 0 rgba(139,92,246,0.55), 0 0 24px 0 rgba(139,92,246,0.15)' },
+          '50%':     { boxShadow: '0 0 0 10px rgba(139,92,246,0), 0 0 40px 6px rgba(139,92,246,0.35)' },
+        },
+        ringPulse: {
+          '0%':   { transform: 'scale(0.85)', opacity: '0.9' },
+          '100%': { transform: 'scale(1.6)',  opacity: '0' },
+        },
+        urgentPulse: {
+          '0%,100%': { transform: 'scale(1)',    boxShadow: '0 0 0 0 rgba(239,68,68,0.55)' },
+          '50%':     { transform: 'scale(1.06)', boxShadow: '0 0 0 14px rgba(239,68,68,0)' },
+        },
+        confettiRain: {
+          '0%':   { transform: 'translateY(-120vh) rotate(0deg)', opacity: '1' },
+          '80%':  { opacity: '1' },
+          '100%': { transform: 'translateY(120vh) rotate(720deg)', opacity: '0' },
+        },
+        sparkle: {
+          '0%':   { transform: 'translate(-50%,-50%) scale(0) rotate(0deg)', opacity: '0' },
+          '30%':  { opacity: '1' },
+          '100%': { transform: 'translate(-50%,-50%) scale(1.4) rotate(240deg)', opacity: '0' },
+        },
+        raySpin: {
+          '0%':   { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
+        },
+        ringOut: {
+          '0%':   { transform: 'scale(0.2)',  opacity: '1',   borderWidth: '6px' },
+          '100%': { transform: 'scale(3.2)',  opacity: '0',   borderWidth: '1px' },
+        },
+        screenFlash: {
+          '0%,100%': { opacity: '0' },
+          '20%':     { opacity: '0.55' },
+        },
+        floatSoft: {
+          '0%,100%': { transform: 'translateY(0)' },
+          '50%':     { transform: 'translateY(-6px)' },
+        },
+        tiltIdle: {
+          '0%,100%': { transform: 'rotate(-2deg)' },
+          '50%':     { transform: 'rotate(2deg)' },
         },
       },
     },

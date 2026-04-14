@@ -62,26 +62,69 @@ export function OnboardingTutorial({ onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
       onClick={skip}
     >
+      <style>{`
+        @keyframes tut-step-forward {
+          0%   { opacity: 0; transform: translate3d(60px, 0, 0) scale(0.96); }
+          60%  { opacity: 1; transform: translate3d(-6px, 0, 0) scale(1.01); }
+          100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+        }
+        @keyframes tut-step-back {
+          0%   { opacity: 0; transform: translate3d(-60px, 0, 0) scale(0.96); }
+          60%  { opacity: 1; transform: translate3d(6px, 0, 0) scale(1.01); }
+          100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+        }
+        @keyframes tut-card-pop {
+          0%   { opacity: 0; transform: scale(0.85) translateY(30px); }
+          60%  { opacity: 1; transform: scale(1.02) translateY(-4px); }
+          100% { opacity: 1; transform: scale(1)    translateY(0); }
+        }
+        @keyframes tut-icon-bounce {
+          0%   { transform: scale(0) rotate(-180deg); opacity: 0; }
+          55%  { transform: scale(1.18) rotate(8deg); opacity: 1; }
+          80%  { transform: scale(0.94) rotate(-4deg); }
+          100% { transform: scale(1) rotate(0);  opacity: 1; }
+        }
+        @keyframes tut-progress-shine {
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(300%); }
+        }
+      `}</style>
+
       <div
-        className="w-full max-w-md bg-neutral-950 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl shadow-brand-950/30 flex flex-col"
+        className="w-full max-w-md bg-gradient-to-br from-neutral-950 via-neutral-950 to-brand-950/30 border border-neutral-800 rounded-3xl overflow-hidden shadow-2xl shadow-brand-950/40 flex flex-col"
         onClick={(e) => e.stopPropagation()}
+        style={{ animation: 'tut-card-pop 0.55s cubic-bezier(0.34,1.56,0.64,1) both' }}
       >
-        {/* Progress bar */}
-        <div className="h-1 bg-neutral-800">
+        {/* Progress bar with shine */}
+        <div className="relative h-1.5 bg-neutral-900 overflow-hidden">
           <div
-            className="h-full bg-brand-500 transition-all duration-500 ease-out"
-            style={{ width: `${((step + 1) / TOTAL_STEPS) * 100}%` }}
-          />
+            className="h-full bg-gradient-to-r from-brand-500 via-brand-400 to-brand-500 transition-all duration-500 ease-out relative overflow-hidden"
+            style={{
+              width: `${((step + 1) / TOTAL_STEPS) * 100}%`,
+              boxShadow: '0 0 12px rgba(139,92,246,0.6)',
+            }}
+          >
+            {/* Animated shine */}
+            <div
+              className="absolute inset-y-0 w-1/3 pointer-events-none"
+              style={{
+                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)',
+                animation: 'tut-progress-shine 2.2s linear infinite',
+              }}
+            />
+          </div>
         </div>
 
         {/* Content area */}
-        <div className="px-5 py-6 min-h-[380px] flex flex-col">
+        <div className="px-5 py-6 min-h-[380px] flex flex-col overflow-hidden">
           <div
             key={animKey}
-            className={direction === 'forward' ? 'animate-slide-up' : 'animate-slide-up'}
+            style={{
+              animation: `${direction === 'forward' ? 'tut-step-forward' : 'tut-step-back'} 0.45s cubic-bezier(0.16,1,0.3,1) both`,
+            }}
           >
             {step === 0 && <StepWelcome />}
             {step === 1 && <StepRoles />}
@@ -104,13 +147,14 @@ export function OnboardingTutorial({ onClose }: Props) {
                   setStep(i)
                 }}
                 className={[
-                  'w-2 h-2 rounded-full transition-all duration-300',
+                  'h-2 rounded-full transition-all duration-300 ease-out',
                   i === step
-                    ? 'bg-brand-500 w-6'
+                    ? 'bg-brand-500 w-7 shadow-[0_0_12px_rgba(139,92,246,0.7)]'
                     : i < step
-                      ? 'bg-brand-700'
-                      : 'bg-neutral-700',
+                      ? 'bg-brand-700 w-2 hover:bg-brand-500'
+                      : 'bg-neutral-700 w-2 hover:bg-neutral-500',
                 ].join(' ')}
+                aria-label={`Go to step ${i + 1}`}
               />
             ))}
           </div>
@@ -119,7 +163,7 @@ export function OnboardingTutorial({ onClose }: Props) {
           {step > 0 && (
             <button
               onClick={back}
-              className="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white text-sm font-semibold transition-colors"
+              className="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white text-sm font-semibold transition-all active:scale-95 hover:-translate-y-0.5"
             >
               {t('common.back')}
             </button>
@@ -139,10 +183,10 @@ export function OnboardingTutorial({ onClose }: Props) {
           <button
             onClick={next}
             className={[
-              'px-6 py-2.5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.97]',
+              'px-6 py-2.5 rounded-xl font-bold text-sm text-white transition-all active:scale-95 hover:-translate-y-0.5 hover:scale-[1.03]',
               step === TOTAL_STEPS - 1
-                ? 'bg-brand-600 hover:bg-brand-500 shadow-lg shadow-brand-950/40'
-                : 'bg-brand-600 hover:bg-brand-500',
+                ? 'bg-gradient-to-br from-brand-500 via-brand-600 to-brand-700 hover:from-brand-400 hover:to-brand-600 shadow-lg shadow-brand-900/50 animate-glow-pulse'
+                : 'bg-gradient-to-br from-brand-600 to-brand-700 hover:from-brand-500 hover:to-brand-600 shadow-md shadow-brand-950/50',
             ].join(' ')}
           >
             {step === TOTAL_STEPS - 1
@@ -162,8 +206,14 @@ function StepWelcome() {
 
   return (
     <div className="flex flex-col items-center text-center gap-4">
-      <div className="w-20 h-20 rounded-2xl bg-brand-600/20 border border-brand-700/40 flex items-center justify-center text-5xl">
-        🎭
+      <div
+        className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-brand-500/30 via-brand-700/20 to-brand-900/40 border border-brand-600/40 flex items-center justify-center text-6xl animate-float-soft"
+        style={{
+          animation: 'tut-icon-bounce 0.7s cubic-bezier(0.34,1.56,0.64,1) both, floatSoft 3.5s ease-in-out 0.8s infinite',
+          boxShadow: '0 0 40px rgba(139,92,246,0.35), inset 0 2px 0 rgba(255,255,255,0.1)',
+        }}
+      >
+        <span style={{ filter: 'drop-shadow(0 4px 16px rgba(139,92,246,0.6))' }}>🎭</span>
       </div>
       <div>
         <h2 className="text-2xl font-extrabold text-white mb-2">
@@ -174,8 +224,11 @@ function StepWelcome() {
         </p>
       </div>
       <div className="w-full mt-2 space-y-2">
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-neutral-900/80 border border-neutral-800/60 text-left">
-          <span className="text-lg">🏘️</span>
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-950/40 to-neutral-900/80 border border-emerald-900/40 text-left transition-transform hover:-translate-y-0.5 hover:scale-[1.015]"
+          style={{ animation: 'slideUp 0.4s ease-out 0.2s both' }}
+        >
+          <span className="text-2xl animate-float-soft">🏘️</span>
           <div>
             <p className="text-sm font-semibold text-emerald-400">
               {t('tutorial.welcomeVillagers', 'Villagers')}
@@ -185,8 +238,11 @@ function StepWelcome() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-neutral-900/80 border border-neutral-800/60 text-left">
-          <span className="text-lg">🔪</span>
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-red-950/40 to-neutral-900/80 border border-red-900/40 text-left transition-transform hover:-translate-y-0.5 hover:scale-[1.015]"
+          style={{ animation: 'slideUp 0.4s ease-out 0.35s both' }}
+        >
+          <span className="text-2xl animate-float-soft" style={{ animationDelay: '1s' }}>🔪</span>
           <div>
             <p className="text-sm font-semibold text-red-400">
               {t('tutorial.welcomeImposters', 'Imposters')}
@@ -295,9 +351,13 @@ function StepPhases() {
         {phases.map((phase, i) => (
           <div
             key={i}
-            className={`flex items-start gap-3 px-3 py-3 rounded-xl ${phase.bgColor} border ${phase.borderColor}`}
+            className={`flex items-start gap-3 px-3 py-3 rounded-xl ${phase.bgColor} border ${phase.borderColor} transition-transform hover:-translate-y-0.5 hover:scale-[1.015]`}
+            style={{ animation: `slideUp 0.45s cubic-bezier(0.16,1,0.3,1) ${0.15 + i * 0.12}s both` }}
           >
-            <div className={`w-8 h-8 rounded-lg border ${phase.borderColor} flex items-center justify-center text-base flex-shrink-0`}>
+            <div
+              className={`w-10 h-10 rounded-xl border ${phase.borderColor} flex items-center justify-center text-lg flex-shrink-0 animate-float-soft`}
+              style={{ animationDelay: `${i * 0.6}s` }}
+            >
               {phase.icon}
             </div>
             <div className="flex-1 min-w-0">
@@ -361,9 +421,10 @@ function StepModes() {
         {modes.map((mode, i) => (
           <div
             key={i}
-            className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-neutral-900/80 border border-neutral-800/60 text-center"
+            className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-neutral-900/80 border border-neutral-800/60 text-center transition-all hover:-translate-y-1 hover:scale-105 hover:border-brand-700/60 hover:bg-neutral-800/80 cursor-pointer"
+            style={{ animation: `tut-card-pop 0.5s cubic-bezier(0.34,1.56,0.64,1) ${0.1 + i * 0.08}s both` }}
           >
-            <span className="text-2xl">{mode.icon}</span>
+            <span className="text-3xl animate-float-soft" style={{ animationDelay: `${i * 0.4}s` }}>{mode.icon}</span>
             <p className={`text-sm font-bold ${mode.color}`}>{mode.name}</p>
             <p className="text-[10px] text-neutral-500 leading-tight">{mode.desc}</p>
           </div>
@@ -420,9 +481,10 @@ function StepTips() {
         {tips.map((tip, i) => (
           <div
             key={i}
-            className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800/60"
+            className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800/60 transition-transform hover:-translate-y-0.5 hover:scale-[1.015] hover:border-brand-700/40"
+            style={{ animation: `slideUp 0.45s cubic-bezier(0.16,1,0.3,1) ${0.15 + i * 0.1}s both` }}
           >
-            <span className="text-base mt-0.5">{tip.icon}</span>
+            <span className="text-xl mt-0.5 animate-float-soft" style={{ animationDelay: `${i * 0.3}s` }}>{tip.icon}</span>
             <p className="text-xs text-neutral-300 leading-relaxed">{tip.text}</p>
           </div>
         ))}
