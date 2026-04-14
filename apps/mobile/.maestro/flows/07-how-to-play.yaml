@@ -1,0 +1,29 @@
+# Flow 07 — How-to-Play reference screen
+#
+# Public route; accessible from auth screen via the offline flow, and from
+# the home tab (authenticated). The screen shows role descriptions.
+#
+# We reach it by deep link since there's no direct affordance from the
+# unauthed auth screen. The Expo scheme is defined in apps/mobile/app.json
+# as "imposter". expo-router routes match the file name, so the deep link
+# "imposter:///how-to-play" navigates to app/how-to-play.tsx.
+
+appId: ${APP_ID:-com.imposter.game}
+---
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible: "Imposter Game"
+    timeout: 15000
+
+- openLink: "imposter:///how-to-play"
+
+# Title rendered by how-to-play.tsx via t('howToPlay.title', defaultValue).
+- extendedWaitUntil:
+    visible: "How to Play"
+    timeout: 5000
+
+# Back button returns us to the auth screen.
+- back
+- assertVisible: "Sign In"

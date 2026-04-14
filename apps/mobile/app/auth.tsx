@@ -377,6 +377,7 @@ export default function AuthScreen() {
       {/* Language picker button */}
       <View className="flex-row justify-end px-4 pt-2">
         <TouchableOpacity
+          testID="language-picker-trigger"
           onPress={() => setShowLangPicker(true)}
           className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700"
           activeOpacity={0.7}
@@ -507,6 +508,7 @@ export default function AuthScreen() {
                   <View className="mb-3">
                     <Text className="text-xs font-semibold text-neutral-500 mb-1.5 uppercase tracking-wider">{t('auth.username')}</Text>
                     <TextInput
+                      testID="username-input"
                       className="bg-neutral-800 text-white px-4 rounded-xl border border-neutral-700/80"
                       style={{ paddingVertical: 13, fontSize: 15 * fontScale }}
                       placeholder={t('auth.username')}
@@ -524,6 +526,7 @@ export default function AuthScreen() {
                 <View className="mb-3">
                   <Text className="text-xs font-semibold text-neutral-500 mb-1.5 uppercase tracking-wider">{t('auth.email')}</Text>
                   <TextInput
+                    testID="email-input"
                     className="bg-neutral-800 text-white px-4 rounded-xl border border-neutral-700/80"
                     style={{ paddingVertical: 13, fontSize: 15 * fontScale }}
                     placeholder={t('auth.email')}
@@ -540,6 +543,7 @@ export default function AuthScreen() {
                 <View className="mb-5">
                   <Text className="text-xs font-semibold text-neutral-500 mb-1.5 uppercase tracking-wider">{t('auth.password')}</Text>
                   <TextInput
+                    testID="password-input"
                     className="bg-neutral-800 text-white px-4 rounded-xl border border-neutral-700/80"
                     style={{ paddingVertical: 13, fontSize: 15 * fontScale }}
                     placeholder="••••••••"

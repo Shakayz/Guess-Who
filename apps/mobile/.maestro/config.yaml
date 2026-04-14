@@ -1,0 +1,32 @@
+# Maestro workspace config for the Imposter Game mobile app.
+#
+# What this file controls:
+# - Where to find flows when you run `maestro test .maestro/`
+# - Default tags and execution order for the full suite
+#
+# APP ID SELECTION
+# ----------------
+# Maestro drives a specific installed app by its bundle identifier.
+# This repo has three possible targets:
+#
+#   1. Production / dev build .apk or .ipa  →  com.imposter.game   (default below)
+#   2. Expo Go on Android                    →  host.exp.exponent
+#   3. Expo Go on iOS                        →  host.exp.Exponent
+#
+# Each flow sets `appId` via `--env APP_ID=...` (see flows/_common.yaml).
+# Override with: `maestro test --env APP_ID=host.exp.exponent .maestro/flows/01-smoke.yaml`
+#
+# PREREQUISITES (see ../.maestro/README.md)
+# - Android emulator running, or a physical device via USB with debugging on
+# - The app installed on that device (dev build OR launched once via Expo Go)
+# - `maestro` CLI on PATH (https://maestro.mobile.dev)
+
+flows:
+  - flows/01-smoke.yaml
+  - flows/02-auth-validation.yaml
+  - flows/03-auth-toggle-modes.yaml
+  - flows/04-forgot-password.yaml
+  - flows/05-language-picker.yaml
+  - flows/06-offline-mode.yaml
+  - flows/07-how-to-play.yaml
+  - flows/08-deep-link-reset-password.yaml

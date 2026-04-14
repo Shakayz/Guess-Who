@@ -1,0 +1,63 @@
+# Flow 02 — Auth form validation
+#
+# Exercises the three client-side validation rules in apps/mobile/app/auth.tsx
+# without calling the backend:
+#   - invalid email                    →  "Please enter a valid email address"
+#   - password shorter than 8 chars    →  "Password must be at least 8 characters"
+#   - username shorter than 3 chars    →  "Username must be at least 3 characters"
+#
+# These strings live in packages/shared/src/i18n/en.ts — if they change, update
+# the assertions here.
+
+appId: ${APP_ID:-com.imposter.game}
+---
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible: "Imposter Game"
+    timeout: 15000
+
+# Switch into Sign Up mode so the username field appears.
+- tapOn: "Don't have an account?"
+- assertVisible: "Sign Up"
+
+# Case 1 — too-short username.
+- tapOn:
+    id: "username-input"
+- inputText: "ab"
+- tapOn:
+    id: "email-input"
+- inputText: "ok@example.com"
+- tapOn:
+    id: "password-input"
+- inputText: "longenoughpw"
+- hideKeyboard
+- tapOn: "Sign Up"
+- assertVisible: "Username must be at least 3 characters"
+
+# Case 2 — invalid email. Correct the username first.
+- tapOn:
+    id: "username-input"
+- eraseText: 2
+- inputText: "validname"
+- tapOn:
+    id: "email-input"
+- eraseText: 14
+- inputText: "not-an-email"
+- hideKeyboard
+- tapOn: "Sign Up"
+- assertVisible: "Please enter a valid email address"
+
+# Case 3 — password too short.
+- tapOn:
+    id: "email-input"
+- eraseText: 12
+- inputText: "ok@example.com"
+- tapOn:
+    id: "password-input"
+- eraseText: 12
+- inputText: "short"
+- hideKeyboard
+- tapOn: "Sign Up"
+- assertVisible: "Password must be at least 8 characters"

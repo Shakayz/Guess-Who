@@ -1,0 +1,33 @@
+# Flow 03 — Toggle between Sign In and Sign Up modes
+#
+# Confirms:
+#   - Sign In mode: username field is hidden, "Forgot password?" is visible
+#   - Sign Up mode: username field appears, "Forgot password?" hides
+# This is pure UI state — no network dependency.
+
+appId: ${APP_ID:-com.imposter.game}
+---
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible: "Imposter Game"
+    timeout: 15000
+
+# Default = Sign In mode. Forgot-password link should be visible.
+- assertVisible: "Sign In"
+- assertVisible: "Forgot password?"
+- assertNotVisible:
+    id: "username-input"
+
+# Toggle to Sign Up.
+- tapOn: "Don't have an account?"
+- assertVisible: "Sign Up"
+- assertVisible:
+    id: "username-input"
+- assertNotVisible: "Forgot password?"
+
+# Toggle back to Sign In.
+- tapOn: "Already have an account?"
+- assertVisible: "Sign In"
+- assertVisible: "Forgot password?"

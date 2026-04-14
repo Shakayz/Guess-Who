@@ -37,6 +37,15 @@ pnpm-debug.log*
 # Testing
 coverage/
 
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Maestro (run artifacts)
+.maestro/logs/
+.maestro-output/
+
 # Expo / React Native
 .expo/
 *.jks

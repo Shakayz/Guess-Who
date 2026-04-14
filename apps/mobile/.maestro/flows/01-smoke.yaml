@@ -1,0 +1,26 @@
+# Flow 01 — Smoke test
+#
+# Goal: the app launches, the splash clears, and the auth screen renders with
+# its core affordances visible. This is the canary: if this fails, nothing else
+# will work.
+#
+# Assumes: user is signed OUT (token not in AsyncStorage). On a fresh install
+# this is always the case. If you've logged in previously, clear app data
+# or uninstall/reinstall before running.
+
+appId: ${APP_ID:-com.imposter.game}
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+
+# Splash & hydration of AsyncStorage takes a moment; give the auth screen time.
+- extendedWaitUntil:
+    visible: "Imposter Game"
+    timeout: 15000
+
+# The auth form's identifying strings must all be present.
+- assertVisible: "Sign In"
+- assertVisible: "Continue with Google"
+- assertVisible: "Play Offline"
+- assertVisible: "Forgot password?"
