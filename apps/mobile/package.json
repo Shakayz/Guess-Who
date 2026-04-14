@@ -10,6 +10,7 @@
     "build:android": "eas build --platform android",
     "build:ios": "eas build --platform ios",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "clean": "rm -rf .expo"
   },
   "dependencies": {
@@ -53,6 +54,7 @@
     "@babel/core": "^7.20.0",
     "@types/react": "~19.1.10",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^1.0.0"
   }
 }

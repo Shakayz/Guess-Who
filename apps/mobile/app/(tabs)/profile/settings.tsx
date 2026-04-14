@@ -336,14 +336,14 @@ export default function SettingsScreen() {
         <View className="bg-neutral-900 border border-neutral-800 rounded-2xl px-4 mb-4">
           <SectionHeader title="Legal" />
           <TouchableOpacity
-            onPress={() => WebBrowser.openBrowserAsync('https://imposter.game/terms')}
+            onPress={() => router.push('/terms')}
             className="flex-row items-center justify-between py-3 border-b border-neutral-800"
           >
             <Text className="text-sm font-semibold text-white">Terms of Service</Text>
             <Text className="text-neutral-500 text-sm">›</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => WebBrowser.openBrowserAsync('https://imposter.game/privacy')}
+            onPress={() => router.push('/privacy')}
             className="flex-row items-center justify-between py-3 border-b border-neutral-800"
           >
             <Text className="text-sm font-semibold text-white">Privacy Policy</Text>
