@@ -73,21 +73,27 @@ describe('isNeutralUnlocked', () => {
 describe('computeRoleHeadroom', () => {
   it('reports remaining slots for an empty special-role lobby', () => {
     const h = computeRoleHeadroom(6, 2, counts())
-    // 6 players, evilCap=2, currentEvil=2 → evilHeadroom=0
+    // imposterCount=2 is the TOTAL evil-side budget; no specials consume it yet.
     expect(h.currentEvil).toBe(2)
-    expect(h.evilHeadroom).toBe(0)
-    // goodHeadroom = players - currentEvil - currentGoodSpecial - evilTwins - 1
-    //              = 6 - 2 - 0 - 0 - 1 = 3
-    expect(h.goodHeadroom).toBe(3)
+    expect(h.evilHeadroom).toBe(2)
+    // slotsUsed = imposterCount + currentGoodSpecial + evilTwins = 2 + 0 + 0 = 2
+    // goodHeadroom = 6 - 2 = 4 (no forced plain villager)
+    expect(h.goodHeadroom).toBe(4)
   })
 
   it('counts evilTwins toward both sides', () => {
-    const h = computeRoleHeadroom(10, 3, counts({ evilTwins: 1 }))
-    // currentEvil = 3 + 1 = 4, evilCap=3 → evilHeadroom=0
-    expect(h.currentEvil).toBe(4)
-    expect(h.evilHeadroom).toBe(0)
-    // slotsUsed = 4 + 0 + 1 = 5; goodHeadroom = 10 - 5 - 1 = 4
-    expect(h.goodHeadroom).toBe(4)
+    const base = computeRoleHeadroom(10, 3, counts())
+    const withTwins = computeRoleHeadroom(10, 3, counts({ evilTwins: 1 }))
+    // imposterCount already includes all evil roles, so currentEvil is constant…
+    expect(base.currentEvil).toBe(3)
+    expect(withTwins.currentEvil).toBe(3)
+    // …but evilTwins consumes one evil-budget slot AND one villager-side slot,
+    // so both headrooms drop by exactly 1 compared to the empty lobby.
+    expect(base.evilHeadroom - withTwins.evilHeadroom).toBe(1)
+    expect(base.goodHeadroom - withTwins.goodHeadroom).toBe(1)
+    // Concrete values: evilHeadroom = 3 - 1 = 2; goodHeadroom = 10 - 3 - 0 - 1 = 6
+    expect(withTwins.evilHeadroom).toBe(2)
+    expect(withTwins.goodHeadroom).toBe(6)
   })
 })
 
@@ -110,20 +116,24 @@ describe('computeMaxRoleCounts', () => {
   })
 
   it('shrinks evil-side max as imposter slots fill', () => {
-    // 9 players → evilCap=3. With imposterCount=2 and corruptor=1, headroom is 0.
-    const max = computeMaxRoleCounts(9, 2, counts({ corruptor: 1 }))
-    // current corruptor + 0 headroom = 1 → max corruptor stays at 1
+    // imposterCount=2 is the total evil budget. Specials already sum to 2 → no headroom.
+    const max = computeMaxRoleCounts(9, 2, counts({ corruptor: 1, inverter: 1 }))
+    // existing specials stay at their current value (capped at hard cap),
+    // but nothing else can be added since evilHeadroom = 0.
     expect(max.corruptor).toBe(1)
-    // can't add another inverter since headroom is 0
-    expect(max.inverter).toBe(0)
+    expect(max.inverter).toBe(1)
+    expect(max.doubleAgent).toBe(0)
+    expect(max.kamikaze).toBe(0)
   })
 
   it('handles 3-player edge case', () => {
     const max = computeMaxRoleCounts(3, 1, counts())
-    // evilCap=1, currentEvil=1 → no evil headroom
-    expect(max.doubleAgent).toBe(0)
-    // goodHeadroom = 3 - 1 - 0 - 0 - 1 = 1
-    expect(max.detective).toBe(1)
+    // imposterCount=1 total evil budget, empty specials → evilHeadroom = 1.
+    expect(max.doubleAgent).toBe(1)
+    // goodHeadroom = 3 - 1 - 0 - 0 = 2 (no reserved plain villager)
+    expect(max.detective).toBe(2)
+    // neutrals stay locked below 10 players
+    expect(max.jester).toBe(0)
   })
 })
 
@@ -136,18 +146,33 @@ describe('autoReduceOverflow', () => {
   })
 
   it('drops evilTwins first when over the cap', () => {
-    // 6 players, cap=2. imposter=2, corruptor=1, evilTwins=1 → excess=2
-    const result = autoReduceOverflow(6, 2, counts({ corruptor: 1, evilTwins: 1 }))
+    // imposterCount=2 evil budget; specials sum to 3 (corruptor+evilTwins+doubleAgent) → excess=1.
+    // Reducer order is evilTwins → inverter → corruptor → kamikaze → infiltrator → doubleAgent,
+    // so evilTwins is dropped first and the rest are left alone.
+    const result = autoReduceOverflow(
+      6,
+      2,
+      counts({ corruptor: 1, evilTwins: 1, doubleAgent: 1 }),
+    )
     expect(result.changed).toBe(true)
     expect(result.counts.evilTwins).toBe(0)
-    expect(result.counts.corruptor).toBe(0)
+    expect(result.counts.corruptor).toBe(1)
+    expect(result.counts.doubleAgent).toBe(1)
   })
 
-  it('preserves the baseline imposter count', () => {
-    const result = autoReduceOverflow(6, 3, counts({ corruptor: 1 }))
-    // cap=2, imposterCount=3 → already over by itself; helper does NOT touch imposterCount
-    // It can still trim the corruptor (excess = 3+1-2 = 2; reduces corruptor by 1 → still 1 short)
-    expect(result.counts.corruptor).toBe(0)
+  it('reduces specials without touching the imposter budget', () => {
+    // imposterCount=2 budget, specials = 3 (corruptor+inverter+kamikaze) → excess=1.
+    // Reducer order drops inverter first (evilTwins is already 0).
+    const result = autoReduceOverflow(
+      6,
+      2,
+      counts({ corruptor: 1, inverter: 1, kamikaze: 1 }),
+    )
+    expect(result.changed).toBe(true)
+    expect(result.counts.inverter).toBe(0)
+    expect(result.counts.corruptor).toBe(1)
+    expect(result.counts.kamikaze).toBe(1)
+    // imposterCount itself is an argument, not part of counts, so the helper can't mutate it.
   })
 
   it('does not mutate input counts', () => {

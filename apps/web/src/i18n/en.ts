@@ -259,7 +259,7 @@ export default {
     completionGrantingReward: 'Granting your reward…',
     completionRewardError: "We couldn't credit your reward right now — give it another try.",
     completionRewardRetry: 'Retry',
-    completionAlready: 'You already claimed the 50⭐ reward from a previous tutorial. Great refresher!',
+    completionAlready: 'You already claimed the {{amount}}⭐ reward from a previous tutorial. Great refresher!',
     playNow: 'Play a real game',
     backToHome: 'Back to home',
 
@@ -841,6 +841,14 @@ export default {
     detectiveRemember: 'This role will appear next to their name during your future vote turns.',
     // How to play
     howToPlay: 'How to Play',
+    htpTagline: 'Master the art of deception and deduction in the Imposter social game.',
+    htpModesAndRoles: 'Modes & Roles',
+    htpReady: 'Ready to play?',
+    htpPlayNow: 'Play Now',
+    teamVillagers: 'Villagers',
+    teamImposters: 'Imposters',
+    teamPair: 'Pair',
+    teamNeutral: 'Neutral',
     htpMinPlayers: 'Min. {{count}} players',
     htpNormalDesc: 'Villagers try to find the imposter by discussing a secret word. The imposter has a different but similar word and must blend in.',
     htpVillagerDesc: 'Knows the village word. Find the imposter!',

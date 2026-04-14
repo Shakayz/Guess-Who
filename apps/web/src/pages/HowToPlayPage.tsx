@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { TUTORIAL_COMPLETION_REWARD } from '@imposter/shared'
 import { NavBar } from '../components/NavBar'
 
 export default function HowToPlayPage() {
@@ -15,17 +16,30 @@ export default function HowToPlayPage() {
           {/* Hero header */}
           <div className="text-center mb-8">
             <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight tracking-tight mb-3">
-              How to Play
+              {t('offline.howToPlay')}
             </h1>
             <p className="text-neutral-400 text-base max-w-md mx-auto">
-              Master the art of deception and deduction in the Imposter social game.
+              {t('offline.htpTagline')}
             </p>
           </div>
 
           {/* How to play */}
           <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-4">
+            {/* How it works — shown first so players understand the flow before reading roles */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">{t('offline.htpHowItWorks')}</p>
+              <ol className="space-y-1 ml-1 list-decimal list-inside text-xs text-neutral-400 leading-relaxed">
+                <li>{t('offline.htpStep1')}</li>
+                <li>{t('offline.htpStep2')}</li>
+                <li>{t('offline.htpStep3')}</li>
+                <li>{t('offline.htpStep4')}</li>
+              </ol>
+            </div>
+
+            <div className="border-t border-neutral-800/60" />
+
             <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-              {t('offline.howToPlay')}
+              {t('offline.htpModesAndRoles', 'Modes & Roles')}
             </p>
 
             {/* Normal mode */}
@@ -158,18 +172,6 @@ export default function HowToPlayPage() {
               </div>
             </div>
 
-            <div className="border-t border-neutral-800/60" />
-
-            {/* How it works */}
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-neutral-300">{t('offline.htpHowItWorks')}</p>
-              <ol className="space-y-1 ml-1 list-decimal list-inside text-xs text-neutral-500 leading-relaxed">
-                <li>{t('offline.htpStep1')}</li>
-                <li>{t('offline.htpStep2')}</li>
-                <li>{t('offline.htpStep3')}</li>
-                <li>{t('offline.htpStep4')}</li>
-              </ol>
-            </div>
           </div>
 
           {/* Interactive walkthrough promo */}
@@ -184,7 +186,7 @@ export default function HowToPlayPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-white font-bold text-sm">{t('tutorial.homeCardTitle')}</p>
                 <p className="text-amber-300/80 text-xs mt-0.5">
-                  {t('tutorial.homeCardSubtitle', { amount: 50 })}
+                  {t('tutorial.homeCardSubtitle', { amount: TUTORIAL_COMPLETION_REWARD })}
                 </p>
               </div>
               <span className="text-amber-400 font-semibold text-sm">→</span>
@@ -193,19 +195,13 @@ export default function HowToPlayPage() {
 
           {/* CTA */}
           <div className="text-center pt-4 space-y-3">
-            <p className="text-neutral-500 text-sm">Ready to play?</p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <p className="text-neutral-500 text-sm">{t('offline.htpReady')}</p>
+            <div className="flex justify-center">
               <Link
                 to="/"
                 className="px-8 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold transition-colors shadow-lg shadow-violet-950/40"
               >
-                Play Now
-              </Link>
-              <Link
-                to="/leaderboard"
-                className="px-8 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white font-bold transition-colors border border-neutral-700"
-              >
-                View Leaderboard
+                {t('offline.htpPlayNow')}
               </Link>
             </div>
           </div>

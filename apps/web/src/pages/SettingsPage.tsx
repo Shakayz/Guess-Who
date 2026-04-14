@@ -15,6 +15,8 @@ const LANGUAGES = [
   { code: 'pt', label: 'Português' },
   { code: 'zh', label: '中文' },
   { code: 'de', label: 'Deutsch' },
+  { code: 'ru', label: 'Русский' },
+  { code: 'hi', label: 'हिन्दी' },
 ] as const
 
 function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {

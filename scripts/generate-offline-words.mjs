@@ -24,7 +24,7 @@ const SEED = resolve(ROOT, 'apps/api/prisma/seed.ts')
 const EXTENDED = resolve(ROOT, 'apps/api/prisma/extended-pairs.ts')
 const OUT = resolve(ROOT, 'packages/shared/src/offlineWords.ts')
 
-const LOCALES = ['en', 'fr', 'es', 'de', 'ar', 'it', 'pt', 'zh']
+const LOCALES = ['en', 'fr', 'es', 'de', 'ar', 'it', 'pt', 'zh', 'ru', 'hi']
 const CATEGORIES = [
   'food', 'animals', 'music', 'places', 'jobs',
   'sports', 'movies', 'history', 'mangas', 'celebrities', 'variety',
@@ -156,6 +156,8 @@ const LOCALE_CONST = {
   it: 'IT_PAIRS',
   pt: 'PT_PAIRS',
   zh: 'ZH_PAIRS',
+  ru: 'RU_PAIRS',
+  hi: 'HI_PAIRS',
 }
 
 const FOOTER = `
@@ -168,6 +170,8 @@ export const OFFLINE_WORD_PAIRS_BY_LOCALE: Record<string, Record<WordCategory, O
   it: IT_PAIRS,
   pt: PT_PAIRS,
   zh: ZH_PAIRS,
+  ru: RU_PAIRS,
+  hi: HI_PAIRS,
 }
 
 /**

@@ -262,7 +262,7 @@ export default {
     completionGrantingReward: 'جاري منح مكافأتك…',
     completionRewardError: 'لم نتمكن من إضافة مكافأتك الآن — حاول مجدداً.',
     completionRewardRetry: 'إعادة المحاولة',
-    completionAlready: 'لقد استلمت مكافأة 50⭐ من تعليمي سابق. تذكير ممتاز!',
+    completionAlready: 'لقد استلمت مكافأة {{amount}}⭐ من تعليمي سابق. تذكير ممتاز!',
     playNow: 'العب مباراة حقيقية',
     backToHome: 'العودة إلى الرئيسية',
 

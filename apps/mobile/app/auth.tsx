@@ -41,6 +41,8 @@ const LANGUAGES = [
   { code: 'it', label: 'Italiano', flag: '🇮🇹' },
   { code: 'pt', label: 'Português', flag: '🇧🇷' },
   { code: 'zh', label: '中文', flag: '🇨🇳' },
+  { code: 'ru', label: 'Русский', flag: '🇷🇺' },
+  { code: 'hi', label: 'हिन्दी', flag: '🇮🇳' },
 ] as const
 
 const googleDiscovery = {

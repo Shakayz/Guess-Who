@@ -26,7 +26,7 @@ function renderPage() {
 describe('HowToPlayPage', () => {
   it('renders the hero title', () => {
     renderPage()
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/How to Play/i)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('offline.howToPlay')
   })
 
   it('renders the NavBar', () => {

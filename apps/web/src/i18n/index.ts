@@ -9,6 +9,8 @@ import it from './it'
 import pt from './pt'
 import zh from './zh'
 import de from './de'
+import ru from './ru'
+import hi from './hi'
 
 // All translations bundled directly — avoids async race conditions on language switch.
 // Total overhead is ~30 KB, well within acceptable range for a game app.
@@ -25,6 +27,8 @@ i18n
       pt: { translation: pt },
       zh: { translation: zh },
       de: { translation: de },
+      ru: { translation: ru },
+      hi: { translation: hi },
     },
     fallbackLng: 'en',
     interpolation: { escapeValue: false },

@@ -12,7 +12,7 @@ export const RANK_CONFIG = {
 
 export const HONOR_TYPES = ['teamplayer', 'sharp_mind', 'good_sport'] as const
 
-export const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'de', 'it', 'pt', 'zh'] as const
+export const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'de', 'it', 'pt', 'zh', 'ru', 'hi'] as const
 
 export const DEFAULT_ROOM_SETTINGS = {
   maxPlayers: 10,
@@ -40,6 +40,14 @@ export const COIN_REWARDS = {
   PERFECT_IMPOSTER: 100,
   DAILY_LOGIN: 10,
 } as const
+
+/**
+ * One-time star-coin reward granted the first time a player finishes the
+ * interactive walkthrough (POST /api/tutorial/complete). Single source of
+ * truth for both the server (which grants the stars) and the web UI
+ * (which renders the "earn +N ⭐" CTAs and banners).
+ */
+export const TUTORIAL_COMPLETION_REWARD = 50
 
 // TODO: re-enable when premium/monetization is ready
 // export const GOLD_COIN_PACKS = [

@@ -151,6 +151,8 @@ const LANGUAGES = [
   { code: 'pt', label: 'Português', flag: 'br' },
   { code: 'zh', label: '中文', flag: 'cn' },
   { code: 'de', label: 'Deutsch', flag: 'de' },
+  { code: 'ru', label: 'Русский', flag: 'ru' },
+  { code: 'hi', label: 'हिन्दी', flag: 'in' },
 ]
 
 // ─── Sub-component: Role stepper (used in setup phase) ──────────────────────

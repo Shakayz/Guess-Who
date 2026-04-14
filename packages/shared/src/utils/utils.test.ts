@@ -38,7 +38,8 @@ describe('formatDate', () => {
   })
 
   it('handles a recent date', () => {
-    const result = formatDate('2025-12-31T23:59:59Z', 'en')
+    // Use midday UTC mid-year so no timezone can shift the year.
+    const result = formatDate('2025-06-15T12:00:00Z', 'en')
     expect(result).toContain('2025')
   })
 })

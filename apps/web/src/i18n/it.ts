@@ -260,7 +260,7 @@ export default {
     completionGrantingReward: 'Accredito della ricompensa…',
     completionRewardError: 'Non riusciamo ad accreditare la ricompensa adesso — riprova.',
     completionRewardRetry: 'Riprova',
-    completionAlready: 'Hai già ritirato la ricompensa da 50⭐ in un tutorial precedente. Ottimo ripasso!',
+    completionAlready: 'Hai già ritirato la ricompensa da {{amount}}⭐ in un tutorial precedente. Ottimo ripasso!',
     playNow: 'Gioca una partita vera',
     backToHome: 'Torna alla home',
 

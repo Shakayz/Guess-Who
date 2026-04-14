@@ -1,13 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify'
+import { TUTORIAL_COMPLETION_REWARD } from '@imposter/shared'
 import { prisma } from '../config/prisma'
 
-/**
- * Reward granted once, the first time a player finishes the interactive
- * first-game walkthrough. Idempotent on the server side via the
- * User.tutorialCompleted flag so refreshing the page or replaying the
- * walkthrough can't farm extra stars.
- */
-export const TUTORIAL_COMPLETION_REWARD = 50
+// Re-exported so existing test imports (`import { TUTORIAL_COMPLETION_REWARD }
+// from '../../routes/tutorial'`) keep working. The value lives in
+// packages/shared so the web UI can render the same number on its CTAs
+// without drifting.
+export { TUTORIAL_COMPLETION_REWARD }
 
 export const tutorialRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('onRequest', fastify.authenticate)

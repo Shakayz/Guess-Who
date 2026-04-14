@@ -260,7 +260,7 @@ export default {
     completionGrantingReward: 'Otorgando tu recompensa…',
     completionRewardError: 'No pudimos acreditar tu recompensa ahora mismo — inténtalo de nuevo.',
     completionRewardRetry: 'Reintentar',
-    completionAlready: 'Ya reclamaste la recompensa de 50⭐ en un tutorial anterior. ¡Buen repaso!',
+    completionAlready: 'Ya reclamaste la recompensa de {{amount}}⭐ en un tutorial anterior. ¡Buen repaso!',
     playNow: 'Jugar partida real',
     backToHome: 'Volver al inicio',
 

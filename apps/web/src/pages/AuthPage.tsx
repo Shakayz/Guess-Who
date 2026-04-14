@@ -16,6 +16,8 @@ const LANGUAGES = [
   { code: 'pt', label: 'Português', country: 'br' },
   { code: 'zh', label: '中文', country: 'cn' },
   { code: 'de', label: 'Deutsch', country: 'de' },
+  { code: 'ru', label: 'Русский', country: 'ru' },
+  { code: 'hi', label: 'हिन्दी', country: 'in' },
 ]
 
 type Mode = 'signin' | 'signup'

@@ -2,14 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { TUTORIAL_COMPLETION_REWARD } from '@imposter/shared'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { createLogger } from '../lib/logger'
 import { markTutorialCompletedLocally } from '../components/OnboardingTutorial'
 
 const log = createLogger('tutorial')
-
-const TUTORIAL_REWARD = 50
 
 type StepId =
   | 'intro'
@@ -76,7 +75,7 @@ export default function TutorialPage() {
   useEffect(() => {
     api.get<TutorialStatus>('/tutorial/status')
       .then((s) => setStatus(s))
-      .catch(() => setStatus({ completed: false, reward: TUTORIAL_REWARD }))
+      .catch(() => setStatus({ completed: false, reward: TUTORIAL_COMPLETION_REWARD }))
       .finally(() => setStatusLoaded(true))
   }, [])
 
@@ -103,6 +102,30 @@ export default function TutorialPage() {
       queryClient.invalidateQueries({ queryKey: ['me'] })
       log.info('tutorial completed', { reward: res.reward, balance: res.starCoins })
     } catch (err: any) {
+      // Before surfacing an error, re-check the server state: the POST may
+      // have fired with a briefly-stale auth token on a fresh sign-in, but
+      // the reward could have already been granted on a prior attempt (or
+      // a concurrent tab). If the server now reports completed=true, treat
+      // this as success and synthesize an `alreadyCompleted` result so the
+      // player sees the "reward already claimed" message instead of a
+      // scary red retry banner for stars they already own.
+      try {
+        const s = await api.get<TutorialStatus>('/tutorial/status')
+        if (s.completed) {
+          setClaimResult({
+            success: true,
+            alreadyCompleted: true,
+            reward: 0,
+            starCoins: 0,
+          })
+          markTutorialCompletedLocally()
+          queryClient.invalidateQueries({ queryKey: ['me'] })
+          log.info('tutorial already completed server-side; suppressing error', { error: err?.message })
+          return
+        }
+      } catch {
+        // fall through to the generic error UI below
+      }
       log.error('tutorial completion failed', { error: err?.message })
       setClaimError(err?.message ?? 'Something went wrong')
     } finally {
@@ -115,11 +138,28 @@ export default function TutorialPage() {
   // sets claiming=false + claimError=<msg>, which re-fires this effect and
   // immediately retries, trapping the user on the spinner forever with no
   // visible error UI. The manual "Retry" button clears claimError itself.
+  //
+  // Also: if the server already reports completed=true (returning player
+  // replaying the walkthrough, or a prior successful POST we missed the
+  // response of), skip the POST entirely and show the "already claimed"
+  // state directly. Prevents the confusing "couldn't credit your reward"
+  // banner for users who already own their stars.
   useEffect(() => {
     if (currentStep !== 'done') return
     if (claimResult || claiming || claimError) return
+    if (statusLoaded && status?.completed) {
+      setClaimResult({
+        success: true,
+        alreadyCompleted: true,
+        reward: 0,
+        starCoins: 0,
+      })
+      markTutorialCompletedLocally()
+      return
+    }
+    if (!statusLoaded) return // wait until we know whether the reward was already claimed
     grantReward()
-  }, [currentStep, claimResult, claiming, claimError, grantReward])
+  }, [currentStep, claimResult, claiming, claimError, grantReward, statusLoaded, status])
 
   const exitWithConfirm = useCallback(() => {
     if (currentStep === 'done') {
@@ -162,7 +202,7 @@ export default function TutorialPage() {
             >
               {status?.completed
                 ? t('tutorial.rewardAlreadyClaimed')
-                : t('tutorial.rewardBanner', { amount: TUTORIAL_REWARD })}
+                : t('tutorial.rewardBanner', { amount: TUTORIAL_COMPLETION_REWARD })}
             </div>
           )}
 
@@ -698,7 +738,7 @@ function DoneStep({
 
       {alreadyHad && (
         <p className="text-sm text-neutral-400 max-w-sm mx-auto leading-relaxed">
-          {t('tutorial.completionAlready')}
+          {t('tutorial.completionAlready', { amount: TUTORIAL_COMPLETION_REWARD })}
         </p>
       )}
 
@@ -716,18 +756,12 @@ function DoneStep({
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+      <div className="flex justify-center pt-2">
         <Link
           to="/"
           className="px-6 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition-colors shadow-lg shadow-brand-950/40"
         >
           {t('tutorial.playNow')}
-        </Link>
-        <Link
-          to="/how-to-play"
-          className="px-6 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white font-bold transition-colors border border-neutral-700"
-        >
-          {t('home.howToPlay')}
         </Link>
       </div>
     </div>

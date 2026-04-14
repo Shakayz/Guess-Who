@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { NavBar } from '../components/NavBar'
-import { WORD_CATEGORIES, MATCHMAKING_CONFIG } from '@imposter/shared'
+import { WORD_CATEGORIES, MATCHMAKING_CONFIG, TUTORIAL_COMPLETION_REWARD } from '@imposter/shared'
 import type { WordCategory, MatchmakingStatus } from '@imposter/shared'
 import { connectSocket, getSocket } from '../lib/socket'
 import { useGameStore } from '../store/game'
@@ -201,6 +201,19 @@ export default function HomePage() {
 
   const [showHowToPlay, setShowHowToPlay] = useState(false)
   const [showTutorial, setShowTutorial] = useState(() => !hasTutorialCompleted())
+  // Server-side tutorial completion flag (source of truth for the /tutorial
+  // walkthrough reward). We hide the "🎓 Your First Game" CTA card once this
+  // is true so returning players aren't prompted to replay something they've
+  // already earned the 50⭐ for. Defaults to `true` (hide) while loading so
+  // the card doesn't flicker in and then disappear.
+  const [walkthroughCompleted, setWalkthroughCompleted] = useState(true)
+  useEffect(() => {
+    let cancelled = false
+    api.get<{ completed: boolean }>('/tutorial/status')
+      .then((s) => { if (!cancelled) setWalkthroughCompleted(s.completed) })
+      .catch(() => { if (!cancelled) setWalkthroughCompleted(false) })
+    return () => { cancelled = true }
+  }, [])
 
   const LOBBY_GAME_MODES: { id: SubGameMode; icon: string; labelKey: string; descKey: string }[] = [
     { id: 'normal',  icon: '🎭', labelKey: 'home.normalGameMode',  descKey: 'home.normalGameModeDesc' },
@@ -615,24 +628,28 @@ export default function HomePage() {
 
         </div>
 
-        {/* Walkthrough / tutorial CTA — prominent card for first-time players */}
-        <Link
-          to="/tutorial"
-          className="mt-10 w-full max-w-md mx-auto group relative overflow-hidden rounded-2xl border border-amber-700/40 bg-gradient-to-br from-amber-950/50 to-brand-950/40 p-4 flex items-center gap-4 hover:border-amber-600/60 hover:from-amber-950/70 transition-all active:scale-[0.99]"
-        >
-          <div className="w-12 h-12 rounded-xl bg-amber-600/20 border border-amber-700/40 flex items-center justify-center text-2xl shrink-0">
-            🎓
-          </div>
-          <div className="flex-1 min-w-0 text-left">
-            <p className="text-white font-bold text-sm">{t('tutorial.homeCardTitle')}</p>
-            <p className="text-amber-300/80 text-xs mt-0.5">
-              {t('tutorial.homeCardSubtitle', { amount: 50 })}
-            </p>
-          </div>
-          <span className="text-amber-400 font-semibold text-sm group-hover:text-amber-300 transition-colors">
-            {t('tutorial.homeCardCta')} →
-          </span>
-        </Link>
+        {/* Walkthrough / tutorial CTA — prominent card for first-time players.
+            Hidden once the player has finished the walkthrough and claimed
+            the 50⭐ reward (server-side `tutorialCompleted` flag). */}
+        {!walkthroughCompleted && (
+          <Link
+            to="/tutorial"
+            className="mt-10 w-full max-w-md mx-auto group relative overflow-hidden rounded-2xl border border-amber-700/40 bg-gradient-to-br from-amber-950/50 to-brand-950/40 p-4 flex items-center gap-4 hover:border-amber-600/60 hover:from-amber-950/70 transition-all active:scale-[0.99]"
+          >
+            <div className="w-12 h-12 rounded-xl bg-amber-600/20 border border-amber-700/40 flex items-center justify-center text-2xl shrink-0">
+              🎓
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-white font-bold text-sm">{t('tutorial.homeCardTitle')}</p>
+              <p className="text-amber-300/80 text-xs mt-0.5">
+                {t('tutorial.homeCardSubtitle', { amount: TUTORIAL_COMPLETION_REWARD })}
+              </p>
+            </div>
+            <span className="text-amber-400 font-semibold text-sm group-hover:text-amber-300 transition-colors">
+              {t('tutorial.homeCardCta')} →
+            </span>
+          </Link>
+        )}
 
         {/* How to play link */}
         <Link

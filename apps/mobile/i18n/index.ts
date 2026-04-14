@@ -8,6 +8,8 @@ import es from './es'
 import it from './it'
 import pt from './pt'
 import zh from './zh'
+import ru from './ru'
+import hi from './hi'
 
 i18n
   .use(initReactI18next)
@@ -20,6 +22,8 @@ i18n
       it: { translation: it },
       pt: { translation: pt },
       zh: { translation: zh },
+      ru: { translation: ru },
+      hi: { translation: hi },
     },
     lng: 'en',
     fallbackLng: 'en',

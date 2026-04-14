@@ -17,6 +17,8 @@ const LANGUAGES = [
   { code: 'pt', label: 'Português', country: 'br' },
   { code: 'zh', label: '中文', country: 'cn' },
   { code: 'de', label: 'Deutsch', country: 'de' },
+  { code: 'ru', label: 'Русский', country: 'ru' },
+  { code: 'hi', label: 'हिन्दी', country: 'in' },
 ]
 
 export function NavBar() {
@@ -54,7 +56,7 @@ export function NavBar() {
 
   return (
     <>
-    <header className="flex items-center justify-between px-6 py-4 border-b border-neutral-800/60 backdrop-blur-sm sticky top-0 z-10 bg-neutral-950/80">
+    <header className="flex items-center justify-between px-6 py-4 border-b border-neutral-800/60 backdrop-blur-sm sticky top-0 z-40 bg-neutral-950/80">
       <div className="flex items-center gap-5">
         <button onClick={() => navigate('/')} className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-base">🎭</div>

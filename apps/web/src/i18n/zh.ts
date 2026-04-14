@@ -260,7 +260,7 @@ export default {
     completionGrantingReward: '正在发放奖励……',
     completionRewardError: '当前无法发放奖励——请重试。',
     completionRewardRetry: '重试',
-    completionAlready: '你已在之前的教程中领取过 50⭐ 奖励。当作复习也不错！',
+    completionAlready: '你已在之前的教程中领取过 {{amount}}⭐ 奖励。当作复习也不错！',
     playNow: '玩一场真实对局',
     backToHome: '返回首页',
 

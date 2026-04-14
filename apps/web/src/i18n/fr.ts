@@ -256,7 +256,7 @@ export default {
     completionGrantingReward: 'Attribution de votre récompense…',
     completionRewardError: "Impossible de créditer votre récompense pour le moment — réessayez.",
     completionRewardRetry: 'Réessayer',
-    completionAlready: 'Vous avez déjà récupéré la récompense de 50⭐ d\'un tutoriel précédent. Excellente révision !',
+    completionAlready: 'Vous avez déjà récupéré la récompense de {{amount}}⭐ d\'un tutoriel précédent. Excellente révision !',
     playNow: 'Jouer une vraie partie',
     backToHome: "Retour à l'accueil",
 

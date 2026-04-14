@@ -252,7 +252,7 @@ export default {
     completionGrantingReward: 'Deine Belohnung wird gutgeschrieben…',
     completionRewardError: 'Wir konnten deine Belohnung gerade nicht gutschreiben — versuch es nochmal.',
     completionRewardRetry: 'Erneut versuchen',
-    completionAlready: 'Du hast die 50⭐-Belohnung aus einem früheren Tutorial bereits erhalten. Tolle Auffrischung!',
+    completionAlready: 'Du hast die {{amount}}⭐-Belohnung aus einem früheren Tutorial bereits erhalten. Tolle Auffrischung!',
     playNow: 'Echtes Spiel starten',
     backToHome: 'Zurück zur Startseite',
 

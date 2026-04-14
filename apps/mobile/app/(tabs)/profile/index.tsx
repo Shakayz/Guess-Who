@@ -89,6 +89,8 @@ const LANGUAGES = [
   { code: 'it', label: 'Italiano' },
   { code: 'pt', label: 'Portugues' },
   { code: 'zh', label: 'Chinese' },
+  { code: 'ru', label: 'Russian' },
+  { code: 'hi', label: 'Hindi' },
 ] as const
 
 export default function ProfileScreen() {
