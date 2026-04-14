@@ -26,6 +26,7 @@ model User {
   level           Int      @default(1)
   xp              Int      @default(0)
   hasPlayedRanked Boolean  @default(false)
+  tutorialCompleted Boolean @default(false)
   emailVerified            Boolean   @default(false)
   emailVerificationCode    String?   @db.VarChar(6)
   emailVerificationExpires DateTime?

@@ -615,10 +615,29 @@ export default function HomePage() {
 
         </div>
 
+        {/* Walkthrough / tutorial CTA — prominent card for first-time players */}
+        <Link
+          to="/tutorial"
+          className="mt-10 w-full max-w-md mx-auto group relative overflow-hidden rounded-2xl border border-amber-700/40 bg-gradient-to-br from-amber-950/50 to-brand-950/40 p-4 flex items-center gap-4 hover:border-amber-600/60 hover:from-amber-950/70 transition-all active:scale-[0.99]"
+        >
+          <div className="w-12 h-12 rounded-xl bg-amber-600/20 border border-amber-700/40 flex items-center justify-center text-2xl shrink-0">
+            🎓
+          </div>
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-white font-bold text-sm">{t('tutorial.homeCardTitle')}</p>
+            <p className="text-amber-300/80 text-xs mt-0.5">
+              {t('tutorial.homeCardSubtitle', { amount: 50 })}
+            </p>
+          </div>
+          <span className="text-amber-400 font-semibold text-sm group-hover:text-amber-300 transition-colors">
+            {t('tutorial.homeCardCta')} →
+          </span>
+        </Link>
+
         {/* How to play link */}
         <Link
           to="/how-to-play"
-          className="mt-10 text-xs font-semibold uppercase tracking-widest text-neutral-600 hover:text-neutral-400 transition-colors flex items-center gap-1.5"
+          className="mt-6 text-xs font-semibold uppercase tracking-widest text-neutral-600 hover:text-neutral-400 transition-colors flex items-center gap-1.5"
         >
           <span className="w-4 h-4 rounded-full border border-neutral-700 flex items-center justify-center text-[10px] font-bold">?</span>
           {t('home.howToPlay')}

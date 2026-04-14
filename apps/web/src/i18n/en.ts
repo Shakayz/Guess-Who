@@ -173,6 +173,100 @@ export default {
     tipImposter: 'As imposter, listen carefully to villager clues to figure out their word.',
     tipVoting: "Don't always follow the crowd when voting. Trust your own observations.",
     readyMessage: "You're all set! Time to find the imposter.",
+
+    // ── Interactive first-game walkthrough (/tutorial route) ───────────────
+    walkthroughTitle: 'Your First Game',
+    walkthroughSubtitle: 'Play a full practice round — no stakes, no timer.',
+    rewardBanner: 'Finish this walkthrough to earn {{amount}} ⭐',
+    rewardAlreadyClaimed: 'You already completed the tutorial — replay it any time!',
+    startWalkthrough: 'Start the Walkthrough',
+    continueWalkthrough: 'Continue',
+    exitConfirm: 'Leave the walkthrough? Your progress will not be saved.',
+    progress: 'Step {{current}} of {{total}}',
+
+    // Step: Intro
+    introTitle: 'The setup',
+    introBody: "You'll play a practice game against 3 coached bots: Maya, Leo and Nora. No timer, no stakes — I'll walk you through every choice.",
+    introPoint1: 'One player is the imposter with a different word',
+    introPoint2: 'Everyone gives a one-sentence clue without saying their word',
+    introPoint3: 'Everyone votes — the most-voted player is eliminated',
+    letsBegin: "Let's begin",
+
+    // Step: Role Reveal
+    roleRevealTitle: 'Your secret role',
+    roleRevealSubtitle: 'Tap the card to reveal it.',
+    roleCardHidden: 'Tap to reveal',
+    roleLabel: 'Your role',
+    wordLabel: 'Your word',
+    villagerHint: "You're on the villagers team. Prove you know the word — but don't give it away.",
+    gotIt: 'Got it',
+
+    // Step: Clues Phase
+    cluesTitle: 'Clue phase',
+    cluesBody: "Each player gives one clue about their word. Listen carefully — the imposter has a *different* but similar word, so their clue may feel slightly off.",
+    mayaClue: 'Maya says: "It melts when it\'s hot."',
+    leoClue: 'Leo says: "You usually get it with cheese on top."',
+    noraClue: 'Nora says: "Kids love it at birthday parties."',
+    cluesInsight: 'One of those clues fits 🍕 pizza perfectly but also fits another similar food…',
+    yourTurnToClue: 'Your turn — pick a clue',
+    clueOptionGood: 'It has a crust and is usually round.',
+    clueOptionRisky: 'I had one with pepperoni last night.',
+    clueOptionVague: 'I like to eat it.',
+    clueFeedbackGood: 'Nice! Specific but not the word itself. Villagers will recognize it, imposters get no free help.',
+    clueFeedbackRisky: "That's a confirmed kill — a real imposter wouldn't know pepperoni. Great for bluff detection, but risky if someone mirrors you.",
+    clueFeedbackVague: "Too vague. Teammates can't tell you apart from a clueless imposter.",
+
+    // Step: Suspicion
+    suspicionTitle: 'Read the table',
+    suspicionBody: 'Look back at the clues. Who sounded slightly off?',
+    mayaSuspicion: "Maya's clue (\"melts when hot\") could describe pizza or a popsicle…",
+    leoSuspicion: "Leo nailed a detail only a pizza-eater would know.",
+    noraSuspicion: "Nora was safe but generic.",
+    suspicionPrompt: 'Who do you suspect?',
+    npcMaya: 'Maya',
+    npcLeo: 'Leo',
+    npcNora: 'Nora',
+    suspicionFeedbackMaya: 'Good instinct — vague clues that fit two words are a classic imposter tell.',
+    suspicionFeedbackLeo: "Leo's clue was actually the strongest villager signal. Re-read the clues and try again.",
+    suspicionFeedbackNora: "Generic clues are suspicious but not decisive. Maya's clue fit two words — a stronger tell.",
+
+    // Step: Voting
+    voteTitle: 'Vote phase',
+    voteBody: 'Everyone votes at the same time. Majority wins. Tap a player to cast your vote.',
+    voteLocked: 'Vote locked in',
+    voteReveal: 'Votes revealed',
+    voteRevealBody: 'Maya got 3 votes — she is eliminated.',
+    voteContinue: 'See the reveal',
+
+    // Step: Reveal
+    revealTitle: 'The reveal',
+    revealBody: "Maya's role is shown. Her word was 🥧 pie, not 🍕 pizza. She was the imposter!",
+    revealImposterCard: 'Maya was the Imposter',
+    revealImposterWord: 'Her word: 🥧 Pie',
+    revealOutcome: 'Villagers win!',
+    revealContinue: 'Claim your reward',
+
+    // Step: Tips recap
+    recapTitle: 'Key takeaways',
+    recapTip1: 'Give clues specific enough to prove you know — but not so specific they give the word away.',
+    recapTip2: 'Listen for clues that fit *two* words. Those are imposter tells.',
+    recapTip3: "Don't vote blind — discuss who sounded off before you commit.",
+
+    // Step: Completion
+    completionTitle: 'Tutorial complete!',
+    completionSubtitle: "You're ready for real games. Here's your reward:",
+    completionReward: '+{{amount}} Star Coins',
+    completionGrantingReward: 'Granting your reward…',
+    completionRewardError: "We couldn't credit your reward right now — give it another try.",
+    completionRewardRetry: 'Retry',
+    completionAlready: 'You already claimed the 50⭐ reward from a previous tutorial. Great refresher!',
+    playNow: 'Play a real game',
+    backToHome: 'Back to home',
+
+    // Home entry point
+    homeCardTitle: 'New here? Try the Walkthrough',
+    homeCardSubtitle: 'Play a guided first game and earn {{amount}} ⭐',
+    homeCardCta: 'Start',
   },
   game: {
     waitingForPlayers: 'Waiting for players...',

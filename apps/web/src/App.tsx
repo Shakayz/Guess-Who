@@ -35,6 +35,7 @@ const FriendsPage         = lazyWithRetry(() => import('./pages/FriendsPage'))
 const PlayerProfilePage   = lazyWithRetry(() => import('./pages/PlayerProfilePage'))
 const OfflinePage         = lazyWithRetry(() => import('./pages/OfflinePage'))
 const HowToPlayPage       = lazyWithRetry(() => import('./pages/HowToPlayPage'))
+const TutorialPage        = lazyWithRetry(() => import('./pages/TutorialPage'))
 const SettingsPage        = lazyWithRetry(() => import('./pages/SettingsPage'))
 const AchievementsPage    = lazyWithRetry(() => import('./pages/AchievementsPage'))
 const TermsPage           = lazyWithRetry(() => import('./pages/TermsPage'))
@@ -360,6 +361,7 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/offline" element={<OfflinePage />} />
         <Route path="/how-to-play" element={<HowToPlayPage />} />
+        <Route path="/tutorial" element={<ProtectedRoute><TutorialPage /></ProtectedRoute>} />
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
         <Route path="/lobby/:code" element={<ProtectedRoute><LobbyPage /></ProtectedRoute>} />
         <Route path="/game/:code" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
