@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import { useResponsive } from '../lib/responsive'
 import { HapticManager } from '../lib/haptics'
 
@@ -12,45 +13,46 @@ import { HapticManager } from '../lib/haptics'
 
 interface Step {
   emoji: string
-  title: string
-  body: string
-  tip?: string
+  titleKey: string
+  bodyKey: string
+  tipKey?: string
 }
 
 const STEPS: Step[] = [
   {
     emoji: '🎭',
-    title: 'Roles & Words',
-    body: 'Each game, most players are Villagers and a few are Imposters. Villagers get Word A; Imposters get Word B. The words are similar but not the same.',
-    tip: 'You only see your own word. Study it — everyone is describing something close to it.',
+    titleKey: 'tutorial.step1Title',
+    bodyKey: 'tutorial.step1Body',
+    tipKey: 'tutorial.step1Tip',
   },
   {
     emoji: '💬',
-    title: 'Give a One-Sentence Clue',
-    body: 'When your turn comes, say one short clue about your word without saying the word itself. Be specific enough to convince villagers, vague enough to not expose yourself.',
-    tip: 'As an Imposter, listen first — copy the style of the villager clues you hear.',
+    titleKey: 'tutorial.step2Title',
+    bodyKey: 'tutorial.step2Body',
+    tipKey: 'tutorial.step2Tip',
   },
   {
     emoji: '🗳️',
-    title: 'Vote Them Out',
-    body: 'After everyone speaks, each player votes for who they think is an Imposter. The player with the most votes is eliminated and their role is revealed.',
-    tip: 'A tie means nobody is eliminated — except when the Judge role is in play.',
+    titleKey: 'tutorial.step3Title',
+    bodyKey: 'tutorial.step3Body',
+    tipKey: 'tutorial.step3Tip',
   },
   {
     emoji: '🏆',
-    title: 'Win Conditions',
-    body: 'Villagers win by eliminating every Imposter. Imposters win when their count equals or exceeds the remaining Villagers.',
-    tip: 'Special roles (Detective, Guardian, Mayor, Jester…) change the math — watch your lobby badges.',
+    titleKey: 'tutorial.step4Title',
+    bodyKey: 'tutorial.step4Body',
+    tipKey: 'tutorial.step4Tip',
   },
   {
     emoji: '🎉',
-    title: "You're Ready!",
-    body: "That's the core loop — create a room, invite friends or match with strangers, and trust your gut. Good luck out there.",
+    titleKey: 'tutorial.step5Title',
+    bodyKey: 'tutorial.step5Body',
   },
 ]
 
 export default function TutorialScreen() {
   const router = useRouter()
+  const { t } = useTranslation()
   const { px, fontScale, isTablet } = useResponsive()
   const [step, setStep] = useState(0)
   const current = STEPS[step]
@@ -78,11 +80,11 @@ export default function TutorialScreen() {
           <Text className="text-neutral-400" style={{ fontSize: 20 }}>×</Text>
         </TouchableOpacity>
         <Text className="text-white font-bold flex-1" style={{ fontSize: 16 * fontScale }}>
-          Tutorial
+          {t('tutorial.title')}
         </Text>
         <TouchableOpacity onPress={() => router.push('/how-to-play')}>
           <Text className="text-neutral-500" style={{ fontSize: 12 * fontScale }}>
-            Full guide ›
+            {t('tutorial.fullGuide')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -108,21 +110,21 @@ export default function TutorialScreen() {
         <View className="rounded-3xl border border-neutral-800 bg-neutral-900 items-center gap-4" style={{ padding: isTablet ? 36 : 26 }}>
           <Text style={{ fontSize: isTablet ? 72 : 60 }}>{current.emoji}</Text>
           <Text className="text-white font-extrabold text-center" style={{ fontSize: (isTablet ? 26 : 22) * fontScale }}>
-            {current.title}
+            {t(current.titleKey)}
           </Text>
           <Text
             className="text-neutral-300 text-center"
             style={{ fontSize: 14 * fontScale, lineHeight: 22 * fontScale }}
           >
-            {current.body}
+            {t(current.bodyKey)}
           </Text>
-          {current.tip && (
+          {current.tipKey && (
             <View className="rounded-xl border border-violet-800/40 bg-violet-950/40 px-4 py-3 w-full">
               <Text className="text-violet-300 font-semibold" style={{ fontSize: 11 * fontScale }}>
-                💡 Tip
+                {t('tutorial.tipLabel')}
               </Text>
               <Text className="text-violet-200 mt-1" style={{ fontSize: 12 * fontScale, lineHeight: 18 * fontScale }}>
-                {current.tip}
+                {t(current.tipKey)}
               </Text>
             </View>
           )}
@@ -143,7 +145,7 @@ export default function TutorialScreen() {
             className={step === 0 ? 'text-neutral-600 font-semibold' : 'text-neutral-200 font-semibold'}
             style={{ fontSize: 14 * fontScale }}
           >
-            Back
+            {t('common.back')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -152,7 +154,7 @@ export default function TutorialScreen() {
           activeOpacity={0.85}
         >
           <Text className="text-white font-extrabold" style={{ fontSize: 14 * fontScale }}>
-            {isLast ? 'Play Now' : 'Next'}
+            {isLast ? t('tutorial.playNow') : t('common.next')}
           </Text>
         </TouchableOpacity>
       </View>
