@@ -48,6 +48,7 @@ describe('FriendsPage', () => {
       if (path === '/friends/requests') return Promise.resolve({ requests: [
         { friendshipId: 'r1', from: { id: 'u4', username: 'requester1', avatarUrl: null }, createdAt: new Date().toISOString() },
       ] })
+      if (path === '/friends/requests/outgoing') return Promise.resolve({ requests: [] })
       if (path.includes('/users/search')) return Promise.resolve({ users: [
         { id: 'u5', username: 'newuser', avatarUrl: null },
       ] })

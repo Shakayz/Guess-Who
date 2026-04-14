@@ -3,8 +3,11 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
+const mockNavigate = vi.fn()
 vi.mock('react-router-dom', () => ({
   Link: ({ children, to }: { children: unknown; to: string }) => <a href={to}>{children as React.ReactNode}</a>,
+  useNavigate: () => mockNavigate,
+  useParams: () => ({}),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -52,6 +55,8 @@ vi.mock('@imposter/shared', () => ({
     master:      { label: 'Master',      color: '#9B59B6', icon: '👑', lpRequired: 600 },
     grandmaster: { label: 'Grandmaster', color: '#E74C3C', icon: '🌌', lpRequired: Infinity },
   },
+  LEVEL_CAP: 50,
+  XP_PER_LEVEL: 1000,
 }))
 
 const meResponse = {

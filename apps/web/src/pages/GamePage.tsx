@@ -8,6 +8,7 @@ import { Avatar } from '@imposter/ui'
 import type { Clue } from '@imposter/shared'
 import { createLogger } from '../lib/logger'
 import { SoundManager } from '../lib/sounds'
+import { EliminationReveal } from '../components/EliminationReveal'
 // Overlays removed — they blocked gameplay and caused desync between players
 
 const log = createLogger('game-page')
@@ -31,7 +32,25 @@ const CircularTimer = memo(({ seconds, total, phase }: { seconds: number; total:
   const urgentGlow = 'rgba(239,68,68,0.6)'
 
   return (
-    <div className="relative flex items-center justify-center w-14 h-14 shrink-0" role="timer" aria-live="assertive" aria-label={`${seconds} seconds remaining`}>
+    <div
+      className={[
+        'relative flex items-center justify-center w-14 h-14 shrink-0 rounded-full',
+        urgent ? 'animate-urgent-pulse' : 'animate-breathe',
+      ].join(' ')}
+      role="timer"
+      aria-live="assertive"
+      aria-label={`${seconds} seconds remaining`}
+    >
+      {/* Soft outer halo that breathes with the timer */}
+      <div
+        className="absolute inset-0 rounded-full pointer-events-none"
+        aria-hidden="true"
+        style={{
+          background: `radial-gradient(circle, ${urgent ? urgentGlow : colorGlow} 0%, transparent 70%)`,
+          opacity: urgent ? 0.55 : 0.25,
+          filter: 'blur(4px)',
+        }}
+      />
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 52 52" width="56" height="56" aria-hidden="true">
         <circle cx="26" cy="26" r={radius} fill="none" stroke="#262626" strokeWidth="4" />
         <circle
@@ -48,7 +67,7 @@ const CircularTimer = memo(({ seconds, total, phase }: { seconds: number; total:
       </svg>
       <span className={[
         'text-sm font-mono font-bold tabular-nums z-10',
-        urgent ? 'text-red-400' : 'text-white',
+        urgent ? 'text-red-400 animate-heartbeat' : 'text-white',
       ].join(' ')}>
         {seconds}
       </span>
@@ -311,6 +330,10 @@ export default function GamePage() {
   const [phase, setPhase] = useState<Phase>('clues')
   const [votedFor, setVotedFor] = useState<string | null>(null)
   const [eliminated, setEliminated] = useState<{ username: string; role: string } | null>(null)
+  // Full-screen cinematic that plays once per elimination event
+  const [elimCinematic, setElimCinematic] = useState<
+    { username: string; role: string; isImposter: boolean; isSelf: boolean } | null
+  >(null)
   const [hasSubmittedClue, setHasSubmittedClue] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
   const [currentSpeakerId, setCurrentSpeakerId] = useState<string | null>(null)
@@ -547,6 +570,16 @@ export default function GamePage() {
         const elimName = getDisplayNameRef.current(round.eliminatedPlayerId, elim?.username ?? round.eliminatedPlayerId)
         setEliminated({ username: elimName, role: elimRole })
         const isMe = round.eliminatedPlayerId === user?.id
+        // Trigger the full-screen cinematic
+        const isEvilRole = elimRole === 'imposter' || elimRole === 'double_agent' || elimRole === 'kamikaze'
+          || elimRole === 'corruptor' || elimRole === 'inverter' || elimRole === 'infiltrator'
+          || elimRole === 'twin_imposter'
+        setElimCinematic({
+          username: elimName,
+          role: elimRole,
+          isImposter: isEvilRole,
+          isSelf: isMe,
+        })
         // If it's me, join dead chat
         if (isMe) {
           setIsEliminated(true)
@@ -850,6 +883,17 @@ export default function GamePage() {
         />
       )}
 
+      {/* ── Full-screen elimination cinematic (plays once per death) ── */}
+      {elimCinematic && (
+        <EliminationReveal
+          username={elimCinematic.username}
+          role={elimCinematic.role}
+          isImposter={elimCinematic.isImposter}
+          isSelf={elimCinematic.isSelf}
+          onDone={() => setElimCinematic(null)}
+        />
+      )}
+
       {/* ── Role reveal overlay ── */}
       {showRoleCard && myRole && (
         <>
@@ -857,47 +901,107 @@ export default function GamePage() {
             @keyframes role-drop { 0% { transform: translateY(-60px) scale(0.7); opacity: 0; } 60% { transform: translateY(8px) scale(1.05); } 100% { transform: translateY(0) scale(1); opacity: 1; } }
             @keyframes role-rise { 0% { transform: translateY(20px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
             @keyframes role-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(168,85,247,0.4); } 50% { box-shadow: 0 0 0 20px rgba(168,85,247,0); } }
+            @keyframes role-rays { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            @keyframes role-card-flip { 0% { transform: perspective(900px) rotateY(-180deg) scale(0.5); opacity: 0; } 60% { transform: perspective(900px) rotateY(10deg) scale(1.08); opacity: 1; } 100% { transform: perspective(900px) rotateY(0deg) scale(1); opacity: 1; } }
+            @keyframes role-sparkle { 0% { transform: translate(-50%,-50%) scale(0) rotate(0); opacity: 0; } 30% { opacity: 1; } 100% { transform: translate(-50%,-50%) scale(1.4) rotate(220deg); opacity: 0; } }
           `}</style>
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md overflow-hidden"
             onClick={() => setShowRoleCard(false)}
           >
-            <div className="text-center pointer-events-none select-none px-6">
-              <div style={{ animation: 'role-drop 0.6s cubic-bezier(0.34,1.56,0.64,1) both', fontSize: 80 }}>
-                {roleInfo.icon}
-              </div>
-              <p
-                className={['text-xs font-bold uppercase tracking-[0.3em] mt-4', roleInfo.color].join(' ')}
-                style={{ animation: 'role-rise 0.4s ease 0.2s both' }}
+            {/* Rotating god-rays */}
+            <div
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+              style={{
+                width: '180vmin',
+                height: '180vmin',
+                background:
+                  'conic-gradient(from 0deg, transparent 0deg, rgba(139,92,246,0.12) 14deg, transparent 28deg, ' +
+                  'transparent 60deg, rgba(250,204,21,0.10) 74deg, transparent 88deg, ' +
+                  'transparent 120deg, rgba(139,92,246,0.14) 134deg, transparent 148deg, ' +
+                  'transparent 180deg, rgba(250,204,21,0.10) 194deg, transparent 208deg, ' +
+                  'transparent 240deg, rgba(139,92,246,0.14) 254deg, transparent 268deg, ' +
+                  'transparent 300deg, rgba(250,204,21,0.10) 314deg, transparent 328deg)',
+                animation: 'role-rays 11s linear infinite',
+                filter: 'blur(2px)',
+              }}
+            />
+
+            {/* Ambient sparkles */}
+            {Array.from({ length: 8 }).map((_, i) => {
+              const left = 12 + Math.random() * 76
+              const top  = 15 + Math.random() * 70
+              const delay = i * 120
+              return (
+                <div
+                  key={i}
+                  className="absolute pointer-events-none text-brand-300"
+                  style={{
+                    left: `${left}%`,
+                    top: `${top}%`,
+                    fontSize: 14 + Math.random() * 16,
+                    animation: `role-sparkle 1.6s ease-out ${delay}ms infinite`,
+                  }}
+                >
+                  ✦
+                </div>
+              )
+            })}
+
+            <div className="relative text-center pointer-events-none select-none px-6">
+              {/* Card-style container with a 3D flip entrance */}
+              <div
+                className="inline-block relative rounded-3xl border-2 border-brand-500/50 bg-gradient-to-br from-brand-950/80 via-neutral-950/90 to-brand-950/70 p-8 shadow-2xl"
+                style={{
+                  animation: 'role-card-flip 0.85s cubic-bezier(0.34,1.56,0.64,1) both',
+                  boxShadow: '0 30px 80px rgba(0,0,0,0.7), inset 0 2px 0 rgba(255,255,255,0.08), 0 0 80px rgba(139,92,246,0.35)',
+                }}
               >
-                {t('game.yourRole', 'YOUR ROLE')}
-              </p>
-              <h1
-                className={['text-4xl sm:text-5xl font-black tracking-tight mt-1', roleInfo.color].join(' ')}
-                style={{ animation: 'role-rise 0.4s ease 0.3s both' }}
-              >
-                {roleInfo.label}
-              </h1>
-              <div className="mt-5" style={{ animation: 'role-rise 0.4s ease 0.45s both' }}>
-                {myVillagerWord ? (
-                  <div className="flex gap-3 justify-center">
-                    <div className="rounded-xl bg-emerald-950/60 border border-emerald-800/40 px-4 py-2 text-center">
-                      <p className="text-[10px] text-emerald-500 font-bold uppercase">{t('game.villagerWord')}</p>
-                      <p className="text-xl font-extrabold text-emerald-200 mt-0.5">{myVillagerWord}</p>
+                <div
+                  style={{
+                    animation: 'role-drop 0.6s cubic-bezier(0.34,1.56,0.64,1) 0.3s both, floatSoft 3.5s ease-in-out 1s infinite',
+                    fontSize: 80,
+                    filter: 'drop-shadow(0 6px 20px rgba(139,92,246,0.55))',
+                  }}
+                >
+                  {roleInfo.icon}
+                </div>
+                <p
+                  className={['text-xs font-bold uppercase tracking-[0.3em] mt-4', roleInfo.color].join(' ')}
+                  style={{ animation: 'role-rise 0.4s ease 0.5s both' }}
+                >
+                  {t('game.yourRole', 'YOUR ROLE')}
+                </p>
+                <h1
+                  className={['text-4xl sm:text-5xl font-black tracking-tight mt-1', roleInfo.color].join(' ')}
+                  style={{
+                    animation: 'role-rise 0.4s ease 0.6s both',
+                    textShadow: '0 0 28px rgba(139,92,246,0.55)',
+                  }}
+                >
+                  {roleInfo.label}
+                </h1>
+                <div className="mt-5" style={{ animation: 'role-rise 0.4s ease 0.75s both' }}>
+                  {myVillagerWord ? (
+                    <div className="flex gap-3 justify-center">
+                      <div className="rounded-xl bg-emerald-950/60 border border-emerald-800/40 px-4 py-2 text-center hover:scale-105 transition-transform">
+                        <p className="text-[10px] text-emerald-500 font-bold uppercase">{t('game.villagerWord')}</p>
+                        <p className="text-xl font-extrabold text-emerald-200 mt-0.5">{myVillagerWord}</p>
+                      </div>
+                      <div className="rounded-xl bg-orange-950/60 border border-orange-800/40 px-4 py-2 text-center hover:scale-105 transition-transform">
+                        <p className="text-[10px] text-orange-500 font-bold uppercase">{t('game.imposterWord')}</p>
+                        <p className="text-xl font-extrabold text-orange-200 mt-0.5">{myWord}</p>
+                      </div>
                     </div>
-                    <div className="rounded-xl bg-orange-950/60 border border-orange-800/40 px-4 py-2 text-center">
-                      <p className="text-[10px] text-orange-500 font-bold uppercase">{t('game.imposterWord')}</p>
-                      <p className="text-xl font-extrabold text-orange-200 mt-0.5">{myWord}</p>
+                  ) : (
+                    <div className="inline-block rounded-xl bg-neutral-900/80 border border-neutral-700/50 px-6 py-3" style={{ animation: 'role-pulse 2s ease infinite' }}>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase">{t('game.yourWordLabel')}</p>
+                      <p className="text-2xl font-extrabold text-white mt-0.5">{myWord}</p>
                     </div>
-                  </div>
-                ) : (
-                  <div className="inline-block rounded-xl bg-neutral-900/80 border border-neutral-700/50 px-6 py-3" style={{ animation: 'role-pulse 2s ease infinite' }}>
-                    <p className="text-[10px] text-neutral-500 font-bold uppercase">{t('game.yourWordLabel')}</p>
-                    <p className="text-2xl font-extrabold text-white mt-0.5">{myWord}</p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-              <p className="text-neutral-500 text-xs mt-6" style={{ animation: 'role-rise 0.4s ease 0.6s both' }}>
+              <p className="text-neutral-500 text-xs mt-6" style={{ animation: 'role-rise 0.4s ease 0.95s both' }}>
                 {t('game.tapToContinue', 'Tap to continue')}
               </p>
             </div>
@@ -1261,12 +1365,12 @@ export default function GamePage() {
                     onClick={() => vote(p.userId)}
                     disabled={!!votedFor}
                     className={[
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-left',
+                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 text-left active:scale-[0.98]',
                       votedFor === p.userId
-                        ? 'border-amber-600/60 bg-gradient-to-r from-amber-950/50 to-amber-900/20 shadow-sm shadow-amber-950/40'
+                        ? 'border-amber-500/70 bg-gradient-to-r from-amber-950/60 to-amber-900/30 shadow-lg shadow-amber-950/50 animate-jelly'
                         : votedFor
                         ? 'border-neutral-800 bg-neutral-900/40 opacity-50'
-                        : 'border-neutral-800 bg-neutral-900/40 hover:border-amber-700/50 hover:bg-gradient-to-r hover:from-amber-950/30 hover:to-neutral-900/40 hover:shadow-sm hover:shadow-amber-950/30',
+                        : 'border-neutral-800 bg-neutral-900/40 hover:border-amber-700/60 hover:bg-gradient-to-r hover:from-amber-950/30 hover:to-neutral-900/40 hover:shadow-md hover:shadow-amber-950/30 hover:-translate-y-0.5 hover:scale-[1.015]',
                     ].join(' ')}
                   >
                     <Avatar username={p.username} size="sm" />
@@ -1582,6 +1686,7 @@ export default function GamePage() {
             {players.map((p) => {
               const canReveal = myRole === 'detective' && !detectiveRevealUsed && p.userId !== user?.id && p.status === 'alive' && (phase === 'clues' || phase === 'voting')
               const canProtect = myRole === 'guardian' && !guardianProtectUsed && p.status === 'alive' && phase === 'voting'
+              const isSpeakingNow = currentSpeakerId === p.userId && phase === 'clues'
               return (
                 <div
                   key={p.id}
@@ -1592,17 +1697,21 @@ export default function GamePage() {
                   aria-label={`${getDisplayName(p.userId, p.username)}, ${p.status}`}
                   title={`View ${getDisplayName(p.userId, p.username)}'s clue history`}
                   className={[
-                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer select-none border',
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer select-none border active:scale-95 hover:-translate-y-0.5 hover:shadow-lg',
                     p.status === 'alive'
-                      ? 'bg-neutral-800/80 text-white hover:bg-neutral-700 hover:ring-1 hover:ring-neutral-600 border-neutral-700/50 hover:border-neutral-600'
+                      ? isSpeakingNow
+                        ? 'bg-gradient-to-br from-brand-900/70 to-brand-950/80 text-white ring-2 ring-brand-500/60 border-brand-500/60 shadow-lg shadow-brand-900/50 animate-glow-pulse'
+                        : 'bg-neutral-800/80 text-white hover:bg-neutral-700 hover:ring-1 hover:ring-neutral-600 border-neutral-700/50 hover:border-neutral-600 hover:shadow-neutral-900/60'
                       : p.status === 'forfeited'
-                      ? 'bg-orange-950/30 text-neutral-600 line-through border-orange-900/20 hover:bg-orange-950/50'
-                      : 'bg-red-950/30 text-neutral-600 line-through border-red-900/20 hover:bg-red-950/50',
+                      ? 'bg-orange-950/30 text-neutral-600 line-through border-orange-900/20 hover:bg-orange-950/50 animate-desaturate'
+                      : 'bg-red-950/30 text-neutral-600 line-through border-red-900/20 hover:bg-red-950/50 animate-desaturate',
                   ].join(' ')}
                 >
                   <span className={[
                     'w-1.5 h-1.5 rounded-full',
-                    p.status === 'alive' ? 'bg-emerald-400' : p.status === 'forfeited' ? 'bg-orange-700' : 'bg-neutral-700',
+                    p.status === 'alive'
+                      ? isSpeakingNow ? 'bg-brand-400 animate-heartbeat' : 'bg-emerald-400 animate-pulse'
+                      : p.status === 'forfeited' ? 'bg-orange-700' : 'bg-neutral-700',
                   ].join(' ')} />
                   {getDisplayName(p.userId, p.username)}
                   {canReveal && (

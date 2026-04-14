@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock all heavy dependencies
@@ -34,6 +35,9 @@ let _socialState = {
   setPendingInvite: vi.fn(),
   pendingFriendRequest: null as any,
   setPendingFriendRequest: vi.fn(),
+  achievementToasts: [] as any[],
+  enqueueAchievementToast: vi.fn(),
+  dismissAchievementToast: vi.fn(),
 }
 
 vi.mock('../store/social', () => ({
@@ -96,11 +100,17 @@ vi.mock('../pages/PlayerProfilePage', () => ({ default: () => <div data-testid="
 import App from '../App'
 import { api } from '../lib/api'
 
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+})
+
 function AppWithRouter({ initialPath = '/' }: { initialPath?: string }) {
   return (
-    <MemoryRouter initialEntries={[initialPath]}>
-      <App />
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <App />
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 }
 

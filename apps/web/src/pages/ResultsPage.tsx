@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
 import { useNavigate, Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useGameStore } from '../store/game'
@@ -18,41 +18,86 @@ const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: ()
 
   useEffect(() => {
     const t1 = setTimeout(() => setStage('hold'), 400)
-    const t2 = setTimeout(() => setStage('out'), 2400)
-    const t3 = setTimeout(onDone, 2900)
+    const t2 = setTimeout(() => setStage('out'), 3400)
+    const t3 = setTimeout(onDone, 3900)
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [onDone])
 
-  const PARTICLES = Array.from({ length: 16 }, (_, i) => i)
+  // ── Rich particle systems: burst + confetti rain ───────────────────
+  const BURST = useMemo(() => Array.from({ length: 28 }, (_, i) => {
+    const angle = (i / 28) * 360
+    const dist  = 160 + Math.random() * 120
+    return {
+      dx: Math.round(Math.cos((angle * Math.PI) / 180) * dist),
+      dy: Math.round(Math.sin((angle * Math.PI) / 180) * dist),
+      size: 5 + Math.round(Math.random() * 10),
+      delay: Math.random() * 0.08,
+      duration: 0.9 + Math.random() * 0.5,
+      hue: i % 5,
+    }
+  }), [])
+
+  const CONFETTI = useMemo(() => Array.from({ length: 80 }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    delay: Math.random() * 1.6,
+    duration: 2.4 + Math.random() * 1.6,
+    size: 6 + Math.random() * 8,
+    rot: Math.random() * 360,
+    sway: -30 + Math.random() * 60,
+    hue: i % 6,
+  })), [])
+
+  const victoryHues = ['#fbbf24','#f59e0b','#fde68a','#ffffff','#34d399','#60a5fa']
+  const defeatHues  = ['#f87171','#ef4444','#fca5a5','#fda4af','#a3a3a3','#ffffff']
+  const palette = didWin ? victoryHues : defeatHues
 
   return (
     <>
       <style>{`
         @keyframes cin-particle {
-          0%   { transform: translate(0,0) scale(1); opacity: 1; }
-          100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+          0%   { transform: translate(0,0) scale(1) rotate(0deg); opacity: 1; }
+          100% { transform: translate(var(--dx), var(--dy)) scale(0) rotate(540deg); opacity: 0; }
         }
         @keyframes cin-shake {
           0%,100% { transform: translateX(0); }
-          20%      { transform: translateX(-8px); }
-          40%      { transform: translateX(8px); }
-          60%      { transform: translateX(-5px); }
-          80%      { transform: translateX(5px); }
+          20%      { transform: translateX(-12px); }
+          40%      { transform: translateX(12px); }
+          60%      { transform: translateX(-6px); }
+          80%      { transform: translateX(6px); }
         }
         @keyframes cin-drop {
-          0%   { transform: translateY(-80px) scale(0.6); opacity: 0; }
-          60%  { transform: translateY(10px) scale(1.05); opacity: 1; }
-          80%  { transform: translateY(-5px) scale(0.98); }
-          100% { transform: translateY(0) scale(1); opacity: 1; }
+          0%   { transform: translateY(-120px) scale(0.4) rotate(-20deg); opacity: 0; }
+          55%  { transform: translateY(14px) scale(1.15) rotate(6deg); opacity: 1; }
+          75%  { transform: translateY(-6px) scale(0.95) rotate(-2deg); }
+          100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; }
         }
         @keyframes cin-rise {
-          0%   { transform: translateY(30px); opacity: 0; }
-          100% { transform: translateY(0); opacity: 1; }
+          0%   { transform: translateY(40px) scale(0.95); opacity: 0; letter-spacing: 0.05em; }
+          60%  { transform: translateY(-6px) scale(1.04); opacity: 1; }
+          100% { transform: translateY(0) scale(1); opacity: 1; letter-spacing: 0.2em; }
         }
         @keyframes cin-flash {
           0%,100% { opacity: 0; }
-          15%      { opacity: 0.35; }
+          15%      { opacity: 0.55; }
           40%      { opacity: 0; }
+        }
+        @keyframes cin-rays {
+          0%   { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes cin-shock {
+          0%   { transform: translate(-50%,-50%) scale(0.2);  opacity: 1; }
+          100% { transform: translate(-50%,-50%) scale(3.5);  opacity: 0; }
+        }
+        @keyframes cin-confetti {
+          0%   { transform: translate3d(0, -120vh, 0) rotate(0deg); opacity: 1; }
+          80%  { opacity: 1; }
+          100% { transform: translate3d(var(--sway), 120vh, 0) rotate(720deg); opacity: 0; }
+        }
+        @keyframes cin-icon-pulse {
+          0%,100% { transform: scale(1);    filter: drop-shadow(0 0 20px rgba(255,215,0,0.6)); }
+          50%     { transform: scale(1.06); filter: drop-shadow(0 0 32px rgba(255,215,0,0.9)); }
         }
       `}</style>
       <div
@@ -66,59 +111,135 @@ const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: ()
           transition: stage === 'out' ? 'opacity 0.5s ease' : 'opacity 0.3s ease',
         }}
       >
-        {/* Red flash for defeat */}
-        {!didWin && (
-          <div className="absolute inset-0 bg-red-600 pointer-events-none"
-            style={{ animation: 'cin-flash 0.6s ease forwards', animationDelay: '0.1s', opacity: 0 }} />
+        {/* Screen flash */}
+        <div
+          className={['absolute inset-0 pointer-events-none', didWin ? 'bg-amber-300' : 'bg-red-600'].join(' ')}
+          style={{ animation: 'cin-flash 0.7s ease forwards', animationDelay: '0.05s', opacity: 0 }}
+        />
+
+        {/* Rotating god-rays (victory only) */}
+        {didWin && (
+          <div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+            style={{
+              width: '220vmin',
+              height: '220vmin',
+              background:
+                'conic-gradient(from 0deg, transparent 0deg, rgba(251,191,36,0.18) 14deg, transparent 28deg, ' +
+                'transparent 60deg, rgba(52,211,153,0.14) 74deg, transparent 88deg, ' +
+                'transparent 120deg, rgba(251,191,36,0.16) 134deg, transparent 148deg, ' +
+                'transparent 180deg, rgba(52,211,153,0.12) 194deg, transparent 208deg, ' +
+                'transparent 240deg, rgba(251,191,36,0.16) 254deg, transparent 268deg, ' +
+                'transparent 300deg, rgba(52,211,153,0.12) 314deg, transparent 328deg)',
+              animation: 'cin-rays 12s linear infinite',
+              filter: 'blur(2px)',
+              opacity: stage === 'out' ? 0 : 1,
+              transition: 'opacity 0.5s ease',
+            }}
+          />
         )}
 
-        {/* Victory particles */}
-        {didWin && stage !== 'in' && PARTICLES.map((i) => {
-          const angle = (i / PARTICLES.length) * 360
-          const dist = 120 + Math.random() * 80
-          const dx = Math.round(Math.cos((angle * Math.PI) / 180) * dist)
-          const dy = Math.round(Math.sin((angle * Math.PI) / 180) * dist)
-          const size = 6 + Math.round(Math.random() * 8)
-          const colors = ['#fbbf24','#f59e0b','#fde68a','#ffffff','#34d399']
-          const color = colors[i % colors.length]
+        {/* Expanding shock ring */}
+        <div
+          className="absolute left-1/2 top-1/2 rounded-full border-[6px] pointer-events-none"
+          style={{
+            width: 260,
+            height: 260,
+            borderColor: didWin ? '#fbbf24' : '#ef4444',
+            boxShadow: `0 0 80px ${didWin ? 'rgba(251,191,36,0.65)' : 'rgba(239,68,68,0.65)'}`,
+            animation: 'cin-shock 1.0s cubic-bezier(0.16,1,0.3,1) forwards',
+          }}
+        />
+
+        {/* Falling confetti (victory only) */}
+        {didWin && stage !== 'in' && CONFETTI.map((c) => (
+          <div
+            key={c.id}
+            className="absolute pointer-events-none rounded-sm"
+            style={{
+              left: `${c.left}%`,
+              top: 0,
+              width: c.size,
+              height: c.size * 1.5,
+              background: palette[c.hue],
+              boxShadow: `0 0 6px ${palette[c.hue]}`,
+              transform: `rotate(${c.rot}deg)`,
+              ['--sway' as any]: `${c.sway}px`,
+              animation: `cin-confetti ${c.duration}s linear ${c.delay}s forwards`,
+            }}
+          />
+        ))}
+
+        {/* Radial burst particles */}
+        {stage !== 'in' && BURST.map((p, i) => {
+          const color = palette[p.hue]
           return (
             <div
               key={i}
-              className="absolute rounded-full pointer-events-none"
+              className="absolute left-1/2 top-1/2 rounded-full pointer-events-none"
               style={{
-                width: size, height: size,
+                width: p.size, height: p.size,
                 background: color,
-                boxShadow: `0 0 ${size}px ${color}`,
-                '--dx': `${dx}px`,
-                '--dy': `${dy}px`,
-                animation: `cin-particle ${0.8 + Math.random() * 0.4}s ease-out forwards`,
-                animationDelay: `${i * 0.03}s`,
+                boxShadow: `0 0 ${p.size * 2}px ${color}`,
+                '--dx': `${p.dx}px`,
+                '--dy': `${p.dy}px`,
+                animation: `cin-particle ${p.duration}s cubic-bezier(0.22,1,0.36,1) forwards`,
+                animationDelay: `${p.delay}s`,
               } as React.CSSProperties}
             />
           )
         })}
 
-        <div className="text-center pointer-events-none select-none"
-          style={{ animation: !didWin && stage !== 'in' ? 'cin-shake 0.4s ease 0.2s both' : undefined }}>
-          <div style={{ animation: stage !== 'in' ? 'cin-drop 0.6s cubic-bezier(0.34,1.56,0.64,1) both' : undefined, fontSize: 96 }}>
+        <div
+          className="text-center pointer-events-none select-none relative z-10 px-4"
+          style={{ animation: !didWin && stage !== 'in' ? 'cin-shake 0.5s ease 0.2s both' : undefined }}
+        >
+          <div
+            style={{
+              animation: stage !== 'in'
+                ? 'cin-drop 0.75s cubic-bezier(0.34,1.56,0.64,1) both, cin-icon-pulse 2.4s ease-in-out 0.8s infinite'
+                : undefined,
+              fontSize: 112,
+              filter: didWin
+                ? 'drop-shadow(0 8px 24px rgba(251,191,36,0.7))'
+                : 'drop-shadow(0 8px 24px rgba(239,68,68,0.6))',
+            }}
+          >
             {didWin ? '🏆' : '💀'}
           </div>
           <h1
-            className="font-black tracking-widest mt-3"
+            className="font-black mt-3"
             style={{
-              fontSize: 52,
-              color: didWin ? '#34d399' : '#f87171',
-              textShadow: `0 0 40px ${didWin ? 'rgba(52,211,153,0.6)' : 'rgba(248,113,113,0.6)'}`,
-              animation: stage !== 'in' ? 'cin-rise 0.5s ease 0.15s both' : undefined,
+              fontSize: 64,
+              color: didWin ? '#fbbf24' : '#f87171',
+              textShadow: didWin
+                ? '0 0 40px rgba(251,191,36,0.85), 0 0 80px rgba(251,191,36,0.4)'
+                : '0 0 40px rgba(248,113,113,0.7), 0 0 80px rgba(248,113,113,0.3)',
+              animation: stage !== 'in' ? 'cin-rise 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both' : undefined,
               opacity: stage === 'in' ? 0 : 1,
             }}
           >
             {didWin ? t('results.victory', 'VICTORY') : t('results.defeat', 'DEFEAT')}
           </h1>
-          <p className="text-neutral-400 text-sm mt-2" style={{
-            animation: stage !== 'in' ? 'cin-rise 0.5s ease 0.3s both' : undefined,
-            opacity: stage === 'in' ? 0 : 1,
-          }}>
+          <p
+            className="text-neutral-300 text-sm mt-4 uppercase tracking-[0.3em] font-semibold"
+            style={{
+              animation: stage !== 'in' ? 'cin-rise 0.5s ease 0.45s both' : undefined,
+              opacity: stage === 'in' ? 0 : 0.8,
+            }}
+          >
+            {didWin
+              ? t('results.victorySubtitle', 'Sharp minds. Bright team.')
+              : t('results.defeatSubtitle', 'Try again. The village awaits.')}
+          </p>
+          <p
+            className="text-neutral-500 text-xs mt-6"
+            style={{
+              animation: stage === 'hold' ? 'cin-rise 0.5s ease 0.2s both' : undefined,
+              opacity: stage === 'hold' || stage === 'out' ? 1 : 0,
+              transition: 'opacity 0.3s ease',
+            }}
+          >
             {t('results.tapToContinue', 'Tap to continue')}
           </p>
         </div>

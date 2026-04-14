@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Animated,
+  Easing,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -37,6 +39,22 @@ export default function HomeScreen() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const { isTablet, px, gridItemWidth, fontScale } = useResponsive()
+
+  // ── Staggered entrance for mode cards ───────────────────────────
+  const modeAnims = useMemo(() => MODES.map(() => new Animated.Value(0)), [])
+  useEffect(() => {
+    Animated.stagger(
+      90,
+      modeAnims.map(a =>
+        Animated.spring(a, {
+          toValue: 1,
+          friction: 6,
+          tension: 110,
+          useNativeDriver: true,
+        }),
+      ),
+    ).start()
+  }, [])
 
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
   const [categories, setCategories] = useState<WordCategory[]>([])
@@ -191,7 +209,7 @@ export default function HomeScreen() {
                 Choose a mode
               </Text>
               <View className="flex-row gap-2">
-                {MODES.map((mode) => {
+                {MODES.map((mode, modeIdx) => {
                   const active = selectedMode === mode.id
                   const activeStyle =
                     mode.id === 'normal'
@@ -205,9 +223,20 @@ export default function HomeScreen() {
                       : mode.id === 'ranked'
                         ? 'text-amber-400'
                         : 'text-violet-400'
+                  const entrance = modeAnims[modeIdx] ?? new Animated.Value(1)
                   return (
-                    <TouchableOpacity
+                    <Animated.View
                       key={mode.id}
+                      style={{
+                        flex: 1,
+                        opacity: entrance,
+                        transform: [
+                          { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) },
+                          { scale:      entrance.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
+                        ],
+                      }}
+                    >
+                    <TouchableOpacity
                       onPress={() => {
                         setSelectedMode(active ? null : mode.id)
                         setCategories([])
@@ -219,7 +248,7 @@ export default function HomeScreen() {
                           ? activeStyle
                           : 'border-neutral-800 bg-neutral-900',
                       ].join(' ')}
-                      style={{ flex: 1, padding: isTablet ? 16 : 12 }}
+                      style={{ padding: isTablet ? 16 : 12 }}
                       activeOpacity={0.8}
                     >
                       {/* Active top accent bar */}
@@ -257,6 +286,7 @@ export default function HomeScreen() {
                         {mode.desc}
                       </Text>
                     </TouchableOpacity>
+                    </Animated.View>
                   )
                 })}
               </View>
