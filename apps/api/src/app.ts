@@ -19,6 +19,7 @@ import { achievementRoutes } from './routes/achievements'
 import { seasonPassRoutes } from './routes/seasonPass'
 import { giftsRoutes } from './routes/gifts'
 import { wordPacksRoutes } from './routes/wordPacks'
+import { tutorialRoutes } from './routes/tutorial'
 import { registerSocketHandlers } from './socket'
 
 export async function buildApp() {
@@ -64,6 +65,7 @@ export async function buildApp() {
   await app.register(seasonPassRoutes, { prefix: '/api/season-pass' })
   await app.register(giftsRoutes, { prefix: '/api/gifts' })
   await app.register(wordPacksRoutes, { prefix: '/api/word-packs' })
+  await app.register(tutorialRoutes, { prefix: '/api/tutorial' })
 
   // Health check
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }))

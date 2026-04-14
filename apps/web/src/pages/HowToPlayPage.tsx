@@ -172,6 +172,25 @@ export default function HowToPlayPage() {
             </div>
           </div>
 
+          {/* Interactive walkthrough promo */}
+          <Link
+            to="/tutorial"
+            className="block rounded-2xl border border-amber-700/40 bg-gradient-to-br from-amber-950/50 to-brand-950/40 p-4 hover:border-amber-600/60 transition-all active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-600/20 border border-amber-700/40 flex items-center justify-center text-2xl shrink-0">
+                🎓
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-bold text-sm">{t('tutorial.homeCardTitle')}</p>
+                <p className="text-amber-300/80 text-xs mt-0.5">
+                  {t('tutorial.homeCardSubtitle', { amount: 50 })}
+                </p>
+              </div>
+              <span className="text-amber-400 font-semibold text-sm">→</span>
+            </div>
+          </Link>
+
           {/* CTA */}
           <div className="text-center pt-4 space-y-3">
             <p className="text-neutral-500 text-sm">Ready to play?</p>

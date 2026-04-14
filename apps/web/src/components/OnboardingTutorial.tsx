@@ -12,6 +12,13 @@ function markTutorialCompleted() {
   localStorage.setItem(TUTORIAL_STORAGE_KEY, '1')
 }
 
+/** Exposed so the interactive /tutorial walkthrough can also flip the flag
+ *  when the server confirms completion — this keeps the onboarding modal
+ *  from popping up again after the long walkthrough. */
+export function markTutorialCompletedLocally() {
+  markTutorialCompleted()
+}
+
 interface Props {
   onClose: () => void
 }
