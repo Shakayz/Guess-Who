@@ -638,7 +638,7 @@ export default {
     roleInstructionDetective: 'Conoces la palabra real. ¡Investiga a los jugadores sospechosos para encontrar al impostor!',
     roleInstructionDoubleAgent: 'Tienes la palabra de los aldeanos pero ayudas secretamente a los impostores. ¡Engaña a los aldeanos!',
     roleInstructionGuardian: 'Antes de cada votación, puedes proteger a un jugador de la eliminación. ¡No puedes protegerte a ti mismo!',
-    roleInstructionMayor: 'Eres el Alcalde. Tu voto cuenta doble durante la fase de votación — anúncialo claramente al votar.',
+    roleInstructionMayor: 'Eres el Alcalde. Tu voto cuenta doble durante la fase de votación.',
     roleInstructionJudge: 'Eres el Juez. Si un voto termina en empate, tú decides quién es eliminado — pero no puedes salvarte a ti mismo.',
     roleInstructionRevenant: 'Eres el Revenant. Si te eliminan por voto, sigues votando en secreto durante las próximas 2 rondas.',
     roleInstructionInfiltrator: 'Eres el Infiltrado. Conoces la palabra ALDEANA pero juegas para los impostores. Mézclate y ayúdalos a ganar — el Detective te ve como aldeano.',

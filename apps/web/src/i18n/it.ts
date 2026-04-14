@@ -638,7 +638,7 @@ export default {
     roleInstructionDetective: 'Conosci la parola vera. Indaga sui giocatori sospetti per trovare l\'impostore!',
     roleInstructionDoubleAgent: 'Hai la parola dei villici ma aiuti segretamente gli impostori. Inganna i villici!',
     roleInstructionGuardian: 'Prima di ogni votazione, puoi proteggere un giocatore dall\'eliminazione. Non puoi proteggere te stesso!',
-    roleInstructionMayor: 'Sei il Sindaco. Il tuo voto conta il doppio durante la fase di voto — annuncialo chiaramente quando voti.',
+    roleInstructionMayor: 'Sei il Sindaco. Il tuo voto conta il doppio durante la fase di voto.',
     roleInstructionJudge: 'Sei il Giudice. In caso di parità, decidi chi viene eliminato — ma non puoi salvare te stesso.',
     roleInstructionRevenant: 'Sei il Revenant. Se vieni votato fuori, continui a votare in segreto per i prossimi 2 round.',
     roleInstructionInfiltrator: 'Sei l\'Infiltrato. Conosci la parola VILLICA ma giochi per gli impostori. Mimetizzati e aiutali a vincere — il Detective ti vede come villico.',

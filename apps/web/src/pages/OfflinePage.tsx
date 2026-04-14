@@ -115,6 +115,31 @@ function isEvilRole(role: PlayerRoleType) {
   return EVIL_ROLES.includes(role)
 }
 
+/**
+ * On the reveal card, clarify which base team a *special* role plays for —
+ * e.g. a Mayor is still a Villager, a Corruptor is still an Imposter. Returns
+ * `null` for roles where this would be redundant (villager/imposter) or
+ * misleading (jester is solo, twins win as a pair).
+ */
+function getBaseTeamForReveal(role: PlayerRoleType): 'villager' | 'imposter' | null {
+  switch (role) {
+    case 'detective':
+    case 'guardian':
+    case 'mayor':
+    case 'judge':
+    case 'revenant':
+      return 'villager'
+    case 'doubleAgent':
+    case 'infiltrator':
+    case 'kamikaze':
+    case 'corruptor':
+    case 'inverter':
+      return 'imposter'
+    default:
+      return null
+  }
+}
+
 const LANGUAGES = [
   { code: 'en', label: 'English', flag: 'gb' },
   { code: 'fr', label: 'Français', flag: 'fr' },
@@ -986,7 +1011,7 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
       case 'detective':    return t('offline.roleInstructionDetective')
       case 'doubleAgent':  return t('offline.roleInstructionDoubleAgent')
       case 'guardian':     return t('offline.roleInstructionGuardian')
-      case 'mayor':        return t('offline.roleInstructionMayor',        'You are the Mayor. Your vote counts double during the voting phase — announce it clearly when voting.')
+      case 'mayor':        return t('offline.roleInstructionMayor',        'You are the Mayor. Your vote counts double during the voting phase.')
       case 'judge':        return t('offline.roleInstructionJudge',        'You are the Judge. If a vote ends in a tie, you pick who gets eliminated.')
       case 'revenant':     return t('offline.roleInstructionRevenant',     'You are the Revenant. If you get voted out, you still cast votes for the next 2 rounds (announce a player when eliminated).')
       case 'infiltrator':  return t('offline.roleInstructionInfiltrator',  'You are the Infiltrator. You know the VILLAGER word but you play for the imposters. Blend in and help them win — you look like a villager to the Detective.')
@@ -1073,6 +1098,17 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
               <p className={`text-2xl font-extrabold ${rc.textClass}`}>
                 {rc.label}
               </p>
+              {(() => {
+                const baseTeam = getBaseTeamForReveal(current.role)
+                if (!baseTeam) return null
+                const teamClass = baseTeam === 'villager' ? 'text-emerald-400' : 'text-red-400'
+                const teamIcon = baseTeam === 'villager' ? '🟢' : '🔴'
+                return (
+                  <p className={`mt-1 text-sm font-semibold ${teamClass}`}>
+                    {teamIcon} {t(`offline.${baseTeam}`)}
+                  </p>
+                )
+              })()}
             </div>
 
             {current.role === 'doubleAgent' ? (

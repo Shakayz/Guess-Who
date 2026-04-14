@@ -638,7 +638,7 @@ export default {
     roleInstructionDetective: '你知道真正的词汇。调查可疑玩家找出冒牌者！',
     roleInstructionDoubleAgent: '你有村民词汇但你暗中帮助冒牌者。误导村民！',
     roleInstructionGuardian: '每次投票前，你可以保护一名玩家免于淘汰。你不能保护自己！',
-    roleInstructionMayor: '你是市长。你的投票在投票阶段算两票 — 投票时请明确宣布。',
+    roleInstructionMayor: '你是市长。你的投票在投票阶段算两票。',
     roleInstructionJudge: '你是法官。如果投票平局，你决定谁被淘汰 — 但你不能救自己。',
     roleInstructionRevenant: '你是亡灵。如果你被投票淘汰，你仍然可以在接下来的2轮中秘密投票。',
     roleInstructionInfiltrator: '你是渗透者。你知道村民的词汇但你为冒牌者效力。融入其中帮助他们获胜 — 侦探会把你看作村民。',

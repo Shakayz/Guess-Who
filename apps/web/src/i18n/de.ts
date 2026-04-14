@@ -628,7 +628,7 @@ export default {
     roleInstructionDetective: 'Du kennst das echte Wort. Untersuche verdächtige Spieler, um den Hochstapler zu finden!',
     roleInstructionDoubleAgent: 'Du hast das Dorfbewohner-Wort, hilfst aber heimlich den Hochstaplern. Täusche die Dorfbewohner!',
     roleInstructionGuardian: 'Vor jeder Abstimmung kannst du einen Spieler vor der Eliminierung schützen. Du kannst dich nicht selbst schützen!',
-    roleInstructionMayor: 'Du bist der Bürgermeister. Deine Stimme zählt doppelt in der Abstimmungsphase — verkünde es deutlich beim Abstimmen.',
+    roleInstructionMayor: 'Du bist der Bürgermeister. Deine Stimme zählt doppelt in der Abstimmungsphase.',
     roleInstructionJudge: 'Du bist der Richter. Bei Gleichstand entscheidest du, wer eliminiert wird — aber du kannst dich nicht selbst retten.',
     roleInstructionRevenant: 'Du bist der Wiedergänger. Wenn du rausgewählt wirst, stimmst du in den nächsten 2 Runden weiterhin geheim ab.',
     roleInstructionInfiltrator: 'Du bist der Infiltrator. Du kennst das DORFBEWOHNER-Wort, spielst aber für die Hochstapler. Misch dich ein und hilf ihnen zu gewinnen — der Detektiv sieht dich als Dorfbewohner.',

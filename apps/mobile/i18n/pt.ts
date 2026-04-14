@@ -70,7 +70,7 @@ export default {
     roleInstructionDetective: 'Você conhece a palavra real. Investigue jogadores suspeitos para encontrar o impostor!',
     roleInstructionDoubleAgent: 'Você tem a palavra dos aldeões mas ajuda secretamente os impostores. Engane os aldeões!',
     roleInstructionGuardian: 'Antes de cada votação, você pode proteger um jogador da eliminação. Você não pode proteger a si mesmo!',
-    roleInstructionMayor: 'Você é o Prefeito. Seu voto conta em dobro durante a fase de votação — anuncie claramente ao votar.',
+    roleInstructionMayor: 'Você é o Prefeito. Seu voto conta em dobro durante a fase de votação.',
     roleInstructionJudge: 'Você é o Juiz. Se um voto empatar, você decide quem é eliminado — mas não pode salvar a si mesmo.',
     roleInstructionRevenant: 'Você é o Revenant. Se for votado para fora, continua votando em segredo pelas próximas 2 rodadas.',
     roleInstructionInfiltrator: 'Você é o Infiltrado. Conhece a palavra ALDEÃ mas joga pelos impostores. Misture-se e ajude-os a vencer — o Detetive te vê como aldeão.',

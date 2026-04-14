@@ -207,6 +207,31 @@ function roleInstruction(t: (key: string, opts?: any) => string, role: OfflineRo
   return t(def.i18nInstructionKey, { defaultValue: '' })
 }
 
+/**
+ * On the reveal card, clarify which base team a *special* role plays for —
+ * e.g. a Mayor is still a Villager, a Corruptor is still an Imposter. Returns
+ * `null` for roles where this would be redundant (villager/imposter) or
+ * misleading (jester is solo, twins win as a pair).
+ */
+function getBaseTeamForReveal(role: OfflineRole): 'villager' | 'imposter' | null {
+  switch (role) {
+    case 'detective':
+    case 'guardian':
+    case 'mayor':
+    case 'judge':
+    case 'revenant':
+      return 'villager'
+    case 'doubleAgent':
+    case 'infiltrator':
+    case 'kamikaze':
+    case 'corruptor':
+    case 'inverter':
+      return 'imposter'
+    default:
+      return null
+  }
+}
+
 // ─── RoleStepper ─────────────────────────────────────────────────────────────
 
 const STEPPER_ACCENT = {
@@ -935,11 +960,25 @@ function RoleRevealCard({
           {t('offline.yourRole', { defaultValue: 'Your Role' })}
         </Text>
         <Text
-          className={['text-center font-extrabold mb-4', c.text].join(' ')}
+          className={['text-center font-extrabold', c.text].join(' ')}
           style={{ fontSize: (isTablet ? 28 : 22) * fontScale }}
         >
           {t(def.i18nLabelKey, { defaultValue: player.role })}
         </Text>
+        {(() => {
+          const baseTeam = getBaseTeamForReveal(player.role)
+          if (!baseTeam) return <View style={{ marginBottom: 16 }} />
+          const teamClass = baseTeam === 'villager' ? 'text-emerald-400' : 'text-red-400'
+          const teamIcon = baseTeam === 'villager' ? '🟢' : '🔴'
+          return (
+            <Text
+              className={['text-center font-semibold mt-1 mb-4', teamClass].join(' ')}
+              style={{ fontSize: 13 * fontScale }}
+            >
+              {teamIcon} {t(`offline.${baseTeam}`, { defaultValue: baseTeam })}
+            </Text>
+          )
+        })()}
 
         {isDoubleAgent ? (
           <View className="gap-2">

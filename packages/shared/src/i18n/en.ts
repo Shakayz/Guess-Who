@@ -444,7 +444,7 @@ export default {
     roleInstructionDetective: 'You know the real word. Investigate suspicious players to find the imposter!',
     roleInstructionDoubleAgent: "You have the villager word but you're secretly helping the imposters. Mislead the villagers!",
     roleInstructionGuardian: 'Before each vote, you can protect one player from elimination. You cannot protect yourself!',
-    roleInstructionMayor: 'You are the Mayor. Your vote counts double during the voting phase — announce it clearly when voting.',
+    roleInstructionMayor: 'You are the Mayor. Your vote counts double during the voting phase.',
     roleInstructionJudge: 'You are the Judge. If a vote ends in a tie, you pick who gets eliminated.',
     roleInstructionRevenant: 'You are the Revenant. If you get voted out, you still cast votes for the next 2 rounds (announce a player when eliminated).',
     roleInstructionInfiltrator: 'You are the Infiltrator. You know the VILLAGER word but you play for the imposters. Blend in and help them win — you look like a villager to the Detective.',

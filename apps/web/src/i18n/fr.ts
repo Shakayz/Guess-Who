@@ -639,7 +639,7 @@ export default {
     roleInstructionDetective: 'Vous connaissez le vrai mot. Enquêtez sur les joueurs suspects pour trouver l\'imposteur !',
     roleInstructionDoubleAgent: 'Vous avez le mot villageois mais vous aidez secrètement les imposteurs. Induisez les villageois en erreur !',
     roleInstructionGuardian: 'Avant chaque vote, vous pouvez protéger un joueur de l\'élimination. Vous ne pouvez pas vous protéger vous-même !',
-    roleInstructionMayor: 'Vous êtes le Maire. Votre vote compte double pendant la phase de vote — annoncez-le clairement en votant.',
+    roleInstructionMayor: 'Vous êtes le Maire. Votre vote compte double pendant la phase de vote.',
     roleInstructionJudge: 'Vous êtes le Juge. En cas d\'égalité, vous choisissez qui est éliminé — mais vous ne pouvez pas vous sauver vous-même.',
     roleInstructionRevenant: 'Vous êtes le Revenant. Si vous êtes éliminé, vous votez encore secrètement pendant les 2 prochaines manches.',
     roleInstructionInfiltrator: 'Vous êtes l\'Infiltré. Vous connaissez le mot VILLAGEOIS mais vous jouez pour les imposteurs. Fondez-vous dans le groupe — le Détective vous voit comme un villageois.',
