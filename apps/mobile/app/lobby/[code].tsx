@@ -239,6 +239,10 @@ interface Settings {
   corruptorCount: number
   inverterCount: number
   evilTwinsEnabled: number
+  // Vocal mode: players speak out loud in turn instead of typing clues.
+  // Only available in unranked modes.
+  vocalMode: boolean
+  vocalSpeakingTimeSeconds: number
 }
 
 /** Pull a `SpecialRoleCounts` shape out of the lobby `Settings` for the
@@ -306,6 +310,8 @@ function SettingsPanel({
                   corruptorCount:   mode === 'special' ? settings.corruptorCount   : 0,
                   inverterCount:    mode === 'special' ? settings.inverterCount    : 0,
                   evilTwinsEnabled: mode === 'special' ? settings.evilTwinsEnabled : 0,
+                  // Ranked cannot use vocal mode — force-disable when switching.
+                  vocalMode: mode === 'ranked' ? false : settings.vocalMode,
                 })
                 void reset
               }}
@@ -630,6 +636,55 @@ function SettingsPanel({
           format={(v) => `${v}s`}
           onChange={(v) => onChange({ ...settings, votingTimeSeconds: v })}
         />
+
+        {/* Vocal mode — unranked only. Players speak out loud in turn
+            instead of typing clues. */}
+        {settings.gameMode !== 'ranked' && (
+          <View className="pt-2 border-t border-neutral-800 gap-3">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 pr-3">
+                <View className="flex-row items-center gap-1.5">
+                  <Text className="text-sm">🎙</Text>
+                  <Text className="text-white font-semibold text-sm">Vocal mode</Text>
+                </View>
+                <Text className="text-xs text-neutral-500 mt-0.5">
+                  Each player speaks out loud on their turn — no typing.
+                </Text>
+              </View>
+              <TouchableOpacity
+                accessibilityRole="switch"
+                accessibilityState={{ checked: settings.vocalMode }}
+                onPress={() =>
+                  onChange({ ...settings, vocalMode: !settings.vocalMode })
+                }
+                className={[
+                  'w-11 h-6 rounded-full p-0.5 justify-center',
+                  settings.vocalMode ? 'bg-violet-600' : 'bg-neutral-700',
+                ].join(' ')}
+              >
+                <View
+                  className={[
+                    'w-5 h-5 bg-white rounded-full',
+                    settings.vocalMode ? 'self-end' : 'self-start',
+                  ].join(' ')}
+                />
+              </TouchableOpacity>
+            </View>
+            {settings.vocalMode && (
+              <NumStepper
+                label="Speaking Time (per player)"
+                value={settings.vocalSpeakingTimeSeconds}
+                min={5}
+                max={60}
+                step={5}
+                format={(v) => `${v}s`}
+                onChange={(v) =>
+                  onChange({ ...settings, vocalSpeakingTimeSeconds: v })
+                }
+              />
+            )}
+          </View>
+        )}
       </View>
     </View>
   )
@@ -665,6 +720,8 @@ const DEFAULT_SETTINGS: Settings = {
   corruptorCount:   0,
   inverterCount:    0,
   evilTwinsEnabled: 0,
+  vocalMode: false,
+  vocalSpeakingTimeSeconds: 10,
 }
 
 export default function LobbyScreen() {
@@ -711,6 +768,8 @@ export default function LobbyScreen() {
       corruptorCount:   s.corruptorCount,
       inverterCount:    s.inverterCount,
       evilTwinsEnabled: s.evilTwinsEnabled,
+      vocalMode: s.vocalMode,
+      vocalSpeakingTimeSeconds: s.vocalSpeakingTimeSeconds,
     })
   }
 
@@ -799,6 +858,8 @@ export default function LobbyScreen() {
           corruptorCount:   rs.corruptorCount   ?? 0,
           inverterCount:    rs.inverterCount    ?? 0,
           evilTwinsEnabled: rs.evilTwinsEnabled ?? 0,
+          vocalMode: rs.vocalMode ?? false,
+          vocalSpeakingTimeSeconds: rs.vocalSpeakingTimeSeconds ?? 10,
         }))
       }
     })

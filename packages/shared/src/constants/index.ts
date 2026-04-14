@@ -27,6 +27,12 @@ export const DEFAULT_ROOM_SETTINGS = {
   categories: [],
 } as const
 
+// Bounds for the per-player "speak out loud" turn timer used when vocal mode is on.
+export const VOCAL_SPEAKING_TIME_DEFAULT = 10
+export const VOCAL_SPEAKING_TIME_MIN     = 5
+export const VOCAL_SPEAKING_TIME_MAX     = 60
+export const VOCAL_SPEAKING_TIME_STEP    = 5
+
 export const COIN_REWARDS = {
   WIN_VILLAGER: 50,
   WIN_IMPOSTER: 80,

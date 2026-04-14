@@ -98,6 +98,13 @@ export interface RoomSettings {
   language: Locale
   gameMode: GameMode
   categories: WordCategory[]   // empty = all categories
+  /** When true, the clue phase becomes a turn-based "speak out loud" round —
+   *  each alive player gets `vocalSpeakingTimeSeconds` to talk, text input is
+   *  hidden, and no clue text is submitted. Only available in unranked modes
+   *  (normal + special). Ranked always uses typed clues. */
+  vocalMode?: boolean
+  /** Seconds per player when `vocalMode` is on. Defaults to 10 for unranked. */
+  vocalSpeakingTimeSeconds?: number
 }
 
 // ─── Player ──────────────────────────────────────────────────────────────────
@@ -213,6 +220,7 @@ export interface ServerToClientEvents {
   'detective:result': (data: { targetUserId: string; targetUsername: string; role: PlayerRole }) => void
   'round:speaking-turn': (data: { playerId: string | null; timeSeconds: number; speakingOrder: string[] }) => void
   'round:clue-submitted': (clue: Clue) => void
+  'round:vocal-turn': (data: { speakerId: string; speakerIndex: number; totalSpeakers: number; perTurnSeconds: number; totalSeconds: number; speakingOrder: string[] }) => void
   'round:voting-started': (data: { timeSeconds: number; players: Player[] }) => void
   'round:vote-cast': (data: { voterId: string; hasVoted: boolean }) => void
   'round:ended': (data: { round: Round; nextRound?: Round }) => void
@@ -249,6 +257,7 @@ export interface ClientToServerEvents {
   'game:leave-eliminated': () => void
   'clue:submit': (text: string) => void
   'clue:flag': (data: { cluePlayerId: string }) => void
+  'vocal:skip-turn': () => void
   'vote:cast': (targetPlayerId: string) => void
   'chat:send': (text: string) => void
   'honor:give': (data: { targetPlayerId: string; honorType: HonorType }) => void

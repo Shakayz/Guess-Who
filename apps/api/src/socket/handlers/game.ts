@@ -3,7 +3,7 @@ import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/share
 import { redis } from '../../config/redis'
 import { prisma } from '../../config/prisma'
 import { childLogger } from '../../config/logger'
-import { tryEarlyResolve, tryEarlyVoting, tryEarlyTiebreakerVoting, tryEarlyTiebreakerResolve, eliminatePlayerForWord } from '../gameLoop'
+import { tryEarlyResolve, tryEarlyVoting, tryEarlyTiebreakerVoting, tryEarlyTiebreakerResolve, eliminatePlayerForWord, skipVocalTurn } from '../gameLoop'
 
 const log = childLogger('socket:game')
 
@@ -213,5 +213,13 @@ export function registerGameHandlers(
 
     // All alive players submitted? → move to voting early
     await tryEarlyVoting(io, roomId)
+  })
+
+  // ── Vocal mode: current speaker taps "Done" to end their turn early ──────
+  socket.on('vocal:skip-turn', async () => {
+    const roomId = [...socket.rooms].find((r) => r.startsWith('room:'))?.split(':')[1]
+    if (!roomId) return
+    log.info({ userId, roomId }, 'vocal:skip-turn')
+    await skipVocalTurn(io, roomId, userId)
   })
 }

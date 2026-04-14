@@ -631,7 +631,141 @@ export async function startRound(
 ) {
   logger.info({ roomId }, 'starting round')
   clearRoomTimer(roomId)
+
+  // Vocal mode (unranked only): instead of a single clue-phase window where
+  // everyone types, iterate over each alive player and give them their own
+  // per-player "speak out loud" turn. No text is submitted.
+  const state = await getState(roomId)
+  if (state?.vocalMode) {
+    const perTurn = Math.min(60, Math.max(5, Number(state.vocalSpeakingTimeSeconds) || 10))
+    await startVocalSpeakingPhase(io, roomId, perTurn, votingTimeSeconds)
+    return
+  }
+
   await startCluePhase(io, roomId, speakingTimeSeconds, votingTimeSeconds)
+}
+
+// ─── Vocal speaking phase (turn-based, no text) ──────────────────────────────
+//
+// Each alive player gets `perTurnSeconds` to speak out loud. The server
+// iterates through the round's `speakingOrder` one player at a time, emitting
+// `round:vocal-turn` for each speaker. When every speaker has finished (or the
+// current speaker emits `vocal:skip-turn`), we advance to the voting phase.
+//
+// We also emit a `round:speaking-turn` event at the start so existing client
+// code that keys off that event (phase reset, clue list clearing, etc.) still
+// fires exactly once — but with the total vocal duration as the timer. The
+// per-turn countdown is driven by the `round:vocal-turn` payloads.
+async function startVocalSpeakingPhase(
+  io: IO,
+  roomId: string,
+  perTurnSeconds: number,
+  votingTimeSeconds: number,
+) {
+  const state = await getState(roomId)
+  if (!state) {
+    io.to(`room:${roomId}`).emit('error', { code: 'GAME_STATE_LOST', message: 'Game interrupted. Please reconnect.' })
+    return
+  }
+  if (state.status !== 'in_progress') return
+
+  const currentRound = state.rounds?.[state.currentRound - 1]
+  if (!currentRound) return
+
+  // Only alive players take a turn. Preserve the round's `speakingOrder`.
+  const aliveIds = new Set(state.players.filter((p: any) => p.status === 'alive').map((p: any) => p.userId))
+  const fullOrder: string[] = currentRound.speakingOrder ?? []
+  const vocalOrder: string[] = fullOrder.filter((id) => aliveIds.has(id))
+
+  // Edge case: no alive players — jump straight to voting so the game doesn't
+  // stall. Should never happen in practice (checkWinCondition would have fired
+  // first), but we guard anyway.
+  if (vocalOrder.length === 0) {
+    await startVoting(io, roomId, votingTimeSeconds)
+    return
+  }
+
+  const totalSeconds = perTurnSeconds * vocalOrder.length
+
+  // Phase-level state for sync/reconnect.
+  state.currentSpeakerId = vocalOrder[0]
+  state.phaseStartedAt = Date.now()
+  state.phaseDurationSeconds = totalSeconds
+  state.votingTimeSeconds = votingTimeSeconds
+  state.vocalTurnIndex = 0
+  state.vocalPerTurnSeconds = perTurnSeconds
+  state.vocalSpeakingOrder = vocalOrder
+  await saveState(roomId, state)
+
+  // Fire the legacy clue-phase event so existing client listeners reset their
+  // per-round UI state (clears previous clues, resets `hasSubmittedClue`, etc).
+  io.to(`room:${roomId}`).emit('round:speaking-turn', {
+    playerId: null,
+    timeSeconds: totalSeconds,
+    speakingOrder: vocalOrder,
+  })
+
+  // Kick off the first turn.
+  await startVocalTurn(io, roomId, 0)
+}
+
+async function startVocalTurn(io: IO, roomId: string, index: number) {
+  const state = await getState(roomId)
+  if (!state || state.status !== 'in_progress') return
+  const order: string[] = state.vocalSpeakingOrder ?? []
+  const perTurnSeconds: number = state.vocalPerTurnSeconds ?? 10
+  const votingTimeSeconds: number = state.votingTimeSeconds ?? 30
+
+  // All turns done → move to voting.
+  if (index >= order.length) {
+    clearRoomTimer(roomId)
+    await startVoting(io, roomId, votingTimeSeconds)
+    return
+  }
+
+  const speakerId = order[index]
+  state.vocalTurnIndex = index
+  state.currentSpeakerId = speakerId
+  state.phaseStartedAt = Date.now()
+  await saveState(roomId, state)
+
+  const totalRemaining = perTurnSeconds * (order.length - index)
+  io.to(`room:${roomId}`).emit('round:vocal-turn', {
+    speakerId,
+    speakerIndex: index,
+    totalSpeakers: order.length,
+    perTurnSeconds,
+    totalSeconds: totalRemaining,
+    speakingOrder: order,
+  })
+
+  clearRoomTimer(roomId)
+  const timer = setTimeout(async () => {
+    try {
+      roomTimers.delete(roomId)
+      await startVocalTurn(io, roomId, index + 1)
+    } catch (err) {
+      logger.error({ err }, '[vocalTurn] timeout error')
+    }
+  }, perTurnSeconds * 1000)
+  roomTimers.set(roomId, timer)
+}
+
+/**
+ * Called from the `vocal:skip-turn` handler when the current speaker taps
+ * "Done" before their timer runs out. Only the current speaker can skip their
+ * own turn.
+ */
+export async function skipVocalTurn(io: IO, roomId: string, userId: string) {
+  const state = await getState(roomId)
+  if (!state || state.status !== 'in_progress') return
+  if (!state.vocalMode) return
+  const order: string[] = state.vocalSpeakingOrder ?? []
+  const idx: number = typeof state.vocalTurnIndex === 'number' ? state.vocalTurnIndex : -1
+  if (idx < 0 || idx >= order.length) return
+  if (order[idx] !== userId) return // only the current speaker can skip
+  clearRoomTimer(roomId)
+  await startVocalTurn(io, roomId, idx + 1)
 }
 
 // ─── Clue phase (everyone submits simultaneously) ────────────────────────────

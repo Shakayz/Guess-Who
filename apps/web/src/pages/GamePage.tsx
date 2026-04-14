@@ -358,6 +358,17 @@ export default function GamePage() {
   const [judgePrompt, setJudgePrompt] = useState<{ candidateUserIds: string[]; candidateUsernames: string[]; timeSeconds: number } | null>(null)
   // Corruptor target picker. Shown once at game start to the corruptor.
   const [showCorruptorPicker, setShowCorruptorPicker] = useState(false)
+  // ── Vocal mode state ──────────────────────────────────────────────────────
+  // `vocalMode` mirrors the room setting; when true the clue phase becomes a
+  // turn-based "speak out loud" round (no text input). The per-turn speaker
+  // and countdown are driven by the server's `round:vocal-turn` events.
+  const vocalMode = !!(room?.settings as any)?.vocalMode
+  const [vocalSpeakerId, setVocalSpeakerId] = useState<string | null>(null)
+  const [vocalPerTurnSeconds, setVocalPerTurnSeconds] = useState(10)
+  const [vocalTurnTimeLeft, setVocalTurnTimeLeft] = useState(0)
+  const [vocalTurnIndex, setVocalTurnIndex] = useState(0)
+  const [vocalTotalSpeakers, setVocalTotalSpeakers] = useState(0)
+  const vocalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const phaseRef = useRef<Phase>('clues')
@@ -511,6 +522,26 @@ export default function GamePage() {
     })
 
     socket.on('round:clue-submitted', (clue) => setClues((c) => [...c, clue as Clue]))
+
+    // ── Vocal mode: per-player turn announcement ──────────────────────────
+    socket.on('round:vocal-turn' as any, ({ speakerId, speakerIndex, totalSpeakers, perTurnSeconds }: any) => {
+      setVocalSpeakerId(speakerId)
+      setVocalTurnIndex(speakerIndex)
+      setVocalTotalSpeakers(totalSpeakers)
+      setVocalPerTurnSeconds(perTurnSeconds)
+      setVocalTurnTimeLeft(perTurnSeconds)
+      if (vocalTimerRef.current) clearInterval(vocalTimerRef.current)
+      vocalTimerRef.current = setInterval(() => {
+        setVocalTurnTimeLeft((t) => {
+          if (t <= 1) {
+            if (vocalTimerRef.current) clearInterval(vocalTimerRef.current)
+            return 0
+          }
+          return t - 1
+        })
+      }, 1000)
+    })
+
     socket.on('round:speaking-turn', ({ playerId, timeSeconds, speakingOrder: order }: any) => {
       // Clean up previous round state when entering a new clue phase
       if (phaseRef.current !== 'clues') {
@@ -535,6 +566,9 @@ export default function GamePage() {
       phaseRef.current = 'voting'
       setPhase('voting')
       setCurrentSpeakerId(null)
+      // Vocal turns end with the clue phase — stop the per-turn countdown.
+      setVocalSpeakerId(null)
+      if (vocalTimerRef.current) { clearInterval(vocalTimerRef.current); vocalTimerRef.current = null }
       setVoteCount(0)
       setTotalVoters(vPlayers?.length ?? 0)
       setAllVotedMsg(false)
@@ -743,6 +777,8 @@ export default function GamePage() {
       socket.off('game:player-forfeited')
       socket.off('round:clue-submitted')
       socket.off('round:speaking-turn')
+      socket.off('round:vocal-turn' as any)
+      if (vocalTimerRef.current) { clearInterval(vocalTimerRef.current); vocalTimerRef.current = null }
       socket.off('round:voting-started')
       socket.off('round:ended')
       socket.off('round:tiebreaker-start' as any)
@@ -1270,8 +1306,82 @@ export default function GamePage() {
           </div>
         )}
 
-        {/* Clue phase: everyone submits clues simultaneously */}
-        {phase === 'clues' && !isEliminated && (
+        {/* Clue phase: everyone submits clues simultaneously (or speaks in vocal mode) */}
+        {phase === 'clues' && !isEliminated && vocalMode && (() => {
+          const speaker = vocalSpeakerId ? players.find((p) => p.userId === vocalSpeakerId) : null
+          const isMyTurn = !!(vocalSpeakerId && user?.id === vocalSpeakerId)
+          const pct = vocalPerTurnSeconds > 0 ? (vocalTurnTimeLeft / vocalPerTurnSeconds) * 100 : 0
+          return (
+            <div className={[
+              'card relative overflow-hidden transition-all',
+              isMyTurn ? 'border-brand-600/60 shadow-lg shadow-brand-950/40' : 'border-neutral-700',
+            ].join(' ')}>
+              {/* Background glow when it's your turn */}
+              {isMyTurn && (
+                <div className="absolute inset-0 opacity-20 pointer-events-none bg-gradient-to-br from-brand-500 via-brand-900/20 to-transparent" />
+              )}
+              <div className="relative">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                    {t('game.vocalTurnTitle', 'Vocal turn {{index}} / {{total}}', {
+                      index: Math.min(vocalTurnIndex + 1, vocalTotalSpeakers || 1),
+                      total: vocalTotalSpeakers || 1,
+                    })}
+                  </p>
+                  <span className={[
+                    'text-xs font-bold tabular-nums',
+                    vocalTurnTimeLeft <= 3 ? 'text-red-400' : isMyTurn ? 'text-brand-400' : 'text-neutral-400',
+                  ].join(' ')}>
+                    {vocalTurnTimeLeft}s
+                  </span>
+                </div>
+                {/* Countdown bar */}
+                <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden mb-4">
+                  <div
+                    className={[
+                      'h-full rounded-full transition-all duration-500',
+                      vocalTurnTimeLeft <= 3 ? 'bg-red-500' : isMyTurn ? 'bg-brand-500' : 'bg-emerald-500',
+                    ].join(' ')}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                {speaker ? (
+                  <div className="flex items-center gap-3 mb-3">
+                    <Avatar username={speaker.username} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-bold truncate">
+                        {isMyTurn
+                          ? t('game.vocalSpeakNow', "It's your turn — speak now!")
+                          : t('game.vocalSpeakingNow', '{{name}} is speaking...', { name: getDisplayName(speaker.userId, speaker.username) })}
+                      </p>
+                      <p className="text-xs text-neutral-500 mt-0.5">
+                        {isMyTurn
+                          ? t('game.vocalSpeakHint', 'Give your clue out loud — tap Done when finished')
+                          : t('game.vocalListenHint', 'Listen carefully — your turn is coming')}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-neutral-500 text-sm italic py-2">
+                    {t('game.vocalWaiting', 'Waiting for the next speaker...')}
+                  </p>
+                )}
+                {isMyTurn && (
+                  <button
+                    type="button"
+                    aria-label="End my turn"
+                    onClick={() => getSocket().emit('vocal:skip-turn' as any)}
+                    className="w-full px-4 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition-colors"
+                  >
+                    {t('game.vocalDone', "I'm done")}
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })()}
+
+        {phase === 'clues' && !isEliminated && !vocalMode && (
           <div className="card">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('game.yourClue')}</p>
             {/* In tiebreaker mode: non-tied players just wait */}
@@ -1493,14 +1603,16 @@ export default function GamePage() {
         })()}
 
         {/* Clues log — hidden during clue phase until you submit (prevents copying) */}
+        {/* In vocal mode clues aren't typed, so the log is only relevant for post-round review. */}
+        {!(vocalMode && phase === 'clues') && (
         <div className="card flex-1">
           <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
             {t('game.cluesTitle', { round: currentRound?.roundNumber ?? 1 })}
           </p>
-          {phase === 'clues' && !hasSubmittedClue && !isEliminated ? (
+          {phase === 'clues' && !hasSubmittedClue && !isEliminated && !vocalMode ? (
             <p className="text-neutral-600 text-sm italic">{t('game.submitClueFirst', 'Submit your clue to see what others wrote')}</p>
           ) : clues.length === 0 ? (
-            <p className="text-neutral-600 text-sm italic">{t('game.noClues')}</p>
+            <p className="text-neutral-600 text-sm italic">{vocalMode ? t('game.vocalNoTextClues', 'No typed clues — this round was spoken aloud') : t('game.noClues')}</p>
           ) : (
             <div className="space-y-2">
               {clues.map((clue, i) => {
@@ -1541,6 +1653,7 @@ export default function GamePage() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* ── Chat sidebar ── */}

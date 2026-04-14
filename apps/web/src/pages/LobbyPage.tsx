@@ -41,6 +41,10 @@ interface Settings {
   evilTwinsEnabled: number
   maxRounds: number
   language: Locale
+  /** Vocal mode: per-player speak-out-loud turns (unranked only). */
+  vocalMode: boolean
+  /** Seconds per player when vocal mode is on. */
+  vocalSpeakingTimeSeconds: number
 }
 
 function NumStepper({
@@ -182,6 +186,8 @@ function SettingsPanel({
       corruptorCount:   mode === 'normal' ? 0 : settings.corruptorCount,
       inverterCount:    mode === 'normal' ? 0 : settings.inverterCount,
       evilTwinsEnabled: mode === 'normal' ? 0 : settings.evilTwinsEnabled,
+      // Ranked never supports vocal mode — force-disable when switching in.
+      vocalMode:        mode === 'ranked' ? false : settings.vocalMode,
     })
   }
 
@@ -560,6 +566,53 @@ function SettingsPanel({
         />
         <NumStepper label={t('lobby.speakingTime')} value={settings.speakingTimeSeconds}  min={10} max={120} step={5} format={(v) => `${v}s`} onChange={(v) => onChange({ ...settings, speakingTimeSeconds: v })} />
         <NumStepper label={t('lobby.votingTime')}   value={settings.votingTimeSeconds}    min={15} max={120} step={5} format={(v) => `${v}s`} onChange={(v) => onChange({ ...settings, votingTimeSeconds: v })} />
+
+        {/* ── Vocal mode (unranked only) ──────────────────────────────────── */}
+        {settings.gameMode !== 'ranked' && (
+          <div className="pt-2 border-t border-neutral-800/60 space-y-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white flex items-center gap-2">
+                  <span>🎙️</span>
+                  <span>{t('lobby.vocalMode', 'Vocal mode')}</span>
+                </p>
+                <p className="text-[11px] text-neutral-500 mt-0.5">
+                  {t('lobby.vocalModeDesc', 'Each player speaks out loud on their turn — no typing.')}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={settings.vocalMode}
+                aria-label={t('lobby.vocalMode', 'Vocal mode')}
+                onClick={() => onChange({ ...settings, vocalMode: !settings.vocalMode })}
+                className={[
+                  'relative w-11 h-6 rounded-full transition-colors shrink-0',
+                  settings.vocalMode ? 'bg-brand-600' : 'bg-neutral-800',
+                ].join(' ')}
+              >
+                <span
+                  className={[
+                    'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform',
+                    settings.vocalMode ? 'translate-x-5' : 'translate-x-0',
+                  ].join(' ')}
+                />
+              </button>
+            </div>
+
+            {settings.vocalMode && (
+              <NumStepper
+                label={t('lobby.vocalTurnTime', 'Vocal turn time')}
+                value={settings.vocalSpeakingTimeSeconds}
+                min={5}
+                max={60}
+                step={5}
+                format={(v) => `${v}s`}
+                onChange={(v) => onChange({ ...settings, vocalSpeakingTimeSeconds: v })}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -614,6 +667,8 @@ export default function LobbyPage() {
     evilTwinsEnabled: 0,
     maxRounds: 0,
     language: (i18n.language.split('-')[0] as Locale) || 'en',
+    vocalMode: false,
+    vocalSpeakingTimeSeconds: 10,
   })
   const [copied, setCopied] = useState(false)
 
@@ -648,6 +703,8 @@ export default function LobbyPage() {
       speakingTimeSeconds: s.speakingTimeSeconds,
       votingTimeSeconds: s.votingTimeSeconds,
       language: s.language,
+      vocalMode: s.vocalMode,
+      vocalSpeakingTimeSeconds: s.vocalSpeakingTimeSeconds,
     })
     setSettingsSaved(true)
     setTimeout(() => setSettingsSaved(false), 1500)
@@ -750,6 +807,8 @@ export default function LobbyPage() {
           evilTwinsEnabled: (r.settings as any).evilTwinsEnabled ?? 0,
           maxRounds: r.maxRounds ?? 0,
           language: roomLang,
+          vocalMode: (r.settings as any).vocalMode ?? false,
+          vocalSpeakingTimeSeconds: (r.settings as any).vocalSpeakingTimeSeconds ?? 10,
         }))
         // Switch UI language to match the room's language (only on first join)
         if (!langSyncedRef.current && i18n.language.split('-')[0] !== roomLang) {

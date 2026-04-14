@@ -296,6 +296,18 @@ export default function GameScreen() {
   const [clueFlagCounts, setClueFlagCounts] = useState<Record<number, number>>({})
   const [clueHistoryPlayer, setClueHistoryPlayer] = useState<{ userId: string; username: string } | null>(null)
 
+  // ─── Vocal mode ─────────────────────────────────────────────────────────────
+  // When the room is in vocal mode, players speak out loud on their turn
+  // instead of typing. The current speaker sees a countdown and a "Done"
+  // button. Driven by the server's `round:vocal-turn` events.
+  const vocalMode = !!(room?.settings as any)?.vocalMode
+  const [vocalSpeakerId, setVocalSpeakerId] = useState<string | null>(null)
+  const [vocalPerTurnSeconds, setVocalPerTurnSeconds] = useState(10)
+  const [vocalTurnTimeLeft, setVocalTurnTimeLeft] = useState(0)
+  const [vocalTurnIndex, setVocalTurnIndex] = useState(0)
+  const [vocalTotalSpeakers, setVocalTotalSpeakers] = useState(0)
+  const vocalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatScrollRef = useRef<ScrollView>(null)
   const deadChatScrollRef = useRef<ScrollView>(null)
@@ -438,6 +450,26 @@ export default function GameScreen() {
     // Clue events
     socket.on('round:clue-submitted', (clue) => setClues((c) => [...c, clue as Clue]))
 
+    // Vocal mode: per-player turn announcement. Drives the countdown displayed
+    // on the "Speak now!" card.
+    socket.on('round:vocal-turn' as any, ({ speakerId, speakerIndex, totalSpeakers, perTurnSeconds }: any) => {
+      setVocalSpeakerId(speakerId)
+      setVocalTurnIndex(speakerIndex)
+      setVocalTotalSpeakers(totalSpeakers)
+      setVocalPerTurnSeconds(perTurnSeconds)
+      setVocalTurnTimeLeft(perTurnSeconds)
+      if (vocalTimerRef.current) clearInterval(vocalTimerRef.current)
+      vocalTimerRef.current = setInterval(() => {
+        setVocalTurnTimeLeft((t) => {
+          if (t <= 1) {
+            if (vocalTimerRef.current) clearInterval(vocalTimerRef.current)
+            return 0
+          }
+          return t - 1
+        })
+      }, 1000)
+    })
+
     // Speaking turn — also used as new-round signal
     socket.on('round:speaking-turn', ({ timeSeconds, speakingOrder: _order }: any) => {
       if (phaseRef.current !== 'speaking') {
@@ -462,6 +494,9 @@ export default function GameScreen() {
       log.info('phase: voting', { timeSeconds, playerCount: vPlayers?.length })
       phaseRef.current = 'voting'
       setPhase('voting')
+      // Vocal turns end with the clue phase — stop the per-turn countdown.
+      setVocalSpeakerId(null)
+      if (vocalTimerRef.current) { clearInterval(vocalTimerRef.current); vocalTimerRef.current = null }
       setVoteCount(0)
       setTotalVoters(vPlayers?.length ?? 0)
       setAllVotedMsg(false)
@@ -600,6 +635,8 @@ export default function GameScreen() {
       socket.off('game:player-forfeited')
       socket.off('round:clue-submitted')
       socket.off('round:speaking-turn')
+      socket.off('round:vocal-turn' as any)
+      if (vocalTimerRef.current) { clearInterval(vocalTimerRef.current); vocalTimerRef.current = null }
       socket.off('round:voting-started')
       socket.off('round:ended')
       socket.off('game:finished')
@@ -972,8 +1009,8 @@ export default function GameScreen() {
             </View>
           )}
 
-          {/* ─── Speaking phase: clue input ─────────────────────────────────── */}
-          {phase === 'speaking' && !isEliminated && (
+          {/* ─── Speaking phase: clue input (typing mode) ────────────────────── */}
+          {phase === 'speaking' && !isEliminated && !vocalMode && (
             <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
               <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
                 Your Clue
@@ -1008,6 +1045,90 @@ export default function GameScreen() {
               )}
             </View>
           )}
+
+          {/* ─── Speaking phase: vocal mode (turn-based, no text) ──────────── */}
+          {phase === 'speaking' && !isEliminated && vocalMode && (() => {
+            const speaker = vocalSpeakerId ? players.find((p) => p.userId === vocalSpeakerId) : null
+            const isMyTurn = !!(vocalSpeakerId && user?.id === vocalSpeakerId)
+            const pct =
+              vocalPerTurnSeconds > 0
+                ? Math.max(0, Math.min(1, vocalTurnTimeLeft / vocalPerTurnSeconds))
+                : 0
+            return (
+              <View
+                className={[
+                  'rounded-2xl border p-4',
+                  isMyTurn ? 'bg-violet-950/40 border-violet-700' : 'bg-neutral-900 border-neutral-800',
+                ].join(' ')}
+              >
+                <View className="flex-row items-center justify-between mb-3">
+                  <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                    Vocal turn {Math.min(vocalTurnIndex + 1, vocalTotalSpeakers || 1)} / {vocalTotalSpeakers || 1}
+                  </Text>
+                  <Text
+                    className={[
+                      'text-xs font-bold',
+                      vocalTurnTimeLeft <= 3
+                        ? 'text-red-400'
+                        : isMyTurn
+                          ? 'text-violet-300'
+                          : 'text-neutral-400',
+                    ].join(' ')}
+                  >
+                    {vocalTurnTimeLeft}s
+                  </Text>
+                </View>
+                {/* Countdown bar */}
+                <View className="h-1.5 bg-neutral-800 rounded-full overflow-hidden mb-4">
+                  <View
+                    className={[
+                      'h-full rounded-full',
+                      vocalTurnTimeLeft <= 3
+                        ? 'bg-red-500'
+                        : isMyTurn
+                          ? 'bg-violet-500'
+                          : 'bg-emerald-500',
+                    ].join(' ')}
+                    style={{ width: `${pct * 100}%` }}
+                  />
+                </View>
+                {speaker ? (
+                  <View className="flex-row items-center gap-3 mb-3">
+                    <View className="w-10 h-10 rounded-full bg-neutral-700 items-center justify-center">
+                      <Text className="text-white font-bold">
+                        {(speaker.username ?? '?').charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-white font-bold text-base">
+                        {isMyTurn
+                          ? "It's your turn — speak now!"
+                          : `${speaker.username ?? 'Someone'} is speaking...`}
+                      </Text>
+                      <Text className="text-neutral-500 text-xs mt-0.5">
+                        {isMyTurn
+                          ? 'Give your clue out loud — tap Done when finished'
+                          : 'Listen carefully — your turn is coming'}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <Text className="text-neutral-500 text-sm italic py-2">
+                    Waiting for the next speaker...
+                  </Text>
+                )}
+                {isMyTurn && (
+                  <TouchableOpacity
+                    onPress={() => getSocket().emit('vocal:skip-turn' as any)}
+                    className="bg-violet-600 rounded-xl py-3 items-center"
+                    activeOpacity={0.8}
+                  >
+                    <Text className="text-white font-bold text-sm">I'm done</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )
+          })()}
 
           {/* ─── Voting phase ──────────────────────────────────────────────── */}
           {phase === 'voting' && (
@@ -1203,16 +1324,21 @@ export default function GameScreen() {
           )}
 
           {/* ─── Clues log ─────────────────────────────────────────────────── */}
+          {/* In vocal mode clues aren't typed, so the log is only relevant for
+              post-round review — hide it during the speaking phase. */}
+          {!(vocalMode && phase === 'speaking') && (
           <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
             <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
               Clues — Round {currentRound?.roundNumber ?? 1}
             </Text>
-            {phase === 'speaking' && !hasSubmittedClue && !isEliminated ? (
+            {phase === 'speaking' && !hasSubmittedClue && !isEliminated && !vocalMode ? (
               <Text className="text-neutral-600 text-sm italic">
                 Submit your clue to see what others wrote
               </Text>
             ) : clues.length === 0 ? (
-              <Text className="text-neutral-600 text-sm italic">No clues yet...</Text>
+              <Text className="text-neutral-600 text-sm italic">
+                {vocalMode ? 'No typed clues — this round was spoken aloud' : 'No clues yet...'}
+              </Text>
             ) : (
               <View className="gap-3">
                 {clues.map((clue, i) => {
@@ -1271,6 +1397,7 @@ export default function GameScreen() {
               </View>
             )}
           </View>
+          )}
 
           {/* ─── Players list ──────────────────────────────────────────────── */}
           <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">

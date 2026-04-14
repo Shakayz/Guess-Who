@@ -285,6 +285,8 @@ async function startGameForRoom(
         corruptorCount: state.corruptorCount ?? 0,
         inverterCount: state.inverterCount ?? 0,
         evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
+        vocalMode: state.vocalMode ?? false,
+        vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
       },
     } as any)
 
@@ -530,6 +532,8 @@ export function registerRoomHandlers(
           corruptorCount: state.corruptorCount ?? 0,
           inverterCount: state.inverterCount ?? 0,
           evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
+          vocalMode: state.vocalMode ?? false,
+          vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
           isMatchmade: state.isMatchmade ?? false,
         },
       }
@@ -577,6 +581,19 @@ export function registerRoomHandlers(
     if (newSettings.gameMode)                        state.gameMode = newSettings.gameMode
     if (newSettings.categories !== undefined)         state.categories = newSettings.categories
     if (newSettings.maxRounds         !== undefined) state.maxRounds         = newSettings.maxRounds
+
+    // ── Vocal mode (unranked only) ───────────────────────────────────────────
+    if (newSettings.vocalMode !== undefined) {
+      state.vocalMode = !!newSettings.vocalMode
+    }
+    if (typeof newSettings.vocalSpeakingTimeSeconds === 'number') {
+      state.vocalSpeakingTimeSeconds = Math.min(60, Math.max(5, Math.round(newSettings.vocalSpeakingTimeSeconds)))
+    }
+    // Ranked never uses vocal mode — force-disable regardless of what the
+    // client sends.
+    if (state.gameMode === 'ranked') {
+      state.vocalMode = false
+    }
 
     // Special roles only allowed in 'special' mode — force-disable in normal mode
     if (state.gameMode === 'normal') {
@@ -695,6 +712,8 @@ export function registerRoomHandlers(
         corruptorCount: state.corruptorCount ?? 0,
         inverterCount: state.inverterCount ?? 0,
         evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
+        vocalMode: state.vocalMode ?? false,
+        vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
         isMatchmade: state.isMatchmade ?? false,
       },
     }
@@ -742,6 +761,8 @@ export function registerRoomHandlers(
         corruptorCount: state.corruptorCount ?? 0,
         inverterCount: state.inverterCount ?? 0,
         evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
+        vocalMode: state.vocalMode ?? false,
+        vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
         isMatchmade: state.isMatchmade ?? false,
       },
     }
