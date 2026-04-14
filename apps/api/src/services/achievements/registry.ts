@@ -6,7 +6,10 @@
 // adding new entries here is a zero-downtime operation.
 
 import type { AchievementDef, Evaluator, EventType } from './types'
+import { childLogger } from '../../config/logger'
 import { GAME_END_DEFS, GAME_END_EVALS } from './evaluators/gameEnd'
+
+const log = childLogger('achievements:registry')
 import { SOCIAL_DEFS, SOCIAL_EVALS } from './evaluators/social'
 import { RANKED_DEFS, RANKED_EVALS } from './evaluators/ranked'
 import { ECONOMY_DEFS, ECONOMY_EVALS } from './evaluators/economy'
@@ -54,8 +57,7 @@ for (const def of ALL_DEFS) {
 const defKeys = new Set(dedupedDefs.map((d) => d.key))
 for (const ev of ALL_EVALS) {
   if (!defKeys.has(ev.key)) {
-    // eslint-disable-next-line no-console
-    console.warn(`[achievements] evaluator references unknown key: ${ev.key}`)
+    log.warn({ key: ev.key }, 'evaluator references unknown achievement key')
   }
 }
 
