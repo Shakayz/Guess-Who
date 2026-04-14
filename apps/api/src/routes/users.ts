@@ -89,6 +89,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     const { token } = req.body as { token?: string }
     if (!token) return reply.status(400).send({ error: 'token is required' })
     await prisma.user.update({ where: { id: userId }, data: { pushToken: token } })
+    req.log.info({ userId }, 'push token registered')
     return reply.send({ success: true })
   })
 
@@ -96,6 +97,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete('/me/push-token', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
     await prisma.user.update({ where: { id: userId }, data: { pushToken: null } })
+    req.log.info({ userId }, 'push token cleared')
     return reply.send({ success: true })
   })
 
@@ -103,22 +105,32 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put('/me/password', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
     const { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string }
+    req.log.info({ userId }, 'password change attempt')
 
     const user = await prisma.user.findUnique({ where: { id: userId } })
-    if (!user?.passwordHash) return reply.status(400).send({ error: 'OAuth accounts cannot change password' })
+    if (!user?.passwordHash) {
+      req.log.warn({ userId }, 'password change failed: OAuth account has no password')
+      return reply.status(400).send({ error: 'OAuth accounts cannot change password' })
+    }
 
     const valid = await bcrypt.compare(currentPassword, user.passwordHash)
-    if (!valid) return reply.status(401).send({ error: 'Current password is incorrect' })
+    if (!valid) {
+      req.log.warn({ userId }, 'password change failed: current password incorrect')
+      return reply.status(401).send({ error: 'Current password is incorrect' })
+    }
 
     const hashed = await bcrypt.hash(newPassword, 12)
     await prisma.user.update({ where: { id: userId }, data: { passwordHash: hashed } })
+    req.log.info({ userId }, 'password changed')
     return reply.send({ success: true })
   })
 
   // DELETE /api/users/me — delete own account
   fastify.delete('/me', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
+    req.log.warn({ userId }, 'account deletion requested')
     await prisma.user.delete({ where: { id: userId } })
+    req.log.warn({ userId }, 'account deleted')
     return reply.send({ success: true })
   })
 
@@ -232,6 +244,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       },
     })
 
+    req.log.info({ blockerId, blockedId: userId }, 'user blocked')
     return reply.send({ success: true })
   })
 
@@ -240,6 +253,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     const blockerId = (req.user as { sub: string }).sub
     const { userId } = req.params as { userId: string }
     await prisma.block.deleteMany({ where: { blockerId, blockedId: userId } })
+    req.log.info({ blockerId, blockedId: userId }, 'user unblocked')
     return reply.send({ success: true })
   })
 
@@ -260,12 +274,16 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     const { reason, details } = req.body as { reason: string; details?: string }
 
     const VALID_REASONS = ['cheating', 'harassment', 'hate_speech', 'inappropriate_name', 'spam', 'other']
-    if (!VALID_REASONS.includes(reason)) return reply.status(400).send({ error: 'Invalid reason' })
+    if (!VALID_REASONS.includes(reason)) {
+      req.log.warn({ reporterId, reportedId: userId, reason }, 'invalid report reason')
+      return reply.status(400).send({ error: 'Invalid reason' })
+    }
 
     await prisma.report.create({
       data: { reporterId, reportedId: userId, reason, details: details?.slice(0, 500) },
     })
 
+    req.log.warn({ reporterId, reportedId: userId, reason }, 'user reported')
     return reply.send({ success: true })
   })
 

@@ -171,7 +171,20 @@ export async function applyGameEndRewards(
     // that resolves to `undefined`; without this guard the per-player loop in
     // finishGameWithWinner would crash with "Cannot read properties of
     // undefined".
-    return result ?? ZERO_REWARDS
+    const applied = result ?? ZERO_REWARDS
+    if (applied.dailyBonusEarned > 0 || applied.streakBonusEarned > 0) {
+      log.info(
+        {
+          userId,
+          baseStarCoins: applied.baseStarCoinsEarned,
+          dailyBonus: applied.dailyBonusEarned,
+          streakBonus: applied.streakBonusEarned,
+          newStreakCount: applied.newStreakCount,
+        },
+        'game-end rewards applied with daily/streak bonus',
+      )
+    }
+    return applied
   } catch (err) {
     log.error({ err, userId }, 'applyGameEndRewards transaction failed')
     return ZERO_REWARDS

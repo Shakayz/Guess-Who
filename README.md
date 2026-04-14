@@ -304,6 +304,36 @@ See [infra/aws/README.md](infra/aws/README.md) for deployment instructions.
 
 ---
 
+## Logs & Observability
+
+The API uses a single **pino** instance with dual stdout + file output. Every
+line is structured JSON (pretty-printed in dev) carrying `service`, `env`,
+`pid`, and a `name` namespace such as `socket:room` or `lp-decay`.
+
+### Quick access
+
+| Where                     | How                                                       |
+|---------------------------|-----------------------------------------------------------|
+| API in dev (terminal)     | `pnpm --filter @imposter/api dev` — pretty stdout         |
+| API rolling log file      | `tail -f apps/api/logs/api.log` (pipe to `npx pino-pretty`) |
+| Docker Compose            | `docker compose logs -f api`                              |
+| AWS ECS (production)      | CloudWatch Logs → `/ecs/imposter-api`, or `aws logs tail /ecs/imposter-api --follow` |
+| Web                       | Browser DevTools → Console (filter by `[module]` prefix)  |
+| Mobile (Metro)            | `pnpm --filter @imposter/mobile dev` terminal, or Expo DevTools Logs tab |
+
+### Runtime toggles (API)
+
+```bash
+LOG_LEVEL=debug           # trace|debug|info|warn|error|silent  (default: info)
+LOG_TO_FILE=1             # force file sink on in dev (prod: on by default)
+LOG_FILE=/var/log/api.log # override the default apps/api/logs/api.log path
+```
+
+See [`docs/logs.md`](docs/logs.md) for the full guide, field reference,
+`jq`/CloudWatch query recipes, and conventions when adding new logs.
+
+---
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -314,6 +344,7 @@ See [infra/aws/README.md](infra/aws/README.md) for deployment instructions.
 | Mobile can't connect to API | Set `EXPO_PUBLIC_API_URL` to your machine's IP |
 | Build fails on DTS | Run `pnpm --filter @imposter/shared build` first |
 | Tests fail | Ensure shared package is built: `pnpm --filter @imposter/shared build` |
+| Need to see what went wrong | Check the logs — see [`docs/logs.md`](docs/logs.md) |
 
 ---
 

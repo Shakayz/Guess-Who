@@ -9,9 +9,12 @@
 // Recursion is capped at depth 3 to cover at most three chained tiers.
 
 import { prisma } from '../../config/prisma'
+import { childLogger } from '../../config/logger'
 import { onlineUsers } from '../../socket/onlineUsers'
 import { buildUserStats } from './statsCache'
 import { EVALUATORS_BY_EVENT } from './registry'
+
+const log = childLogger('achievements')
 import type {
   EventContext,
   EventType,
@@ -110,8 +113,7 @@ export async function evaluateEvent(
     return await unlockAchievements(io, userId, firing, depth)
   } catch (err) {
     // Never let achievement evaluation throw out to the caller.
-    // eslint-disable-next-line no-console
-    console.error('[achievements] evaluateEvent failed', { event, userId, err })
+    log.error({ err, event, userId }, 'evaluateEvent failed')
     return []
   }
 }
@@ -160,6 +162,8 @@ export async function unlockAchievements(
   }
 
   if (unlockedKeys.length === 0) return []
+
+  log.info({ userId, keys: unlockedKeys, count: unlockedKeys.length }, 'achievements unlocked')
 
   // Emit socket notifications so the web client can show a toast + invalidate
   // the achievements query. We deliver directly to the user's connected
