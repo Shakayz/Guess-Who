@@ -86,7 +86,7 @@ export default {
     findGame: '🎮 Find Unranked Game',
     findRanked: '🏆 Find Ranked Game',
     createLobby: '🚪 Create Lobby',
-    costHint: 'Costs {{cost}} ⭐ per player',
+    costHint: 'Costs {{cost}} ⭐',
     costHintHost: 'Costs {{cost}} ⭐ (host only)',
     creating: 'Creating room...',
     findingPlayers: 'Finding players...',

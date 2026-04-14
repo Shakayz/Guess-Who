@@ -85,7 +85,7 @@ export default {
     findGame: '🎮 إيجاد مباراة غير مصنفة',
     findRanked: '🏆 ابحث عن مباراة مصنّفة',
     createLobby: '🚪 إنشاء غرفة',
-    costHint: 'التكلفة {{cost}} ⭐ لكل لاعب',
+    costHint: 'التكلفة {{cost}} ⭐',
     costHintHost: 'التكلفة {{cost}} ⭐ (للمضيف فقط)',
     creating: 'جار إنشاء الغرفة...',
     findingPlayers: 'البحث عن لاعبين...',

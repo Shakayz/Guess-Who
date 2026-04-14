@@ -86,7 +86,7 @@ export default {
     findGame: '🎮 Trouver une partie non classée',
     findRanked: '🏆 Trouver une partie classée',
     createLobby: '🚪 Créer un lobby',
-    costHint: 'Coûte {{cost}} ⭐ par joueur',
+    costHint: 'Coûte {{cost}} ⭐',
     costHintHost: 'Coûte {{cost}} ⭐ (hôte uniquement)',
     creating: 'Création de la salle...',
     findingPlayers: 'Recherche de joueurs...',
