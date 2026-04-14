@@ -55,3 +55,7 @@ deploy/.env*
 
 # Dev scripts — local bot credentials contain valid JWTs
 scripts/.bots.json
+
+# Redis
+dump.rdb
+appendonlydir/
