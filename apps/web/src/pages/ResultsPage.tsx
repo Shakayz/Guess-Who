@@ -10,6 +10,7 @@ import type { RankTier, Round } from '@imposter/shared'
 import { getSocket } from '../lib/socket'
 import { SoundManager } from '../lib/sounds'
 import { PlayerActionMenu } from '../components/PlayerActionMenu'
+import { CoinsRevealCard } from '../components/CoinsRevealCard'
 
 /** Full-screen cinematic intro overlay that auto-dismisses */
 const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: () => void }) => {
@@ -318,7 +319,6 @@ export default function ResultsPage() {
   const isLobby = room?.settings?.isPrivate ?? false
 
   // Animated counters — must be called before any conditional return (hooks rule)
-  const animatedStars = useAnimatedNumber(Math.abs(rewards?.starCoinsEarned ?? 0))
   const animatedXP = useAnimatedNumber(Math.abs(rewards?.xpEarned ?? 0))
   const animatedLP = useAnimatedNumber(Math.abs(rewards?.lpChange ?? 0))
 
@@ -525,64 +525,42 @@ export default function ResultsPage() {
           {/* Animated Rewards */}
           <div className="card border-neutral-800/60">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('results.rewards')}</p>
-            <div className={['grid gap-3', isRanked ? 'grid-cols-3' : isLobby ? 'grid-cols-1' : 'grid-cols-2'].join(' ')}>
-              <div className="flex flex-col items-center gap-1 p-4 rounded-xl bg-gradient-to-b from-amber-950/40 to-neutral-800/60 border border-amber-800/30 animate-count-up shadow-sm shadow-amber-950/30 relative overflow-hidden" style={{ animationDelay: '0.1s' }}>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-400/5 to-transparent -translate-x-full animate-[shimmer_2s_ease-in-out_1.2s_1_forwards]" style={{ backgroundSize: '200% 100%' }} />
-                <span className="text-2xl">⭐</span>
-                <span className="text-xl font-bold text-amber-300 tabular-nums">+{animatedStars}</span>
-                <span className="text-xs text-neutral-500">{t('results.starCoins')}</span>
-              </div>
-              {!isLobby && (
-                <div className="flex flex-col items-center gap-1 p-4 rounded-xl bg-gradient-to-b from-blue-950/40 to-neutral-800/60 border border-blue-800/30 animate-count-up shadow-sm shadow-blue-950/30 relative overflow-hidden" style={{ animationDelay: '0.3s' }}>
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-400/5 to-transparent -translate-x-full animate-[shimmer_2s_ease-in-out_1.4s_1_forwards]" style={{ backgroundSize: '200% 100%' }} />
-                  <span className="text-2xl">⚡</span>
-                  <span className="text-xl font-bold text-blue-300 tabular-nums">+{animatedXP}</span>
-                  <span className="text-xs text-neutral-500">{t('results.xp')}</span>
-                </div>
-              )}
-              {isRanked && (
-                <div className={[
-                  'flex flex-col items-center gap-1 p-4 rounded-xl border animate-count-up relative overflow-hidden',
-                  (rewards?.lpChange ?? 0) >= 0
-                    ? 'bg-gradient-to-b from-emerald-950/40 to-neutral-800/60 border-emerald-800/30 shadow-sm shadow-emerald-950/30'
-                    : 'bg-gradient-to-b from-red-950/40 to-neutral-800/60 border-red-800/30 shadow-sm shadow-red-950/30',
-                ].join(' ')} style={{ animationDelay: '0.5s' }}>
-                  <span className="text-2xl">📊</span>
-                  <span className={[
-                    'text-xl font-bold tabular-nums',
-                    (rewards?.lpChange ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400',
-                  ].join(' ')}>
-                    {(rewards?.lpChange ?? 0) >= 0 ? '+' : '-'}{animatedLP}
-                  </span>
-                  <span className="text-xs text-neutral-500">{t('results.lp')}</span>
-                </div>
-              )}
-            </div>
 
-            {/* Daily / streak bonuses — shown only when the server awarded them */}
-            {((rewards?.dailyBonusEarned ?? 0) > 0 || (rewards?.streakBonusEarned ?? 0) > 0 || (rewards?.newStreakCount ?? 0) > 0 || (rewards?.gameCostPaid ?? 0) > 0) && (
-              <div className="mt-3 pt-3 border-t border-neutral-800 space-y-2">
-                {(rewards?.gameCostPaid ?? 0) > 0 && (
-                  <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-900/60 border border-neutral-700/60 animate-slide-up">
-                    <span className="text-sm text-neutral-300 font-semibold">🎟️ {t('results.gameCost')}</span>
-                    <span className="text-sm font-bold text-red-300 tabular-nums">−{rewards!.gameCostPaid} ⭐</span>
+            {/* Hero: modern "coins won" reveal card */}
+            <CoinsRevealCard
+              baseEarned={rewards?.starCoinsEarned ?? 0}
+              dailyBonus={rewards?.dailyBonusEarned ?? 0}
+              streakBonus={rewards?.streakBonusEarned ?? 0}
+              gameCost={rewards?.gameCostPaid ?? 0}
+              newStreakCount={rewards?.newStreakCount ?? 0}
+            />
+
+            {/* XP / LP secondary chips (coins live in the hero card above) */}
+            {(!isLobby || isRanked) && (
+              <div className={['grid gap-3 mt-3', isRanked && !isLobby ? 'grid-cols-2' : 'grid-cols-1'].join(' ')}>
+                {!isLobby && (
+                  <div className="flex flex-col items-center gap-1 p-4 rounded-xl bg-gradient-to-b from-blue-950/40 to-neutral-800/60 border border-blue-800/30 animate-count-up shadow-sm shadow-blue-950/30 relative overflow-hidden" style={{ animationDelay: '0.3s' }}>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-400/5 to-transparent -translate-x-full animate-[shimmer_2s_ease-in-out_1.4s_1_forwards]" style={{ backgroundSize: '200% 100%' }} />
+                    <span className="text-2xl">⚡</span>
+                    <span className="text-xl font-bold text-blue-300 tabular-nums">+{animatedXP}</span>
+                    <span className="text-xs text-neutral-500">{t('results.xp')}</span>
                   </div>
                 )}
-                {(rewards?.dailyBonusEarned ?? 0) > 0 && (
-                  <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-amber-950/30 border border-amber-800/40 animate-slide-up">
-                    <span className="text-sm text-amber-200 font-semibold">🌅 {t('results.dailyBonus')}</span>
-                    <span className="text-sm font-bold text-amber-300 tabular-nums">+{rewards!.dailyBonusEarned} ⭐</span>
-                  </div>
-                )}
-                {(rewards?.streakBonusEarned ?? 0) > 0 && (
-                  <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-orange-950/40 border border-orange-700/50 animate-slide-up">
-                    <span className="text-sm text-orange-200 font-semibold">🔥 {t('results.streakBonus')}</span>
-                    <span className="text-sm font-bold text-orange-300 tabular-nums">+{rewards!.streakBonusEarned} ⭐</span>
-                  </div>
-                )}
-                {(rewards?.newStreakCount ?? 0) > 0 && (
-                  <div className="text-center text-xs text-neutral-500 pt-1">
-                    {t('results.streakProgress', { count: ((rewards!.newStreakCount! - 1) % 7) + 1 })}
+                {isRanked && (
+                  <div className={[
+                    'flex flex-col items-center gap-1 p-4 rounded-xl border animate-count-up relative overflow-hidden',
+                    (rewards?.lpChange ?? 0) >= 0
+                      ? 'bg-gradient-to-b from-emerald-950/40 to-neutral-800/60 border-emerald-800/30 shadow-sm shadow-emerald-950/30'
+                      : 'bg-gradient-to-b from-red-950/40 to-neutral-800/60 border-red-800/30 shadow-sm shadow-red-950/30',
+                  ].join(' ')} style={{ animationDelay: '0.5s' }}>
+                    <span className="text-2xl">📊</span>
+                    <span className={[
+                      'text-xl font-bold tabular-nums',
+                      (rewards?.lpChange ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400',
+                    ].join(' ')}>
+                      {(rewards?.lpChange ?? 0) >= 0 ? '+' : '-'}{animatedLP}
+                    </span>
+                    <span className="text-xs text-neutral-500">{t('results.lp')}</span>
                   </div>
                 )}
               </div>

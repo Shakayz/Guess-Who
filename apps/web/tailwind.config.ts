@@ -41,6 +41,14 @@ export default {
         'burst-label':   'burstLabel 1.1s ease-out forwards',
         'coin-tick':     'coinTick 0.6s ease-out',
         'rainbow-border': 'rainbowShift 3s linear infinite',
+        // Modern reward reveal animations
+        'card-flip-in':  'cardFlipIn 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+        'card-flip-hero':'cardFlipHero 1.1s cubic-bezier(0.34, 1.4, 0.5, 1) forwards',
+        'coin-rain':     'coinRain 1.8s ease-in forwards',
+        'coin-spin':     'coinSpin 1.4s linear infinite',
+        'glow-pulse':    'glowPulse 2.6s ease-in-out infinite',
+        'sheen-sweep':   'sheenSweep 2.4s ease-in-out 0.6s infinite',
+        'pop-in':        'popIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
       },
       keyframes: {
         fadeIn:   { from: { opacity: '0' },                 to: { opacity: '1' } },
@@ -98,6 +106,41 @@ export default {
         rainbowShift: {
           '0%':   { backgroundPosition: '0% 50%' },
           '100%': { backgroundPosition: '200% 50%' },
+        },
+        cardFlipIn: {
+          '0%':   { opacity: '0', transform: 'perspective(900px) rotateY(-90deg) scale(0.85)' },
+          '55%':  { opacity: '1', transform: 'perspective(900px) rotateY(18deg)  scale(1.03)' },
+          '80%':  {                transform: 'perspective(900px) rotateY(-6deg)  scale(0.99)' },
+          '100%': { opacity: '1', transform: 'perspective(900px) rotateY(0deg)   scale(1)' },
+        },
+        cardFlipHero: {
+          '0%':   { opacity: '0', transform: 'perspective(1200px) rotateX(70deg) rotateY(-30deg) scale(0.7)' },
+          '45%':  { opacity: '1', transform: 'perspective(1200px) rotateX(-8deg) rotateY(10deg)  scale(1.06)' },
+          '70%':  {                transform: 'perspective(1200px) rotateX(3deg)  rotateY(-3deg) scale(0.99)' },
+          '100%': { opacity: '1', transform: 'perspective(1200px) rotateX(0deg)  rotateY(0deg)  scale(1)' },
+        },
+        coinRain: {
+          '0%':   { opacity: '0', transform: 'translate(var(--cx,0), -10px) rotate(0deg)  scale(0.6)' },
+          '12%':  { opacity: '1' },
+          '100%': { opacity: '0', transform: 'translate(var(--cx,0), 220px) rotate(540deg) scale(1.1)' },
+        },
+        coinSpin: {
+          '0%':   { transform: 'rotateY(0deg)' },
+          '100%': { transform: 'rotateY(360deg)' },
+        },
+        glowPulse: {
+          '0%, 100%': { boxShadow: '0 0 22px 2px rgba(251,191,36,0.25), 0 0 60px -10px rgba(251,191,36,0.35) inset' },
+          '50%':      { boxShadow: '0 0 44px 6px rgba(251,191,36,0.55), 0 0 90px -10px rgba(251,191,36,0.55) inset' },
+        },
+        sheenSweep: {
+          '0%':   { transform: 'translateX(-120%) skewX(-18deg)', opacity: '0' },
+          '20%':  { opacity: '0.6' },
+          '100%': { transform: 'translateX(220%) skewX(-18deg)',  opacity: '0' },
+        },
+        popIn: {
+          '0%':   { opacity: '0', transform: 'scale(0.3) translateY(8px)' },
+          '60%':  { opacity: '1', transform: 'scale(1.12) translateY(-2px)' },
+          '100%': { opacity: '1', transform: 'scale(1)   translateY(0)' },
         },
       },
     },

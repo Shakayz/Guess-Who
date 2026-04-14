@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import { useResponsive } from '../../lib/responsive'
 import { HapticManager } from '../../lib/haptics'
 import { SoundManager } from '../../lib/sounds'
+import { CoinsRevealCard } from '../../components/CoinsRevealCard'
 
 const HONOR_OPTIONS: { type: HonorType; label: string; icon: string }[] = [
   { type: 'teamplayer', label: 'Team Player', icon: '🤝' },
@@ -150,20 +151,23 @@ export default function ResultsScreen() {
           <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
             Rewards Earned
           </Text>
-          <View className="flex-row gap-2">
-            {/* Star Coins */}
-            <View className="flex-1 items-center gap-1.5 py-4 px-2 rounded-2xl bg-amber-950/30 border border-amber-800/40">
-              <Text style={{ fontSize: 22 }}>⭐</Text>
-              <Text className="text-lg font-extrabold text-amber-300">+{rewards.starCoinsEarned}</Text>
-              <Text className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider">Coins</Text>
-            </View>
-            {/* XP */}
+
+          {/* Hero: modern "coins won" reveal card */}
+          <CoinsRevealCard
+            baseEarned={rewards.starCoinsEarned}
+            dailyBonus={rewards.dailyBonusEarned ?? 0}
+            streakBonus={rewards.streakBonusEarned ?? 0}
+            gameCost={rewards.gameCostPaid ?? 0}
+            newStreakCount={rewards.newStreakCount ?? 0}
+          />
+
+          {/* XP / LP secondary chips (coins live in the hero card above) */}
+          <View className="flex-row gap-2 mt-3">
             <View className="flex-1 items-center gap-1.5 py-4 px-2 rounded-2xl bg-violet-950/30 border border-violet-800/40">
               <Text style={{ fontSize: 22 }}>⚡</Text>
               <Text className="text-lg font-extrabold text-violet-300">+{rewards.xpEarned}</Text>
               <Text className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider">XP</Text>
             </View>
-            {/* LP */}
             <View
               className={[
                 'flex-1 items-center gap-1.5 py-4 px-2 rounded-2xl border',
@@ -184,38 +188,6 @@ export default function ResultsScreen() {
               <Text className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider">LP</Text>
             </View>
           </View>
-
-          {/* Daily / streak / cost bonus rows */}
-          {((rewards.dailyBonusEarned ?? 0) > 0 ||
-            (rewards.streakBonusEarned ?? 0) > 0 ||
-            (rewards.newStreakCount ?? 0) > 0 ||
-            (rewards.gameCostPaid ?? 0) > 0) && (
-            <View className="mt-3 pt-3 border-t border-neutral-800 gap-2">
-              {(rewards.gameCostPaid ?? 0) > 0 && (
-                <View className="flex-row items-center justify-between px-3 py-2 rounded-lg bg-neutral-900/60 border border-neutral-700/60">
-                  <Text className="text-neutral-300 font-semibold" style={{ fontSize: 13 * fontScale }}>🎟️ {t('results.gameCost', { defaultValue: 'Entry fee' })}</Text>
-                  <Text className="font-bold text-red-300" style={{ fontSize: 13 * fontScale }}>−{rewards.gameCostPaid} ⭐</Text>
-                </View>
-              )}
-              {(rewards.dailyBonusEarned ?? 0) > 0 && (
-                <View className="flex-row items-center justify-between px-3 py-2 rounded-lg bg-amber-950/30 border border-amber-800/40">
-                  <Text className="text-amber-200 font-semibold" style={{ fontSize: 13 * fontScale }}>🌅 {t('results.dailyBonus', { defaultValue: 'Daily bonus' })}</Text>
-                  <Text className="font-bold text-amber-300" style={{ fontSize: 13 * fontScale }}>+{rewards.dailyBonusEarned} ⭐</Text>
-                </View>
-              )}
-              {(rewards.streakBonusEarned ?? 0) > 0 && (
-                <View className="flex-row items-center justify-between px-3 py-2 rounded-lg bg-orange-950/40 border border-orange-700/50">
-                  <Text className="text-orange-200 font-semibold" style={{ fontSize: 13 * fontScale }}>🔥 {t('results.streakBonus', { defaultValue: '7-day streak bonus' })}</Text>
-                  <Text className="font-bold text-orange-300" style={{ fontSize: 13 * fontScale }}>+{rewards.streakBonusEarned} ⭐</Text>
-                </View>
-              )}
-              {(rewards.newStreakCount ?? 0) > 0 && (
-                <Text className="text-center text-neutral-500 pt-0.5" style={{ fontSize: 11 * fontScale }}>
-                  {t('results.streakProgress', { count: ((rewards.newStreakCount! - 1) % 7) + 1, defaultValue: `Day ${((rewards.newStreakCount! - 1) % 7) + 1}/7 of your streak` })}
-                </Text>
-              )}
-            </View>
-          )}
 
           {/* Achievements */}
           {rewards.achievements.length > 0 && (
