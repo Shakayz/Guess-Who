@@ -346,19 +346,31 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Honors are grouped by type and joined to game.gameMode via Honor.gameId.
     // Honors with no gameId (gifted outside a game) are bucketed as "unranked".
+    //
+    // NOTE: Honor has no Prisma relation to Game (only a scalar gameId), so we
+    // can't filter through a `game` nested where. We fetch the set of Game ids
+    // for the mode first and then filter honors by `gameId in (…)`.
     const honorsForMode = async (mode: 'ranked' | 'unranked') => {
-      const gameModeFilter =
+      const gamesInMode = await prisma.game.findMany({
+        where: mode === 'ranked' ? { gameMode: 'ranked' } : { gameMode: { not: 'ranked' } },
+        select: { id: true },
+      })
+      const gameIds = gamesInMode.map((g) => g.id)
+
+      const where =
         mode === 'ranked'
-          ? { game: { gameMode: 'ranked' } }
+          ? { receiverId: id, gameId: { in: gameIds } }
           : {
+              receiverId: id,
               OR: [
-                { game: { gameMode: { not: 'ranked' } } },
+                { gameId: { in: gameIds } },
                 { gameId: null },
               ],
             }
+
       const grouped = await prisma.honor.groupBy({
         by: ['type'],
-        where: { receiverId: id, ...gameModeFilter },
+        where,
         _count: { type: true },
       })
       return grouped.map((h) => ({ type: h.type, count: h._count.type }))
