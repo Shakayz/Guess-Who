@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { WORD_CATEGORIES, shuffleArray, OFFLINE_WORD_PAIRS, pickRandomWordPair } from '@imposter/shared'
 import type { WordCategory } from '@imposter/shared'
+import { SoundManager } from '../lib/sounds'
+import { HapticManager } from '../lib/haptics'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -990,10 +992,17 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
 
   const handleReady = () => {
     setShowingCard(true)
+    // Play the reveal stinger and a success haptic as the card flips in —
+    // this is the single biggest "ooh" moment of offline pass-and-play,
+    // so we lean on sound + vibration + the stamp-in keyframe together.
+    SoundManager.play('reveal')
+    HapticManager.success()
     setTimeout(() => setRevealed(true), 50)
   }
 
   const handleGotIt = () => {
+    SoundManager.play('click')
+    HapticManager.light()
     setShowingCard(false)
     setRevealed(false)
     const next = currentIndex + 1
@@ -1084,18 +1093,23 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
       ) : (
         <div
           className={[
-            'w-full max-w-sm mx-auto transition-all duration-500',
-            revealed ? 'opacity-100 scale-100' : 'opacity-0 scale-75',
+            'w-full max-w-sm mx-auto',
+            revealed ? 'opacity-100 animate-flip-in' : 'opacity-0 scale-75',
           ].join(' ')}
         >
-          <div className={`rounded-3xl border-2 p-8 text-center space-y-6 shadow-2xl ${cardBg} ${cardBorder} ${cardShadow}`}>
-            <div className="text-6xl">{rc.icon}</div>
+          <div className={`relative rounded-3xl border-2 p-8 text-center space-y-6 shadow-2xl ${cardBg} ${cardBorder} ${cardShadow} animate-glow-pulse`}>
+            {/* Soft rotating accent ring — AAA card-reveal shimmer */}
+            <div className="pointer-events-none absolute inset-0 rounded-3xl overflow-hidden">
+              <div className="absolute -inset-1/2 opacity-20 bg-gradient-conic from-transparent via-white/10 to-transparent animate-ray-spin" />
+            </div>
+
+            <div className="text-6xl animate-pop-in">{rc.icon}</div>
 
             <div>
               <p className={`text-xs font-bold uppercase tracking-widest mb-1 ${rc.badgeClass}`}>
                 {t('offline.yourRole')}
               </p>
-              <p className={`text-2xl font-extrabold ${rc.textClass}`}>
+              <p className={`text-2xl font-extrabold ${rc.textClass} animate-stamp-in`}>
                 {rc.label}
               </p>
               {(() => {
@@ -1208,7 +1222,16 @@ function SpeakingTimer({ defaultSeconds = 30 }: SpeakingTimerProps) {
           if (r <= 1) {
             clearInterval(intervalRef.current!)
             setRunning(false)
+            // Time-up: warning pulse + long haptic
+            SoundManager.play('timer_warning')
+            HapticManager.warning()
             return 0
+          }
+          // Last-5-second countdown gets a clicky tick + soft vibration
+          // so players get a "crunch time" feel without needing to look.
+          if (r <= 6) {
+            SoundManager.play('timer_tick')
+            HapticManager.selection()
           }
           return r - 1
         })
@@ -1226,13 +1249,21 @@ function SpeakingTimer({ defaultSeconds = 30 }: SpeakingTimerProps) {
   }
 
   const colorClass = pct > 0.5 ? 'stroke-brand-500' : pct > 0.25 ? 'stroke-amber-500' : 'stroke-red-500'
+  const isUrgent = running && remaining > 0 && remaining <= 5
+  const isExpired = remaining === 0 && totalSeconds > 0
 
   return (
     <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-3">
       <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">{t('offline.speakingTimer')}</p>
 
       <div className="flex items-center gap-4">
-        <div className="relative w-24 h-24 shrink-0">
+        <div
+          className={[
+            'relative w-24 h-24 shrink-0 rounded-full',
+            isUrgent ? 'animate-urgent-pulse' : running ? 'animate-breathe' : '',
+            isExpired ? 'animate-shake' : '',
+          ].join(' ')}
+        >
           <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
             <circle
               cx="50" cy="50" r={radius}
@@ -1817,38 +1848,59 @@ function VoteResult({ votes, eliminated, protectedPlayerName, silencedVoterNames
 
   const eliminatedRc = eliminated ? ROLES[eliminated.role] : null
 
+  // Animate the tally bars from 0 → real width on mount. This gives the
+  // vote reveal the same theatrical build-up as a results screen.
+  const [barsRevealed, setBarsRevealed] = useState(false)
+  useEffect(() => {
+    // Sound + haptic stinger for the outcome — matches mobile parity.
+    if (protectedPlayerName) {
+      SoundManager.play('notification')
+      HapticManager.medium()
+    } else if (eliminated) {
+      SoundManager.play('elimination')
+      HapticManager.heavy()
+    } else {
+      SoundManager.play('click')
+      HapticManager.light()
+    }
+    const id = setTimeout(() => setBarsRevealed(true), 350)
+    return () => clearTimeout(id)
+  }, [eliminated, protectedPlayerName])
+
   return (
     <div className="space-y-5 animate-slide-up">
       {protectedPlayerName ? (
-        <div className="text-center space-y-2">
-          <div className="text-4xl">🛡️</div>
-          <h2 className="text-xl font-extrabold text-yellow-400">
+        <div className="text-center space-y-2 animate-pop-in">
+          <div className="text-5xl animate-tada">🛡️</div>
+          <h2 className="text-xl font-extrabold text-yellow-400 animate-stamp-in">
             {t('offline.protectionTriggered', { name: protectedPlayerName })}
           </h2>
         </div>
       ) : eliminated && eliminatedRc ? (
-        <div className="w-full max-w-sm mx-auto">
+        <div className="w-full max-w-sm mx-auto animate-pop-in">
+          {/* Briefly flash the screen red to sell the elimination hit */}
+          <div className="pointer-events-none fixed inset-0 bg-red-600/60 animate-screen-flash -z-0" aria-hidden />
           <div
-            className={`rounded-3xl border-2 p-6 text-center space-y-4 shadow-2xl ${eliminatedRc.bgClass} ${eliminatedRc.borderClass}`}
+            className={`relative rounded-3xl border-2 p-6 text-center space-y-4 shadow-2xl ${eliminatedRc.bgClass} ${eliminatedRc.borderClass}`}
           >
-            <div className="text-xs font-bold uppercase tracking-widest text-red-400">
+            <div className="text-xs font-bold uppercase tracking-widest text-red-400 animate-urgent-pulse inline-block px-3 py-1 rounded-full bg-red-950/60 border border-red-700/60">
               🗳️ {t('offline.eliminated')}
             </div>
-            <div className="text-6xl">{eliminatedRc.icon}</div>
+            <div className="text-6xl animate-death-fall">{eliminatedRc.icon}</div>
             <div>
-              <p className="text-3xl font-extrabold text-white mb-2">{eliminated.name}</p>
+              <p className="text-3xl font-extrabold text-white mb-2 animate-stamp-in">{eliminated.name}</p>
               <p className={`text-[11px] font-bold uppercase tracking-widest ${eliminatedRc.badgeClass}`}>
                 {t('offline.theyWere')}
               </p>
-              <p className={`text-2xl font-extrabold ${eliminatedRc.textClass}`}>
+              <p className={`text-2xl font-extrabold ${eliminatedRc.textClass} animate-flip-in`}>
                 {eliminatedRc.label}
               </p>
             </div>
           </div>
         </div>
       ) : (
-        <div className="text-center space-y-2">
-          <div className="text-4xl">🤷</div>
+        <div className="text-center space-y-2 animate-pop-in">
+          <div className="text-4xl animate-wobble">🤷</div>
           <h2 className="text-xl font-extrabold text-white">
             {t('offline.noOneEliminated')}
           </h2>
@@ -1857,21 +1909,28 @@ function VoteResult({ votes, eliminated, protectedPlayerName, silencedVoterNames
 
       <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-2">
         <p className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">{t('offline.voteTally')}</p>
-        {sorted.map(([name, count]) => (
-          <div key={name} className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-white w-28 truncate">{name}</span>
-            <div className="flex-1 bg-neutral-800 rounded-full h-2">
-              <div
-                className={[
-                  'h-2 rounded-full transition-all',
-                  eliminated?.name === name ? 'bg-red-500' : 'bg-neutral-600',
-                ].join(' ')}
-                style={{ width: `${(count / Math.max(totalCounted, 1)) * 100}%` }}
-              />
+        {sorted.map(([name, count], idx) => {
+          const targetWidth = (count / Math.max(totalCounted, 1)) * 100
+          return (
+            <div
+              key={name}
+              className="flex items-center gap-3 animate-slide-up"
+              style={{ animationDelay: `${idx * 70}ms`, animationFillMode: 'backwards' }}
+            >
+              <span className="text-sm font-semibold text-white w-28 truncate">{name}</span>
+              <div className="flex-1 bg-neutral-800 rounded-full h-2 overflow-hidden">
+                <div
+                  className={[
+                    'h-2 rounded-full transition-all duration-700 ease-out',
+                    eliminated?.name === name ? 'bg-red-500' : 'bg-neutral-600',
+                  ].join(' ')}
+                  style={{ width: `${barsRevealed ? targetWidth : 0}%` }}
+                />
+              </div>
+              <span className="text-xs text-neutral-400 w-6 text-right tabular-nums">{count}</span>
             </div>
-            <span className="text-xs text-neutral-400 w-6 text-right">{count}</span>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       <button
@@ -2312,19 +2371,69 @@ function ResultsPhase({ players, gameMode, wordPair, manualReveal, onPlayAgain, 
   const eliminatedEvil = evilTeam.filter((p) => p.isEliminated)
   const impostersWon = !manualReveal && eliminatedEvil.length < evilTeam.length
 
+  // Final stinger — bigger reaction for a decisive outcome, softer for
+  // a manual reveal (players chose to exit before finishing).
+  useEffect(() => {
+    if (manualReveal) {
+      SoundManager.play('game_end')
+      HapticManager.light()
+      return
+    }
+    SoundManager.play('game_end')
+    if (impostersWon) HapticManager.error()
+    else HapticManager.success()
+  }, [manualReveal, impostersWon])
+
+  // Villager-win confetti: 40 particles that rain from the top.
+  const confetti = React.useMemo(() => {
+    if (manualReveal || impostersWon) return []
+    const COLORS = ['#22c55e', '#a78bfa', '#fbbf24', '#f472b6', '#38bdf8']
+    return Array.from({ length: 40 }).map((_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      delay: Math.random() * 0.8,
+      duration: 2 + Math.random() * 1.5,
+      color: COLORS[i % COLORS.length],
+      size: 6 + Math.random() * 6,
+    }))
+  }, [manualReveal, impostersWon])
+
   return (
-    <div className="space-y-6 animate-slide-up">
+    <div className="relative space-y-6 animate-slide-up">
+      {/* Confetti for villager wins — purely decorative, behind the content */}
+      {confetti.length > 0 && (
+        <div className="pointer-events-none fixed inset-0 overflow-hidden -z-0" aria-hidden>
+          {confetti.map((p) => (
+            <span
+              key={p.id}
+              className="absolute top-0 rounded-sm animate-confetti-rain"
+              style={{
+                left: `${p.left}%`,
+                width: `${p.size}px`,
+                height: `${p.size * 1.6}px`,
+                background: p.color,
+                animationDelay: `${p.delay}s`,
+                animationDuration: `${p.duration}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
+      {/* Imposter-win red screen flash */}
+      {!manualReveal && impostersWon && (
+        <div className="pointer-events-none fixed inset-0 bg-red-600/50 animate-screen-flash -z-0" aria-hidden />
+      )}
       {/* Header */}
-      <div className="text-center space-y-3">
-        <div className="text-6xl">🎭</div>
-        <h1 className="text-3xl font-extrabold text-white">{t('offline.gameOver')}</h1>
+      <div className="relative text-center space-y-3">
+        <div className="text-6xl animate-tada">🎭</div>
+        <h1 className="text-3xl font-extrabold text-white animate-stamp-in">{t('offline.gameOver')}</h1>
         <div className={[
           'inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold',
           manualReveal
-            ? 'bg-neutral-800/60 border-neutral-600/50 text-neutral-300'
+            ? 'bg-neutral-800/60 border-neutral-600/50 text-neutral-300 animate-pop-in'
             : impostersWon
-              ? 'bg-red-950/60 border-red-700/50 text-red-400'
-              : 'bg-emerald-950/60 border-emerald-700/50 text-emerald-400',
+              ? 'bg-red-950/60 border-red-700/50 text-red-400 animate-urgent-pulse'
+              : 'bg-emerald-950/60 border-emerald-700/50 text-emerald-400 animate-glow-pulse',
         ].join(' ')}>
           {manualReveal
             ? `👁️ ${t('offline.rolesRevealed')}`
@@ -2364,14 +2473,14 @@ function ResultsPhase({ players, gameMode, wordPair, manualReveal, onPlayAgain, 
       {/* All players with roles */}
       <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-2">
         <p className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">{t('offline.allRoles')}</p>
-        {players.map((p) => {
+        {players.map((p, idx) => {
           const rc = ROLES[p.role]
           const evil = isEvilRole(p.role)
           return (
             <div
               key={p.name}
               className={[
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl border',
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl border animate-slide-right',
                 evil
                   ? 'bg-red-950/30 border-red-800/30'
                   : p.role === 'detective'
@@ -2380,6 +2489,7 @@ function ResultsPhase({ players, gameMode, wordPair, manualReveal, onPlayAgain, 
                     ? 'bg-yellow-950/20 border-yellow-800/20'
                     : 'bg-emerald-950/20 border-emerald-800/20',
               ].join(' ')}
+              style={{ animationDelay: `${idx * 55}ms`, animationFillMode: 'backwards' }}
             >
               <span className="text-xl">{rc.icon}</span>
               <div className="flex-1 min-w-0">

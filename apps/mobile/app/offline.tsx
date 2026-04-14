@@ -6,10 +6,14 @@ import {
   TouchableOpacity,
   ScrollView,
   Animated,
+  Easing,
+  Dimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
+import { HapticManager } from '../lib/haptics'
+import { SoundManager } from '../lib/sounds'
 import {
   WORD_CATEGORIES,
   shuffleArray,
@@ -931,25 +935,89 @@ function RoleRevealCard({
   const c = colorsFor(player.role)
   const scaleAnim = useRef(new Animated.Value(0.7)).current
   const opacityAnim = useRef(new Animated.Value(0)).current
+  const rotateAnim = useRef(new Animated.Value(0)).current
+  const glowAnim = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
     scaleAnim.setValue(0.7)
     opacityAnim.setValue(0)
+    rotateAnim.setValue(0)
+    glowAnim.setValue(0)
+    // Reveal stinger — this is the card-flip moment. Play a reveal
+    // sound + success haptic in tight sync with the visuals so it
+    // actually lands like a AAA reveal, not a silent fade.
+    SoundManager.play('reveal')
+    HapticManager.success()
     Animated.parallel([
-      Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
-      Animated.timing(opacityAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 90,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 260,
+        useNativeDriver: true,
+      }),
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 520,
+        easing: Easing.out(Easing.back(1.6)),
+        useNativeDriver: true,
+      }),
     ]).start()
+    // Sustained glow pulse — a gentle breath on the accent bar so
+    // the card feels alive while players read their role.
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, {
+          toValue: 1,
+          duration: 1100,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0,
+          duration: 1100,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start()
   }, [player.name])
 
   const isDoubleAgent = player.role === 'doubleAgent'
 
+  const rotateY = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['80deg', '0deg'],
+  })
+  const glowOpacity = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.35, 1],
+  })
+  const glowScale = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.98, 1.04],
+  })
+
   return (
-    <Animated.View style={{ transform: [{ scale: scaleAnim }], opacity: opacityAnim, width: '100%' }}>
+    <Animated.View
+      style={{
+        transform: [{ scale: scaleAnim }, { perspective: 900 }, { rotateY }],
+        opacity: opacityAnim,
+        width: '100%',
+      }}
+    >
       <View
         className={['rounded-3xl border-2 overflow-hidden', c.bg, c.border].join(' ')}
         style={{ padding: isTablet ? 36 : 26 }}
       >
-        <View className={['absolute top-0 left-0 right-0 h-1', c.accentBar].join(' ')} />
+        <Animated.View
+          className={['absolute top-0 left-0 right-0 h-1', c.accentBar].join(' ')}
+          style={{ opacity: glowOpacity, transform: [{ scaleX: glowScale }] }}
+        />
         <View className="items-center mb-3">
           <Text style={{ fontSize: isTablet ? 64 : 52 }}>{def.iconEmoji}</Text>
         </View>
@@ -1080,11 +1148,19 @@ function DealingPhase({
   const [showingCard, setShowingCard] = useState(false)
   const current = players[currentIndex]
 
-  const handleReady = () => setShowingCard(true)
+  const handleReady = () => {
+    HapticManager.medium()
+    setShowingCard(true)
+  }
   const handleGotIt = () => {
+    HapticManager.light()
+    SoundManager.play('click')
     setShowingCard(false)
     const next = currentIndex + 1
     if (next >= players.length) {
+      // End of dealing — give a little fanfare before the main game
+      SoundManager.play('game_start')
+      HapticManager.success()
       onDone()
     } else {
       setCurrentIndex(next)
@@ -1173,6 +1249,9 @@ function SpeakingTimer({ isTablet, fontScale }: { isTablet: boolean; fontScale: 
   const [seconds, setSeconds] = useState(30)
   const [running, setRunning] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Heartbeat-style pulse when the timer is in the final countdown.
+  const urgentPulse = useRef(new Animated.Value(1)).current
+  const shakeAnim = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
     if (running) {
@@ -1180,7 +1259,22 @@ function SpeakingTimer({ isTablet, fontScale }: { isTablet: boolean; fontScale: 
         setSeconds((s) => {
           if (s <= 1) {
             setRunning(false)
+            // Time-up: warning sound + warning haptic + a brief shake.
+            SoundManager.play('timer_warning')
+            HapticManager.warning()
+            Animated.sequence([
+              Animated.timing(shakeAnim, { toValue: 1, duration: 60, useNativeDriver: true }),
+              Animated.timing(shakeAnim, { toValue: -1, duration: 60, useNativeDriver: true }),
+              Animated.timing(shakeAnim, { toValue: 0.6, duration: 60, useNativeDriver: true }),
+              Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
+            ]).start()
             return 0
+          }
+          // Last-5-second countdown ticks — subtle tick + tactile tap
+          // so players feel the pressure even when looking at the room.
+          if (s <= 6) {
+            SoundManager.play('timer_tick')
+            HapticManager.selection()
           }
           return s - 1
         })
@@ -1189,15 +1283,35 @@ function SpeakingTimer({ isTablet, fontScale }: { isTablet: boolean; fontScale: 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-  }, [running])
+  }, [running, shakeAnim])
+
+  // Drive the urgent heartbeat only while in the red zone.
+  useEffect(() => {
+    const isUrgentNow = running && seconds <= 5 && seconds > 0
+    if (!isUrgentNow) {
+      urgentPulse.stopAnimation()
+      urgentPulse.setValue(1)
+      return
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(urgentPulse, { toValue: 1.12, duration: 260, useNativeDriver: true }),
+        Animated.timing(urgentPulse, { toValue: 1, duration: 260, useNativeDriver: true }),
+      ]),
+    )
+    loop.start()
+    return () => loop.stop()
+  }, [running, seconds, urgentPulse])
 
   const reset = () => {
+    HapticManager.light()
     setRunning(false)
     setSeconds(30)
   }
 
   const isUrgent = seconds <= 10 && seconds > 0
   const progress = seconds / 30
+  const shakeTranslateX = shakeAnim.interpolate({ inputRange: [-1, 1], outputRange: [-6, 6] })
 
   return (
     <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 items-center gap-3">
@@ -1207,15 +1321,18 @@ function SpeakingTimer({ isTablet, fontScale }: { isTablet: boolean; fontScale: 
       >
         {t('offline.speakingTimer', { defaultValue: 'Speaking Timer' })}
       </Text>
-      <Text
+      <Animated.Text
         className={[
           'font-extrabold tabular-nums',
           isUrgent ? 'text-red-400' : seconds === 0 ? 'text-neutral-600' : 'text-white',
         ].join(' ')}
-        style={{ fontSize: (isTablet ? 52 : 42) * fontScale }}
+        style={{
+          fontSize: (isTablet ? 52 : 42) * fontScale,
+          transform: [{ scale: urgentPulse }, { translateX: shakeTranslateX }],
+        }}
       >
         {seconds}s
-      </Text>
+      </Animated.Text>
       <View className="w-full h-2 rounded-full bg-neutral-800 overflow-hidden">
         <View
           className={['h-full rounded-full', isUrgent ? 'bg-red-500' : 'bg-violet-500'].join(' ')}
@@ -1224,7 +1341,11 @@ function SpeakingTimer({ isTablet, fontScale }: { isTablet: boolean; fontScale: 
       </View>
       <View className="flex-row gap-2 w-full">
         <TouchableOpacity
-          onPress={() => setRunning((r) => !r)}
+          onPress={() => {
+            HapticManager.light()
+            if (!running && seconds > 0) SoundManager.play('round_start')
+            setRunning((r) => !r)
+          }}
           className={[
             'flex-1 items-center justify-center rounded-xl border py-3',
             running ? 'bg-amber-900/40 border-amber-700/40' : 'bg-violet-900/40 border-violet-700/40',
@@ -1689,14 +1810,78 @@ function VoteResult({
   const eliminatedDef = eliminated ? OFFLINE_ROLE_REGISTRY[eliminated.role] : null
   const eliminatedColors = eliminated ? colorsFor(eliminated.role) : null
 
+  // Card drops/shakes in + bars fill from 0. Feels like a cinematic reveal
+  // instead of a silent render.
+  const cardDrop = useRef(new Animated.Value(0)).current
+  const flashAnim = useRef(new Animated.Value(0)).current
+  const barFill = useRef(new Animated.Value(0)).current
+
+  useEffect(() => {
+    if (protectedPlayerName) {
+      SoundManager.play('notification')
+      HapticManager.medium()
+    } else if (eliminated) {
+      SoundManager.play('elimination')
+      HapticManager.heavy()
+      // Brief red screen flash — the "hit" moment.
+      Animated.sequence([
+        Animated.timing(flashAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+        Animated.timing(flashAnim, { toValue: 0, duration: 360, useNativeDriver: true }),
+      ]).start()
+    } else {
+      SoundManager.play('click')
+      HapticManager.light()
+    }
+    cardDrop.setValue(0)
+    Animated.spring(cardDrop, {
+      toValue: 1,
+      tension: 80,
+      friction: 9,
+      useNativeDriver: true,
+    }).start()
+    barFill.setValue(0)
+    Animated.timing(barFill, {
+      toValue: 1,
+      duration: 900,
+      delay: 350,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false, // width animation can't use native driver
+    }).start()
+  }, [eliminated, protectedPlayerName, cardDrop, flashAnim, barFill])
+
+  const cardTranslateY = cardDrop.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-30, 0],
+  })
+  const cardOpacity = cardDrop.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  })
+
   return (
     <ScrollView
       contentContainerStyle={{ paddingVertical: 24, paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
     >
+      {/* Elimination hit flash */}
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: '#ef4444',
+          opacity: flashAnim,
+        }}
+      />
       <View style={{ paddingHorizontal: px, gap: 16 }}>
         {protectedPlayerName ? (
-          <View className="items-center gap-2">
+          <Animated.View
+            className="items-center gap-2"
+            style={{ opacity: cardOpacity, transform: [{ translateY: cardTranslateY }] }}
+          >
             <Text style={{ fontSize: isTablet ? 56 : 44 }}>🛡️</Text>
             <Text className="text-yellow-400 font-extrabold text-center" style={{ fontSize: 18 * fontScale }}>
               {t('offline.protectionTriggered', {
@@ -1704,9 +1889,16 @@ function VoteResult({
                 defaultValue: `${protectedPlayerName} was protected!`,
               })}
             </Text>
-          </View>
+          </Animated.View>
         ) : eliminated && eliminatedDef && eliminatedColors ? (
-          <View className={['rounded-3xl border-2 items-center', eliminatedColors.bg, eliminatedColors.border].join(' ')} style={{ padding: isTablet ? 28 : 22 }}>
+          <Animated.View
+            className={['rounded-3xl border-2 items-center', eliminatedColors.bg, eliminatedColors.border].join(' ')}
+            style={{
+              padding: isTablet ? 28 : 22,
+              opacity: cardOpacity,
+              transform: [{ translateY: cardTranslateY }],
+            }}
+          >
             <Text className="text-red-400 font-bold uppercase tracking-widest" style={{ fontSize: 11 * fontScale }}>
               🗳️ {t('offline.eliminated', { defaultValue: 'Eliminated' })}
             </Text>
@@ -1726,14 +1918,17 @@ function VoteResult({
             >
               {roleLabel(t, eliminated.role)}
             </Text>
-          </View>
+          </Animated.View>
         ) : (
-          <View className="items-center gap-2">
+          <Animated.View
+            className="items-center gap-2"
+            style={{ opacity: cardOpacity, transform: [{ translateY: cardTranslateY }] }}
+          >
             <Text style={{ fontSize: isTablet ? 56 : 44 }}>🤷</Text>
             <Text className="text-white font-extrabold" style={{ fontSize: 18 * fontScale }}>
               {t('offline.noOneEliminated', { defaultValue: 'No one was eliminated' })}
             </Text>
-          </View>
+          </Animated.View>
         )}
 
         <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-2">
@@ -1743,22 +1938,29 @@ function VoteResult({
           >
             {t('offline.voteTally', { defaultValue: 'Vote Tally' })}
           </Text>
-          {sorted.map(([name, count]) => (
-            <View key={name} className="flex-row items-center gap-3">
-              <Text className="text-white font-semibold w-24" numberOfLines={1} style={{ fontSize: 12 * fontScale }}>
-                {name}
-              </Text>
-              <View className="flex-1 h-2 bg-neutral-800 rounded-full overflow-hidden">
-                <View
-                  className={['h-2', eliminated?.name === name ? 'bg-red-500' : 'bg-neutral-600'].join(' ')}
-                  style={{ width: `${(count / Math.max(totalCounted, 1)) * 100}%` }}
-                />
+          {sorted.map(([name, count]) => {
+            const pct = (count / Math.max(totalCounted, 1)) * 100
+            const animatedWidth = barFill.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['0%', `${pct}%`] as unknown as string[],
+            })
+            return (
+              <View key={name} className="flex-row items-center gap-3">
+                <Text className="text-white font-semibold w-24" numberOfLines={1} style={{ fontSize: 12 * fontScale }}>
+                  {name}
+                </Text>
+                <View className="flex-1 h-2 bg-neutral-800 rounded-full overflow-hidden">
+                  <Animated.View
+                    className={['h-2', eliminated?.name === name ? 'bg-red-500' : 'bg-neutral-600'].join(' ')}
+                    style={{ width: animatedWidth }}
+                  />
+                </View>
+                <Text className="text-neutral-400 w-6 text-right tabular-nums" style={{ fontSize: 11 * fontScale }}>
+                  {count}
+                </Text>
               </View>
-              <Text className="text-neutral-400 w-6 text-right" style={{ fontSize: 11 * fontScale }}>
-                {count}
-              </Text>
-            </View>
-          ))}
+            )
+          })}
           {sorted.length === 0 && (
             <Text className="text-neutral-600 text-center py-2" style={{ fontSize: 11 * fontScale }}>
               {t('offline.noVotesCast', { defaultValue: 'No votes were cast.' })}
@@ -1767,7 +1969,11 @@ function VoteResult({
         </View>
 
         <TouchableOpacity
-          onPress={onContinue}
+          onPress={() => {
+            HapticManager.light()
+            SoundManager.play('click')
+            onContinue()
+          }}
           className="rounded-2xl bg-violet-600 items-center"
           style={{ paddingVertical: isTablet ? 16 : 14 }}
           activeOpacity={0.85}
@@ -2322,13 +2528,46 @@ function ResultsPhase({
   const twinI = players.find((p) => p.role === 'twinImposter')
   const twinsWin = !manualReveal && twinV && twinI && !twinV.isEliminated && !twinI.isEliminated && !jesterWin
 
+  // Celebration stingers + confetti for villager-side wins.
+  const headerBounce = useRef(new Animated.Value(0)).current
+  useEffect(() => {
+    if (manualReveal) {
+      SoundManager.play('game_end')
+      HapticManager.light()
+    } else {
+      SoundManager.play('game_end')
+      if (impostersWon) HapticManager.error()
+      else HapticManager.success()
+    }
+    Animated.spring(headerBounce, {
+      toValue: 1,
+      tension: 80,
+      friction: 6,
+      useNativeDriver: true,
+    }).start()
+  }, [manualReveal, impostersWon, headerBounce])
+
+  const shouldConfetti = !manualReveal && !impostersWon
+  const headerScale = headerBounce.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.6, 1],
+  })
+  const headerOpacity = headerBounce.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  })
+
   return (
     <ScrollView
       contentContainerStyle={{ paddingVertical: 24, paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
     >
+      {shouldConfetti && <ConfettiRain />}
       <View style={{ paddingHorizontal: px, gap: 18 }}>
-        <View className="items-center gap-2">
+        <Animated.View
+          className="items-center gap-2"
+          style={{ opacity: headerOpacity, transform: [{ scale: headerScale }] }}
+        >
           <Text style={{ fontSize: isTablet ? 60 : 48 }}>🎭</Text>
           <Text className="text-white font-extrabold" style={{ fontSize: (isTablet ? 30 : 24) * fontScale }}>
             {t('offline.gameOver', { defaultValue: 'Game Over' })}
@@ -2368,7 +2607,7 @@ function ResultsPhase({
               👯 {t('offline.evilTwinsSurvived', { defaultValue: 'Both twins survived — they win together!' })}
             </Text>
           )}
-        </View>
+        </Animated.View>
 
         <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-3">
           <Text className="text-neutral-500 font-semibold uppercase tracking-widest" style={{ fontSize: 10 * fontScale }}>
@@ -2398,44 +2637,23 @@ function ResultsPhase({
           <Text className="text-neutral-500 font-semibold uppercase tracking-widest mb-1" style={{ fontSize: 10 * fontScale }}>
             {t('offline.allRoles', { defaultValue: 'All Roles' })}
           </Text>
-          {players.map((p) => {
-            const def = OFFLINE_ROLE_REGISTRY[p.role]
-            const c = colorsFor(p.role)
-            return (
-              <View
-                key={p.name}
-                className={['flex-row items-center gap-3 px-3 py-2.5 rounded-xl border', c.bg, c.border].join(' ')}
-              >
-                <Text style={{ fontSize: 18 }}>{def.iconEmoji}</Text>
-                <View className="flex-1 min-w-0">
-                  <Text
-                    className={[
-                      'font-bold',
-                      p.isEliminated ? 'text-neutral-500 line-through' : 'text-white',
-                    ].join(' ')}
-                    style={{ fontSize: 13 * fontScale }}
-                    numberOfLines={1}
-                  >
-                    {p.name}
-                  </Text>
-                  <Text className={c.badge} style={{ fontSize: 10 * fontScale }} numberOfLines={1}>
-                    {roleLabel(t, p.role)} · {p.word}
-                  </Text>
-                </View>
-                {p.isEliminated && (
-                  <View className="px-2 py-0.5 rounded-full bg-neutral-800 border border-neutral-700/40">
-                    <Text className="text-neutral-500 font-bold uppercase" style={{ fontSize: 9 * fontScale }}>
-                      {t('offline.out', { defaultValue: 'Out' })}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )
-          })}
+          {players.map((p, idx) => (
+            <StaggeredRoleRow
+              key={p.name}
+              player={p}
+              index={idx}
+              fontScale={fontScale}
+              t={t}
+            />
+          ))}
         </View>
 
         <TouchableOpacity
-          onPress={onPlayAgain}
+          onPress={() => {
+            HapticManager.medium()
+            SoundManager.play('game_start')
+            onPlayAgain()
+          }}
           className="rounded-2xl bg-violet-600 items-center"
           style={{ paddingVertical: isTablet ? 18 : 15 }}
           activeOpacity={0.85}
@@ -2445,7 +2663,10 @@ function ResultsPhase({
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={onHome}
+          onPress={() => {
+            HapticManager.light()
+            onHome()
+          }}
           className="rounded-2xl bg-neutral-800 border border-neutral-700/60 items-center"
           style={{ paddingVertical: isTablet ? 14 : 12 }}
           activeOpacity={0.7}
@@ -2456,6 +2677,148 @@ function ResultsPhase({
         </TouchableOpacity>
       </View>
     </ScrollView>
+  )
+}
+
+// Staggered row used on the results list so each role card slides into place
+// instead of all appearing at once. A simple translateY + fade is enough to
+// give the screen a pro, "something happened" feel.
+function StaggeredRoleRow({
+  player,
+  index,
+  fontScale,
+  t,
+}: {
+  player: OfflinePlayer
+  index: number
+  fontScale: number
+  t: (key: string, opts?: any) => string
+}) {
+  const def = OFFLINE_ROLE_REGISTRY[player.role]
+  const c = colorsFor(player.role)
+  const anim = useRef(new Animated.Value(0)).current
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 320,
+      delay: 60 + index * 55,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+  }, [anim, index])
+  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] })
+  return (
+    <Animated.View
+      className={['flex-row items-center gap-3 px-3 py-2.5 rounded-xl border', c.bg, c.border].join(' ')}
+      style={{ opacity: anim, transform: [{ translateX }] }}
+    >
+      <Text style={{ fontSize: 18 }}>{def.iconEmoji}</Text>
+      <View className="flex-1 min-w-0">
+        <Text
+          className={[
+            'font-bold',
+            player.isEliminated ? 'text-neutral-500 line-through' : 'text-white',
+          ].join(' ')}
+          style={{ fontSize: 13 * fontScale }}
+          numberOfLines={1}
+        >
+          {player.name}
+        </Text>
+        <Text className={c.badge} style={{ fontSize: 10 * fontScale }} numberOfLines={1}>
+          {roleLabel(t, player.role)} · {player.word}
+        </Text>
+      </View>
+      {player.isEliminated && (
+        <View className="px-2 py-0.5 rounded-full bg-neutral-800 border border-neutral-700/40">
+          <Text className="text-neutral-500 font-bold uppercase" style={{ fontSize: 9 * fontScale }}>
+            {t('offline.out', { defaultValue: 'Out' })}
+          </Text>
+        </View>
+      )}
+    </Animated.View>
+  )
+}
+
+// Falling confetti for villager-win celebrations. Pure Animated.View so it
+// runs on the native driver and stays at 60fps even on mid-tier devices.
+function ConfettiRain() {
+  const windowSize = Dimensions.get('window')
+  const pieces = useMemo(() => {
+    const COLORS = ['#22c55e', '#a78bfa', '#fbbf24', '#f472b6', '#38bdf8', '#ef4444']
+    return Array.from({ length: 28 }).map((_, i) => ({
+      id: i,
+      left: Math.random() * windowSize.width,
+      delay: Math.random() * 800,
+      duration: 1800 + Math.random() * 1400,
+      rotateDir: Math.random() > 0.5 ? 1 : -1,
+      color: COLORS[i % COLORS.length],
+      size: 6 + Math.random() * 5,
+    }))
+  }, [windowSize.width])
+
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }}>
+      {pieces.map((p) => (
+        <ConfettiPiece key={p.id} piece={p} height={windowSize.height} />
+      ))}
+    </View>
+  )
+}
+
+function ConfettiPiece({
+  piece,
+  height,
+}: {
+  piece: {
+    left: number
+    delay: number
+    duration: number
+    rotateDir: number
+    color: string
+    size: number
+  }
+  height: number
+}) {
+  const fall = useRef(new Animated.Value(0)).current
+  useEffect(() => {
+    const run = () => {
+      fall.setValue(0)
+      Animated.timing(fall, {
+        toValue: 1,
+        duration: piece.duration,
+        delay: piece.delay,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }).start(() => run())
+    }
+    run()
+  }, [fall, piece.delay, piece.duration])
+  const translateY = fall.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-40, height + 40],
+  })
+  const rotate = fall.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', `${720 * piece.rotateDir}deg`],
+  })
+  const opacity = fall.interpolate({
+    inputRange: [0, 0.1, 0.9, 1],
+    outputRange: [0, 1, 1, 0],
+  })
+  return (
+    <Animated.View
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: piece.left,
+        width: piece.size,
+        height: piece.size * 1.6,
+        backgroundColor: piece.color,
+        borderRadius: 2,
+        opacity,
+        transform: [{ translateY }, { rotate }],
+      }}
+    />
   )
 }
 
