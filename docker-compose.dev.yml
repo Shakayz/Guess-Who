@@ -69,8 +69,12 @@ services:
       # Hot-reload: mount source so tsx watch sees file changes
       - ./apps/api/src:/app/apps/api/src
       - ./apps/api/prisma:/app/apps/api/prisma
-      # Optional: mount shared source (requires image rebuild to pick up in dist)
-      # - ./packages/shared/src:/app/packages/shared/src
+      # Shared package — mount src + dist so host rebuilds are visible without a
+      # full image rebuild. After editing packages/shared, run
+      #   pnpm --filter @imposter/shared build
+      # on the host (or inside the container), then `docker restart imposter-api-dev`.
+      - ./packages/shared/src:/app/packages/shared/src
+      - ./packages/shared/dist:/app/packages/shared/dist
     depends_on:
       postgres:
         condition: service_healthy
