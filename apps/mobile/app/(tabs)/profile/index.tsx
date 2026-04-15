@@ -688,7 +688,7 @@ export default function ProfileScreen() {
         {/* Settings */}
         <View style={{ marginHorizontal: px, marginTop: 16 }}>
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/profile/settings')}
+            onPress={() => router.push('/settings')}
             className="rounded-2xl items-center border border-neutral-800 bg-neutral-900 flex-row justify-center gap-2"
             style={{ paddingVertical: isTablet ? 18 : 16 }}
           >

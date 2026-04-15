@@ -20,6 +20,7 @@ import { registerForPushNotifications } from '../lib/notifications'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { ConnectionStatus } from '../components/ConnectionStatus'
 import { AchievementToastBanner } from '../components/achievements/AchievementToast'
+import { api } from '../lib/api'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -183,12 +184,30 @@ function InviteBanner() {
 }
 
 function FriendRequestBanner() {
+  const router = useRouter()
   const { pendingFriendRequest, setPendingFriendRequest } = useSocialStore()
   const { width } = useWindowDimensions()
   const isTablet = width >= 768
   const bannerStyle = isTablet ? { maxWidth: 500, alignSelf: 'center' as const } : {}
 
   if (!pendingFriendRequest) return null
+
+  const friendshipId = pendingFriendRequest.friendshipId
+
+  const handleAccept = async () => {
+    try {
+      await api.put(`/friends/${friendshipId}/accept`, {})
+    } catch {}
+    setPendingFriendRequest(null)
+    router.push('/friends')
+  }
+
+  const handleDecline = async () => {
+    try {
+      await api.delete(`/friends/${friendshipId}`)
+    } catch {}
+    setPendingFriendRequest(null)
+  }
 
   return (
     <View className="absolute top-14 left-4 right-4 z-50 bg-emerald-900 border border-emerald-700 rounded-2xl p-4 flex-row items-center gap-3" style={bannerStyle}>
@@ -199,8 +218,19 @@ function FriendRequestBanner() {
           {pendingFriendRequest.fromUsername} wants to be your friend
         </Text>
       </View>
-      <TouchableOpacity onPress={() => setPendingFriendRequest(null)}>
-        <Text className="text-emerald-400 text-sm">✕</Text>
+      <TouchableOpacity
+        onPress={handleAccept}
+        className="bg-emerald-600 px-3 py-1.5 rounded-lg"
+        activeOpacity={0.8}
+      >
+        <Text className="text-white font-semibold text-xs">Accept</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={handleDecline}
+        className="px-3 py-1.5 rounded-lg bg-emerald-950 border border-emerald-700/50"
+        activeOpacity={0.8}
+      >
+        <Text className="text-emerald-300 font-semibold text-xs">Decline</Text>
       </TouchableOpacity>
     </View>
   )

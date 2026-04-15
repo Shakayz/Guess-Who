@@ -83,6 +83,16 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: t('nav.settings', 'Settings'),
+          headerTitle: t('nav.settings', 'Settings'),
+          tabBarIcon: ({ color }) => (
+            <TabIcon icon="⚙️" size={iconSize} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   )
 }
