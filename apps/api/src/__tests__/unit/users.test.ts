@@ -16,7 +16,20 @@ const mockGameParticipation = {
   count: vi.fn(),
   findMany: vi.fn(),
 }
+const mockGame = {
+  findMany: vi.fn(),
+}
+// /search annotates results with each viewer's friendship status, so the mock
+// needs a `friendship` model even though no profile-related test exercises it.
+const mockFriendship = {
+  findMany: vi.fn().mockResolvedValue([]),
+}
 ;(prisma as any).gameParticipation = mockGameParticipation
+;(prisma as any).game = mockGame
+;(prisma as any).friendship = mockFriendship
+// /:id/profile now computes honor buckets via honor.findMany + game.findMany
+// instead of honor.groupBy — keep both available on the mock.
+mockHonor.findMany = vi.fn()
 
 describe('User Routes', () => {
   let app: FastifyInstance
@@ -376,16 +389,28 @@ describe('User Routes', () => {
         honorPoints: 20,
         createdAt: new Date('2025-01-01'),
       })
+      // statsForMode runs TWICE (ranked + unranked), 5 counts each → 10 values.
+      // Ranked: 12/8 games, 8 wins, 9 villager, 3 imposter, 6 survived
+      // Unranked:  8   games, 4 wins, 6 villager, 2 imposter, 4 survived
       mockGameParticipation.count
-        .mockResolvedValueOnce(20)   // totalGames
-        .mockResolvedValueOnce(12)   // wins
-        .mockResolvedValueOnce(15)   // asVillager
-        .mockResolvedValueOnce(5)    // asImposter
-        .mockResolvedValueOnce(10)   // survived
+        .mockResolvedValueOnce(12)   // ranked totalGames
+        .mockResolvedValueOnce(8)    // ranked wins
+        .mockResolvedValueOnce(9)    // ranked asVillager
+        .mockResolvedValueOnce(3)    // ranked asImposter
+        .mockResolvedValueOnce(6)    // ranked survived
+        .mockResolvedValueOnce(8)    // unranked totalGames
+        .mockResolvedValueOnce(4)    // unranked wins
+        .mockResolvedValueOnce(6)    // unranked asVillager
+        .mockResolvedValueOnce(2)    // unranked asImposter
+        .mockResolvedValueOnce(4)    // unranked survived
       mockGameParticipation.findMany.mockResolvedValue([])
-      mockHonor.groupBy.mockResolvedValue([
-        { type: 'teamplayer', _count: { type: 3 } },
+      // 3 honors gifted inside the same ranked game
+      mockHonor.findMany.mockResolvedValue([
+        { type: 'teamplayer', gameId: 'g-ranked' },
+        { type: 'teamplayer', gameId: 'g-ranked' },
+        { type: 'teamplayer', gameId: 'g-ranked' },
       ])
+      mockGame.findMany.mockResolvedValue([{ id: 'g-ranked', gameMode: 'ranked' }])
 
       const res = await app.inject({
         method: 'GET',
@@ -396,9 +421,15 @@ describe('User Routes', () => {
       expect(res.statusCode).toBe(200)
       const body = res.json()
       expect(body.username).toBe('alice')
+      // Lifetime totals = ranked (12/8) + unranked (8/4) = 20 games / 12 wins
       expect(body.stats.totalGames).toBe(20)
       expect(body.stats.wins).toBe(12)
+      expect(body.statsRanked.totalGames).toBe(12)
+      expect(body.statsUnranked.totalGames).toBe(8)
       expect(body.honors).toHaveLength(1)
+      expect(body.honors[0]).toEqual({ type: 'teamplayer', count: 3 })
+      expect(body.honorsRanked).toEqual([{ type: 'teamplayer', count: 3 }])
+      expect(body.honorsUnranked).toEqual([])
     })
 
     it('returns 404 for unknown user', async () => {
@@ -423,12 +454,8 @@ describe('User Routes', () => {
         honorPoints: 20,
         createdAt: new Date('2025-01-01'),
       })
-      mockGameParticipation.count
-        .mockResolvedValueOnce(4)   // totalGames
-        .mockResolvedValueOnce(2)   // wins
-        .mockResolvedValueOnce(2)   // asVillager
-        .mockResolvedValueOnce(2)   // asImposter
-        .mockResolvedValueOnce(2)   // survived
+      // statsForMode runs twice (ranked + unranked) → 10 count calls total
+      mockGameParticipation.count.mockResolvedValue(0)
 
       mockGameParticipation.findMany.mockResolvedValue([
         {
@@ -452,7 +479,8 @@ describe('User Routes', () => {
           game: { id: 'g4', winnerTeam: 'imposters', startedAt: new Date(), _count: { rounds: 2 } },
         },
       ])
-      mockHonor.groupBy.mockResolvedValue([])
+      mockHonor.findMany.mockResolvedValue([])
+      mockGame.findMany.mockResolvedValue([])
 
       const res = await app.inject({
         method: 'GET',
@@ -489,7 +517,8 @@ describe('User Routes', () => {
       })
       mockGameParticipation.count.mockResolvedValue(0)
       mockGameParticipation.findMany.mockResolvedValue([])
-      mockHonor.groupBy.mockResolvedValue([])
+      mockHonor.findMany.mockResolvedValue([])
+      mockGame.findMany.mockResolvedValue([])
 
       const res = await app.inject({
         method: 'GET',
@@ -499,6 +528,90 @@ describe('User Routes', () => {
 
       expect(res.statusCode).toBe(200)
       expect(res.json().stats.winRate).toBe(0)
+    })
+
+    it('buckets honors into ranked/unranked by gameMode, null gameId → unranked', async () => {
+      mockUser.findUnique.mockResolvedValue({
+        id: 'user-2',
+        username: 'alice',
+        avatarUrl: null,
+        rankTier: 'gold',
+        rankPoints: 2000,
+        honorPoints: 20,
+        createdAt: new Date('2025-01-01'),
+      })
+      mockGameParticipation.count.mockResolvedValue(0)
+      mockGameParticipation.findMany.mockResolvedValue([])
+
+      mockHonor.findMany.mockResolvedValue([
+        { type: 'teamplayer', gameId: 'g-ranked' },
+        { type: 'teamplayer', gameId: 'g-ranked' },
+        { type: 'sharp_mind', gameId: 'g-normal' },
+        { type: 'good_sport', gameId: null }, // gifted outside any game → unranked
+      ])
+      mockGame.findMany.mockResolvedValue([
+        { id: 'g-ranked', gameMode: 'ranked' },
+        { id: 'g-normal', gameMode: 'normal' },
+      ])
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/users/user-2/profile',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      const body = res.json()
+      expect(body.honorsRanked).toEqual([{ type: 'teamplayer', count: 2 }])
+      expect(body.honorsUnranked).toEqual(
+        expect.arrayContaining([
+          { type: 'sharp_mind', count: 1 },
+          { type: 'good_sport', count: 1 },
+        ]),
+      )
+      expect(body.honorsUnranked).toHaveLength(2)
+
+      // Lifetime honors is the merge of both buckets
+      expect(body.honors).toEqual(
+        expect.arrayContaining([
+          { type: 'teamplayer', count: 2 },
+          { type: 'sharp_mind', count: 1 },
+          { type: 'good_sport', count: 1 },
+        ]),
+      )
+
+      // prisma.game.findMany should only look up games actually referenced
+      // by this user's honors — NOT a full scan of the games table.
+      expect(mockGame.findMany).toHaveBeenCalledTimes(1)
+      expect(mockGame.findMany.mock.calls[0][0].where.id.in.sort()).toEqual([
+        'g-normal',
+        'g-ranked',
+      ])
+    })
+
+    it('skips prisma.game.findMany when the user has no honors', async () => {
+      mockUser.findUnique.mockResolvedValue({
+        id: 'user-new',
+        username: 'newbie',
+        avatarUrl: null,
+        rankTier: 'wooden',
+        rankPoints: 0,
+        honorPoints: 0,
+        createdAt: new Date(),
+      })
+      mockGameParticipation.count.mockResolvedValue(0)
+      mockGameParticipation.findMany.mockResolvedValue([])
+      mockHonor.findMany.mockResolvedValue([])
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/users/user-new/profile',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json().honors).toEqual([])
+      expect(mockGame.findMany).not.toHaveBeenCalled()
     })
   })
 })

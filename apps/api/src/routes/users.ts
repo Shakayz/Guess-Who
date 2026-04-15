@@ -289,6 +289,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /api/users/:id/profile — public profile with stats
   fastify.get('/:id/profile', async (req, reply) => {
+    type HonorCount = { type: string; count: number }
     const { id } = req.params as { id: string }
     const user = await prisma.user.findUnique({
       where: { id },
@@ -344,43 +345,49 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
-    // Honors are grouped by type and joined to game.gameMode via Honor.gameId.
-    // Honors with no gameId (gifted outside a game) are bucketed as "unranked".
+    // Honors received by this user, bucketed by the gameMode they were
+    // gifted in. Honors with no gameId (gifted outside a game) go into the
+    // "unranked" bucket.
     //
-    // NOTE: Honor has no Prisma relation to Game (only a scalar gameId), so we
-    // can't filter through a `game` nested where. We fetch the set of Game ids
-    // for the mode first and then filter honors by `gameId in (…)`.
-    const honorsForMode = async (mode: 'ranked' | 'unranked') => {
-      const gamesInMode = await prisma.game.findMany({
-        where: mode === 'ranked' ? { gameMode: 'ranked' } : { gameMode: { not: 'ranked' } },
-        select: { id: true },
+    // NOTE: Honor has no Prisma relation to Game (only a scalar gameId), so
+    // we can't filter through a `game` nested where. Fetch THIS user's honors
+    // (small, bounded set) and resolve the gameMode for the games they
+    // reference — much cheaper than scanning the full games table, and safe
+    // against Postgres parameter limits on large deployments.
+    const computeHonorBuckets = async () => {
+      const honors = await prisma.honor.findMany({
+        where: { receiverId: id },
+        select: { type: true, gameId: true },
       })
-      const gameIds = gamesInMode.map((g) => g.id)
+      if (honors.length === 0) return { ranked: [] as HonorCount[], unranked: [] as HonorCount[] }
 
-      const where =
-        mode === 'ranked'
-          ? { receiverId: id, gameId: { in: gameIds } }
-          : {
-              receiverId: id,
-              OR: [
-                { gameId: { in: gameIds } },
-                { gameId: null },
-              ],
-            }
+      const referencedGameIds = Array.from(
+        new Set(honors.map((h) => h.gameId).filter((g): g is string => g !== null)),
+      )
+      const games = referencedGameIds.length > 0
+        ? await prisma.game.findMany({
+            where: { id: { in: referencedGameIds } },
+            select: { id: true, gameMode: true },
+          })
+        : []
+      const modeById = new Map(games.map((g) => [g.id, g.gameMode]))
 
-      const grouped = await prisma.honor.groupBy({
-        by: ['type'],
-        where,
-        _count: { type: true },
-      })
-      return grouped.map((h) => ({ type: h.type, count: h._count.type }))
+      const rankedCounts = new Map<string, number>()
+      const unrankedCounts = new Map<string, number>()
+      for (const h of honors) {
+        const gm = h.gameId ? modeById.get(h.gameId) : undefined
+        const bucket = gm === 'ranked' ? rankedCounts : unrankedCounts
+        bucket.set(h.type, (bucket.get(h.type) ?? 0) + 1)
+      }
+      const toArray = (m: Map<string, number>): HonorCount[] =>
+        Array.from(m.entries()).map(([type, count]) => ({ type, count }))
+      return { ranked: toArray(rankedCounts), unranked: toArray(unrankedCounts) }
     }
 
-    const [statsRanked, statsUnranked, honorsRanked, honorsUnranked, recentParticipations] = await Promise.all([
+    const [statsRanked, statsUnranked, honorBuckets, recentParticipations] = await Promise.all([
       statsForMode('ranked'),
       statsForMode('unranked'),
-      honorsForMode('ranked'),
-      honorsForMode('unranked'),
+      computeHonorBuckets(),
       prisma.gameParticipation.findMany({
         where: { userId: id },
         take: 8,
@@ -395,6 +402,8 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         },
       }),
     ])
+
+    const { ranked: honorsRanked, unranked: honorsUnranked } = honorBuckets
 
     const recentGames = recentParticipations.map((p) => ({
       gameId: p.game.id,
