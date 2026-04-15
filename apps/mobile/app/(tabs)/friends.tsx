@@ -17,6 +17,7 @@ import { useAuthStore } from '../../store/auth'
 import { useSocialStore } from '../../store/social'
 import * as Sharing from 'expo-sharing'
 import { useResponsive } from '../../lib/responsive'
+import DmChatModal from '../../components/DmChatModal'
 
 /* ---------- Types ---------- */
 
@@ -63,6 +64,9 @@ export default function FriendsScreen() {
   const [friends, setFriends] = useState<Friend[]>([])
   const [friendsLoading, setFriendsLoading] = useState(true)
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
+
+  // Active DM chat
+  const [activeDm, setActiveDm] = useState<{ id: string; username: string } | null>(null)
 
   /* ---------- Fetch data on mount ---------- */
 
@@ -171,10 +175,7 @@ export default function FriendsScreen() {
 
   const handleDm = useCallback(
     (friendId: string, friendUsername: string) => {
-      Alert.alert(
-        'Direct Message',
-        `DM with ${friendUsername} coming soon!`,
-      )
+      setActiveDm({ id: friendId, username: friendUsername })
     },
     [],
   )
@@ -443,6 +444,15 @@ export default function FriendsScreen() {
         </View>
         </View>
       </ScrollView>
+
+      {activeDm && (
+        <DmChatModal
+          visible={!!activeDm}
+          friendId={activeDm.id}
+          friendUsername={activeDm.username}
+          onClose={() => setActiveDm(null)}
+        />
+      )}
     </SafeAreaView>
   )
 }

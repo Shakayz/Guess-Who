@@ -11,7 +11,6 @@ export default function ProfileLayout() {
     >
       <Stack.Screen name="index" options={{ title: 'Profile' }} />
       <Stack.Screen name="[userId]" options={{ title: 'Player' }} />
-      <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="achievements" options={{ title: 'Achievements' }} />
     </Stack>
   )

@@ -18,6 +18,7 @@ import { connectSocket, getSocket } from '../../lib/socket'
 import { WORD_CATEGORIES, MATCHMAKING_CONFIG } from '@imposter/shared'
 import type { WordCategory, MatchmakingStatus } from '@imposter/shared'
 import { useResponsive, responsiveContentStyle } from '../../lib/responsive'
+import { OnboardingTutorial, hasTutorialCompleted } from '../../components/OnboardingTutorial'
 
 type GameMode = 'normal' | 'ranked' | 'lobby'
 
@@ -59,6 +60,14 @@ export default function HomeScreen() {
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
   const [categories, setCategories] = useState<WordCategory[]>([])
   const [roomCode, setRoomCode] = useState('')
+  const [showTutorial, setShowTutorial] = useState(false)
+
+  // Show onboarding tutorial on first launch
+  useEffect(() => {
+    hasTutorialCompleted().then((done) => {
+      if (!done) setShowTutorial(true)
+    })
+  }, [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [inQueue, setInQueue] = useState(false)
@@ -572,6 +581,11 @@ export default function HomeScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <OnboardingTutorial
+        visible={showTutorial}
+        onClose={() => setShowTutorial(false)}
+      />
     </SafeAreaView>
   )
 }
