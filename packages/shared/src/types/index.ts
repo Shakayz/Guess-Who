@@ -323,18 +323,3 @@ export interface Achievement {
   unlockedAt: string
 }
 
-// ─── Shop & Cosmetics ─────────────────────────────────────────────────────────
-
-export type CosmeticType = 'avatar_outfit' | 'avatar_accessory' | 'card_background' | 'word_effect' | 'title' | 'badge'
-
-export interface Cosmetic {
-  id: string
-  type: CosmeticType
-  name: string
-  description: string
-  imageUrl: string
-  price: number
-  currency: 'star' | 'gold'
-  isLimited: boolean
-  seasonId: string | null
-}

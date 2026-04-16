@@ -32,33 +32,17 @@ describe('ShopPage', () => {
   it('shows tab navigation with correct labels', () => {
     render(<ShopPage />)
     expect(screen.getByText('💰 Gold Coins')).toBeInTheDocument()
-    expect(screen.getByText('🎨 Cosmetics')).toBeInTheDocument()
     expect(screen.getByText('👑 Season Pass')).toBeInTheDocument()
+  })
+
+  it('does not expose a cosmetics tab', () => {
+    render(<ShopPage />)
+    expect(screen.queryByText('🎨 Cosmetics')).not.toBeInTheDocument()
   })
 
   it('shows coins tab content by default', () => {
     render(<ShopPage />)
     expect(screen.getByText('Gold Coin Packs')).toBeInTheDocument()
-  })
-
-  it('switches to Cosmetics tab when clicked', () => {
-    render(<ShopPage />)
-    fireEvent.click(screen.getByText('🎨 Cosmetics'))
-    expect(screen.getByText('Available items')).toBeInTheDocument()
-  })
-
-  it('shows cosmetic items in cosmetics tab', () => {
-    render(<ShopPage />)
-    fireEvent.click(screen.getByText('🎨 Cosmetics'))
-    expect(screen.getByText('Shadow Cloak')).toBeInTheDocument()
-    expect(screen.getByText('Gold Crown')).toBeInTheDocument()
-  })
-
-  it('shows NEW badge for new items in cosmetics tab', () => {
-    render(<ShopPage />)
-    fireEvent.click(screen.getByText('🎨 Cosmetics'))
-    const newBadges = screen.getAllByText('NEW')
-    expect(newBadges.length).toBeGreaterThan(0)
   })
 
   it('switches to Season Pass tab when clicked', () => {
@@ -80,9 +64,9 @@ describe('ShopPage', () => {
     expect(screen.getByText('0')).toBeInTheDocument()   // gold coins
   })
 
-  it('can switch back to coins tab from cosmetics', () => {
+  it('can switch back to coins tab from season tab', () => {
     render(<ShopPage />)
-    fireEvent.click(screen.getByText('🎨 Cosmetics'))
+    fireEvent.click(screen.getByText('👑 Season Pass'))
     fireEvent.click(screen.getByText('💰 Gold Coins'))
     expect(screen.getByText('Gold Coin Packs')).toBeInTheDocument()
   })

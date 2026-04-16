@@ -26,7 +26,6 @@ interface SeasonData {
 const REWARD_ICONS: Record<string, string> = {
   starCoins: '⭐',
   goldCoins: '💰',
-  cosmetic:  '👗',
   title:     '🏷️',
 }
 
@@ -116,7 +115,6 @@ export default function SeasonPassPage() {
                         {REWARD_ICONS[tier.rewardType] ?? '🎁'}{' '}
                         {tier.rewardType === 'starCoins' ? `${tier.rewardValue} Star Coins`
                           : tier.rewardType === 'goldCoins' ? `${tier.rewardValue} Gold Coins`
-                          : tier.rewardType === 'cosmetic' ? 'Cosmetic Item'
                           : tier.rewardValue}
                       </p>
                       <p className="text-xs text-neutral-500">{tier.xpRequired} XP required</p>
