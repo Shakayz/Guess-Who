@@ -9,8 +9,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
-import { RANK_CONFIG } from '@imposter/shared'
-import type { RankTier } from '@imposter/shared'
+import { RANK_CONFIG } from '@red-handed/shared'
+import type { RankTier } from '@red-handed/shared'
 import { api } from '../../lib/api'
 import { useResponsive } from '../../lib/responsive'
 

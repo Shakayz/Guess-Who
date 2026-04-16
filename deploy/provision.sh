@@ -12,7 +12,7 @@ if ! docker compose version >/dev/null 2>&1; then
   sudo apt-get install -y docker-compose-plugin
 fi
 
-sudo mkdir -p /opt/imposter
-sudo chown ubuntu:ubuntu /opt/imposter
+sudo mkdir -p /opt/red-handed
+sudo chown ubuntu:ubuntu /opt/red-handed
 
 echo "Provision complete."

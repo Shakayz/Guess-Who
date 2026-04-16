@@ -3,8 +3,8 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { NavBar } from '../components/NavBar'
-import { WORD_CATEGORIES, MATCHMAKING_CONFIG, TUTORIAL_COMPLETION_REWARD } from '@imposter/shared'
-import type { WordCategory, MatchmakingStatus } from '@imposter/shared'
+import { WORD_CATEGORIES, MATCHMAKING_CONFIG, TUTORIAL_COMPLETION_REWARD } from '@red-handed/shared'
+import type { WordCategory, MatchmakingStatus } from '@red-handed/shared'
 import { connectSocket, getSocket } from '../lib/socket'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
@@ -656,14 +656,16 @@ export default function HomePage() {
         </div>
 
         {/* Walkthrough / tutorial CTA — prominent card for first-time players.
-            Three states:
-              1. Never claimed + never played a real game → show CTA
-              2. Already claimed the 50⭐ reward           → show compact
-                 "coins already claimed" acknowledgment (per user request)
-              3. Played a real game (but never claimed)    → hide entirely,
-                 they've outgrown the walkthrough
+            Once the user has played at least one real game (ranked /
+            unranked / lobby) the tutorial section disappears entirely — they
+            have outgrown the walkthrough and don't need the reminder or the
+            "already claimed" acknowledgment cluttering the home screen.
+            Two remaining states (only while `hasPlayedGame` is false):
+              1. Never claimed the 50⭐ reward → show the tutorial CTA.
+              2. Already claimed the 50⭐ reward → show the compact "coins
+                 already claimed" acknowledgment.
          */}
-        {walkthroughCompleted ? (
+        {!hasPlayedGame && (walkthroughCompleted ? (
           <div className="mt-10 w-full max-w-md mx-auto rounded-2xl border border-emerald-700/40 bg-emerald-950/30 p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-600/20 border border-emerald-700/40 flex items-center justify-center text-xl shrink-0">
               ✅
@@ -672,7 +674,7 @@ export default function HomePage() {
               {t('tutorial.homeCardAlreadyClaimed', { amount: TUTORIAL_COMPLETION_REWARD })}
             </p>
           </div>
-        ) : !hasPlayedGame ? (
+        ) : (
           <Link
             to="/tutorial"
             className="mt-10 w-full max-w-md mx-auto group relative overflow-hidden rounded-2xl border border-amber-700/40 bg-gradient-to-br from-amber-950/50 to-brand-950/40 p-4 flex items-center gap-4 hover:border-amber-600/60 hover:from-amber-950/70 transition-all active:scale-[0.99]"
@@ -690,7 +692,7 @@ export default function HomePage() {
               {t('tutorial.homeCardCta')} →
             </span>
           </Link>
-        ) : null}
+        ))}
 
         {/* How to play link */}
         <Link
@@ -755,8 +757,8 @@ export default function HomePage() {
                     <div className="flex items-start gap-3 p-3 rounded-xl bg-neutral-900 border border-neutral-800">
                       <span className="text-lg">🔪</span>
                       <div>
-                        <p className="text-sm font-semibold text-white">{t('home.htp.imposterTitle')}</p>
-                        <p className="text-xs text-neutral-500 leading-relaxed">{t('home.htp.imposterDesc')}</p>
+                        <p className="text-sm font-semibold text-white">{t('home.htp.redHandedTitle')}</p>
+                        <p className="text-xs text-neutral-500 leading-relaxed">{t('home.htp.redHandedDesc')}</p>
                       </div>
                     </div>
                   </div>
@@ -772,7 +774,7 @@ export default function HomePage() {
                     </div>
                     <div className="flex items-center gap-2 text-sm text-neutral-300">
                       <span className="text-red-400">✓</span>
-                      {t('home.htp.imposterWin')}
+                      {t('home.htp.redHandedWin')}
                     </div>
                   </div>
                 </section>

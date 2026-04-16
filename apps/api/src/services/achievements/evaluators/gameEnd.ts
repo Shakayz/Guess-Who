@@ -1,4 +1,4 @@
-// Evaluators that fire on the `game_end` event. Covers gameplay, imposter,
+// Evaluators that fire on the `game_end` event. Covers gameplay, redHanded,
 // detective, and the in-game subset of secret achievements. Count-based
 // achievements reuse the progression() factory; clever one-offs are listed
 // individually with hand-written check logic.
@@ -60,14 +60,14 @@ const gameplayOneOffs = merge(
     (ctx) => isGameEnd(ctx) && ctx.stats.totalGames >= 1,
   ),
   single(
-    { key: 'correct_voter', name: 'Good Eye', description: 'Win a game after voting correctly to eliminate an imposter', icon: '👁️', category: 'gameplay', difficulty: 'bronze', xpReward: 10, coinReward: 15 },
+    { key: 'correct_voter', name: 'Good Eye', description: 'Win a game after voting correctly to eliminate a red-handed', icon: '👁️', category: 'gameplay', difficulty: 'bronze', xpReward: 10, coinReward: 15 },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isImposter,
+    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isRedHanded,
   ),
   single(
     { key: 'clean_sweep', name: 'Clean Sweep', description: 'Win a game as the villagers without losing anyone', icon: '🧹', category: 'gameplay', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isImposter && ctx.survived && ctx.winner === 'villagers',
+    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isRedHanded && ctx.survived && ctx.winner === 'villagers',
   ),
   single(
     { key: 'full_lobby', name: 'Full House', description: 'Play a game with 10 or more players', icon: '🏠', category: 'gameplay', difficulty: 'silver', xpReward: 25, coinReward: 40 },
@@ -111,64 +111,64 @@ const gameplayOneOffs = merge(
   ),
 )
 
-// ─── IMPOSTER ───────────────────────────────────────────────────────────────
+// ─── RED_HANDED ───────────────────────────────────────────────────────────────
 
-const imposterProgression = progression({
-  keyPrefix: 'imposter_wins',
-  category: 'imposter',
+const redHandedProgression = progression({
+  keyPrefix: 'red_handed_wins',
+  category: 'red_handed',
   icon: '🎭',
-  name: (n) => n === 1 ? 'First Disguise' : `${n} Imposter Wins`,
-  description: (n) => n === 1 ? 'Win a game as the imposter' : `Win ${n} games as the imposter`,
+  name: (n) => n === 1 ? 'First Disguise' : `${n} Red-Handed Wins`,
+  description: (n) => n === 1 ? 'Win a game as the red-handed' : `Win ${n} games as the red-handed`,
   event: 'game_end',
-  getCount: (s) => s.totalImposterWins,
+  getCount: (s) => s.totalRedHandedWins,
   tiers: TIERS_6([1, 5, 25, 100, 500, 2000]),
 })
 
-const imposterOneOffs = merge(
+const redHandedOneOffs = merge(
   single(
-    { key: 'perfect_imposter', name: 'Untouchable', description: 'Win as imposter without being eliminated', icon: '👻', category: 'imposter', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'perfect_red_handed', name: 'Untouchable', description: 'Win as red-handed without being eliminated', icon: '👻', category: 'red_handed', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.isImposter && ctx.isWinner && ctx.survived,
+    (ctx) => isGameEnd(ctx) && ctx.isRedHanded && ctx.isWinner && ctx.survived,
   ),
   single(
-    { key: 'fooled_detective', name: 'Fooled the Detective', description: 'Win as imposter in a game with a detective', icon: '🕶️', category: 'imposter', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
+    { key: 'fooled_detective', name: 'Fooled the Detective', description: 'Win as red-handed in a game with a detective', icon: '🕶️', category: 'red_handed', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.isImposter && ctx.isWinner,
+    (ctx) => isGameEnd(ctx) && ctx.isRedHanded && ctx.isWinner,
   ),
   single(
-    { key: 'big_lobby_imposter', name: 'Wolf in the Flock', description: 'Win as imposter in a 10+ player game', icon: '🐺', category: 'imposter', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
+    { key: 'big_lobby_red_handed', name: 'Wolf in the Flock', description: 'Win as red-handed in a 10+ player game', icon: '🐺', category: 'red_handed', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.isImposter && ctx.isWinner && ctx.playerCount >= 10,
+    (ctx) => isGameEnd(ctx) && ctx.isRedHanded && ctx.isWinner && ctx.playerCount >= 10,
   ),
   single(
-    { key: 'imposter_ratio', name: 'Born Liar', description: 'Reach 80% imposter win rate over 25+ imposter games', icon: '🃏', category: 'imposter', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
+    { key: 'red_handed_ratio', name: 'Born Liar', description: 'Reach 80% red-handed win rate over 25+ red-handed games', icon: '🃏', category: 'red_handed', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
     'game_end',
     (ctx) => {
-      const imposterGames =
-        (ctx.stats.gamesByRole['imposter'] ?? 0) +
+      const redHandedGames =
+        (ctx.stats.gamesByRole['red_handed'] ?? 0) +
         (ctx.stats.gamesByRole['double_agent'] ?? 0) +
         (ctx.stats.gamesByRole['infiltrator'] ?? 0) +
         (ctx.stats.gamesByRole['kamikaze'] ?? 0) +
         (ctx.stats.gamesByRole['corruptor'] ?? 0) +
         (ctx.stats.gamesByRole['inverter'] ?? 0) +
-        (ctx.stats.gamesByRole['twin_imposter'] ?? 0)
-      return imposterGames >= 25 && ctx.stats.totalImposterWins / imposterGames >= 0.8
+        (ctx.stats.gamesByRole['twin_red_handed'] ?? 0)
+      return redHandedGames >= 25 && ctx.stats.totalRedHandedWins / redHandedGames >= 0.8
     },
   ),
   single(
-    { key: 'silent_assassin', name: 'Silent Assassin', description: 'Reach 50 imposter wins total', icon: '🗡️', category: 'imposter', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
+    { key: 'silent_assassin', name: 'Silent Assassin', description: 'Reach 50 red-handed wins total', icon: '🗡️', category: 'red_handed', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
     'game_end',
-    (ctx) => ctx.stats.totalImposterWins >= 50,
+    (ctx) => ctx.stats.totalRedHandedWins >= 50,
   ),
   single(
-    { key: 'phantom', name: 'Phantom', description: 'Reach 200 imposter wins', icon: '👤', category: 'imposter', difficulty: 'diamond', xpReward: REWARD.diamond.xp, coinReward: REWARD.diamond.stars },
+    { key: 'phantom', name: 'Phantom', description: 'Reach 200 red-handed wins', icon: '👤', category: 'red_handed', difficulty: 'diamond', xpReward: REWARD.diamond.xp, coinReward: REWARD.diamond.stars },
     'game_end',
-    (ctx) => ctx.stats.totalImposterWins >= 200,
+    (ctx) => ctx.stats.totalRedHandedWins >= 200,
   ),
   single(
-    { key: 'the_oracle', name: 'The Oracle', description: 'Win 1000 imposter games (nearly impossible)', icon: '🔮', category: 'imposter', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars, isSecret: true },
+    { key: 'the_oracle', name: 'The Oracle', description: 'Win 1000 red-handed games (nearly impossible)', icon: '🔮', category: 'red_handed', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars, isSecret: true },
     'game_end',
-    (ctx) => ctx.stats.totalImposterWins >= 1000,
+    (ctx) => ctx.stats.totalRedHandedWins >= 1000,
   ),
 )
 
@@ -223,7 +223,7 @@ const SPECIAL_ROLES: Array<{ role: string; icon: string; display: string }> = [
   { role: 'judge',          icon: '⚖️',  display: 'Judge' },
   { role: 'revenant',       icon: '💀',  display: 'Revenant' },
   { role: 'twin_villager',  icon: '👯',  display: 'Twin Villager' },
-  { role: 'imposter',       icon: '🎭',  display: 'Imposter' },
+  { role: 'red_handed',       icon: '🎭',  display: 'Red-Handed' },
   { role: 'double_agent',   icon: '🎰',  display: 'Double Agent' },
   { role: 'infiltrator',    icon: '🥷',  display: 'Infiltrator' },
   { role: 'kamikaze',       icon: '💣',  display: 'Kamikaze' },
@@ -274,7 +274,7 @@ const secretGameEnd = merge(
   single(
     { key: 'perfect_game', name: 'Flawless', description: 'Win a game as a surviving villager-side player', icon: '✨', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isImposter && ctx.survived,
+    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isRedHanded && ctx.survived,
   ),
   single(
     { key: 'betrayed', name: 'Betrayed!', description: 'Lose a game where you were eliminated', icon: '🗡️', category: 'secret', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars, isSecret: true },
@@ -341,7 +341,7 @@ const secretGameEnd = merge(
   single(
     { key: 'solo_survivor', name: 'Last Stand', description: 'Win as the last surviving villager-side player', icon: '🔥', category: 'secret', difficulty: 'diamond', xpReward: REWARD.diamond.xp, coinReward: REWARD.diamond.stars, isSecret: true },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isImposter && ctx.survived && ctx.winner === 'villagers',
+    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isRedHanded && ctx.survived && ctx.winner === 'villagers',
   ),
   single(
     { key: 'midas_touch', name: 'Midas Touch', description: 'Earn 150+ stars in a single game (daily + streak stacked)', icon: '💰', category: 'secret', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars, isSecret: true },
@@ -352,12 +352,12 @@ const secretGameEnd = merge(
   single(
     { key: 'unwinnable', name: 'Unwinnable Odds', description: 'Win a villagers game where you were the last one alive', icon: '🏹', category: 'secret', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars, isSecret: true },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isImposter && ctx.survived && ctx.winner === 'villagers' && ctx.playerCount >= 6,
+    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isRedHanded && ctx.survived && ctx.winner === 'villagers' && ctx.playerCount >= 6,
   ),
   single(
-    { key: 'comeback_king', name: 'Comeback King', description: 'Win a game as imposter after being targeted', icon: '👊', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
+    { key: 'comeback_king', name: 'Comeback King', description: 'Win a game as red-handed after being targeted', icon: '👊', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.isImposter && ctx.isWinner && ctx.survived,
+    (ctx) => isGameEnd(ctx) && ctx.isRedHanded && ctx.isWinner && ctx.survived,
   ),
   single(
     { key: 'blood_moon', name: 'Blood Moon', description: 'Finish a game on a day ending in an odd number', icon: '🩸', category: 'secret', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars, isSecret: true },
@@ -385,9 +385,9 @@ const secretGameEnd = merge(
     (ctx) => isGameEnd(ctx) && ctx.isWinner && ctx.now.getUTCMonth() === 11 && ctx.now.getUTCDate() === 25,
   ),
   single(
-    { key: 'halloween_imposter', name: 'Costume Party', description: 'Win as imposter on October 31st', icon: '🎃', category: 'secret', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars, isSecret: true },
+    { key: 'halloween_red_handed', name: 'Costume Party', description: 'Win as red-handed on October 31st', icon: '🎃', category: 'secret', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars, isSecret: true },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.isImposter && ctx.isWinner && ctx.now.getUTCMonth() === 9 && ctx.now.getUTCDate() === 31,
+    (ctx) => isGameEnd(ctx) && ctx.isRedHanded && ctx.isWinner && ctx.now.getUTCMonth() === 9 && ctx.now.getUTCDate() === 31,
   ),
   single(
     { key: 'valentine_solo', name: 'Anti-Romance', description: 'Play solo on February 14th', icon: '💔', category: 'secret', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars, isSecret: true },
@@ -410,7 +410,7 @@ const secretGameEnd = merge(
     (ctx) => isGameEnd(ctx) && ctx.isWinner && ctx.stats.totalGames >= 6 && ctx.stats.totalWins === 1,
   ),
   single(
-    { key: 'devils_advocate', name: "Devil's Advocate", description: 'Win a game as a non-imposter role that is rarely trusted', icon: '😈', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
+    { key: 'devils_advocate', name: "Devil's Advocate", description: 'Win a game as a non-red-handed role that is rarely trusted', icon: '😈', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
     'game_end',
     (ctx) => isGameEnd(ctx) && ctx.isWinner && (ctx.role === 'jester' || ctx.role === 'revenant'),
   ),
@@ -422,17 +422,17 @@ const secretGameEnd = merge(
   single(
     { key: 'twin_tragedy', name: 'Twin Tragedy', description: 'Lose a twin game when your partner was eliminated', icon: '💔', category: 'secret', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars, isSecret: true },
     'game_end',
-    (ctx) => isGameEnd(ctx) && (ctx.role === 'twin_villager' || ctx.role === 'twin_imposter') && !ctx.isWinner,
+    (ctx) => isGameEnd(ctx) && (ctx.role === 'twin_villager' || ctx.role === 'twin_red_handed') && !ctx.isWinner,
   ),
   single(
     { key: 'twin_pyrrhic', name: 'Twin Pyrrhic', description: 'Survive as twin in a lost twin game', icon: '👻', category: 'secret', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars, isSecret: true },
     'game_end',
-    (ctx) => isGameEnd(ctx) && (ctx.role === 'twin_villager' || ctx.role === 'twin_imposter') && ctx.survived && !ctx.isWinner,
+    (ctx) => isGameEnd(ctx) && (ctx.role === 'twin_villager' || ctx.role === 'twin_red_handed') && ctx.survived && !ctx.isWinner,
   ),
   single(
-    { key: 'houdini', name: 'Houdini', description: 'Win 25 imposter games while surviving every one', icon: '🎩', category: 'secret', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars, isSecret: true },
+    { key: 'houdini', name: 'Houdini', description: 'Win 25 red-handed games while surviving every one', icon: '🎩', category: 'secret', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars, isSecret: true },
     'game_end',
-    (ctx) => ctx.stats.totalImposterWins >= 25 && ctx.stats.survivedWins >= 25,
+    (ctx) => ctx.stats.totalRedHandedWins >= 25 && ctx.stats.survivedWins >= 25,
   ),
   single(
     { key: 'kingmaker', name: 'Kingmaker', description: 'Win 3 games as Jester', icon: '👑', category: 'secret', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars, isSecret: true },
@@ -440,9 +440,9 @@ const secretGameEnd = merge(
     (ctx) => ctx.stats.totalJesterWins >= 3,
   ),
   single(
-    { key: 'the_long_con', name: 'The Long Con', description: 'Win 100 ranked imposter games', icon: '🎲', category: 'secret', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars, isSecret: true },
+    { key: 'the_long_con', name: 'The Long Con', description: 'Win 100 ranked red-handed games', icon: '🎲', category: 'secret', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars, isSecret: true },
     'game_end',
-    (ctx) => ctx.stats.rankedWins >= 100 && ctx.stats.totalImposterWins >= 100,
+    (ctx) => ctx.stats.rankedWins >= 100 && ctx.stats.totalRedHandedWins >= 100,
   ),
   single(
     { key: 'seven_roles', name: 'Jack-of-Seven', description: 'Win at least once as 7 different roles', icon: '🎰', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
@@ -511,8 +511,8 @@ const secretGameEnd = merge(
 export const GAME_END_DEFS: AchievementDef[] = [
   ...gameplayProgression.defs,
   ...gameplayOneOffs.defs,
-  ...imposterProgression.defs,
-  ...imposterOneOffs.defs,
+  ...redHandedProgression.defs,
+  ...redHandedOneOffs.defs,
   ...detectiveProgression.defs,
   ...detectiveOneOffs.defs,
   ...specialRoleDefs,
@@ -522,8 +522,8 @@ export const GAME_END_DEFS: AchievementDef[] = [
 export const GAME_END_EVALS: Evaluator[] = [
   ...gameplayProgression.evals,
   ...gameplayOneOffs.evals,
-  ...imposterProgression.evals,
-  ...imposterOneOffs.evals,
+  ...redHandedProgression.evals,
+  ...redHandedOneOffs.evals,
   ...detectiveProgression.evals,
   ...detectiveOneOffs.evals,
   ...specialRoleEvals,

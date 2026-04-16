@@ -4,14 +4,14 @@
     {
       "name": "Full Stack (Docker + proxy)",
       "runtimeExecutable": "docker",
-      "runtimeArgs": ["run", "--rm", "-p", "5202:5202", "--network", "imposter-dev_default", "alpine/socat", "TCP-LISTEN:5202,fork,reuseaddr", "TCP:imposter-web-dev:5173"],
+      "runtimeArgs": ["run", "--rm", "-p", "5202:5202", "--network", "red-handed-dev_default", "alpine/socat", "TCP-LISTEN:5202,fork,reuseaddr", "TCP:red-handed-web-dev:5173"],
       "port": 5202,
       "autoPort": false
     },
     {
       "name": "Web Dev (Docker)",
       "runtimeExecutable": "docker",
-      "runtimeArgs": ["run", "--rm", "-p", "5203:5203", "--network", "imposter-dev_default", "alpine/socat", "TCP-LISTEN:5203,fork,reuseaddr", "TCP:imposter-web-dev:5173"],
+      "runtimeArgs": ["run", "--rm", "-p", "5203:5203", "--network", "red-handed-dev_default", "alpine/socat", "TCP-LISTEN:5203,fork,reuseaddr", "TCP:red-handed-web-dev:5173"],
       "port": 5203,
       "autoPort": false
     },

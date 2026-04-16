@@ -8,11 +8,11 @@ import { LanguagePicker } from '../components/LanguagePicker'
 import {
   OFFLINE_ROLE_REGISTRY,
   VILLAGER_OFFLINE_ROLES,
-  IMPOSTER_OFFLINE_ROLES,
+  RED_HANDED_OFFLINE_ROLES,
   NEUTRAL_OFFLINE_ROLES,
   type OfflineRole,
   type OfflineRoleColor,
-} from '@imposter/shared'
+} from '@red-handed/shared'
 
 const COLOR_TEXT: Record<OfflineRoleColor, string> = {
   emerald: 'text-emerald-300',
@@ -180,12 +180,12 @@ export default function HowToPlayScreen() {
             <Text className="text-neutral-400" style={{ fontSize: 12 * fontScale, lineHeight: 16 * fontScale }}>
               {t('offline.htpNormalDesc', {
                 defaultValue:
-                  'Each player gets a secret word. Imposters get a similar but different word and must blend in.',
+                  'Each player gets a secret word. Red-Handed get a similar but different word and must blend in.',
               })}
             </Text>
             <View className="gap-2">
               <RoleRow roleKey="villager" fontScale={fontScale} isTablet={isTablet} />
-              <RoleRow roleKey="imposter" fontScale={fontScale} isTablet={isTablet} />
+              <RoleRow roleKey="red_handed" fontScale={fontScale} isTablet={isTablet} />
             </View>
           </View>
 
@@ -222,10 +222,10 @@ export default function HowToPlayScreen() {
             />
 
             <TeamSection
-              title={t('offline.teamImposters', { defaultValue: 'Imposters' })}
+              title={t('offline.teamRedHanded', { defaultValue: 'Red-Handed' })}
               emoji="🔴"
               accent="text-red-400"
-              roles={IMPOSTER_OFFLINE_ROLES}
+              roles={RED_HANDED_OFFLINE_ROLES}
               fontScale={fontScale}
               isTablet={isTablet}
             />
@@ -250,7 +250,7 @@ export default function HowToPlayScreen() {
                   <Text className="text-neutral-400 mt-0.5" style={{ fontSize: 12 * fontScale, lineHeight: 16 * fontScale }}>
                     {t('offline.htpEvilTwinsDesc', {
                       defaultValue:
-                        'A linked pair (one villager, one imposter) who win together if both survive — but lose individually if separated.',
+                        'A linked pair (one villager, one redHanded) who win together if both survive — but lose individually if separated.',
                     })}
                   </Text>
                 </View>

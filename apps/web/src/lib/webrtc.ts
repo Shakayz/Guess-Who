@@ -22,7 +22,7 @@
  */
 
 import type { Socket } from 'socket.io-client'
-import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
+import type { ServerToClientEvents, ClientToServerEvents } from '@red-handed/shared'
 import { createLogger } from './logger'
 
 const log = createLogger('voice')

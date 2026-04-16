@@ -8,7 +8,7 @@
 # this is always the case. If you've logged in previously, clear app data
 # or uninstall/reinstall before running.
 
-appId: ${APP_ID:-com.imposter.game}
+appId: ${APP_ID:-com.redhanded.game}
 ---
 - launchApp:
     clearState: true
@@ -16,7 +16,7 @@ appId: ${APP_ID:-com.imposter.game}
 
 # Splash & hydration of AsyncStorage takes a moment; give the auth screen time.
 - extendedWaitUntil:
-    visible: "Imposter Game"
+    visible: "Red Handed"
     timeout: 15000
 
 # The auth form's identifying strings must all be present.

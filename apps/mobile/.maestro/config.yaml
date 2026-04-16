@@ -1,4 +1,4 @@
-# Maestro workspace config for the Imposter Game mobile app.
+# Maestro workspace config for the Red Handed mobile app.
 #
 # What this file controls:
 # - Where to find flows when you run `maestro test .maestro/`
@@ -9,7 +9,7 @@
 # Maestro drives a specific installed app by its bundle identifier.
 # This repo has three possible targets:
 #
-#   1. Production / dev build .apk or .ipa  →  com.imposter.game   (default below)
+#   1. Production / dev build .apk or .ipa  →  com.redhanded.game   (default below)
 #   2. Expo Go on Android                    →  host.exp.exponent
 #   3. Expo Go on iOS                        →  host.exp.Exponent
 #

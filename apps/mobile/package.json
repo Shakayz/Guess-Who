@@ -1,5 +1,5 @@
 {
-  "name": "@imposter/mobile",
+  "name": "@red-handed/mobile",
   "version": "0.0.1",
   "private": true,
   "main": "expo-router/entry",
@@ -17,7 +17,7 @@
     "@babel/runtime": "^7.29.2",
     "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.1.1",
-    "@imposter/shared": "workspace:*",
+    "@red-handed/shared": "workspace:*",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "expo": "~54.0.33",
     "expo-apple-authentication": "^8.0.8",

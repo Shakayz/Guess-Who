@@ -2,13 +2,13 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
-import { generateRoomCode } from '@imposter/shared'
+import { generateRoomCode } from '@red-handed/shared'
 import { DAILY_COST } from '../services/dailyRewards'
 
 const createRoomSchema = z.object({
   settings: z.object({
     maxPlayers:           z.number().min(3).max(20).default(10),
-    imposterCount:        z.number().min(1).max(6).default(2),
+    redHandedCount:        z.number().min(1).max(6).default(2),
     speakingTimeSeconds:  z.number().min(10).max(120).default(30),
     votingTimeSeconds:    z.number().min(15).max(120).default(30),
     wordPackId:           z.string().default('default'),
@@ -22,10 +22,10 @@ const createRoomSchema = z.object({
     vocalSpeakingTimeSeconds: z.number().min(5).max(60).default(10),
   })
     .refine(
-      (s) => s.gameMode === 'ranked' || s.imposterCount <= Math.floor(s.maxPlayers / 3),
+      (s) => s.gameMode === 'ranked' || s.redHandedCount <= Math.floor(s.maxPlayers / 3),
       {
-        message: 'imposterCount must be at most floor(maxPlayers / 3) (1 imposter per 3 players)',
-        path: ['imposterCount'],
+        message: 'redHandedCount must be at most floor(maxPlayers / 3) (1 redHanded per 3 players)',
+        path: ['redHandedCount'],
       },
     )
     .optional(),
@@ -45,7 +45,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
       include: {
         game: {
           include: {
-            room: { select: { id: true, code: true, hostId: true, maxPlayers: true, imposterCount: true, speakingTimeSeconds: true, votingTimeSeconds: true, wordPackId: true, isPrivate: true, language: true, createdAt: true } },
+            room: { select: { id: true, code: true, hostId: true, maxPlayers: true, redHandedCount: true, speakingTimeSeconds: true, votingTimeSeconds: true, wordPackId: true, isPrivate: true, language: true, createdAt: true } },
           },
         },
       },
@@ -81,7 +81,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
         settings: {
           maxPlayers: room.maxPlayers,
           minPlayers: 3,
-          imposterCount: room.imposterCount,
+          redHandedCount: room.redHandedCount,
           speakingTimeSeconds: room.speakingTimeSeconds,
           votingTimeSeconds: room.votingTimeSeconds,
           wordPackId: room.wordPackId,
@@ -105,11 +105,11 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     const host = await prisma.user.findUnique({ where: { id: payload.sub }, select: { locale: true } })
     const code = generateRoomCode()
 
-    // Ranked games are locked at 10 players / 3 imposters, regardless of
+    // Ranked games are locked at 10 players / 3 redHanded, regardless of
     // what the client sends. All other modes honour the submitted values.
     const isRanked = settings?.gameMode === 'ranked'
     const rankedMaxPlayers    = 10
-    const rankedImposterCount = 3
+    const rankedRedHandedCount = 3
 
     // Private lobbies: the host pays 10 ⭐ at creation as a commitment fee, which
     // covers the FIRST game only. Subsequent games in the same private lobby are
@@ -138,7 +138,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
             code,
             hostId: payload.sub,
             maxPlayers:           isRanked ? rankedMaxPlayers    : (settings?.maxPlayers ?? 10),
-            imposterCount:        isRanked ? rankedImposterCount : (settings?.imposterCount ?? 2),
+            redHandedCount:       isRanked ? rankedRedHandedCount : (settings?.redHandedCount ?? 2),
             speakingTimeSeconds:  settings?.speakingTimeSeconds ?? 30,
             votingTimeSeconds:    settings?.votingTimeSeconds ?? 30,
             wordPackId:           settings?.wordPackId ?? 'default',

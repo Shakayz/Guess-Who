@@ -15,8 +15,8 @@ import { useTranslation } from 'react-i18next'
 import * as ImagePicker from 'expo-image-picker'
 import { useAuthStore } from '../../../store/auth'
 import { api } from '../../../lib/api'
-import { RANK_CONFIG, LEVEL_CAP } from '@imposter/shared'
-import type { RankTier } from '@imposter/shared'
+import { RANK_CONFIG, LEVEL_CAP } from '@red-handed/shared'
+import type { RankTier } from '@red-handed/shared'
 import i18n from '../../../i18n'
 import { useResponsive } from '../../../lib/responsive'
 
@@ -52,7 +52,7 @@ interface UserStats {
   losses: number
   winRate: number
   asVillager: number
-  asImposter: number
+  asRedHanded: number
   survived: number
 }
 
@@ -295,7 +295,7 @@ export default function ProfileScreen() {
         ? Math.round((profile.wins / profile.gamesPlayed) * 100)
         : 0,
     asVillager: 0,
-    asImposter: 0,
+    asRedHanded: 0,
     survived: 0,
   }
   const activeStats: UserStats | null = isRanked
@@ -583,7 +583,7 @@ export default function ProfileScreen() {
                 { label: t('profile.winRate', 'Win %'), value: `${activeStats.winRate}%`, icon: '🏆' },
                 { label: t('profile.wins', 'Wins'), value: activeStats.wins, icon: '✅' },
                 { label: t('profile.asVillager', 'Villager'), value: activeStats.asVillager, icon: '🏘️' },
-                { label: t('profile.asImposter', 'Imposter'), value: activeStats.asImposter, icon: '🎭' },
+                { label: t('profile.asRedHanded', 'Red-Handed'), value: activeStats.asRedHanded, icon: '🎭' },
                 { label: t('profile.survived', 'Survived'), value: activeStats.survived, icon: '💪' },
               ].map((stat) => (
                 <View

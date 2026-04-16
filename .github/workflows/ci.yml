@@ -35,9 +35,9 @@ jobs:
 
       - name: Typecheck (shared + api + web only)
         run: |
-          pnpm --filter @imposter/shared typecheck
-          pnpm --filter @imposter/api typecheck
-          pnpm --filter @imposter/web typecheck
+          pnpm --filter @red-handed/shared typecheck
+          pnpm --filter @red-handed/api typecheck
+          pnpm --filter @red-handed/web typecheck
 
   # ─────────────────────────────────────────
   # 2. Run tests
@@ -60,13 +60,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test shared
-        run: pnpm --filter @imposter/shared test
+        run: pnpm --filter @red-handed/shared test
 
       - name: Test api
-        run: pnpm --filter @imposter/api test
+        run: pnpm --filter @red-handed/api test
 
       - name: Test web
-        run: pnpm --filter @imposter/web test
+        run: pnpm --filter @red-handed/web test
 
   # ─────────────────────────────────────────
   # 3. Build all packages

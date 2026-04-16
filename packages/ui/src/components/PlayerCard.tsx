@@ -1,5 +1,5 @@
 import React from 'react'
-import type { Player } from '@imposter/shared'
+import type { Player } from '@red-handed/shared'
 import { Avatar } from './Avatar'
 import { Badge } from './Badge'
 
@@ -47,7 +47,7 @@ export function PlayerCard({
           {isCurrentUser && <span className="text-violet-400 ml-1">(you)</span>}
         </p>
         {showRole && player.role && (
-          <Badge variant={player.role === 'imposter' || player.role === 'double_agent' ? 'danger' : 'success'}>
+          <Badge variant={player.role === 'red_handed' || player.role === 'double_agent' ? 'danger' : 'success'}>
             {player.role}
           </Badge>
         )}

@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io'
-import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
+import type { ServerToClientEvents, ClientToServerEvents } from '@red-handed/shared'
 import { redis } from '../../config/redis'
 import { prisma } from '../../config/prisma'
 import { childLogger } from '../../config/logger'
@@ -198,16 +198,16 @@ export function registerGameHandlers(
     // Roles that MUST avoid the villager word:
     //   - all villager-side roles (judge, revenant, mayor, guardian, detective)
     //   - twin_villager (villager-side)
-    //   - infiltrator (imposter team but holds villager word to blend in)
+    //   - infiltrator (redHanded team but holds villager word to blend in)
     //   - jester (holds villager word, loses if he says it)
     const villagerWordRoles = new Set([
       'villager', 'detective', 'guardian', 'mayor', 'infiltrator', 'jester',
       'judge', 'revenant', 'twin_villager',
     ])
     const forbidden: string[] =
-      role === 'double_agent' ? [state.villagerWord ?? '', state.imposterWord ?? ''] :
+      role === 'double_agent' ? [state.villagerWord ?? '', state.redHandedWord ?? ''] :
       villagerWordRoles.has(role)  ? [state.villagerWord ?? ''] :
-      [state.imposterWord ?? '']
+      [state.redHandedWord ?? '']
 
     const saidWord = forbidden.some((w) => containsWord(sanitized, w))
 

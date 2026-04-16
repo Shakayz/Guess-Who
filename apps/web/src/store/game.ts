@@ -1,12 +1,12 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { Room, Round, ChatMessage, RewardSummary } from '@imposter/shared'
+import type { Room, Round, ChatMessage, RewardSummary } from '@red-handed/shared'
 import { createLogger } from '../lib/logger'
 
 const log = createLogger('game')
 
 interface GameResult {
-  winner: 'villagers' | 'imposters' | 'jester' | 'evil_twins' | 'draw'
+  winner: 'villagers' | 'red_handed' | 'jester' | 'evil_twins' | 'draw'
   finalRound: Round
   rewards: RewardSummary
 }
@@ -142,7 +142,7 @@ export const useGameStore = create<GameState>()(
       },
     }),
     {
-      name: 'imposter-game',
+      name: 'red-handed',
       storage: createJSONStorage(() => sessionStorage),
       // Only persist fields needed to survive a page refresh
       partialize: (state) => ({

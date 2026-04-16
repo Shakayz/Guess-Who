@@ -2,19 +2,19 @@
 #
 # This is the most valuable flow we have without a backend: offline mode
 # runs a fully local game loop (no API, no socket). It exercises real game
-# logic from @imposter/shared.
+# logic from @red-handed/shared.
 #
 # Flow:
 #   1. Tap "Play Offline" on the auth screen
 #   2. Default 3 players appear — keep default names ("Player 1..3")
-#   3. Start the game with default roles (2 villagers + 1 imposter)
+#   3. Start the game with default roles (2 villagers + 1 redHanded)
 #   4. Assert we reach the dealing/playing phase
 #
 # We do NOT play through rounds here — that's fiddly because the word
 # reveal and clue phases require per-player device passing. Separate flow
 # 06b could extend this if wanted.
 
-appId: ${APP_ID:-com.imposter.game}
+appId: ${APP_ID:-com.redhanded.game}
 ---
 - launchApp:
     clearState: true
@@ -30,10 +30,10 @@ appId: ${APP_ID:-com.imposter.game}
     visible: "Pass & Play"
     timeout: 5000
 
-# Setup phase UI: the defaults ship with 3 player slots and 1 imposter.
+# Setup phase UI: the defaults ship with 3 player slots and 1 redHanded.
 - assertVisible: "Normal"
 - assertVisible: "Players"
-- assertVisible: "Imposters"
+- assertVisible: "Red-Handed"
 
 # offline.tsx renders the start CTA with defaultValue "Start Game" when
 # enough players are set up. Offline keys aren't in en.ts, so we rely on

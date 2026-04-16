@@ -3,9 +3,9 @@ version: '3.9'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: imposter-postgres
+    container_name: red-handed-postgres
     environment:
-      POSTGRES_DB: imposter_game
+      POSTGRES_DB: red_handed
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
@@ -20,7 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: imposter-redis
+    container_name: red-handed-redis
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -36,12 +36,12 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    container_name: imposter-api
+    container_name: red-handed-api
     env_file:
       - path: apps/api/.env
         required: false   # optional — env vars below take precedence
     environment:
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/imposter_game
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/red_handed
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-dev-only-secret-please-change-in-production-123}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
@@ -64,7 +64,7 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    container_name: imposter-web
+    container_name: red-handed-web
     ports:
       - "80:80"
     depends_on:

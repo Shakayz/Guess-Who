@@ -28,7 +28,7 @@ vi.mock('../store/auth', () => ({
 }))
 
 // ---- Mock shared types (used as type-only import in socket.ts) ----
-vi.mock('@imposter/shared', () => ({}))
+vi.mock('@red-handed/shared', () => ({}))
 
 describe('socket', () => {
   beforeEach(() => {

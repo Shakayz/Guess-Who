@@ -4,8 +4,8 @@ import { useTranslation, Trans } from 'react-i18next'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
 import { getSocket, connectSocket } from '../lib/socket'
-import { Avatar } from '@imposter/ui'
-import type { Clue } from '@imposter/shared'
+import { Avatar } from '@red-handed/ui'
+import type { Clue } from '@red-handed/shared'
 import { createLogger } from '../lib/logger'
 import { SoundManager } from '../lib/sounds'
 import { VoiceChannel } from '../lib/webrtc'
@@ -147,9 +147,9 @@ const PlayerClueHistoryModal = memo(({
 }: {
   playerId: string
   onClose: () => void
-  players: import('@imposter/shared').Player[]
-  completedRounds: import('@imposter/shared').Round[]
-  currentRound: import('@imposter/shared').Round | null
+  players: import('@red-handed/shared').Player[]
+  completedRounds: import('@red-handed/shared').Round[]
+  currentRound: import('@red-handed/shared').Round | null
   result: { winner: string } | null
   getDisplayName: (id: string, name: string) => string
 }) => {
@@ -160,14 +160,14 @@ const PlayerClueHistoryModal = memo(({
   const gameOver = !!result || player.status === 'eliminated' || player.status === 'forfeited'
 
   // Collect all rounds in order (completed + current if clues exist)
-  const allRounds: import('@imposter/shared').Round[] = [
+  const allRounds: import('@red-handed/shared').Round[] = [
     ...completedRounds,
     ...(currentRound && currentRound.clues.some((c) => c.playerId === playerId) ? [currentRound] : []),
   ]
 
   const ROLE_CONFIG: Record<string, { icon: string; color: string; label: string }> = {
     villager:      { icon: '🏘️', color: 'text-emerald-400', label: t('game.roleVillager', 'Villager') },
-    imposter:      { icon: '🔪', color: 'text-red-400',     label: t('game.roleImposter', 'Imposter') },
+    red_handed:    { icon: '🔪', color: 'text-red-400',     label: t('game.roleRedHanded', 'Red-Handed') },
     detective:     { icon: '🔍', color: 'text-blue-400',    label: t('game.roleDetective', 'Detective') },
     double_agent:  { icon: '🎭', color: 'text-orange-400',  label: t('game.roleDoubleAgent', 'Double Agent') },
     guardian:      { icon: '🛡️', color: 'text-yellow-400',  label: t('game.roleGuardian', 'Guardian') },
@@ -180,7 +180,7 @@ const PlayerClueHistoryModal = memo(({
     corruptor:     { icon: '🕷️', color: 'text-orange-300',  label: t('game.roleCorruptor', 'Corruptor') },
     inverter:      { icon: '🔄', color: 'text-rose-300',    label: t('game.roleInverter', 'Inverter') },
     twin_villager: { icon: '👯', color: 'text-purple-300',  label: t('game.roleTwinVillager', 'Evil Twin (Villager)') },
-    twin_imposter: { icon: '👯', color: 'text-purple-400',  label: t('game.roleTwinImposter', 'Evil Twin (Imposter)') },
+    twin_red_handed: { icon: '👯', color: 'text-purple-400',  label: t('game.roleTwinRedHanded', 'Evil Twin (Red-Handed)') },
   }
   const roleInfo = player.role ? ROLE_CONFIG[player.role] : null
 
@@ -333,7 +333,7 @@ export default function GamePage() {
   const [eliminated, setEliminated] = useState<{ username: string; role: string } | null>(null)
   // Full-screen cinematic that plays once per elimination event
   const [elimCinematic, setElimCinematic] = useState<
-    { username: string; role: string; isImposter: boolean; isSelf: boolean } | null
+    { username: string; role: string; isRedHanded: boolean; isSelf: boolean } | null
   >(null)
   const [hasSubmittedClue, setHasSubmittedClue] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
@@ -342,7 +342,7 @@ export default function GamePage() {
   const [voteCount, setVoteCount] = useState(0)
   const [totalVoters, setTotalVoters] = useState(0)
   const [allVotedMsg, setAllVotedMsg] = useState(false)
-  const [wordReveal, setWordReveal] = useState<{ villagerWord: string; imposterWord: string } | null>(null)
+  const [wordReveal, setWordReveal] = useState<{ villagerWord: string; redHandedWord: string } | null>(null)
   const [isTie, setIsTie] = useState(false)
   const [totalTime, setTotalTime] = useState(30)
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
@@ -398,7 +398,7 @@ export default function GamePage() {
   }, [])
 
 
-  const isImposter = myRole === 'imposter' || myRole === 'double_agent'
+  const isRedHanded = myRole === 'red_handed' || myRole === 'double_agent'
   const players = room?.players ?? []
   const isRanked = room?.settings?.gameMode === 'ranked'
   const gameIsRunning = room?.status === 'in_progress' || room?.status === 'voting'
@@ -616,13 +616,13 @@ export default function GamePage() {
         setEliminated({ username: elimName, role: elimRole })
         const isMe = round.eliminatedPlayerId === user?.id
         // Trigger the full-screen cinematic
-        const isEvilRole = elimRole === 'imposter' || elimRole === 'double_agent' || elimRole === 'kamikaze'
+        const isEvilRole = elimRole === 'red_handed' || elimRole === 'double_agent' || elimRole === 'kamikaze'
           || elimRole === 'corruptor' || elimRole === 'inverter' || elimRole === 'infiltrator'
-          || elimRole === 'twin_imposter'
+          || elimRole === 'twin_red_handed'
         setElimCinematic({
           username: elimName,
           role: elimRole,
-          isImposter: isEvilRole,
+          isRedHanded: isEvilRole,
           isSelf: isMe,
         })
         // If it's me, join dead chat
@@ -970,7 +970,7 @@ export default function GamePage() {
 
   const ROLE_CONFIG: Record<string, { icon: string; label: string; color: string; bg: string }> = {
     villager:      { icon: '🏘️', label: t('game.roleVillager', 'Villager'),               color: 'text-emerald-400', bg: 'from-emerald-900/40' },
-    imposter:      { icon: '🔪', label: t('game.roleImposter', 'Imposter'),               color: 'text-red-400',     bg: 'from-red-900/40' },
+    red_handed:    { icon: '🔪', label: t('game.roleRedHanded', 'Red-Handed'),               color: 'text-red-400',     bg: 'from-red-900/40' },
     detective:     { icon: '🔍', label: t('game.roleDetective', 'Detective'),             color: 'text-blue-400',    bg: 'from-blue-900/40' },
     double_agent:  { icon: '🎭', label: t('game.roleDoubleAgent', 'Double Agent'),        color: 'text-orange-400',  bg: 'from-orange-900/40' },
     guardian:      { icon: '🛡️', label: t('game.roleGuardian', 'Guardian'),               color: 'text-yellow-400',  bg: 'from-yellow-900/40' },
@@ -983,7 +983,7 @@ export default function GamePage() {
     corruptor:     { icon: '🕷️', label: t('game.roleCorruptor', 'Corruptor'),              color: 'text-orange-300',  bg: 'from-orange-900/40' },
     inverter:      { icon: '🔄', label: t('game.roleInverter', 'Inverter'),               color: 'text-rose-300',    bg: 'from-rose-900/40' },
     twin_villager: { icon: '👯', label: t('game.roleTwinVillager', 'Evil Twin (Villager)'), color: 'text-purple-300',  bg: 'from-purple-900/40' },
-    twin_imposter: { icon: '👯', label: t('game.roleTwinImposter', 'Evil Twin (Imposter)'), color: 'text-purple-400',  bg: 'from-purple-900/40' },
+    twin_red_handed: { icon: '👯', label: t('game.roleTwinRedHanded', 'Evil Twin (Red-Handed)'), color: 'text-purple-400',  bg: 'from-purple-900/40' },
   }
   const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
 
@@ -1007,7 +1007,7 @@ export default function GamePage() {
         <EliminationReveal
           username={elimCinematic.username}
           role={elimCinematic.role}
-          isImposter={elimCinematic.isImposter}
+          isRedHanded={elimCinematic.isRedHanded}
           isSelf={elimCinematic.isSelf}
           onDone={() => setElimCinematic(null)}
         />
@@ -1108,7 +1108,7 @@ export default function GamePage() {
                         <p className="text-xl font-extrabold text-emerald-200 mt-0.5">{myVillagerWord}</p>
                       </div>
                       <div className="rounded-xl bg-orange-950/60 border border-orange-800/40 px-4 py-2 text-center hover:scale-105 transition-transform">
-                        <p className="text-[10px] text-orange-500 font-bold uppercase">{t('game.imposterWord')}</p>
+                        <p className="text-[10px] text-orange-500 font-bold uppercase">{t('game.redHandedWord')}</p>
                         <p className="text-xl font-extrabold text-orange-200 mt-0.5">{myWord}</p>
                       </div>
                     </div>
@@ -1243,12 +1243,12 @@ export default function GamePage() {
               <span className="text-blue-400 font-bold text-sm">🔍 {revealedPlayer.username}: </span>
               <span className={[
                 'text-sm font-bold',
-                revealedPlayer.role === 'imposter' || revealedPlayer.role === 'double_agent' || revealedPlayer.role === 'kamikaze' || revealedPlayer.role === 'corruptor' || revealedPlayer.role === 'inverter' || revealedPlayer.role === 'twin_imposter' ? 'text-red-400' :
+                revealedPlayer.role === 'red_handed' || revealedPlayer.role === 'double_agent' || revealedPlayer.role === 'kamikaze' || revealedPlayer.role === 'corruptor' || revealedPlayer.role === 'inverter' || revealedPlayer.role === 'twin_red_handed' ? 'text-red-400' :
                 revealedPlayer.role === 'jester' ? 'text-pink-400' :
                 revealedPlayer.role === 'twin_villager' ? 'text-purple-300' :
                 'text-emerald-400',
               ].join(' ')}>
-                {revealedPlayer.role === 'imposter' ? t('game.roleImposter') :
+                {revealedPlayer.role === 'red_handed' ? t('game.roleRedHanded') :
                  revealedPlayer.role === 'double_agent' ? t('game.roleDoubleAgent') :
                  revealedPlayer.role === 'detective' ? t('game.roleDetective') :
                  revealedPlayer.role === 'guardian' ? t('game.roleGuardian') :
@@ -1260,7 +1260,7 @@ export default function GamePage() {
                  revealedPlayer.role === 'corruptor' ? t('game.roleCorruptor') :
                  revealedPlayer.role === 'inverter' ? t('game.roleInverter') :
                  revealedPlayer.role === 'twin_villager' ? t('game.roleTwinVillager') :
-                 revealedPlayer.role === 'twin_imposter' ? t('game.roleTwinImposter') :
+                 revealedPlayer.role === 'twin_red_handed' ? t('game.roleTwinRedHanded') :
                  t('game.roleVillager')}
               </span>
             </div>
@@ -1287,7 +1287,7 @@ export default function GamePage() {
               )}
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-lg font-extrabold tracking-tight text-white">Imposter</span>
+                  <span className="text-lg font-extrabold tracking-tight text-white">RedHanded</span>
                   {code && (
                     <span className="text-xs font-mono text-neutral-500 border border-neutral-800 rounded px-2 py-0.5">
                       {code}
@@ -1350,7 +1350,7 @@ export default function GamePage() {
                   <p className="text-2xl font-extrabold text-emerald-200">{myVillagerWord}</p>
                 </div>
                 <div className="rounded-xl bg-orange-950/40 border border-orange-800/40 p-3 shadow-sm shadow-orange-950/40">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-orange-500 mb-1">{t('game.imposterWord')}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-orange-500 mb-1">{t('game.redHandedWord')}</p>
                   <p className="text-2xl font-extrabold text-orange-200">{myWord}</p>
                 </div>
               </div>
@@ -1598,7 +1598,7 @@ export default function GamePage() {
           <div className="card">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                {tiebreakerActive ? t('game.tiebreakerVoting', 'Vote between the tied players only') : t('game.voteOutImposter')}
+                {tiebreakerActive ? t('game.tiebreakerVoting', 'Vote between the tied players only') : t('game.voteOutRedHanded')}
               </p>
               {totalVoters > 0 && (
                 <span className={['text-xs font-bold tabular-nums', voteCount === totalVoters ? 'text-emerald-400' : 'text-neutral-400'].join(' ')}>
@@ -1675,19 +1675,19 @@ export default function GamePage() {
 
         {/* Reveal phase */}
         {phase === 'reveal' && (() => {
-          const isImposterElim = eliminated?.role === 'imposter' || eliminated?.role === 'double_agent'
+          const isRedHandedElim = eliminated?.role === 'red_handed' || eliminated?.role === 'double_agent'
           return (
             <div className={[
               'card text-center py-10 relative overflow-hidden',
               eliminated
-                ? isImposterElim ? 'border-emerald-700/50 shadow-lg shadow-emerald-950/30' : 'border-red-700/50 shadow-lg shadow-red-950/30'
+                ? isRedHandedElim ? 'border-emerald-700/50 shadow-lg shadow-emerald-950/30' : 'border-red-700/50 shadow-lg shadow-red-950/30'
                 : isTie ? 'border-amber-700/50 shadow-lg shadow-amber-950/30' : 'border-neutral-700',
             ].join(' ')}>
               {/* Background glow */}
               {eliminated && (
                 <div className={[
                   'absolute inset-0 opacity-15',
-                  isImposterElim
+                  isRedHandedElim
                     ? 'bg-gradient-to-br from-emerald-500 via-emerald-900/20 to-transparent'
                     : 'bg-gradient-to-br from-red-600 via-red-900/20 to-transparent',
                 ].join(' ')} />
@@ -1695,7 +1695,7 @@ export default function GamePage() {
               {eliminated && (
                 <div className={[
                   'absolute top-0 inset-x-0 h-1',
-                  isImposterElim
+                  isRedHandedElim
                     ? 'bg-gradient-to-r from-transparent via-emerald-500 to-transparent'
                     : 'bg-gradient-to-r from-transparent via-red-500 to-transparent',
                 ].join(' ')} />
@@ -1703,8 +1703,8 @@ export default function GamePage() {
               <div className="relative">
                 {eliminated ? (
                   <>
-                    <p className="text-7xl mb-3" style={{ animation: 'role-drop 0.5s cubic-bezier(0.34,1.56,0.64,1) both', filter: isImposterElim ? 'drop-shadow(0 0 12px rgba(52,211,153,0.5))' : 'drop-shadow(0 0 12px rgba(248,113,113,0.5))' }}>
-                      {isImposterElim ? '🎯' : '💀'}
+                    <p className="text-7xl mb-3" style={{ animation: 'role-drop 0.5s cubic-bezier(0.34,1.56,0.64,1) both', filter: isRedHandedElim ? 'drop-shadow(0 0 12px rgba(52,211,153,0.5))' : 'drop-shadow(0 0 12px rgba(248,113,113,0.5))' }}>
+                      {isRedHandedElim ? '🎯' : '💀'}
                     </p>
                     <p
                       className="text-white font-bold text-xl mb-2"
@@ -1715,13 +1715,13 @@ export default function GamePage() {
                     <p
                       className={[
                         'text-sm font-bold px-4 py-1.5 rounded-full inline-block',
-                        isImposterElim
+                        isRedHandedElim
                           ? 'text-red-400 bg-red-950/60 border border-red-700/50 shadow-sm shadow-red-950/50'
                           : 'text-brand-400 bg-brand-950/60 border border-brand-700/50 shadow-sm shadow-brand-950/50',
                       ].join(' ')}
                       style={{ animation: 'role-rise 0.4s ease 0.4s both' }}
                     >
-                      {eliminated.role === 'imposter' ? t('game.roleImposter')
+                      {eliminated.role === 'red_handed' ? t('game.roleRedHanded')
                         : eliminated.role === 'double_agent' ? t('game.roleDoubleAgent')
                         : eliminated.role === 'detective' ? t('game.roleDetective')
                         : eliminated.role === 'guardian' ? t('game.roleGuardian')
@@ -1734,10 +1734,10 @@ export default function GamePage() {
                         : eliminated.role === 'corruptor' ? t('game.roleCorruptor')
                         : eliminated.role === 'inverter' ? t('game.roleInverter')
                         : eliminated.role === 'twin_villager' ? t('game.roleTwinVillager')
-                        : eliminated.role === 'twin_imposter' ? t('game.roleTwinImposter')
+                        : eliminated.role === 'twin_red_handed' ? t('game.roleTwinRedHanded')
                         : t('game.roleVillager')}
                     </p>
-                    {isImposterElim && (
+                    {isRedHandedElim && (
                       <p className="text-emerald-400 text-sm font-bold mt-3" style={{ animation: 'role-rise 0.4s ease 0.55s both', textShadow: '0 0 10px rgba(52,211,153,0.4)' }}>
                         {t('game.goodCatch', 'Nice catch!')}
                       </p>
@@ -1766,8 +1766,8 @@ export default function GamePage() {
                     <p className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</p>
                   </div>
                   <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
-                    <p className="text-xs text-neutral-500 mb-1">{t('game.imposterWord')}</p>
-                    <p className="text-amber-300 font-extrabold text-xl">{wordReveal.imposterWord}</p>
+                    <p className="text-xs text-neutral-500 mb-1">{t('game.redHandedWord')}</p>
+                    <p className="text-amber-300 font-extrabold text-xl">{wordReveal.redHandedWord}</p>
                   </div>
                 </div>
               )}
@@ -1961,7 +1961,7 @@ export default function GamePage() {
             </div>
           )}
           {/* Twin partner banner */}
-          {(myRole === 'twin_villager' || myRole === 'twin_imposter') && twinPartner && (
+          {(myRole === 'twin_villager' || myRole === 'twin_red_handed') && twinPartner && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold bg-purple-950/40 border-purple-800/40 text-purple-300">
               <span>👯</span>
               <span>

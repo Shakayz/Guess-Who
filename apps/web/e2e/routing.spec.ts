@@ -24,7 +24,7 @@ const PROTECTED_ROUTES = [
 ]
 
 const PUBLIC_ROUTES = [
-  { path: '/auth', expectText: 'Imposter Game' },
+  { path: '/auth', expectText: 'Red Handed' },
   { path: '/forgot-password', expectTitleHeading: true },
   { path: '/offline', expectAny: true },
   { path: '/how-to-play', expectAny: true },

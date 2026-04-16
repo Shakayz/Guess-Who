@@ -1,20 +1,20 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: imposter-game-ingress
-  namespace: imposter-game
+  name: red-handed-ingress
+  namespace: red-handed
   annotations:
     kubernetes.io/ingress.class: traefik
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    traefik.ingress.kubernetes.io/router.middlewares: imposter-game-compress@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: red-handed-compress@kubernetescrd
 spec:
   tls:
     - hosts:
-        - imposter.yourdomain.com
-        - api.imposter.yourdomain.com
-      secretName: imposter-tls
+        - redhanded.yourdomain.com
+        - api.redhanded.yourdomain.com
+      secretName: red-handed-tls
   rules:
-    - host: imposter.yourdomain.com
+    - host: redhanded.yourdomain.com
       http:
         paths:
           - path: /
@@ -24,7 +24,7 @@ spec:
                 name: web
                 port:
                   number: 80
-    - host: api.imposter.yourdomain.com
+    - host: api.redhanded.yourdomain.com
       http:
         paths:
           - path: /

@@ -187,8 +187,8 @@ export default function FriendsScreen() {
       return
     }
     // Share a generic invite link
-    await Sharing.shareAsync('https://imposter.game/invite', {
-      dialogTitle: 'Invite friends to Imposter Game',
+    await Sharing.shareAsync('https://redhanded.game/invite', {
+      dialogTitle: 'Invite friends to Red Handed',
     }).catch(() => {})
   }, [])
 

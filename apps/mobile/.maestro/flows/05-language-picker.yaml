@@ -9,13 +9,13 @@
 #   - packages/shared/src/i18n/fr.ts   (French strings)
 # The "Play Offline" button becomes "Jouer Hors Ligne" in French (fr.ts).
 
-appId: ${APP_ID:-com.imposter.game}
+appId: ${APP_ID:-com.redhanded.game}
 ---
 - launchApp:
     clearState: true
 
 - extendedWaitUntil:
-    visible: "Imposter Game"
+    visible: "Red Handed"
     timeout: 15000
 
 - assertVisible: "Play Offline"

@@ -138,16 +138,16 @@ describe('LP_REWARDS', () => {
     expect(LP_REWARDS).toHaveProperty('VILLAGER_LOSS')
   })
 
-  it('has IMPOSTER_WIN key', () => {
-    expect(LP_REWARDS).toHaveProperty('IMPOSTER_WIN')
+  it('has RED_HANDED_WIN key', () => {
+    expect(LP_REWARDS).toHaveProperty('RED_HANDED_WIN')
   })
 
-  it('has IMPOSTER_LOSS key', () => {
-    expect(LP_REWARDS).toHaveProperty('IMPOSTER_LOSS')
+  it('has RED_HANDED_LOSS key', () => {
+    expect(LP_REWARDS).toHaveProperty('RED_HANDED_LOSS')
   })
 
-  it('has SURVIVAL_IMPOSTER_WIN key', () => {
-    expect(LP_REWARDS).toHaveProperty('SURVIVAL_IMPOSTER_WIN')
+  it('has SURVIVAL_RED_HANDED_WIN key', () => {
+    expect(LP_REWARDS).toHaveProperty('SURVIVAL_RED_HANDED_WIN')
   })
 
   it('has SURVIVAL_VILLAGER_LOSS key', () => {
@@ -156,18 +156,18 @@ describe('LP_REWARDS', () => {
 
   it('win rewards are positive', () => {
     expect(LP_REWARDS.VILLAGER_WIN).toBeGreaterThan(0)
-    expect(LP_REWARDS.IMPOSTER_WIN).toBeGreaterThan(0)
-    expect(LP_REWARDS.SURVIVAL_IMPOSTER_WIN).toBeGreaterThan(0)
+    expect(LP_REWARDS.RED_HANDED_WIN).toBeGreaterThan(0)
+    expect(LP_REWARDS.SURVIVAL_RED_HANDED_WIN).toBeGreaterThan(0)
   })
 
   it('loss penalties are negative', () => {
     expect(LP_REWARDS.VILLAGER_LOSS).toBeLessThan(0)
-    expect(LP_REWARDS.IMPOSTER_LOSS).toBeLessThan(0)
+    expect(LP_REWARDS.RED_HANDED_LOSS).toBeLessThan(0)
     expect(LP_REWARDS.SURVIVAL_VILLAGER_LOSS).toBeLessThan(0)
   })
 
-  it('imposter win reward is higher than villager win reward', () => {
-    expect(LP_REWARDS.IMPOSTER_WIN).toBeGreaterThan(LP_REWARDS.VILLAGER_WIN)
+  it('redHanded win reward is higher than villager win reward', () => {
+    expect(LP_REWARDS.RED_HANDED_WIN).toBeGreaterThan(LP_REWARDS.VILLAGER_WIN)
   })
 
   it('all values are integers', () => {
@@ -192,8 +192,8 @@ describe('DEFAULT_ROOM_SETTINGS', () => {
     expect(DEFAULT_ROOM_SETTINGS.minPlayers).toBeLessThan(DEFAULT_ROOM_SETTINGS.maxPlayers)
   })
 
-  it('has imposterCount of 2', () => {
-    expect(DEFAULT_ROOM_SETTINGS.imposterCount).toBe(2)
+  it('has redHandedCount of 2', () => {
+    expect(DEFAULT_ROOM_SETTINGS.redHandedCount).toBe(2)
   })
 
   it('has positive speakingTimeSeconds', () => {

@@ -16,12 +16,12 @@ describe('hasTutorialCompleted', () => {
   })
 
   it('returns true once the flag is set to "1"', () => {
-    localStorage.setItem('imposter-tutorial-completed', '1')
+    localStorage.setItem('red-handed-tutorial-completed', '1')
     expect(hasTutorialCompleted()).toBe(true)
   })
 
   it('returns false for any other value', () => {
-    localStorage.setItem('imposter-tutorial-completed', '0')
+    localStorage.setItem('red-handed-tutorial-completed', '0')
     expect(hasTutorialCompleted()).toBe(false)
   })
 })
@@ -36,7 +36,7 @@ describe('OnboardingTutorial', () => {
 
   it('renders the welcome step first', () => {
     render(<OnboardingTutorial onClose={onClose} />)
-    expect(screen.getByText(/Welcome to Imposter/i)).toBeInTheDocument()
+    expect(screen.getByText(/Welcome to RedHanded/i)).toBeInTheDocument()
   })
 
   it('advances to the next step on Next', () => {
@@ -49,13 +49,13 @@ describe('OnboardingTutorial', () => {
     render(<OnboardingTutorial onClose={onClose} />)
     fireEvent.click(screen.getByText('common.next'))
     fireEvent.click(screen.getByText('common.back'))
-    expect(screen.getByText(/Welcome to Imposter/i)).toBeInTheDocument()
+    expect(screen.getByText(/Welcome to RedHanded/i)).toBeInTheDocument()
   })
 
   it('skip button marks tutorial completed and closes', () => {
     render(<OnboardingTutorial onClose={onClose} />)
     fireEvent.click(screen.getByText('Skip'))
-    expect(localStorage.getItem('imposter-tutorial-completed')).toBe('1')
+    expect(localStorage.getItem('red-handed-tutorial-completed')).toBe('1')
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
@@ -76,7 +76,7 @@ describe('OnboardingTutorial', () => {
     render(<OnboardingTutorial onClose={onClose} />)
     for (let i = 0; i < 4; i++) fireEvent.click(screen.getByText(/common.next|Let's Play/i))
     fireEvent.click(screen.getByText(/Let's Play!/i))
-    expect(localStorage.getItem('imposter-tutorial-completed')).toBe('1')
+    expect(localStorage.getItem('red-handed-tutorial-completed')).toBe('1')
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
@@ -90,14 +90,14 @@ describe('OnboardingTutorial', () => {
     render(<OnboardingTutorial onClose={onClose} />)
     fireEvent.keyDown(window, { key: 'ArrowRight' })
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
-    expect(screen.getByText(/Welcome to Imposter/i)).toBeInTheDocument()
+    expect(screen.getByText(/Welcome to RedHanded/i)).toBeInTheDocument()
   })
 
   it('supports Escape key to skip', () => {
     render(<OnboardingTutorial onClose={onClose} />)
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onClose).toHaveBeenCalled()
-    expect(localStorage.getItem('imposter-tutorial-completed')).toBe('1')
+    expect(localStorage.getItem('red-handed-tutorial-completed')).toBe('1')
   })
 
   it('jumping to a step via a dot navigates directly to it', () => {

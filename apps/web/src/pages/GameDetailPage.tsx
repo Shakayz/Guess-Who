@@ -29,7 +29,7 @@ interface RoundDetail {
   id: string
   roundNumber: number
   villagerWord: string
-  imposterWord: string
+  redHandedWord: string
   eliminatedId: string | null
   eliminatedRole: string | null
   clues: RoundClue[]
@@ -48,8 +48,8 @@ interface GameDetail {
   id: string
   startedAt: string
   endedAt: string
-  winnerTeam: 'villagers' | 'imposters'
-  myRole: 'villager' | 'imposter'
+  winnerTeam: 'villagers' | 'red_handed'
+  myRole: 'villager' | 'red_handed'
   participations: GameDetailPlayer[]
   rounds: RoundDetail[]
   chatMessages: ChatMsg[]
@@ -110,8 +110,8 @@ function RoundAccordion({ round, players, t }: { round: RoundDetail; players: Ga
               <p className="text-white font-bold text-lg">{round.villagerWord}</p>
             </div>
             <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
-              <p className="text-xs text-neutral-500 mb-1">{t('gameDetail.imposterWord')}</p>
-              <p className="text-amber-300 font-bold text-lg">{round.imposterWord}</p>
+              <p className="text-xs text-neutral-500 mb-1">{t('gameDetail.redHandedWord')}</p>
+              <p className="text-amber-300 font-bold text-lg">{round.redHandedWord}</p>
             </div>
           </div>
 
@@ -232,7 +232,7 @@ export default function GameDetailPage() {
   const didWin =
     data &&
     ((data.winnerTeam === 'villagers' && data.myRole === 'villager') ||
-      (data.winnerTeam === 'imposters' && data.myRole === 'imposter'))
+      (data.winnerTeam === 'red_handed' && data.myRole === 'red_handed'))
 
   if (loading) {
     return (
@@ -311,11 +311,11 @@ export default function GameDetailPage() {
             <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
               <span className={[
                 'text-xs font-bold px-2.5 py-1 rounded-full border',
-                data.myRole === 'imposter'
+                data.myRole === 'red_handed'
                   ? 'bg-amber-950 text-amber-400 border-amber-800/60'
                   : 'bg-brand-950/60 text-brand-400 border-brand-800/60',
               ].join(' ')}>
-                {data.myRole === 'imposter' ? t('gameDetail.imposterRole') : t('gameDetail.villagerRole')}
+                {data.myRole === 'red_handed' ? t('gameDetail.redHandedRole') : t('gameDetail.villagerRole')}
               </span>
               <span className="text-xs font-semibold px-2.5 py-1 rounded-full border border-neutral-700 text-neutral-400 bg-neutral-800/60">
                 {data.rounds.length !== 1 ? t('gameDetail.roundCountPlural', { count: data.rounds.length }) : t('gameDetail.roundCount', { count: data.rounds.length })}
@@ -338,8 +338,8 @@ export default function GameDetailPage() {
                   <p className="text-lg font-extrabold text-white">{data.rounds[0].villagerWord}</p>
                 </div>
                 <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">{t('gameDetail.imposterWord')}</p>
-                  <p className="text-lg font-extrabold text-amber-400">{data.rounds[0].imposterWord}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">{t('gameDetail.redHandedWord')}</p>
+                  <p className="text-lg font-extrabold text-amber-400">{data.rounds[0].redHandedWord}</p>
                 </div>
               </div>
             )}
@@ -378,7 +378,7 @@ export default function GameDetailPage() {
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="text-base">
-                          {p.role === 'imposter' ? '🎭' : p.role === 'double_agent' ? '🕵️' : p.role === 'detective' ? '🔍' : '👤'}
+                          {p.role === 'red_handed' ? '🎭' : p.role === 'double_agent' ? '🕵️' : p.role === 'detective' ? '🔍' : '👤'}
                         </span>
                         <span className={[
                           'text-[10px]',

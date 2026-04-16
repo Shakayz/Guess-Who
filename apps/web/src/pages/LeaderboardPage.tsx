@@ -4,9 +4,9 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
-import { Avatar, Badge } from '@imposter/ui'
-import { RANK_CONFIG } from '@imposter/shared'
-import type { RankTier } from '@imposter/shared'
+import { Avatar, Badge } from '@red-handed/ui'
+import { RANK_CONFIG } from '@red-handed/shared'
+import type { RankTier } from '@red-handed/shared'
 
 interface LeaderboardUser {
   id: string

@@ -20,10 +20,10 @@ export interface User {
 export interface UserStats {
   gamesPlayed: number
   gamesWon: number
-  timesImposter: number
+  timesRedHanded: number
   timesVillager: number
   correctVotes: number
-  perfectImposterGames: number
+  perfectRedHandedGames: number
 }
 
 // ─── Rank ───────────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ export type WordCategory = typeof WORD_CATEGORIES[number]['key']
 export interface RoomSettings {
   maxPlayers: number
   minPlayers: number
-  imposterCount: number
+  redHandedCount: number
   speakingTimeSeconds: number
   votingTimeSeconds: number
   wordPackId: string
@@ -111,7 +111,7 @@ export interface RoomSettings {
 
 export type PlayerRole =
   | 'villager'
-  | 'imposter'
+  | 'red_handed'
   | 'detective'
   | 'double_agent'
   | 'guardian'
@@ -124,7 +124,7 @@ export type PlayerRole =
   | 'corruptor'
   | 'inverter'
   | 'twin_villager'
-  | 'twin_imposter'
+  | 'twin_red_handed'
 export type PlayerStatus = 'alive' | 'eliminated' | 'spectating' | 'forfeited'
 
 export interface Player {
@@ -188,7 +188,7 @@ export interface Vote {
 
 export interface WordReveal {
   villagerWord: string
-  imposterWord: string
+  redHandedWord: string
 }
 
 // ─── Word Packs ───────────────────────────────────────────────────────────────
@@ -225,7 +225,7 @@ export interface ServerToClientEvents {
   'round:vote-cast': (data: { voterId: string; hasVoted: boolean }) => void
   'round:ended': (data: { round: Round; nextRound?: Round }) => void
   'round:word-said': (data: { playerId: string; username: string; clueText: string; role: PlayerRole }) => void
-  'game:finished': (data: { winner: 'villagers' | 'imposters' | 'draw' | 'jester' | 'evil_twins'; finalRound: Round; rewards: RewardSummary }) => void
+  'game:finished': (data: { winner: 'villagers' | 'red_handed' | 'draw' | 'jester' | 'evil_twins'; finalRound: Round; rewards: RewardSummary }) => void
   'game:start:failed': (data: { reason: 'INSUFFICIENT_STARS'; userId: string; required: number }) => void
   'mayor:double-ack': (data: { userId: string }) => void
   'inverter:activate-ack': (data: { userId: string }) => void
