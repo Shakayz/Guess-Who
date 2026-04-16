@@ -245,6 +245,15 @@ export interface ServerToClientEvents {
   'player:ready': (data: { playerId: string; isReady: boolean }) => void
   'chat:message': (message: ChatMessage) => void
   'achievement:unlocked': (data: { key: string; name: string; icon: string; difficulty: string; category: string; starsReward: number; xpReward: number }) => void
+  // ── Voice (WebRTC) signaling — vocal mode mic streaming ────────────────────
+  /** Sent to a freshly-joined client with the list of peers already in the voice channel. */
+  'voice:peers': (data: { peerUserIds: string[] }) => void
+  /** Broadcast when a peer joins the voice channel. */
+  'voice:peer-joined': (data: { userId: string }) => void
+  /** Broadcast when a peer leaves the voice channel. */
+  'voice:peer-left': (data: { userId: string }) => void
+  /** Forwarded SDP/ICE payload from another peer. `signal` is opaque to the server. */
+  'voice:signal': (data: { fromUserId: string; signal: unknown }) => void
   error: (data: { code: string; message: string }) => void
 }
 
@@ -267,6 +276,13 @@ export interface ClientToServerEvents {
   'corruptor:pick-target': (data: { targetUserId: string }) => void
   'kamikaze:pick-target': (data: { targetUserId: string }) => void
   'judge:pick-elimination': (data: { targetUserId: string }) => void
+  // ── Voice (WebRTC) signaling — vocal mode mic streaming ────────────────────
+  /** Join the voice channel for the current room. Server replies with `voice:peers`. */
+  'voice:join': () => void
+  /** Leave the voice channel; broadcasts `voice:peer-left` to other peers. */
+  'voice:leave': () => void
+  /** Forward an opaque SDP/ICE signal to another peer in the same room. */
+  'voice:signal': (data: { toUserId: string; signal: unknown }) => void
 }
 
 // ─── Matchmaking ─────────────────────────────────────────────────────────────
