@@ -1,33 +1,42 @@
-import React, { useState } from 'react'
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
+import React, { useEffect, useState, useCallback } from 'react'
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import { useResponsive } from '../lib/responsive'
 import { HapticManager } from '../lib/haptics'
 import { SoundManager } from '../lib/sounds'
+import { api } from '../lib/api'
+import { createLogger } from '../lib/logger'
 
-// Mobile mirror of the web ShopPage. Same three tabs (coins / cosmetics /
-// season) and the same mock catalog so the two platforms stay in sync
-// until the real store API ships.
+const log = createLogger('shop')
+
+// Mobile mirror of the web ShopPage. Coin packs are shown as "coming soon"
+// because GET /api/shop/packs currently returns 503 (payments disabled).
+// Cosmetics tab is wired to the live API.
 
 type Tab = 'coins' | 'cosmetics' | 'season'
 
-const MOCK_COSMETICS = [
-  { id: '1', name: 'Shadow Cloak',    type: 'avatar_outfit',    price: 200, currency: 'star', icon: '🦇', isNew: true },
-  { id: '2', name: 'Gold Crown',      type: 'avatar_accessory', price: 150, currency: 'star', icon: '👑', isNew: false },
-  { id: '3', name: 'Neon Frame',      type: 'card_background',  price: 80,  currency: 'star', icon: '🌈', isNew: false },
-  { id: '4', name: 'Smoke Reveal',    type: 'word_effect',      price: 500, currency: 'gold', icon: '💨', isNew: true },
-  { id: '5', name: 'The Architect',   type: 'title',            price: 300, currency: 'star', icon: '🏗️', isNew: false },
-  { id: '6', name: 'Detective Badge', type: 'badge',            price: 120, currency: 'star', icon: '🔍', isNew: false },
-]
+/**
+ * Placeholder packs shown in the Coins tab. When payments are re-enabled
+ * server-side, swap this for a fetch of GET /api/shop/packs and wire the
+ * purchase button to POST /api/shop/packs/:id/checkout.
+ */
+const PLACEHOLDER_COIN_PACKS = [
+  { id: 'small',  amount: 500,  price: '$1.99',  bonus: 0 },
+  { id: 'medium', amount: 1500, price: '$4.99',  bonus: 150, popular: true },
+  { id: 'large',  amount: 5000, price: '$14.99', bonus: 750 },
+] as const
 
-const SEASON_PERKS = [
-  '🎭 Exclusive Season 1 avatar frame',
-  '⚡ 1.5× XP boost on all games',
-  '💰 +50 Gold Coins per month',
-  '🌟 Access to Premium Word Packs',
-  '🏆 Season-exclusive title: "The Strategist"',
-]
+interface Cosmetic {
+  id: string
+  name: string
+  type: string
+  price: number
+  currency: 'star' | 'gold'
+  icon?: string | null
+  isNew?: boolean
+}
 
 function TabButton({
   active,
@@ -61,18 +70,39 @@ function TabButton({
 
 export default function ShopScreen() {
   const router = useRouter()
+  const { t } = useTranslation()
   const { px, fontScale, isTablet } = useResponsive()
-  const [tab, setTab] = useState<Tab>('cosmetics')
+  const params = useLocalSearchParams<{ tab?: string }>()
+
+  // Initial tab is driven by the `?tab=` URL param so the
+  // InsufficientCoinsModal can deep-link to /shop?tab=coins.
+  const initial: Tab =
+    params.tab === 'cosmetics' || params.tab === 'season' || params.tab === 'coins'
+      ? (params.tab as Tab)
+      : 'coins'
+  const [tab, setTab] = useState<Tab>(initial)
 
   const switchTab = (next: Tab) => {
     HapticManager.selection()
     setTab(next)
   }
 
-  const buy = () => {
-    HapticManager.medium()
-    SoundManager.play('success')
-  }
+  // Live balance — refreshed on focus via `fetchMe`. Plain useEffect pattern
+  // because the mobile app doesn't use react-query.
+  const [starCoins, setStarCoins] = useState(0)
+  const [goldCoins, setGoldCoins] = useState(0)
+  const fetchMe = useCallback(() => {
+    api
+      .get<{ starCoins?: number; goldCoins?: number }>('/auth/me')
+      .then((me) => {
+        setStarCoins(me.starCoins ?? 0)
+        setGoldCoins(me.goldCoins ?? 0)
+      })
+      .catch((err) => log.warn('balance fetch failed', { error: err?.message }))
+  }, [])
+  useEffect(() => {
+    fetchMe()
+  }, [fetchMe])
 
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-neutral-950">
@@ -81,19 +111,19 @@ export default function ShopScreen() {
           <Text className="text-neutral-400" style={{ fontSize: 20 }}>←</Text>
         </TouchableOpacity>
         <Text className="text-white font-bold flex-1" style={{ fontSize: 16 * fontScale }}>
-          Shop
+          {t('shop.shop', { defaultValue: 'Shop' })}
         </Text>
         <View className="flex-row gap-2">
           <View className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-800 border border-neutral-700">
             <Text style={{ fontSize: 12 }}>⭐</Text>
             <Text className="text-white font-semibold" style={{ fontSize: 12 * fontScale }}>
-              100
+              {starCoins.toLocaleString()}
             </Text>
           </View>
           <View className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-950/60 border border-amber-800/50">
             <Text style={{ fontSize: 12 }}>💰</Text>
             <Text className="text-amber-400 font-semibold" style={{ fontSize: 12 * fontScale }}>
-              0
+              {goldCoins.toLocaleString()}
             </Text>
           </View>
         </View>
@@ -105,137 +135,334 @@ export default function ShopScreen() {
       >
         <View>
           <Text className="text-white font-extrabold" style={{ fontSize: (isTablet ? 28 : 22) * fontScale }}>
-            Shop
+            {t('shop.shop', { defaultValue: 'Shop' })}
           </Text>
           <Text className="text-neutral-500 mt-1" style={{ fontSize: 12 * fontScale }}>
-            Cosmetics, coins & season pass
+            {t('shop.subtitle', { defaultValue: 'Buy coins, unlock cosmetics & more' })}
           </Text>
         </View>
 
         <View className="flex-row gap-2">
-          <TabButton active={tab === 'coins'} onPress={() => switchTab('coins')} label="💰 Gold Coins" fontScale={fontScale} />
-          <TabButton active={tab === 'cosmetics'} onPress={() => switchTab('cosmetics')} label="🎨 Cosmetics" fontScale={fontScale} />
-          <TabButton active={tab === 'season'} onPress={() => switchTab('season')} label="👑 Season" fontScale={fontScale} />
+          <TabButton
+            active={tab === 'coins'}
+            onPress={() => switchTab('coins')}
+            label={t('shop.tabCoins', { defaultValue: '⭐ Star Coins' })}
+            fontScale={fontScale}
+          />
+          <TabButton
+            active={tab === 'cosmetics'}
+            onPress={() => switchTab('cosmetics')}
+            label={t('shop.tabCosmetics', { defaultValue: '🎨 Cosmetics' })}
+            fontScale={fontScale}
+          />
+          <TabButton
+            active={tab === 'season'}
+            onPress={() => switchTab('season')}
+            label={t('shop.tabSeason', { defaultValue: '👑 Season' })}
+            fontScale={fontScale}
+          />
         </View>
 
         {tab === 'coins' && (
-          <View className="gap-4">
-            <Text className="text-neutral-500 font-semibold uppercase tracking-widest" style={{ fontSize: 10 * fontScale }}>
-              Gold Coin Packs
-            </Text>
-            <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 items-center gap-2">
-              <Text style={{ fontSize: 28 }}>💰</Text>
-              <Text className="text-neutral-300 font-semibold text-center" style={{ fontSize: 13 * fontScale }}>
-                Gold Coin packs are launching soon.
-              </Text>
-              <Text className="text-neutral-500 text-center" style={{ fontSize: 11 * fontScale, lineHeight: 16 * fontScale }}>
-                Gold Coins will be used for premium cosmetics and word packs.
-              </Text>
-            </View>
-          </View>
+          <CoinsTab
+            fontScale={fontScale}
+            onPlayPress={() => {
+              HapticManager.selection()
+              router.push('/')
+            }}
+          />
         )}
-
         {tab === 'cosmetics' && (
-          <View className="gap-4">
-            <Text className="text-neutral-500 font-semibold uppercase tracking-widest" style={{ fontSize: 10 * fontScale }}>
-              Available items
-            </Text>
-            <View className="flex-row flex-wrap" style={{ gap: 10 }}>
-              {MOCK_COSMETICS.map((item) => (
-                <View
-                  key={item.id}
-                  className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 items-center"
-                  style={{ width: isTablet ? '31%' : '47%', gap: 6 }}
-                >
-                  {item.isNew && (
-                    <View className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-emerald-950/60">
-                      <Text className="text-emerald-400 font-bold" style={{ fontSize: 8 }}>
-                        NEW
-                      </Text>
-                    </View>
-                  )}
-                  <Text style={{ fontSize: 32 }}>{item.icon}</Text>
-                  <Text className="text-white font-semibold text-center" style={{ fontSize: 12 * fontScale }} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text className="text-neutral-500 capitalize text-center" style={{ fontSize: 10 * fontScale }} numberOfLines={1}>
-                    {item.type.replace(/_/g, ' ')}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={buy}
-                    className={[
-                      'w-full items-center rounded-lg mt-1 py-1.5',
-                      item.currency === 'gold'
-                        ? 'bg-amber-950/60 border border-amber-800/40'
-                        : 'bg-neutral-800',
-                    ].join(' ')}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      className={item.currency === 'gold' ? 'text-amber-400 font-semibold' : 'text-white font-semibold'}
-                      style={{ fontSize: 11 * fontScale }}
-                    >
-                      {item.currency === 'gold' ? '💰' : '⭐'} {item.price}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          </View>
+          <CosmeticsTab
+            fontScale={fontScale}
+            isTablet={isTablet}
+            starCoins={starCoins}
+            goldCoins={goldCoins}
+            onBalanceChanged={fetchMe}
+          />
         )}
-
         {tab === 'season' && (
-          <View className="rounded-2xl border border-violet-600/40 bg-neutral-900 overflow-hidden">
-            <View className="h-[2] bg-violet-500/60" />
-            <View className="p-5 gap-4">
-              <View className="flex-row items-start justify-between">
-                <View className="flex-1">
-                  <Text className="text-violet-400 font-semibold uppercase tracking-widest" style={{ fontSize: 10 * fontScale }}>
-                    Season 1
-                  </Text>
-                  <Text className="text-white font-extrabold mt-1" style={{ fontSize: 22 * fontScale }}>
-                    Season Pass
-                  </Text>
-                  <Text className="text-neutral-400 mt-1" style={{ fontSize: 12 * fontScale }}>
-                    Unlock exclusive rewards every month
-                  </Text>
-                </View>
-                <View className="items-end">
-                  <Text className="text-white font-extrabold" style={{ fontSize: 22 * fontScale }}>
-                    $4.99
-                  </Text>
-                  <Text className="text-neutral-500" style={{ fontSize: 10 * fontScale }}>
-                    per month
-                  </Text>
-                </View>
-              </View>
-              <View className="gap-2">
-                {SEASON_PERKS.map((perk) => (
-                  <View key={perk} className="flex-row items-center gap-2">
-                    <Text className="text-emerald-400" style={{ fontSize: 14 }}>✓</Text>
-                    <Text className="text-neutral-300 flex-1" style={{ fontSize: 12 * fontScale }}>
-                      {perk}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-              <TouchableOpacity
-                onPress={buy}
-                className="rounded-xl bg-violet-600 items-center"
-                style={{ paddingVertical: 12 }}
-                activeOpacity={0.85}
-              >
-                <Text className="text-white font-bold" style={{ fontSize: 14 * fontScale }}>
-                  Subscribe — $4.99/mo
-                </Text>
-              </TouchableOpacity>
-              <Text className="text-neutral-600 text-center" style={{ fontSize: 10 * fontScale }}>
-                Cancel anytime. No commitments.
-              </Text>
-            </View>
+          <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 items-center">
+            <Text style={{ fontSize: 36 }}>👑</Text>
+            <Text className="text-white font-semibold mt-2" style={{ fontSize: 14 * fontScale }}>
+              {t('shop.seasonComingSoon', { defaultValue: 'Season Pass coming soon.' })}
+            </Text>
           </View>
         )}
       </ScrollView>
     </SafeAreaView>
+  )
+}
+
+// ─── Coins tab ────────────────────────────────────────────────────────────────
+
+function CoinsTab({ fontScale, onPlayPress }: { fontScale: number; onPlayPress: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <View style={{ gap: 20 }}>
+      <View style={{ gap: 10 }}>
+        <Text
+          className="text-neutral-500 font-semibold uppercase"
+          style={{ fontSize: 10 * fontScale, letterSpacing: 1 }}
+        >
+          {t('shop.packsTitle', { defaultValue: 'Star Coin Packs' })}
+        </Text>
+        <View className="flex-row" style={{ gap: 8 }}>
+          {PLACEHOLDER_COIN_PACKS.map((pack) => (
+            <View
+              key={pack.id}
+              className={[
+                'flex-1 rounded-2xl border p-3 items-center',
+                (pack as any).popular
+                  ? 'border-violet-600/40 bg-neutral-900'
+                  : 'border-neutral-800 bg-neutral-900',
+              ].join(' ')}
+              style={{ opacity: 0.8 }}
+            >
+              {(pack as any).popular && (
+                <View className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-violet-950/60">
+                  <Text className="text-violet-400 font-bold" style={{ fontSize: 8 }}>POPULAR</Text>
+                </View>
+              )}
+              <Text style={{ fontSize: 24 }}>⭐</Text>
+              <Text className="text-white font-extrabold" style={{ fontSize: 16 * fontScale }}>
+                {pack.amount.toLocaleString()}
+              </Text>
+              {pack.bonus > 0 && (
+                <Text className="text-emerald-400 font-semibold" style={{ fontSize: 10 * fontScale }}>
+                  +{pack.bonus} bonus
+                </Text>
+              )}
+              <Text className="text-neutral-500 mt-1" style={{ fontSize: 11 * fontScale }}>
+                {pack.price}
+              </Text>
+            </View>
+          ))}
+        </View>
+        <View className="rounded-xl px-3 py-2.5 bg-amber-950/30 border border-amber-900/50">
+          <Text className="text-amber-300 text-center" style={{ fontSize: 11 * fontScale }}>
+            ⏳ {t('shop.packsUnavailable', { defaultValue: 'Coin packs are coming soon — payments are temporarily disabled.' })}
+          </Text>
+        </View>
+      </View>
+
+      {/* Honest alternative — the game's real earning mechanics */}
+      <View style={{ gap: 10 }}>
+        <Text
+          className="text-neutral-500 font-semibold uppercase"
+          style={{ fontSize: 10 * fontScale, letterSpacing: 1 }}
+        >
+          {t('shop.earnTitle', { defaultValue: 'Earn coins for free' })}
+        </Text>
+        <EarnRow
+          icon="🎁"
+          text={t('shop.earnDailyBonus', { defaultValue: 'Daily bonus: +20 ⭐ for your first game each day.' })}
+          fontScale={fontScale}
+        />
+        <EarnRow
+          icon="🔥"
+          text={t('shop.earnStreak', { defaultValue: '7-day streak: +100 ⭐ every 7 days.' })}
+          fontScale={fontScale}
+        />
+        <EarnRow
+          icon="🎮"
+          text={t('shop.earnGameReward', { defaultValue: 'Play a game: +10 to +90 ⭐ depending on role & result.' })}
+          fontScale={fontScale}
+        />
+        <TouchableOpacity
+          onPress={onPlayPress}
+          className="rounded-xl bg-violet-600 items-center mt-2"
+          style={{ paddingVertical: 12 }}
+          activeOpacity={0.85}
+        >
+          <Text className="text-white font-bold" style={{ fontSize: 14 * fontScale }}>
+            🎲 {t('shop.earnPlayNow', { defaultValue: 'Play a game' })}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  )
+}
+
+function EarnRow({ icon, text, fontScale }: { icon: string; text: string; fontScale: number }) {
+  return (
+    <View className="flex-row items-center gap-3 rounded-xl bg-neutral-900 border border-neutral-800 px-4 py-3">
+      <Text style={{ fontSize: 20 }}>{icon}</Text>
+      <Text className="text-neutral-300 flex-1" style={{ fontSize: 12 * fontScale, lineHeight: 16 * fontScale }}>
+        {text}
+      </Text>
+    </View>
+  )
+}
+
+// ─── Cosmetics tab ────────────────────────────────────────────────────────────
+
+function CosmeticsTab({
+  fontScale,
+  isTablet,
+  starCoins,
+  goldCoins,
+  onBalanceChanged,
+}: {
+  fontScale: number
+  isTablet: boolean
+  starCoins: number
+  goldCoins: number
+  onBalanceChanged: () => void
+}) {
+  const { t } = useTranslation()
+  const [cosmetics, setCosmetics] = useState<Cosmetic[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [buyingId, setBuyingId] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    api
+      .get<Cosmetic[]>('/shop/cosmetics')
+      .then((data) => {
+        if (!cancelled) setCosmetics(data)
+      })
+      .catch((err) => {
+        log.warn('cosmetics fetch failed', { error: err?.message })
+        if (!cancelled) setCosmetics([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const buy = async (id: string) => {
+    setBuyingId(id)
+    try {
+      await api.post(`/shop/cosmetics/${id}/purchase`, {})
+      SoundManager.play('success')
+      HapticManager.medium()
+      onBalanceChanged()
+      setToast({
+        kind: 'ok',
+        text: t('shop.purchaseSuccess', { defaultValue: 'Purchased! The item is in your collection.' }),
+      })
+    } catch (err: any) {
+      log.error('cosmetic purchase failed', { error: err?.message })
+      setToast({
+        kind: 'err',
+        text: err?.data?.error ?? t('shop.purchaseFailed', { defaultValue: 'Purchase failed.' }),
+      })
+    } finally {
+      setBuyingId(null)
+      setTimeout(() => setToast(null), 3500)
+    }
+  }
+
+  if (loading) {
+    return (
+      <View className="items-center py-8">
+        <ActivityIndicator color="#a78bfa" />
+      </View>
+    )
+  }
+
+  return (
+    <View style={{ gap: 12 }}>
+      <Text
+        className="text-neutral-500 font-semibold uppercase"
+        style={{ fontSize: 10 * fontScale, letterSpacing: 1 }}
+      >
+        {t('shop.cosmeticsTitle', { defaultValue: 'Cosmetics' })}
+      </Text>
+      {toast && (
+        <View
+          className={[
+            'rounded-xl px-3 py-2.5',
+            toast.kind === 'ok'
+              ? 'bg-emerald-950/40 border border-emerald-800/50'
+              : 'bg-red-950/50 border border-red-800/50',
+          ].join(' ')}
+        >
+          <Text
+            className={toast.kind === 'ok' ? 'text-emerald-300 text-center' : 'text-red-300 text-center'}
+            style={{ fontSize: 12 * fontScale }}
+          >
+            {toast.text}
+          </Text>
+        </View>
+      )}
+      {!cosmetics || cosmetics.length === 0 ? (
+        <Text className="text-neutral-500 text-center py-8" style={{ fontSize: 13 * fontScale }}>
+          {t('shop.cosmeticsEmpty', { defaultValue: 'No cosmetics available yet — check back soon.' })}
+        </Text>
+      ) : (
+        <View className="flex-row flex-wrap" style={{ gap: 10 }}>
+          {cosmetics.map((item) => {
+            const canAfford =
+              item.currency === 'star' ? starCoins >= item.price : goldCoins >= item.price
+            const isBuying = buyingId === item.id
+            const disabled = !canAfford || isBuying || item.currency === 'gold'
+            return (
+              <View
+                key={item.id}
+                className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 items-center"
+                style={{ width: isTablet ? '31%' : '47%', gap: 6 }}
+              >
+                {item.isNew && (
+                  <View className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-emerald-950/60">
+                    <Text className="text-emerald-400 font-bold" style={{ fontSize: 8 }}>NEW</Text>
+                  </View>
+                )}
+                <Text style={{ fontSize: 32 }}>{item.icon || '🎨'}</Text>
+                <Text
+                  className="text-white font-semibold text-center"
+                  style={{ fontSize: 12 * fontScale }}
+                  numberOfLines={1}
+                >
+                  {item.name}
+                </Text>
+                <Text
+                  className="text-neutral-500 capitalize text-center"
+                  style={{ fontSize: 10 * fontScale }}
+                  numberOfLines={1}
+                >
+                  {item.type.replace(/_/g, ' ')}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (disabled) return
+                    HapticManager.light()
+                    buy(item.id)
+                  }}
+                  disabled={disabled}
+                  className={[
+                    'w-full items-center rounded-lg mt-1 py-1.5',
+                    item.currency === 'gold'
+                      ? 'bg-amber-950/60 border border-amber-800/40'
+                      : canAfford
+                        ? 'bg-violet-600'
+                        : 'bg-neutral-800',
+                  ].join(' ')}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    className={
+                      item.currency === 'gold'
+                        ? 'text-amber-400 font-semibold'
+                        : canAfford
+                          ? 'text-white font-semibold'
+                          : 'text-neutral-500 font-semibold'
+                    }
+                    style={{ fontSize: 11 * fontScale }}
+                  >
+                    {isBuying ? '…' : `${item.currency === 'gold' ? '💰' : '⭐'} ${item.price}`}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )
+          })}
+        </View>
+      )}
+    </View>
   )
 }

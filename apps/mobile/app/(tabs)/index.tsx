@@ -19,6 +19,7 @@ import { WORD_CATEGORIES, MATCHMAKING_CONFIG } from '@imposter/shared'
 import type { WordCategory, MatchmakingStatus } from '@imposter/shared'
 import { useResponsive, responsiveContentStyle } from '../../lib/responsive'
 import { OnboardingTutorial, hasTutorialCompleted } from '../../components/OnboardingTutorial'
+import InsufficientCoinsModal from '../../components/InsufficientCoinsModal'
 
 type GameMode = 'normal' | 'ranked' | 'lobby'
 
@@ -70,6 +71,26 @@ export default function HomeScreen() {
   }, [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Dedicated state for the "not enough coins" modal — null = hidden.
+  // We show the modal (with a "Get coins" CTA to /shop) instead of the
+  // small inline red alert whenever the server signals INSUFFICIENT_STARS.
+  const [insufficientCoinsRequired, setInsufficientCoinsRequired] = useState<number | null>(null)
+  // Star-coin balance shown in the header chip. Refreshed on focus. If the
+  // fetch fails we just show 0 — not critical enough to retry or surface.
+  const [starCoins, setStarCoins] = useState<number | null>(null)
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    api
+      .get<{ starCoins?: number }>('/auth/me')
+      .then((me) => {
+        if (!cancelled) setStarCoins(me.starCoins ?? 0)
+      })
+      .catch(() => {
+        if (!cancelled) setStarCoins(0)
+      })
+    return () => { cancelled = true }
+  }, [user])
   const [inQueue, setInQueue] = useState(false)
   const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({
     queueSize: 1, needed: MATCHMAKING_CONFIG.IDEAL_PLAYERS, elapsed: 0,
@@ -94,7 +115,7 @@ export default function HomeScreen() {
       setInQueue(false)
       setLoading(false)
       if (data?.reason === 'INSUFFICIENT_STARS') {
-        setError(t('results.insufficientStars', { required: data.required ?? 10, defaultValue: `Not enough stars (need ${data.required ?? 10}⭐)` }))
+        setInsufficientCoinsRequired(data.required ?? 10)
       } else {
         setError(data?.message ?? 'Matchmaking error')
       }
@@ -154,7 +175,7 @@ export default function HomeScreen() {
       const code = err?.data?.error ?? err?.error
       const required = err?.data?.required ?? 10
       if (code === 'INSUFFICIENT_STARS') {
-        setError(t('results.insufficientStars', { required, defaultValue: `Not enough stars (need ${required}⭐)` }))
+        setInsufficientCoinsRequired(required)
       } else {
         setError(err.message ?? 'Failed to create room')
       }
@@ -190,9 +211,24 @@ export default function HomeScreen() {
               <Text className="text-white font-extrabold tracking-tight" style={{ fontSize: 18 * fontScale }}>Imposter</Text>
             </View>
             {user && (
-              <View className="flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-900 border border-neutral-800">
-                <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <Text className="text-neutral-400" style={{ fontSize: 13 * fontScale }}>@{user.username}</Text>
+              <View className="flex-row items-center gap-2">
+                {/* Coin-balance chip → opens /shop. Tappable so players can
+                    top up at any time, not just when game-start rejects them. */}
+                <TouchableOpacity
+                  onPress={() => router.push('/shop?tab=coins')}
+                  className="flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30"
+                  activeOpacity={0.8}
+                  accessibilityLabel="Shop"
+                >
+                  <Text style={{ fontSize: 12 }}>⭐</Text>
+                  <Text className="text-amber-400 font-semibold" style={{ fontSize: 13 * fontScale }}>
+                    {(starCoins ?? 0).toLocaleString()}
+                  </Text>
+                </TouchableOpacity>
+                <View className="flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-900 border border-neutral-800">
+                  <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <Text className="text-neutral-400" style={{ fontSize: 13 * fontScale }}>@{user.username}</Text>
+                </View>
               </View>
             )}
           </View>
@@ -476,6 +512,14 @@ export default function HomeScreen() {
                 <Text className="text-red-400" style={{ fontSize: 14 * fontScale }}>⚠ {error}</Text>
               </View>
             )}
+
+            {/* Insufficient-coins modal — shows on 402 / INSUFFICIENT_STARS */}
+            <InsufficientCoinsModal
+              visible={insufficientCoinsRequired !== null}
+              required={insufficientCoinsRequired ?? 10}
+              onClose={() => setInsufficientCoinsRequired(null)}
+            />
+
 
             {/* Offline / Pass & Play */}
             <TouchableOpacity

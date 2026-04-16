@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/auth'
 import { createLogger } from '../lib/logger'
 import { SoundManager } from '../lib/sounds'
 import { OnboardingTutorial, hasTutorialCompleted } from '../components/OnboardingTutorial'
+import { InsufficientCoinsModal } from '../components/InsufficientCoinsModal'
 
 const log = createLogger('home')
 
@@ -47,6 +48,10 @@ export default function HomePage() {
   const [roomCode, setRoomCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Broken out from `error` so the dedicated modal (with a "Get coins" CTA)
+  // replaces the tiny inline red alert whenever the server signals that the
+  // viewer is short on ⭐. `null` = hidden; number = DAILY_COST from server.
+  const [insufficientCoinsRequired, setInsufficientCoinsRequired] = useState<number | null>(null)
   const [matchmaking, setMatchmaking] = useState(false)
   const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({
     queueSize: 1, needed: MATCHMAKING_CONFIG.IDEAL_PLAYERS, elapsed: 0,
@@ -69,7 +74,8 @@ export default function HomePage() {
     const handleError = (d: { reason?: string; required?: number; message?: string }) => {
       setMatchmaking(false)
       if (d?.reason === 'INSUFFICIENT_STARS') {
-        setError(t('results.insufficientStars', { required: d.required ?? 10 }))
+        // Show the dedicated modal with a "Get coins" CTA instead of a red line
+        setInsufficientCoinsRequired(d.required ?? 10)
       } else {
         setError(d?.message ?? t('common.error'))
       }
@@ -126,7 +132,7 @@ export default function HomePage() {
         // The API returns 402 { error: 'INSUFFICIENT_STARS', required } when
         // the host can't afford to create a private lobby.
         if (err?.data?.error === 'INSUFFICIENT_STARS') {
-          setError(t('results.insufficientStars', { required: err.data.required ?? 10 }))
+          setInsufficientCoinsRequired(err.data.required ?? 10)
         } else {
           setError(err.message)
         }
@@ -636,6 +642,15 @@ export default function HomePage() {
             <div role="alert" className="flex items-center gap-2 p-3 rounded-xl bg-red-950/50 border border-red-800/50 text-red-400 text-sm">
               <span>⚠</span> {error}
             </div>
+          )}
+
+          {/* Replaces the old inline "Not enough stars" line with a full modal
+              that has a "Get coins" CTA linking to the shop. */}
+          {insufficientCoinsRequired !== null && (
+            <InsufficientCoinsModal
+              required={insufficientCoinsRequired}
+              onClose={() => setInsufficientCoinsRequired(null)}
+            />
           )}
 
         </div>

@@ -264,6 +264,7 @@ export default function RootLayout() {
           <Stack.Screen name="lobby/[code]" options={{ title: 'Lobby', headerBackTitle: 'Leave' }} />
           <Stack.Screen name="game/[code]" options={{ title: 'Game', headerShown: false }} />
           <Stack.Screen name="results/[code]" options={{ title: 'Results' }} />
+          <Stack.Screen name="shop" options={{ headerShown: false }} />
         </Stack>
       </AuthGuard>
     </ErrorBoundary>

@@ -40,6 +40,7 @@ const SettingsPage        = lazyWithRetry(() => import('./pages/SettingsPage'))
 const AchievementsPage    = lazyWithRetry(() => import('./pages/AchievementsPage'))
 const TermsPage           = lazyWithRetry(() => import('./pages/TermsPage'))
 const PrivacyPage         = lazyWithRetry(() => import('./pages/PrivacyPage'))
+const ShopPage            = lazyWithRetry(() => import('./pages/ShopPage'))
 // const SeasonPassPage      = React.lazy(() => import('./pages/SeasonPassPage'))  // TODO: re-enable when premium is ready
 // const WordPacksPage       = React.lazy(() => import('./pages/WordPacksPage'))  // TODO: re-enable when premium is ready
 
@@ -375,6 +376,7 @@ export default function App() {
         <Route path="/player/:userId" element={<ProtectedRoute><PlayerProfilePage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/achievements" element={<ProtectedRoute><AchievementsPage /></ProtectedRoute>} />
+        <Route path="/shop" element={<ProtectedRoute><ShopPage /></ProtectedRoute>} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         {/* <Route path="/season-pass" element={<ProtectedRoute><SeasonPassPage /></ProtectedRoute>} /> */}

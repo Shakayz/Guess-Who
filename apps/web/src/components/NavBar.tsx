@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/auth'
 import { useSocialStore } from '../store/social'
 import { DmChatPanel } from './DmChatPanel'
 import { api } from '../lib/api'
+import { getSocket } from '../lib/socket'
 
 const NAV_PATHS = ['/', '/leaderboard', '/history', '/friends'] as const
 
@@ -32,6 +33,50 @@ export function NavBar() {
 
   const activeDm = useSocialStore((s) => s.activeDm)
   const setActiveDm = useSocialStore((s) => s.setActiveDm)
+
+  // Coin balance for the header chip. Plain useState+fetch instead of
+  // react-query to keep the many NavBar tests (which don't wrap in a
+  // QueryClientProvider) working. We refetch on:
+  //   1. token change (login/logout)
+  //   2. route change (cheap visibility cue)
+  //   3. socket `game:finished` (rewards were just credited)
+  const token = useAuthStore((s) => s.token)
+  const [starCoins, setStarCoins] = useState(0)
+  useEffect(() => {
+    if (!token) {
+      setStarCoins(0)
+      return
+    }
+    let cancelled = false
+    const fetchBalance = () => {
+      api
+        .get<{ starCoins?: number }>('/auth/me')
+        .then((me) => {
+          if (!cancelled) setStarCoins(me.starCoins ?? 0)
+        })
+        .catch(() => {
+          // Non-critical — silently keep the last value on transient errors.
+        })
+    }
+    fetchBalance()
+    // Refresh the chip when the server credits rewards at game-end. We guard
+    // the socket subscription because tests mock `lib/socket` minimally.
+    let sock: any = null
+    try {
+      sock = getSocket()
+    } catch {
+      sock = null
+    }
+    if (sock && typeof sock.on === 'function') {
+      sock.on('game:finished', fetchBalance)
+    }
+    return () => {
+      cancelled = true
+      if (sock && typeof sock.off === 'function') {
+        sock.off('game:finished', fetchBalance)
+      }
+    }
+  }, [token, location.pathname])
   React.useEffect(() => {
     if (!langOpen) return
     const handler = (e: MouseEvent) => {
@@ -86,20 +131,26 @@ export function NavBar() {
       </div>
 
       <div className="flex items-center gap-1">
-        {/* Premium button — disabled until monetization is ready
-        <button
-          onClick={() => navigate('/premium')}
-          className={[
-            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all mr-1',
-            location.pathname === '/premium'
-              ? 'bg-amber-500 text-neutral-900'
-              : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30',
-          ].join(' ')}
-        >
-          <span className="text-sm">👑</span>
-          <span className="hidden sm:inline">Premium</span>
-        </button>
-        */}
+        {/* Coin-balance chip → opens the shop. We only render when the user is
+            logged in (unauth visitors never hit NavBar, but the useQuery is
+            also gated on token). The chip is compact on small screens — icon
+            + count, no label — so it doesn't crowd mobile header space. */}
+        {token && (
+          <button
+            onClick={() => navigate('/shop?tab=coins')}
+            aria-label={t('shop.shop')}
+            className={[
+              'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-all mr-1',
+              location.pathname === '/shop'
+                ? 'bg-amber-500 text-neutral-900'
+                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30',
+            ].join(' ')}
+          >
+            <span className="text-sm">⭐</span>
+            <span>{starCoins.toLocaleString()}</span>
+            <span className="hidden sm:inline text-[10px] text-amber-400/70 ml-0.5">+</span>
+          </button>
+        )}
 
         {/* Language switcher */}
         <div ref={langRef} className="relative">

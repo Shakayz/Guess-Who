@@ -30,6 +30,7 @@ import { useResponsive } from '../../lib/responsive'
 import { createLogger } from '../../lib/logger'
 import { SoundManager } from '../../lib/sounds'
 import { HapticManager } from '../../lib/haptics'
+import InsufficientCoinsModal from '../../components/InsufficientCoinsModal'
 
 const log = createLogger('lobby-screen')
 
@@ -736,6 +737,13 @@ export default function LobbyScreen() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [codeCopied, setCodeCopied] = useState(false)
   const [socketError, setSocketError] = useState<string | null>(null)
+  // Dedicated state for the INSUFFICIENT_STARS modal — replaces the tiny red
+  // toast with an actionable dialog. When the viewer themselves is broke we
+  // show a "Get coins" CTA; when it's another lobby member we just name them.
+  const [insufficientCoins, setInsufficientCoins] = useState<{
+    required: number
+    blockedUsername?: string
+  } | null>(null)
 
   // Friends invite state
   const [friends, setFriends] = useState<Friend[]>([])
@@ -871,10 +879,17 @@ export default function LobbyScreen() {
       if (data?.reason !== 'INSUFFICIENT_STARS') return
       const currentRoom = useGameStore.getState().room
       const player = currentRoom?.players?.find((p: any) => p.userId === data.userId)
-      const username = (player as any)?.username ?? 'A player'
+      const username = (player as any)?.username as string | undefined
+      const myId = useAuthStore.getState().user?.id
+      const required = data.required ?? 10
       log.warn('game:start:failed', { userId: data.userId })
-      setSocketError(`${username} doesn't have enough stars (needs ${data.required ?? 10}⭐)`)
-      setTimeout(() => setSocketError(null), 5000)
+      // If I'm the broke player, show the viewer variant (with a "Get coins"
+      // CTA). Otherwise show the variant that names the other player.
+      if (data.userId === myId) {
+        setInsufficientCoins({ required })
+      } else {
+        setInsufficientCoins({ required, blockedUsername: username ?? 'A player' })
+      }
     })
 
     socket.on('game:started', ({ round, yourWord, yourRole }) => {
@@ -960,12 +975,21 @@ export default function LobbyScreen() {
           <Text className="text-neutral-500 mt-1" style={{ fontSize: 14 * fontScale }}>Share the code below to invite friends</Text>
         </View>
 
-        {/* Socket error toast (e.g. INSUFFICIENT_STARS on game start) */}
+        {/* Socket error toast (other, non-coin errors) */}
         {socketError && (
           <View className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800 mb-2">
             <Text className="text-red-300 text-xs flex-1">⚠ {socketError}</Text>
           </View>
         )}
+
+        {/* INSUFFICIENT_STARS modal with "Get coins" CTA */}
+        <InsufficientCoinsModal
+          visible={insufficientCoins !== null}
+          required={insufficientCoins?.required ?? 10}
+          blockedUsername={insufficientCoins?.blockedUsername}
+          onClose={() => setInsufficientCoins(null)}
+        />
+
 
         {/* Room code + share */}
         <TouchableOpacity
