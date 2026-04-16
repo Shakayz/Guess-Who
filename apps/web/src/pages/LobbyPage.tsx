@@ -12,6 +12,7 @@ import { WORD_CATEGORIES } from '@red-handed/shared'
 import type { Room, GameMode, WordCategory } from '@red-handed/shared'
 import { createLogger } from '../lib/logger'
 import { SoundManager } from '../lib/sounds'
+import { InsufficientCoinsModal } from '../components/InsufficientCoinsModal'
 
 const log = createLogger('lobby')
 
@@ -640,6 +641,14 @@ export default function LobbyPage() {
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [joinToast, setJoinToast] = useState<string | null>(null)
   const [socketError, setSocketError] = useState<string | null>(null)
+  // Dedicated modal state for INSUFFICIENT_STARS — shows a clear "not enough
+  // coins" dialog with a "Get coins" CTA. When the *viewer* is broke the
+  // `blockedUsername` field stays undefined; when another player is broke we
+  // pass their name so the copy reads "X is short on coins".
+  const [insufficientCoins, setInsufficientCoins] = useState<{
+    required: number
+    blockedUsername?: string
+  } | null>(null)
   const prevPlayerCountRef = useRef(0)
   const langSyncedRef = useRef(false)
   const [showInvite, setShowInvite] = useState(false)
@@ -841,11 +850,17 @@ export default function LobbyPage() {
       if (data?.reason !== 'INSUFFICIENT_STARS') return
       const currentRoom = useGameStore.getState().room
       const player = currentRoom?.players?.find((p: any) => p.userId === data.userId)
-      const username = (player as any)?.username ?? 'A player'
-      const msg = t('results.insufficientStarsPlayer', { username, required: data.required ?? 10 })
+      const username = (player as any)?.username as string | undefined
+      const myId = useAuthStore.getState().user?.id
+      const required = data.required ?? 10
       log.warn('game:start:failed', { userId: data.userId })
-      setSocketError(msg)
-      setTimeout(() => setSocketError(null), 5000)
+      // If I'm the broke player, show the viewer variant so I get a "Get
+      // coins" CTA. Otherwise show the variant that names the other player.
+      if (data.userId === myId) {
+        setInsufficientCoins({ required })
+      } else {
+        setInsufficientCoins({ required, blockedUsername: username ?? 'A player' })
+      }
     })
 
     return () => {
@@ -938,6 +953,14 @@ export default function LobbyPage() {
           <span>⚠</span>
           {socketError}
         </div>
+      )}
+
+      {insufficientCoins && (
+        <InsufficientCoinsModal
+          required={insufficientCoins.required}
+          blockedUsername={insufficientCoins.blockedUsername}
+          onClose={() => setInsufficientCoins(null)}
+        />
       )}
 
       <main id="main-content" role="main" className="flex-1 flex flex-col items-center justify-center p-4 md:p-6 lg:p-8">

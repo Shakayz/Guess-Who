@@ -26,7 +26,11 @@ async function startGameForRoom(
   roomId: string,
 ) {
   const startLockKey = `room:${roomId}:start-lock`
-  const lockAcquired = (await (redis as any).set(startLockKey, '1', 'PX', 10000, 'NX')) === 'OK'
+  // 30s TTL — covers the full charge + game-creation transaction even under
+  // heavy DB latency. The previous 10s value could expire mid-start, which
+  // (combined with state.status still being 'waiting') opened a window for a
+  // duplicate game:start to re-charge every player.
+  const lockAcquired = (await (redis as any).set(startLockKey, '1', 'PX', 30000, 'NX')) === 'OK'
   if (!lockAcquired) return
 
   try {
@@ -37,70 +41,30 @@ async function startGameForRoom(
     if (!stateRaw) return
     const state = JSON.parse(stateRaw)
 
-    if (state.status === 'in_progress' || state.status === 'voting') return
+    // 'starting' is our intermediate status that guards against a stale-lock
+    // re-entry: even if the Redis lock were to expire, a concurrent game:start
+    // will see 'starting' here and bail before any coins are touched.
+    if (state.status === 'in_progress' || state.status === 'voting' || state.status === 'starting') return
     if (state.players.length < 3) return
     // All players must be ready (matchmade rooms auto-ready everyone)
     if (state.players.some((p: any) => !p.isReady)) return
 
-    // ── Charge 10 ⭐ per game ──────────────────────────────────────────────────
-    //
-    // Public/matchmade rooms: every player pays 10 ⭐ at the start of every
-    //   game (unranked matchmaking, special, ranked).
-    //
-    // Private lobbies: the HOST pays 10 ⭐ per game. The first game in a
-    //   lobby is covered by the commitment fee charged at POST /rooms, marked
-    //   via `state.hostPrepaid`. We consume that flag here for the first
-    //   start, and charge fresh on every subsequent start. `buildResetState`
-    //   intentionally drops the flag after game end so the host cannot farm
-    //   unlimited games on a single 10 ⭐ fee.
-    //
-    // The whole debit runs in a single transaction — if anyone lacks the
-    // funds we abort the start entirely and tell the room who's short.
-    let failedUserId: string | null = null
-    try {
-      if (room.isPrivate === false) {
-        const playerIds: string[] = state.players.map((p: any) => p.userId)
-        await prisma.$transaction(async (tx) => {
-          for (const uid of playerIds) {
-            const debit = await tx.user.updateMany({
-              where: { id: uid, starCoins: { gte: DAILY_COST } },
-              data:  { starCoins: { decrement: DAILY_COST } },
-            })
-            if (debit.count === 0) {
-              failedUserId = uid
-              throw new Error('INSUFFICIENT_STARS')
-            }
-          }
-        })
-      } else if (state.hostPrepaid === true) {
-        // First game in this private lobby — the POST /rooms fee covers it.
-        // Consume the flag atomically before the game starts so concurrent
-        // starts can't double-spend the prepayment.
-        state.hostPrepaid = false
-        await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
-      } else {
-        // Subsequent game in an existing private lobby — charge the host.
-        const debit = await prisma.user.updateMany({
-          where: { id: room.hostId, starCoins: { gte: DAILY_COST } },
-          data:  { starCoins: { decrement: DAILY_COST } },
-        })
-        if (debit.count === 0) {
-          failedUserId = room.hostId
-          throw new Error('INSUFFICIENT_STARS')
-        }
-      }
-    } catch {
-      log.warn({ roomId, failedUserId }, 'game start refused: insufficient stars')
-      io.to(`room:${roomId}`).emit('game:start:failed' as any, {
-        reason: 'INSUFFICIENT_STARS',
-        userId: failedUserId ?? '',
-        required: DAILY_COST,
-      })
-      // Release the 10s lock immediately so the host can retry once the
-      // broke player leaves or tops up.
-      await (redis as any).del(startLockKey)
-      return
+    // Pin the Redis state to 'starting' BEFORE we do anything that could
+    // fail. Any concurrent call short-circuits on the `state.status ===
+    // 'starting'` check above; on failure we rewind to the previous status
+    // so the host can retry.
+    const previousStatus: string = state.status
+    state.status = 'starting'
+    // We also consume `hostPrepaid` here when it applies — atomically with
+    // the status pin so concurrent `game:start` calls cannot double-spend
+    // the prepayment from POST /rooms. The actual *charge* happens inside
+    // the big $transaction further down; this flag just tracks whether the
+    // host owes money for this specific start.
+    const consumedHostPrepaid = room.isPrivate === true && state.hostPrepaid === true
+    if (consumedHostPrepaid) {
+      state.hostPrepaid = false
     }
+    await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
     // Assign roles
     const players: any[] = shuffleArray([...state.players])
@@ -252,25 +216,100 @@ async function startGameForRoom(
       wordPair = { wordA: wordPair.wordB, wordB: wordPair.wordA }
     }
 
-    const { game, round } = await prisma.$transaction(async (tx) => {
-      const game = await tx.game.create({
-        data: {
-          roomId,
-          // Persist gameMode so /profile can filter ranked vs unranked stats
-          gameMode: (state.gameMode as string | undefined) ?? 'normal',
-        },
+    // ── Atomic: charge 10 ⭐ per game + create Game/Round/GameParticipation in
+    // ONE transaction. Before this change the debit and the game-creation
+    // lived in TWO separate transactions with ~150 lines of logic between
+    // them; if the second transaction failed, coins had already committed
+    // and players lost 10 ⭐ with no game. Now any failure — insufficient
+    // stars, DB error during game create, anything — rolls the entire thing
+    // back so no one is ever charged for a game that didn't start.
+    //
+    // Three charging cases:
+    //   1. Public/matchmade room → every player pays 10 ⭐ at every start.
+    //   2. Private lobby, FIRST game → `state.hostPrepaid` flag (set at POST
+    //      /rooms) covers it; we already consumed the flag above when pinning
+    //      status to 'starting'.
+    //   3. Private lobby, subsequent game → charge the host 10 ⭐. The flag
+    //      is never re-set (buildResetState drops it), so the host cannot
+    //      farm unlimited games on a single 10 ⭐ commitment fee.
+    let game: { id: string }
+    let round: { id: string; roundNumber: number }
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        if (room.isPrivate === false) {
+          // Case 1 — charge everyone
+          for (const p of players) {
+            const debit = await tx.user.updateMany({
+              where: { id: p.userId, starCoins: { gte: DAILY_COST } },
+              data:  { starCoins: { decrement: DAILY_COST } },
+            })
+            if (debit.count === 0) {
+              const err: any = new Error('INSUFFICIENT_STARS')
+              err.failedUserId = p.userId
+              throw err
+            }
+          }
+        } else if (!consumedHostPrepaid) {
+          // Case 3 — subsequent private-lobby game, charge host
+          const debit = await tx.user.updateMany({
+            where: { id: room.hostId, starCoins: { gte: DAILY_COST } },
+            data:  { starCoins: { decrement: DAILY_COST } },
+          })
+          if (debit.count === 0) {
+            const err: any = new Error('INSUFFICIENT_STARS')
+            err.failedUserId = room.hostId
+            throw err
+          }
+        }
+        // Case 2 — prepaid, nothing to debit. Flag was already consumed above.
+        const game = await tx.game.create({
+          data: {
+            roomId,
+            // Persist gameMode so /profile can filter ranked vs unranked stats
+            gameMode: (state.gameMode as string | undefined) ?? 'normal',
+          },
+        })
+        const round = await tx.round.create({
+          data: { gameId: game.id, roundNumber: 1, villagerWord: wordPair.wordA, redHandedWord: wordPair.wordB },
+        })
+        await tx.gameParticipation.createMany({
+          data: players.map((p: any) => ({
+            gameId: game.id, userId: p.userId, role: p.role, survived: true,
+          })),
+          skipDuplicates: true,
+        })
+        return { game, round }
       })
-      const round = await tx.round.create({
-        data: { gameId: game.id, roundNumber: 1, villagerWord: wordPair.wordA, redHandedWord: wordPair.wordB },
-      })
-      await tx.gameParticipation.createMany({
-        data: players.map((p: any) => ({
-          gameId: game.id, userId: p.userId, role: p.role, survived: true,
-        })),
-        skipDuplicates: true,
-      })
-      return { game, round }
-    })
+      game = result.game
+      round = result.round
+    } catch (err: any) {
+      // Rewind Redis state on failure — put the status back AND restore the
+      // hostPrepaid flag we consumed speculatively, so the host can retry
+      // without losing their commitment fee.
+      state.status = previousStatus
+      if (consumedHostPrepaid) {
+        state.hostPrepaid = true
+      }
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+      if (err?.message === 'INSUFFICIENT_STARS') {
+        log.warn({ roomId, failedUserId: err.failedUserId }, 'game start refused: insufficient stars (charges rolled back)')
+        io.to(`room:${roomId}`).emit('game:start:failed' as any, {
+          reason: 'INSUFFICIENT_STARS',
+          userId: err.failedUserId ?? '',
+          required: DAILY_COST,
+        })
+      } else {
+        log.error({ err, roomId }, 'game start failed — charges rolled back')
+        io.to(`room:${roomId}`).emit('game:start:failed' as any, {
+          reason: 'INTERNAL',
+          userId: '',
+          required: DAILY_COST,
+        })
+      }
+      // Release the start-lock immediately so the host can retry.
+      await (redis as any).del(startLockKey)
+      return
+    }
 
     state.players = players
     state.status = 'in_progress'

@@ -118,7 +118,8 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     // cover unlimited games.
     //
     // The debit and the Room row are created in a single transaction so a failed
-    // room.create can never leave the host with coins deducted and no room.
+    // room.create can never leave the host with coins deducted and no room —
+    // both operations succeed together or the whole thing rolls back.
     const isPrivateLobby = settings?.isPrivate === true
     let room
     try {
@@ -151,6 +152,9 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
         req.log.warn({ userId: payload.sub }, 'lobby creation refused: insufficient stars')
         return reply.status(402).send({ error: 'INSUFFICIENT_STARS', required: DAILY_COST })
       }
+      // Anything else (DB connection drop, unique-code collision, etc.)
+      // rolls the whole $transaction back — no orphaned debit to refund.
+      req.log.error({ err, userId: payload.sub }, 'lobby creation failed — charges rolled back')
       throw err
     }
     // Ranked never uses vocal mode — it's typed-clue only.

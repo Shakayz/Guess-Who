@@ -96,6 +96,7 @@ describe('E2E User Journey', () => {
     // rooms.ts now wraps the host debit + room.create in prisma.$transaction
     // (atomic debit + create — see security fix for private-lobby farming).
     // Pass through the transaction callback with the same user/room mocks.
+    mockPrismaUser.updateMany = vi.fn().mockResolvedValue({ count: 1 })
     ;(prisma as any).$transaction = vi.fn(async (fn: any) =>
       fn({ user: mockPrismaUser, room: mockPrismaRoom }),
     )

@@ -1,79 +1,109 @@
 import React from 'react'
-import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// i18n stub: return the defaultValue when one is provided (with interpolation),
+// otherwise return the raw key so we can match keys directly in assertions.
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: unknown) => (typeof fallback === 'string' ? fallback : key),
+    t: (key: string, opts?: any) => {
+      if (opts && typeof opts === 'object' && typeof opts.defaultValue === 'string') {
+        return opts.defaultValue.replace(/\{\{(\w+)\}\}/g, (_, k) => String(opts[k] ?? ''))
+      }
+      return key
+    },
     i18n: { language: 'en' },
   }),
 }))
 
 vi.mock('../../components/NavBar', () => ({ NavBar: () => <div data-testid="navbar" /> }))
 
+// The shop hits GET /auth/me on mount. No cosmetics endpoint anymore — they
+// were removed from the game design when avatars were dropped.
+const mockGet = vi.fn()
+vi.mock('../../lib/api', () => ({
+  api: {
+    get: (...args: any[]) => mockGet(...args),
+    post: vi.fn(),
+  },
+}))
+
 import ShopPage from '../../pages/ShopPage'
 
+function renderShop() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={['/shop']}>
+        <ShopPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
 describe('ShopPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/auth/me') {
+        return Promise.resolve({ starCoins: 125, goldCoins: 3 })
+      }
+      return Promise.resolve(null)
+    })
+  })
+
   it('renders without crashing', () => {
-    render(<ShopPage />)
+    renderShop()
     expect(document.body).toBeInTheDocument()
   })
 
   it('renders navbar', () => {
-    render(<ShopPage />)
+    renderShop()
     expect(screen.getByTestId('navbar')).toBeInTheDocument()
   })
 
-  it('shows the shop title', () => {
-    render(<ShopPage />)
-    expect(screen.getByText('shop.shop')).toBeInTheDocument()
+  it('shows the live star-coin and gold-coin balance in the header chips', async () => {
+    renderShop()
+    // Comes from the /auth/me mock, formatted via toLocaleString (just "125" here).
+    await waitFor(() => {
+      expect(screen.getByText('125')).toBeInTheDocument()
+    })
+    expect(screen.getByText('3')).toBeInTheDocument()
   })
 
-  it('shows tab navigation with correct labels', () => {
-    render(<ShopPage />)
-    expect(screen.getByText('💰 Gold Coins')).toBeInTheDocument()
-    expect(screen.getByText('👑 Season Pass')).toBeInTheDocument()
+  it('shows the coin-packs "coming soon" notice on the Coins tab (default)', () => {
+    renderShop()
+    expect(screen.getByText(/shop\.packsUnavailable/)).toBeInTheDocument()
   })
 
-  it('does not expose a cosmetics tab', () => {
-    render(<ShopPage />)
-    expect(screen.queryByText('🎨 Cosmetics')).not.toBeInTheDocument()
+  it('lists the free earning mechanics so players without coins see alternatives', () => {
+    renderShop()
+    // The three earn rows — daily bonus / streak / game reward — are the
+    // actual earning channels the server implements in dailyRewards.ts.
+    expect(screen.getByText('shop.earnDailyBonus')).toBeInTheDocument()
+    expect(screen.getByText('shop.earnStreak')).toBeInTheDocument()
+    expect(screen.getByText('shop.earnGameReward')).toBeInTheDocument()
   })
 
-  it('shows coins tab content by default', () => {
-    render(<ShopPage />)
-    expect(screen.getByText('Gold Coin Packs')).toBeInTheDocument()
+  it('does not expose a cosmetics tab (removed from game design)', () => {
+    renderShop()
+    expect(screen.queryByText('shop.tabCosmetics')).not.toBeInTheDocument()
   })
 
-  it('switches to Season Pass tab when clicked', () => {
-    render(<ShopPage />)
-    fireEvent.click(screen.getByText('👑 Season Pass'))
-    // Season pass content should appear
-    expect(screen.getByText('Season Pass')).toBeInTheDocument()
+  it('switches to Season tab and shows the "coming soon" copy', () => {
+    renderShop()
+    fireEvent.click(screen.getByText('shop.tabSeason'))
+    expect(screen.getByText('shop.seasonComingSoon')).toBeInTheDocument()
   })
 
-  it('shows season pass perks when season tab is selected', () => {
-    render(<ShopPage />)
-    fireEvent.click(screen.getByText('👑 Season Pass'))
-    expect(screen.getByText(/XP boost/)).toBeInTheDocument()
-  })
-
-  it('shows wallet with star coins and gold coins', () => {
-    render(<ShopPage />)
-    expect(screen.getByText('100')).toBeInTheDocument() // star coins
-    expect(screen.getByText('0')).toBeInTheDocument()   // gold coins
-  })
-
-  it('can switch back to coins tab from season tab', () => {
-    render(<ShopPage />)
-    fireEvent.click(screen.getByText('👑 Season Pass'))
-    fireEvent.click(screen.getByText('💰 Gold Coins'))
-    expect(screen.getByText('Gold Coin Packs')).toBeInTheDocument()
-  })
-
-  it('shows gold coins description text in coins tab', () => {
-    render(<ShopPage />)
-    // Gold coins tab is default
-    expect(screen.getByText(/Gold Coins are used for/i)).toBeInTheDocument()
+  it('can switch back to the Coins tab from Season', async () => {
+    renderShop()
+    fireEvent.click(screen.getByText('shop.tabSeason'))
+    fireEvent.click(screen.getByText('shop.tabCoins'))
+    await waitFor(() => {
+      expect(screen.getByText(/shop\.packsUnavailable/)).toBeInTheDocument()
+    })
   })
 })

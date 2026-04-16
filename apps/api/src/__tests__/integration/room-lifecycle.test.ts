@@ -313,6 +313,27 @@ describe('Room Lifecycle - Integration Tests', () => {
       expect(mockRedis.set).not.toHaveBeenCalled()
     })
 
+    it('does NOT leak a room when the charge transaction rejects mid-flight', async () => {
+      // Simulate a DB failure INSIDE the transaction (e.g. unique-code
+      // collision, connection drop) AFTER the debit. With the pre-fix code
+      // the host had already lost 10 ⭐ with no room and no refund path;
+      // with the transaction-scoped debit the whole thing rolls back, the
+      // host's coins are safe, and we surface a 500.
+      mockPrismaUser.findUnique.mockResolvedValue({ locale: 'en' })
+      ;(prisma as any).$transaction = vi.fn().mockRejectedValue(new Error('DB connection lost'))
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/rooms',
+        headers: { authorization: `Bearer ${authToken}` },
+        payload: { settings: { isPrivate: true } },
+      })
+
+      expect(response.statusCode).toBe(500)
+      expect(mockPrismaRoom.create).not.toHaveBeenCalled()
+      expect(mockRedis.set).not.toHaveBeenCalled()
+    })
+
     it('requires authentication', async () => {
       const response = await app.inject({
         method: 'POST',
