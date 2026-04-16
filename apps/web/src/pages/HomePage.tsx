@@ -201,17 +201,29 @@ export default function HomePage() {
 
   const [showHowToPlay, setShowHowToPlay] = useState(false)
   const [showTutorial, setShowTutorial] = useState(() => !hasTutorialCompleted())
-  // Server-side tutorial completion flag (source of truth for the /tutorial
-  // walkthrough reward). We hide the "🎓 Your First Game" CTA card once this
-  // is true so returning players aren't prompted to replay something they've
-  // already earned the 50⭐ for. Defaults to `true` (hide) while loading so
-  // the card doesn't flicker in and then disappear.
+  // Server-side tutorial state powering the "🎓 Your First Game" CTA card.
+  //   • `walkthroughCompleted`: user already claimed the 50⭐ reward — we
+  //     replace the CTA with a short "coins already claimed" acknowledgment.
+  //   • `hasPlayedGame`:       user has finished at least one real game
+  //     (ranked / unranked / lobby) — they've outgrown the walkthrough, so
+  //     hide the card entirely (no message needed).
+  // Both default to `true` while loading so the card doesn't flicker in and
+  // then disappear for returning players.
   const [walkthroughCompleted, setWalkthroughCompleted] = useState(true)
+  const [hasPlayedGame, setHasPlayedGame] = useState(true)
   useEffect(() => {
     let cancelled = false
-    api.get<{ completed: boolean }>('/tutorial/status')
-      .then((s) => { if (!cancelled) setWalkthroughCompleted(s.completed) })
-      .catch(() => { if (!cancelled) setWalkthroughCompleted(false) })
+    api.get<{ completed: boolean; hasPlayedGame?: boolean }>('/tutorial/status')
+      .then((s) => {
+        if (cancelled) return
+        setWalkthroughCompleted(s.completed)
+        setHasPlayedGame(!!s.hasPlayedGame)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setWalkthroughCompleted(false)
+        setHasPlayedGame(false)
+      })
     return () => { cancelled = true }
   }, [])
 
@@ -629,9 +641,23 @@ export default function HomePage() {
         </div>
 
         {/* Walkthrough / tutorial CTA — prominent card for first-time players.
-            Hidden once the player has finished the walkthrough and claimed
-            the 50⭐ reward (server-side `tutorialCompleted` flag). */}
-        {!walkthroughCompleted && (
+            Three states:
+              1. Never claimed + never played a real game → show CTA
+              2. Already claimed the 50⭐ reward           → show compact
+                 "coins already claimed" acknowledgment (per user request)
+              3. Played a real game (but never claimed)    → hide entirely,
+                 they've outgrown the walkthrough
+         */}
+        {walkthroughCompleted ? (
+          <div className="mt-10 w-full max-w-md mx-auto rounded-2xl border border-emerald-700/40 bg-emerald-950/30 p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600/20 border border-emerald-700/40 flex items-center justify-center text-xl shrink-0">
+              ✅
+            </div>
+            <p className="flex-1 text-sm text-emerald-300 font-semibold">
+              {t('tutorial.homeCardAlreadyClaimed', { amount: TUTORIAL_COMPLETION_REWARD })}
+            </p>
+          </div>
+        ) : !hasPlayedGame ? (
           <Link
             to="/tutorial"
             className="mt-10 w-full max-w-md mx-auto group relative overflow-hidden rounded-2xl border border-amber-700/40 bg-gradient-to-br from-amber-950/50 to-brand-950/40 p-4 flex items-center gap-4 hover:border-amber-600/60 hover:from-amber-950/70 transition-all active:scale-[0.99]"
@@ -649,7 +675,7 @@ export default function HomePage() {
               {t('tutorial.homeCardCta')} →
             </span>
           </Link>
-        )}
+        ) : null}
 
         {/* How to play link */}
         <Link

@@ -267,6 +267,7 @@ export default {
     homeCardTitle: 'New here? Try the Walkthrough',
     homeCardSubtitle: 'Play a guided first game and earn {{amount}} ⭐',
     homeCardCta: 'Start',
+    homeCardAlreadyClaimed: '{{amount}} ⭐ coins already claimed from the walkthrough.',
   },
   game: {
     waitingForPlayers: 'Waiting for players...',

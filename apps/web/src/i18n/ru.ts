@@ -257,6 +257,7 @@ export default {
     homeCardTitle: 'Новичок? Попробуйте обучение',
     homeCardSubtitle: 'Сыграйте первую игру с гидом и получите {{amount}} ⭐',
     homeCardCta: 'Начать',
+    homeCardAlreadyClaimed: 'Награда {{amount}} ⭐ из обучения уже получена.',
   },
   game: {
     waitingForPlayers: 'Ожидание игроков...',

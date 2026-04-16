@@ -260,6 +260,7 @@ export default {
     homeCardTitle: 'Neu hier? Probiere das Tutorial',
     homeCardSubtitle: 'Spiele ein geführtes Erstspiel und verdiene {{amount}} ⭐',
     homeCardCta: 'Starten',
+    homeCardAlreadyClaimed: '{{amount}} ⭐ aus dem Tutorial bereits erhalten.',
   },
   game: {
     waitingForPlayers: 'Warte auf Spieler...',

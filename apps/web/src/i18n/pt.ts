@@ -268,6 +268,7 @@ export default {
     homeCardTitle: 'Novo por aqui? Experimente o tutorial',
     homeCardSubtitle: 'Jogue uma primeira partida guiada e ganhe {{amount}} ⭐',
     homeCardCta: 'Começar',
+    homeCardAlreadyClaimed: 'Recompensa de {{amount}} ⭐ já resgatada no tutorial.',
   },
   game: {
     waitingForPlayers: 'Aguardando jogadores...',

@@ -267,6 +267,7 @@ export default {
     homeCardTitle: 'यहाँ नए हैं? वॉकथ्रू आज़माएँ',
     homeCardSubtitle: 'एक गाइडेड पहला गेम खेलें और {{amount}} ⭐ कमाएँ',
     homeCardCta: 'शुरू करें',
+    homeCardAlreadyClaimed: 'वॉकथ्रू से {{amount}} ⭐ पुरस्कार पहले ही लिया जा चुका है।',
   },
   game: {
     waitingForPlayers: 'खिलाड़ियों का इंतज़ार...',

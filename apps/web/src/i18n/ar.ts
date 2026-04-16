@@ -270,6 +270,7 @@ export default {
     homeCardTitle: 'جديد هنا؟ جرّب التعليمي',
     homeCardSubtitle: 'العب أول مباراة موجّهة واكسب {{amount}} ⭐',
     homeCardCta: 'ابدأ',
+    homeCardAlreadyClaimed: 'تم استلام مكافأة {{amount}} ⭐ من التعليمي مسبقاً.',
   },
   game: {
     waitingForPlayers: 'في انتظار اللاعبين...',

@@ -264,6 +264,7 @@ export default {
     homeCardTitle: 'Nouveau ? Essayez le tutoriel',
     homeCardSubtitle: 'Jouez une première partie guidée et gagnez {{amount}} ⭐',
     homeCardCta: 'Démarrer',
+    homeCardAlreadyClaimed: 'Récompense de {{amount}} ⭐ déjà réclamée via le tutoriel.',
   },
   game: {
     waitingForPlayers: 'En attente des joueurs...',
