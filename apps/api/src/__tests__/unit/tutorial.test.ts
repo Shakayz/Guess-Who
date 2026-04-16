@@ -7,6 +7,13 @@ import { tutorialRoutes, TUTORIAL_COMPLETION_REWARD } from '../../routes/tutoria
 
 const mockPrismaUser = prisma.user as any
 
+// /status now also reads gameParticipation.count to expose `hasPlayedGame`
+// so the home page can hide the tutorial CTA for users who have already
+// played a real ranked/unranked/lobby game. The base setup.ts mock doesn't
+// register this model, so wire it up here.
+const mockGameParticipation = { count: vi.fn() }
+;(prisma as any).gameParticipation = mockGameParticipation
+
 describe('Tutorial Routes', () => {
   let app: FastifyInstance
   let token: string
@@ -38,8 +45,9 @@ describe('Tutorial Routes', () => {
   // ── GET /api/tutorial/status ────────────────────────────────────────────────
 
   describe('GET /api/tutorial/status', () => {
-    it('returns completed=false and the reward amount for a new user', async () => {
+    it('returns completed=false, hasPlayedGame=false and the reward amount for a new user', async () => {
       mockPrismaUser.findUnique.mockResolvedValue({ tutorialCompleted: false })
+      mockGameParticipation.count.mockResolvedValue(0)
 
       const res = await app.inject({
         method: 'GET',
@@ -48,11 +56,16 @@ describe('Tutorial Routes', () => {
       })
 
       expect(res.statusCode).toBe(200)
-      expect(res.json()).toEqual({ completed: false, reward: TUTORIAL_COMPLETION_REWARD })
+      expect(res.json()).toEqual({
+        completed: false,
+        hasPlayedGame: false,
+        reward: TUTORIAL_COMPLETION_REWARD,
+      })
     })
 
     it('returns completed=true once the user has finished the tutorial', async () => {
       mockPrismaUser.findUnique.mockResolvedValue({ tutorialCompleted: true })
+      mockGameParticipation.count.mockResolvedValue(0)
 
       const res = await app.inject({
         method: 'GET',
@@ -64,6 +77,27 @@ describe('Tutorial Routes', () => {
       expect(res.json().completed).toBe(true)
     })
 
+    it('returns hasPlayedGame=true when the user has at least one game participation', async () => {
+      // Drives the home-page logic that hides the tutorial CTA once a user
+      // has played a real ranked/unranked/lobby game, even if they never
+      // claimed the walkthrough reward.
+      mockPrismaUser.findUnique.mockResolvedValue({ tutorialCompleted: false })
+      mockGameParticipation.count.mockResolvedValue(3)
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/tutorial/status',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      const body = res.json()
+      expect(body.completed).toBe(false)
+      expect(body.hasPlayedGame).toBe(true)
+      // Filtered by userId so one player's games don't leak to another.
+      expect(mockGameParticipation.count).toHaveBeenCalledWith({ where: { userId: 'user-1' } })
+    })
+
     it('returns 401 without an auth token', async () => {
       const res = await app.inject({ method: 'GET', url: '/api/tutorial/status' })
       expect(res.statusCode).toBe(401)
@@ -71,6 +105,7 @@ describe('Tutorial Routes', () => {
 
     it('returns 404 if the user does not exist', async () => {
       mockPrismaUser.findUnique.mockResolvedValue(null)
+      mockGameParticipation.count.mockResolvedValue(0)
 
       const res = await app.inject({
         method: 'GET',

@@ -268,6 +268,7 @@ export default {
     homeCardTitle: '新来的？试试教程',
     homeCardSubtitle: '完成一场引导首局并获得 {{amount}} ⭐',
     homeCardCta: '开始',
+    homeCardAlreadyClaimed: '已从教程领取 {{amount}} ⭐ 奖励。',
   },
   game: {
     waitingForPlayers: '等待玩家加入...',

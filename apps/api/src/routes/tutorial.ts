@@ -13,15 +13,26 @@ export const tutorialRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /api/tutorial/status — lightweight check for the web client so it can
   // decide whether to show the "Complete tutorial for +50 ⭐" banner.
+  //
+  // `hasPlayedGame` lets the home page hide the tutorial CTA once a player
+  // has touched a real game (ranked, unranked, or lobby) — the walkthrough
+  // only targets brand-new players, so it shouldn't nag someone who already
+  // jumped into an actual match. Separate from `completed` because a player
+  // can play games without having claimed the 50⭐ reward, in which case we
+  // hide the card silently instead of showing "already claimed".
   fastify.get('/status', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { tutorialCompleted: true },
-    })
+    const [user, gameCount] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { tutorialCompleted: true },
+      }),
+      prisma.gameParticipation.count({ where: { userId } }),
+    ])
     if (!user) return reply.status(404).send({ error: 'User not found' })
     return reply.send({
       completed: user.tutorialCompleted,
+      hasPlayedGame: gameCount > 0,
       reward: TUTORIAL_COMPLETION_REWARD,
     })
   })
