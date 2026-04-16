@@ -92,42 +92,62 @@ The script will:
 4. Wait for stabilization
 5. Auto-rollback on failure
 
-## GitHub Actions Secrets
+## GitHub Actions — OIDC credentials
 
-Add the following secrets to your GitHub repository (Settings > Secrets and variables > Actions):
+The CD workflows (`.github/workflows/cd-staging.yml`, `cd-prod.yml`) authenticate
+to AWS via **OIDC** (no long-lived access keys). They assume the role
+`arn:aws:iam::700672899544:role/GitHubActionsRedHandedDeploy`.
 
-### Per-environment secrets (set in each GitHub Environment)
+### One-time setup
 
-| Secret | Description |
-|--------|-------------|
-| `AWS_ACCESS_KEY_ID` | IAM user access key for ECS deployments |
-| `AWS_SECRET_ACCESS_KEY` | IAM user secret key |
+Run this once per AWS account — it creates the `token.actions.githubusercontent.com`
+OIDC provider and the `GitHubActionsRedHandedDeploy` IAM role with a trust
+policy scoped to `shakayz/guess-who`:
 
-### Recommended IAM policy for the deploy user
-
-The CI/CD IAM user needs these permissions:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ecs:DescribeServices",
-        "ecs:UpdateService",
-        "ecs:DescribeTaskDefinition",
-        "ecs:RegisterTaskDefinition",
-        "ecs:ListTasks",
-        "ecs:DescribeTasks",
-        "cloudformation:DescribeStacks",
-        "iam:PassRole"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
+```bash
+./infra/aws/setup-github-oidc.sh
 ```
+
+The script auto-detects whether the OIDC provider already exists in the
+account. To force-skip provider creation:
+
+```bash
+CREATE_OIDC_PROVIDER=false ./infra/aws/setup-github-oidc.sh
+```
+
+Under the hood this deploys `infra/aws/github-oidc.yml`, which provisions:
+
+- An `AWS::IAM::OIDCProvider` for `token.actions.githubusercontent.com`
+- An `AWS::IAM::Role` whose trust policy only accepts OIDC tokens where:
+  - `aud` = `sts.amazonaws.com`
+  - `sub` matches `repo:shakayz/guess-who:ref:refs/heads/*`,
+    `...:environment:production`, `...:environment:staging`, or
+    `...:pull_request`
+
+### Troubleshooting `Not authorized to perform sts:AssumeRoleWithWebIdentity`
+
+If `aws-actions/configure-aws-credentials` fails with:
+
+```
+Error: Could not assume role with OIDC: Not authorized to perform
+sts:AssumeRoleWithWebIdentity
+```
+
+the role's trust policy is rejecting the GitHub OIDC token. Check:
+
+1. **Provider exists** — `aws iam list-open-id-connect-providers` must list
+   `token.actions.githubusercontent.com`. If not, re-run the setup script.
+2. **Role exists** — `aws iam get-role --role-name GitHubActionsRedHandedDeploy`
+   must succeed.
+3. **Trust policy covers the caller**. The `sub` claim of the GitHub OIDC
+   token looks like:
+   - push to `main`: `repo:shakayz/guess-who:ref:refs/heads/main`
+   - prod job (uses `environment: production`):
+     `repo:shakayz/guess-who:environment:production`
+   The `StringLike` conditions in `github-oidc.yml` must allow these. If you
+   forked/renamed the repo, update `GitHubOrg`/`GitHubRepo` parameters and
+   redeploy the stack.
+4. **Workflow has `id-token: write`** — already set in both CD workflows.
 
 ## Environment Variable Mapping
 
