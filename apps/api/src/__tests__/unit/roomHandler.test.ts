@@ -661,6 +661,120 @@ describe('game:start — full start flow', () => {
   })
 })
 
+// ─── game:start — private-lobby coin charge flow (anti-farming fix) ───────────
+//
+// A private lobby charges the host 10 ⭐ at POST /rooms, but that fee only
+// covers the FIRST game. Subsequent games in the same room must charge the
+// host again — otherwise a single 10 ⭐ fee would let a group farm unlimited
+// star-coin rewards. These tests pin that behaviour down.
+
+describe('game:start — private lobby coin charge', () => {
+  const privateRoom = { ...defaultRoom, isPrivate: true }
+
+  function readyState(overrides: Record<string, unknown> = {}) {
+    return {
+      ...waitingState,
+      players: [
+        { userId: 'host-1', username: 'Host', role: undefined, status: 'alive', isHost: true,  isReady: true, honorGiven: false },
+        { userId: 'p2',     username: 'P2',   role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p3',     username: 'P3',   role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+        { userId: 'p4',     username: 'P4',   role: undefined, status: 'alive', isHost: false, isReady: true, honorGiven: false },
+      ],
+      ...overrides,
+    }
+  }
+
+  function wireRedisLockAndState(state: Record<string, unknown>) {
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    mockRedis.del.mockResolvedValue(1)
+  }
+
+  it('consumes hostPrepaid for the FIRST game and does NOT debit the host', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    mockPrisma.room.findUnique.mockResolvedValue({ ...privateRoom })
+    wireRedisLockAndState(readyState({ hostPrepaid: true }))
+
+    // Track direct prisma.user.updateMany calls — these are charge calls from
+    // startGameForRoom (the game/round $transaction uses its own tx.user).
+    const directUpdateMany = vi.fn()
+    mockPrisma.user.updateMany = directUpdateMany
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+    await vi.advanceTimersByTimeAsync(3100)
+
+    // Prepayment consumed → no direct debit call at all.
+    expect(directUpdateMany).not.toHaveBeenCalled()
+    // The consumed state must be persisted back to Redis with hostPrepaid=false
+    // so a second start will charge the host.
+    const savedStates = (mockRedis.set as any).mock.calls
+      .filter((c: any[]) => typeof c[1] === 'string' && c[1].includes('hostPrepaid'))
+      .map((c: any[]) => c[1] as string)
+    expect(savedStates.some((s) => s.includes('"hostPrepaid":false'))).toBe(true)
+
+    vi.useRealTimers()
+  })
+
+  it('charges ONLY the host 10 ⭐ on subsequent starts (hostPrepaid absent)', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    mockPrisma.room.findUnique.mockResolvedValue({ ...privateRoom })
+    // No hostPrepaid flag — simulates the Redis state after buildResetState().
+    wireRedisLockAndState(readyState())
+
+    const directUpdateMany = vi.fn().mockResolvedValue({ count: 1 })
+    mockPrisma.user.updateMany = directUpdateMany
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+    await vi.advanceTimersByTimeAsync(3100)
+
+    // Exactly ONE debit call, targeting the host only (NOT every player).
+    expect(directUpdateMany).toHaveBeenCalledTimes(1)
+    expect(directUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'host-1', starCoins: { gte: 10 } },
+      data:  { starCoins: { decrement: 10 } },
+    })
+    vi.useRealTimers()
+  })
+
+  it('aborts the start and emits game:start:failed when host has insufficient stars', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    mockPrisma.room.findUnique.mockResolvedValue({ ...privateRoom })
+    wireRedisLockAndState(readyState())
+
+    // Atomic debit matches zero rows → host is broke.
+    const directUpdateMany = vi.fn().mockResolvedValue({ count: 0 })
+    mockPrisma.user.updateMany = directUpdateMany
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+
+    // Host debit was attempted, but the game/round $transaction must NOT run —
+    // the game never starts.
+    expect(directUpdateMany).toHaveBeenCalledTimes(1)
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled()
+
+    // Room is notified so the UI can surface the reason.
+    expect(io.to).toHaveBeenCalledWith('room:room-1')
+    expect((io as any)._emit).toHaveBeenCalledWith(
+      'game:start:failed',
+      expect.objectContaining({ reason: 'INSUFFICIENT_STARS', userId: 'host-1', required: 10 }),
+    )
+  })
+})
+
 // ─── room:join — auto-start matchmade game ───────────────────────────────────
 
 describe('room:join — auto-start when all expected players joined', () => {

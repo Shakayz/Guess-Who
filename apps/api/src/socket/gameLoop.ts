@@ -819,12 +819,8 @@ export async function tryEarlyVoting(io: IO, roomId: string) {
 
   if (allSubmitted) {
     clearRoomTimer(roomId)
-    // Small delay so the last clue is visible before transitioning
-    const t = setTimeout(async () => {
-      roomTimers.delete(roomId)
-      await startVoting(io, roomId, state.votingTimeSeconds ?? 30)
-    }, 1500)
-    roomTimers.set(roomId, t)
+    // Transition directly to voting — no artificial delay when everyone is ready
+    await startVoting(io, roomId, state.votingTimeSeconds ?? 30)
   }
 }
 
@@ -883,12 +879,8 @@ export async function tryEarlyResolve(io: IO, roomId: string) {
   if (allVoted) {
     clearRoomTimer(roomId)
     io.to(`room:${roomId}`).emit('vote:all-cast' as any)
-    // Store timer so it can be cancelled if needed, preventing double-resolution
-    const t = setTimeout(() => {
-      roomTimers.delete(roomId)
-      resolveRound(io, roomId)
-    }, 1500)
-    roomTimers.set(roomId, t)
+    // Resolve directly — no artificial delay when everyone has voted
+    await resolveRound(io, roomId)
   }
 }
 
@@ -1579,11 +1571,8 @@ export async function tryEarlyTiebreakerVoting(io: IO, roomId: string) {
 
   if (allSubmitted) {
     clearRoomTimer(roomId)
-    const t = setTimeout(async () => {
-      roomTimers.delete(roomId)
-      await startTiebreakerVoting(io, roomId)
-    }, 1500)
-    roomTimers.set(roomId, t)
+    // Transition directly — no artificial delay when all tied players are ready
+    await startTiebreakerVoting(io, roomId)
   }
 }
 
@@ -1600,11 +1589,8 @@ export async function tryEarlyTiebreakerResolve(io: IO, roomId: string) {
 
   if (allVoted) {
     clearRoomTimer(roomId)
-    const t = setTimeout(async () => {
-      roomTimers.delete(roomId)
-      await resolveTiebreaker(io, roomId)
-    }, 1500)
-    roomTimers.set(roomId, t)
+    // Resolve tiebreaker directly — no artificial delay when everyone has voted
+    await resolveTiebreaker(io, roomId)
   }
 }
 
