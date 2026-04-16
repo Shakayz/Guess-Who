@@ -178,6 +178,19 @@ describe('Room Lifecycle - Integration Tests', () => {
   })
 
   describe('POST /api/rooms', () => {
+    // Helper: the route now wraps the (optional) host debit + room.create in
+    // a single prisma.$transaction. Wire the mock so the callback runs with a
+    // tx that exposes both user.updateMany and room.create, and resolves to
+    // whatever mockPrismaRoom.create returns.
+    const wireTransaction = (debitCount = 1) => {
+      ;(prisma as any).$transaction = vi.fn(async (fn: any) =>
+        fn({
+          user: { updateMany: vi.fn().mockResolvedValue({ count: debitCount }) },
+          room: { create: mockPrismaRoom.create },
+        }),
+      )
+    }
+
     it('creates a room with default settings', async () => {
       mockPrismaUser.findUnique.mockResolvedValue({ locale: 'en' })
       mockPrismaRoom.create.mockResolvedValue({
@@ -192,6 +205,7 @@ describe('Room Lifecycle - Integration Tests', () => {
         isPrivate: false,
         language: 'en',
       })
+      wireTransaction()
       mockRedis.set.mockResolvedValue('OK')
 
       const response = await app.inject({
@@ -223,6 +237,7 @@ describe('Room Lifecycle - Integration Tests', () => {
         isPrivate: true,
         language: 'fr',
       })
+      wireTransaction()
       mockRedis.set.mockResolvedValue('OK')
 
       const response = await app.inject({
@@ -282,6 +297,45 @@ describe('Room Lifecycle - Integration Tests', () => {
 
       // Zod validation should reject maxPlayers > 20
       expect(response.statusCode).toBeGreaterThanOrEqual(400)
+    })
+
+    // ── Security regression: private lobby charge is now atomic ──
+    it('refuses private-lobby creation with 402 INSUFFICIENT_STARS when host is broke', async () => {
+      mockPrismaUser.findUnique.mockResolvedValue({ locale: 'en' })
+      // debit returns count:0 → host doesn't have 10 ⭐
+      wireTransaction(0)
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/rooms',
+        headers: { authorization: `Bearer ${authToken}` },
+        payload: { settings: { isPrivate: true } },
+      })
+
+      expect(response.statusCode).toBe(402)
+      expect(response.json()).toEqual({ error: 'INSUFFICIENT_STARS', required: 10 })
+      // Room must NOT be created when the charge fails.
+      expect(mockPrismaRoom.create).not.toHaveBeenCalled()
+    })
+
+    it('does NOT leak a room when the charge transaction rejects (atomicity)', async () => {
+      mockPrismaUser.findUnique.mockResolvedValue({ locale: 'en' })
+      // Simulate a DB failure INSIDE the transaction after the debit — the
+      // whole thing rolls back. The old code charged the host first then
+      // created the room separately, so a failure here would have left the
+      // host 10 ⭐ poorer with no room. We now surface a 500 and the caller
+      // can trust no coins were moved.
+      ;(prisma as any).$transaction = vi.fn().mockRejectedValue(new Error('DB connection lost'))
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/rooms',
+        headers: { authorization: `Bearer ${authToken}` },
+        payload: { settings: { isPrivate: true } },
+      })
+
+      expect(response.statusCode).toBe(500)
+      expect(mockPrismaRoom.create).not.toHaveBeenCalled()
     })
   })
 

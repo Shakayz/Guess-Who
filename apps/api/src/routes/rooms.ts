@@ -114,31 +114,49 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     // Private lobbies: only the host pays 10 ⭐ at creation. Public (matchmade)
     // rooms charge every player when the game actually starts — see
     // startGameForRoom in socket/handlers/room.ts.
+    //
+    // ── Atomic: charge + room-create in one transaction ──
+    // Previously the host was debited in a standalone updateMany BEFORE the
+    // room was created. If `prisma.room.create` then failed (unique-code
+    // collision, connection drop, constraint error, etc.) the host had
+    // already lost 10 ⭐ with nothing to show for it and no refund path. We
+    // now run both operations inside the same transaction so any failure
+    // rolls the charge back.
     const isPrivateLobby = settings?.isPrivate === true
-    if (isPrivateLobby) {
-      const debit = await prisma.user.updateMany({
-        where: { id: payload.sub, starCoins: { gte: DAILY_COST } },
-        data:  { starCoins: { decrement: DAILY_COST } },
+    let room
+    try {
+      room = await prisma.$transaction(async (tx) => {
+        if (isPrivateLobby) {
+          const debit = await tx.user.updateMany({
+            where: { id: payload.sub, starCoins: { gte: DAILY_COST } },
+            data:  { starCoins: { decrement: DAILY_COST } },
+          })
+          if (debit.count === 0) {
+            throw new Error('INSUFFICIENT_STARS')
+          }
+        }
+        return tx.room.create({
+          data: {
+            code,
+            hostId: payload.sub,
+            maxPlayers:           isRanked ? rankedMaxPlayers    : (settings?.maxPlayers ?? 10),
+            imposterCount:        isRanked ? rankedImposterCount : (settings?.imposterCount ?? 2),
+            speakingTimeSeconds:  settings?.speakingTimeSeconds ?? 30,
+            votingTimeSeconds:    settings?.votingTimeSeconds ?? 30,
+            wordPackId:           settings?.wordPackId ?? 'default',
+            isPrivate:            settings?.isPrivate ?? false,
+            language:             settings?.language ?? host?.locale ?? 'en',
+          },
+        })
       })
-      if (debit.count === 0) {
+    } catch (err: any) {
+      if (err?.message === 'INSUFFICIENT_STARS') {
         req.log.warn({ userId: payload.sub }, 'lobby creation refused: insufficient stars')
         return reply.status(402).send({ error: 'INSUFFICIENT_STARS', required: DAILY_COST })
       }
+      req.log.error({ err, userId: payload.sub }, 'lobby creation failed — charges rolled back')
+      throw err
     }
-
-    const room = await prisma.room.create({
-      data: {
-        code,
-        hostId: payload.sub,
-        maxPlayers:           isRanked ? rankedMaxPlayers    : (settings?.maxPlayers ?? 10),
-        imposterCount:        isRanked ? rankedImposterCount : (settings?.imposterCount ?? 2),
-        speakingTimeSeconds:  settings?.speakingTimeSeconds ?? 30,
-        votingTimeSeconds:    settings?.votingTimeSeconds ?? 30,
-        wordPackId:           settings?.wordPackId ?? 'default',
-        isPrivate:            settings?.isPrivate ?? false,
-        language:             settings?.language ?? host?.locale ?? 'en',
-      },
-    })
     // Ranked never uses vocal mode — it's typed-clue only.
     const vocalMode = !isRanked && (settings?.vocalMode ?? false)
     const vocalSpeakingTimeSeconds = Math.min(60, Math.max(5, settings?.vocalSpeakingTimeSeconds ?? 10))

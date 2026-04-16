@@ -1162,3 +1162,206 @@ describe('game:start — socket ID fallback emit (lines 142-144)', () => {
     vi.useRealTimers()
   })
 })
+
+// ─── game:start — atomic charge + game-creation (security regression) ────────
+// These tests pin down the invariants that prevent coin exploits:
+//   1. A failure inside the charge+create transaction MUST NOT leave the
+//      Redis state stuck in 'starting' — it must rewind to 'waiting' so the
+//      host can retry.
+//   2. INSUFFICIENT_STARS in the transaction surfaces via game:start:failed
+//      and rolls BOTH sides back atomically (via the single $transaction).
+//   3. A second game:start arriving while we're mid-start (state='starting')
+//      must short-circuit BEFORE hitting $transaction, otherwise the room
+//      would be charged twice.
+
+describe('game:start — atomic charge + game-creation security invariants', () => {
+  it('rewinds state.status and emits INSUFFICIENT_STARS when a player is broke', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    const gameState = {
+      ...waitingState,
+      status: 'waiting',
+      players: [
+        { userId: 'host-1', username: 'Host', isReady: true, status: 'alive', isHost: true,  honorGiven: false },
+        { userId: 'p2',     username: 'P2',   isReady: true, status: 'alive', isHost: false, honorGiven: false },
+        { userId: 'p3',     username: 'P3',   isReady: true, status: 'alive', isHost: false, honorGiven: false },
+        { userId: 'p4',     username: 'P4',   isReady: true, status: 'alive', isHost: false, honorGiven: false },
+      ],
+    }
+
+    // Capture every set() so we can verify the rewind happened.
+    const setCalls: Array<{ key: string; value: any }> = []
+    ;(mockRedis as any).set = vi.fn().mockImplementation((key: string, value: any, ...args: any[]) => {
+      setCalls.push({ key, value })
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+
+    // First updateMany in the transaction returns count:0 — broke player.
+    mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+      fn({
+        game: { create: vi.fn() },
+        round: { create: vi.fn() },
+        gameParticipation: { createMany: vi.fn() },
+        user: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      })
+    )
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+
+    // game:start:failed with INSUFFICIENT_STARS must be emitted to the room.
+    expect(io.to).toHaveBeenCalledWith('room:room-1')
+    expect(io._emit).toHaveBeenCalledWith('game:start:failed', expect.objectContaining({
+      reason: 'INSUFFICIENT_STARS',
+      required: 10,
+    }))
+
+    // State must have been written as 'starting' then rewound back to 'waiting'.
+    const stateWrites = setCalls
+      .filter((c) => c.key === 'room:room-1:state')
+      .map((c) => JSON.parse(c.value).status)
+    expect(stateWrites).toContain('starting')
+    expect(stateWrites[stateWrites.length - 1]).toBe('waiting')
+  })
+
+  it('rewinds state.status when the game-creation side of the transaction throws', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    const gameState = {
+      ...waitingState,
+      status: 'waiting',
+      players: [
+        { userId: 'host-1', username: 'Host', isReady: true, status: 'alive', isHost: true,  honorGiven: false },
+        { userId: 'p2',     username: 'P2',   isReady: true, status: 'alive', isHost: false, honorGiven: false },
+        { userId: 'p3',     username: 'P3',   isReady: true, status: 'alive', isHost: false, honorGiven: false },
+        { userId: 'p4',     username: 'P4',   isReady: true, status: 'alive', isHost: false, honorGiven: false },
+      ],
+    }
+
+    const setCalls: Array<{ key: string; value: any }> = []
+    ;(mockRedis as any).set = vi.fn().mockImplementation((key: string, value: any, ...args: any[]) => {
+      setCalls.push({ key, value })
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+
+    // Charges succeed (count:1) but game.create blows up mid-transaction.
+    mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+      fn({
+        game: { create: vi.fn().mockRejectedValue(new Error('DB connection lost')) },
+        round: { create: vi.fn() },
+        gameParticipation: { createMany: vi.fn() },
+        user: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      })
+    )
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+
+    // INTERNAL failure surfaced to the room instead of a silent coin loss.
+    expect(io._emit).toHaveBeenCalledWith('game:start:failed', expect.objectContaining({
+      reason: 'INTERNAL',
+    }))
+
+    // State must be rewound to 'waiting' so the host can retry.
+    const stateWrites = setCalls
+      .filter((c) => c.key === 'room:room-1:state')
+      .map((c) => JSON.parse(c.value).status)
+    expect(stateWrites).toContain('starting')
+    expect(stateWrites[stateWrites.length - 1]).toBe('waiting')
+  })
+
+  it('short-circuits and does NOT charge when state.status is already "starting"', async () => {
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    const gameState = {
+      ...waitingState,
+      status: 'starting', // another start is already in flight
+      players: [
+        { userId: 'host-1', isReady: true },
+        { userId: 'p2',     isReady: true },
+        { userId: 'p3',     isReady: true },
+        { userId: 'p4',     isReady: true },
+      ],
+    }
+
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+
+    // No transaction = no charge. This is the guard against stale-lock
+    // re-entry that would otherwise re-debit every player.
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('performs charge + game-creation in ONE transaction (not two)', async () => {
+    vi.useFakeTimers()
+    const io = makeIo()
+    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
+
+    const gameState = {
+      ...waitingState,
+      players: [
+        { userId: 'host-1', username: 'Host', isReady: true, status: 'alive', isHost: true,  honorGiven: false },
+        { userId: 'p2',     username: 'P2',   isReady: true, status: 'alive', isHost: false, honorGiven: false },
+        { userId: 'p3',     username: 'P3',   isReady: true, status: 'alive', isHost: false, honorGiven: false },
+        { userId: 'p4',     username: 'P4',   isReady: true, status: 'alive', isHost: false, honorGiven: false },
+      ],
+    }
+
+    ;(mockRedis as any).set = vi.fn().mockImplementation((...args: any[]) => {
+      if (args.includes('NX')) return Promise.resolve('OK')
+      return Promise.resolve('OK')
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
+    mockRedis.del.mockResolvedValue(1)
+    mockPrisma.wordPack.findFirst.mockResolvedValue(null)
+
+    // Spy on the single transaction to confirm both user.updateMany AND
+    // game.create happen inside it — this is the fix for the orphaned
+    // charge bug.
+    const userUpdateMany = vi.fn().mockResolvedValue({ count: 1 })
+    const gameCreate = vi.fn().mockResolvedValue({ id: 'game-1' })
+    const roundCreate = vi.fn().mockResolvedValue({ id: 'round-1', roundNumber: 1 })
+    const partCreateMany = vi.fn().mockResolvedValue({})
+
+    let transactionCount = 0
+    mockPrisma.$transaction.mockImplementation(async (fn: Function) => {
+      transactionCount++
+      return fn({
+        game: { create: gameCreate },
+        round: { create: roundCreate },
+        gameParticipation: { createMany: partCreateMany },
+        user: { updateMany: userUpdateMany },
+      })
+    })
+
+    registerRoomHandlers(io, socket)
+    await socket._fire('game:start')
+    await vi.advanceTimersByTimeAsync(3100)
+
+    // Exactly one $transaction call on the start path — the refactor merged
+    // what used to be two transactions (charge + create) into one.
+    expect(transactionCount).toBe(1)
+    // And within that single transaction, both the debit and the game row
+    // must have been attempted.
+    expect(userUpdateMany).toHaveBeenCalled()
+    expect(gameCreate).toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
+})
