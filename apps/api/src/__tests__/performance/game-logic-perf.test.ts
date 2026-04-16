@@ -4,11 +4,11 @@ import {
   getMostVoted,
   shuffleArray,
   generateRoomCode,
-} from '@imposter/shared'
-import type { Player, Vote } from '@imposter/shared'
+} from '@red-handed/shared'
+import type { Player, Vote } from '@red-handed/shared'
 
 // Use real implementations for performance tests
-vi.unmock('@imposter/shared')
+vi.unmock('@red-handed/shared')
 
 function makePlayer(overrides: Partial<Player> = {}): Player {
   return {
@@ -27,7 +27,7 @@ describe('Game Logic - Performance Tests', () => {
   it('countAlive with 100 players completes in < 5ms', () => {
     const players: Player[] = Array.from({ length: 100 }, (_, i) =>
       makePlayer({
-        role: i < 20 ? 'imposter' : 'villager',
+        role: i < 20 ? 'red_handed' : 'villager',
         status: i % 3 === 0 ? 'eliminated' : 'alive',
       }),
     )
@@ -38,7 +38,7 @@ describe('Game Logic - Performance Tests', () => {
 
     expect(elapsed).toBeLessThan(5)
     expect(result.villagers).toBeGreaterThan(0)
-    expect(result.imposters).toBeGreaterThan(0)
+    expect(result.redHanded).toBeGreaterThan(0)
   })
 
   it('getMostVoted with 1000 votes completes in < 10ms', () => {
@@ -92,7 +92,7 @@ describe('Game Logic - Performance Tests', () => {
     for (const size of sizes) {
       const players: Player[] = Array.from({ length: size }, (_, i) =>
         makePlayer({
-          role: i < size / 5 ? 'imposter' : 'villager',
+          role: i < size / 5 ? 'red_handed' : 'villager',
           status: i % 4 === 0 ? 'eliminated' : 'alive',
         }),
       )

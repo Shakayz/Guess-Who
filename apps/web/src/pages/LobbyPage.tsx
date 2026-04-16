@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import type { Locale } from '@imposter/shared'
+import type { Locale } from '@red-handed/shared'
 import { useAuthStore } from '../store/auth'
 import { useGameStore } from '../store/game'
 import { connectSocket, getSocket } from '../lib/socket'
 import { api } from '../lib/api'
-import { RoomCodeDisplay, PlayerCard } from '@imposter/ui'
+import { RoomCodeDisplay, PlayerCard } from '@red-handed/ui'
 import { NavBar } from '../components/NavBar'
-import { WORD_CATEGORIES } from '@imposter/shared'
-import type { Room, GameMode, WordCategory } from '@imposter/shared'
+import { WORD_CATEGORIES } from '@red-handed/shared'
+import type { Room, GameMode, WordCategory } from '@red-handed/shared'
 import { createLogger } from '../lib/logger'
 import { SoundManager } from '../lib/sounds'
 import { InsufficientCoinsModal } from '../components/InsufficientCoinsModal'
@@ -23,7 +23,7 @@ interface Friend {
 
 interface Settings {
   maxPlayers: number
-  imposterCount: number
+  redHandedCount: number
   speakingTimeSeconds: number
   votingTimeSeconds: number
   gameMode: GameMode
@@ -77,7 +77,7 @@ function NumStepper({
 
 /**
  * A NumStepper variant for special roles:
- *  - accent color per team (villager/imposter/neutral)
+ *  - accent color per team (villager/redHanded/neutral)
  *  - native-title tooltip (hover) showing what the role does
  *  - soft-disables the + button once the role can't grow any further
  *  - gates the whole row behind a "lockedReason" (e.g. neutral under 10 players)
@@ -231,8 +231,8 @@ function SettingsPanel({
       {/* Special roles */}
       {settings.gameMode === 'special' && (() => {
         // ── Capacity math ────────────────────────────────────────────────
-        // Special evil roles must fit within imposterCount budget.
-        // Evil Twins counts as 2 slots (1 villager + 1 imposter).
+        // Special evil roles must fit within redHandedCount budget.
+        // Evil Twins counts as 2 slots (1 villager + 1 redHanded).
         const twinSlot = settings.evilTwinsEnabled ?? 0 // 0 or 1 (a twin PAIR)
 
         const evilExtras =
@@ -241,7 +241,7 @@ function SettingsPanel({
           (settings.kamikazeCount ?? 0) +
           (settings.corruptorCount ?? 0) +
           (settings.inverterCount ?? 0) +
-          twinSlot // twin_imposter
+          twinSlot // twin_red_handed
 
         // Villager-side special slots (detective/guardian/mayor/judge/revenant).
         const currentGoodSpecial =
@@ -250,11 +250,11 @@ function SettingsPanel({
           (settings.mayorCount ?? 0) +
           (settings.judgeCount ?? 0) +
           (settings.revenantCount ?? 0)
-        const villagerSlotsUsed = settings.imposterCount + currentGoodSpecial + twinSlot // +twinSlot = twin_villager
+        const villagerSlotsUsed = settings.redHandedCount + currentGoodSpecial + twinSlot // +twinSlot = twin_villager
 
         // Per-role maxima: how high each role can go WITHOUT breaking the rules
         // (and assuming other counts stay fixed).
-        const evilHeadroom = Math.max(0, settings.imposterCount - evilExtras)
+        const evilHeadroom = Math.max(0, settings.redHandedCount - evilExtras)
         const goodHeadroom = Math.max(0, settings.maxPlayers - villagerSlotsUsed)
 
         const maxDetective  = Math.min(3, settings.detectiveCount  + goodHeadroom)
@@ -294,7 +294,7 @@ function SettingsPanel({
               <RoleStepper
                 icon="🔍"
                 label={t('lobby.detectiveCount', { defaultValue: 'Detective' })}
-                description={t('lobby.detectiveDesc', { defaultValue: 'Each round, secretly reveals whether a chosen player is an imposter.' })}
+                description={t('lobby.detectiveDesc', { defaultValue: 'Each round, secretly reveals whether a chosen player is an redHanded.' })}
                 value={settings.detectiveCount}
                 max={maxDetective}
                 onChange={(v) => onChange({ ...settings, detectiveCount: v })}
@@ -338,15 +338,15 @@ function SettingsPanel({
               />
             </div>
 
-            {/* ── Imposter side ─────────────────────────────────────────── */}
+            {/* ── RedHanded side ─────────────────────────────────────────── */}
             <div className="space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
-                🔴 {t('lobby.teamImposters', { defaultValue: 'Imposters' })}
+                🔴 {t('lobby.teamRedHanded', { defaultValue: 'Red-Handed' })}
               </p>
               <RoleStepper
                 icon="🕵️"
                 label={t('lobby.doubleAgentCount', { defaultValue: 'Double Agent' })}
-                description={t('lobby.doubleAgentDesc', { defaultValue: 'Pretends to be a villager but wins with the imposters. Knows both words.' })}
+                description={t('lobby.doubleAgentDesc', { defaultValue: 'Pretends to be a villager but wins with the redHanded. Knows both words.' })}
                 value={settings.doubleAgentCount}
                 max={maxDoubleAgent}
                 onChange={(v) => onChange({ ...settings, doubleAgentCount: v })}
@@ -355,7 +355,7 @@ function SettingsPanel({
               <RoleStepper
                 icon="🥷"
                 label={t('lobby.infiltratorCount', { defaultValue: 'Infiltrator' })}
-                description={t('lobby.infiltratorDesc', { defaultValue: 'An extra imposter who starts knowing the villager word.' })}
+                description={t('lobby.infiltratorDesc', { defaultValue: 'An extra redHanded who starts knowing the villager word.' })}
                 value={settings.infiltratorCount ?? 0}
                 max={maxInfiltrator}
                 onChange={(v) => onChange({ ...settings, infiltratorCount: v })}
@@ -398,7 +398,7 @@ function SettingsPanel({
               <RoleStepper
                 icon="👯"
                 label={t('lobby.evilTwinsCount', { defaultValue: 'Evil Twins' })}
-                description={t('lobby.evilTwinsDesc', { defaultValue: 'A pair: one secret villager twin + one secret imposter twin (counts as 2 players).' })}
+                description={t('lobby.evilTwinsDesc', { defaultValue: 'A pair: one secret villager twin + one secret redHanded twin (counts as 2 players).' })}
                 value={settings.evilTwinsEnabled ?? 0}
                 max={maxEvilTwins}
                 onChange={(v) => onChange({ ...settings, evilTwinsEnabled: v })}
@@ -414,7 +414,7 @@ function SettingsPanel({
               <RoleStepper
                 icon="🃏"
                 label={t('lobby.jesterCount', { defaultValue: 'Jester' })}
-                description={t('lobby.jesterDesc', { defaultValue: 'Wins alone if voted out. Does not help villagers or imposters.' })}
+                description={t('lobby.jesterDesc', { defaultValue: 'Wins alone if voted out. Does not help villagers or redHanded.' })}
                 value={settings.jesterCount ?? 0}
                 max={maxJester}
                 onChange={(v) => onChange({ ...settings, jesterCount: v })}
@@ -473,7 +473,7 @@ function SettingsPanel({
       {/* Numeric settings */}
       <div className="space-y-3 pt-1 border-t border-neutral-800">
         {settings.gameMode === 'ranked' ? (
-          // Ranked games are locked at 10 players and 3 imposters. Show a
+          // Ranked games are locked at 10 players and 3 redHanded. Show a
           // read-only summary instead of the configurable steppers.
           <div className="rounded-xl border border-brand-700/40 bg-brand-950/30 p-3 text-xs text-brand-300 space-y-1">
             <div className="flex items-center justify-between">
@@ -481,12 +481,12 @@ function SettingsPanel({
               <span className="font-mono font-semibold">10</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-neutral-400">{t('lobby.imposters')}</span>
+              <span className="text-neutral-400">{t('lobby.redHanded')}</span>
               <span className="font-mono font-semibold">3</span>
             </div>
             <p className="text-[10px] text-neutral-500 pt-1">
               {t('lobby.rankedLocked', {
-                defaultValue: 'Ranked games always have 7 villagers and 3 imposters.',
+                defaultValue: 'Ranked games always have 7 villagers and 3 redHanded.',
               })}
             </p>
           </div>
@@ -498,15 +498,15 @@ function SettingsPanel({
               min={3}
               max={20}
               onChange={(v) => {
-                // Cap imposters to floor(N/3) when player count drops
+                // Cap redHanded to floor(N/3) when player count drops
                 const evilCap = Math.max(1, Math.floor(v / 3))
-                const cappedImposters = Math.min(settings.imposterCount, evilCap)
-                // Auto-reduce special evil roles if they exceed new imposterCount
+                const cappedRedHanded = Math.min(settings.redHandedCount, evilCap)
+                // Auto-reduce special evil roles if they exceed new redHandedCount
                 const specials = settings.doubleAgentCount +
                   (settings.infiltratorCount ?? 0) + (settings.kamikazeCount ?? 0) +
                   (settings.corruptorCount ?? 0) + (settings.inverterCount ?? 0) +
                   (settings.evilTwinsEnabled ?? 0)
-                let remaining = Math.max(0, specials - cappedImposters)
+                let remaining = Math.max(0, specials - cappedRedHanded)
                 const reduced = { ...settings }
                 const keys: (keyof typeof reduced)[] = [
                   'evilTwinsEnabled', 'inverterCount', 'corruptorCount',
@@ -522,17 +522,17 @@ function SettingsPanel({
                 onChange({
                   ...reduced,
                   maxPlayers: v,
-                  imposterCount: cappedImposters,
+                  redHandedCount: cappedRedHanded,
                 })
               }}
             />
             <NumStepper
-              label={t('lobby.imposters')}
-              value={settings.imposterCount}
+              label={t('lobby.redHanded')}
+              value={settings.redHandedCount}
               min={1}
               max={Math.min(6, Math.max(1, Math.floor(settings.maxPlayers / 3)))}
               onChange={(v) => {
-                // Auto-reduce special evil roles if they exceed new imposterCount
+                // Auto-reduce special evil roles if they exceed new redHandedCount
                 const specials = settings.doubleAgentCount +
                   (settings.infiltratorCount ?? 0) + (settings.kamikazeCount ?? 0) +
                   (settings.corruptorCount ?? 0) + (settings.inverterCount ?? 0) +
@@ -552,7 +552,7 @@ function SettingsPanel({
                 }
                 onChange({
                   ...reduced,
-                  imposterCount: v,
+                  redHandedCount: v,
                 })
               }}
             />
@@ -657,7 +657,7 @@ export default function LobbyPage() {
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
   const [settings, setSettings] = useState<Settings>({
     maxPlayers: 10,
-    imposterCount: 2,
+    redHandedCount: 2,
     speakingTimeSeconds: 30,
     votingTimeSeconds: 30,
     gameMode: 'normal',
@@ -687,7 +687,7 @@ export default function LobbyPage() {
     console.log('[lobby] settings change →', {
       mayor: s.mayorCount, judge: s.judgeCount, revenant: s.revenantCount,
       detective: s.detectiveCount, guardian: s.guardianCount,
-      imposter: s.imposterCount, doubleAgent: s.doubleAgentCount,
+      redHanded: s.redHandedCount, doubleAgent: s.doubleAgentCount,
       maxPlayers: s.maxPlayers, gameMode: s.gameMode,
     })
     setSettings(s)
@@ -708,7 +708,7 @@ export default function LobbyPage() {
       evilTwinsEnabled: s.evilTwinsEnabled,
       maxRounds: s.maxRounds,
       maxPlayers: s.maxPlayers,
-      imposterCount: s.imposterCount,
+      redHandedCount: s.redHandedCount,
       speakingTimeSeconds: s.speakingTimeSeconds,
       votingTimeSeconds: s.votingTimeSeconds,
       language: s.language,
@@ -767,7 +767,7 @@ export default function LobbyPage() {
         judge: (r.settings as any)?.judgeCount,
         revenant: (r.settings as any)?.revenantCount,
         detective: (r.settings as any)?.detectiveCount,
-        imposter: r.settings?.imposterCount,
+        redHanded: r.settings?.redHandedCount,
         gameMode: (r.settings as any)?.gameMode,
       })
       // If the game already started (e.g. we missed game:started), navigate immediately
@@ -797,7 +797,7 @@ export default function LobbyPage() {
         setSettings((prev) => ({
           ...prev,
           maxPlayers: r.settings.maxPlayers,
-          imposterCount: r.settings.imposterCount,
+          redHandedCount: r.settings.redHandedCount,
           speakingTimeSeconds: r.settings.speakingTimeSeconds,
           votingTimeSeconds: r.settings.votingTimeSeconds,
           gameMode: (r.settings as any).gameMode ?? 'normal',
@@ -915,7 +915,7 @@ export default function LobbyPage() {
     const url = `${window.location.origin}/lobby/${code}`
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Join my Imposter game!', text: `Join room ${code}`, url })
+        await navigator.share({ title: 'Join my RedHanded game!', text: `Join room ${code}`, url })
       } catch {}
     } else {
       copyRoomCode()
@@ -1106,7 +1106,7 @@ export default function LobbyPage() {
               <span>·</span>
               <span>{settings.maxPlayers} {t('lobby.max')}</span>
               <span>·</span>
-              <span>{settings.imposterCount} {t('lobby.imposters').toLowerCase()}</span>
+              <span>{settings.redHandedCount} {t('lobby.redHanded').toLowerCase()}</span>
               <span>·</span>
               <span>{settings.maxRounds === 0 ? t('lobby.roundsInfinity') : t('lobby.roundsCount', { count: settings.maxRounds })}</span>
               {settings.gameMode === 'special' && settings.detectiveCount > 0 && (

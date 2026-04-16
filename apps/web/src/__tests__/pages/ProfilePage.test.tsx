@@ -40,12 +40,12 @@ vi.mock('../../lib/api', () => ({
 
 vi.mock('../../components/NavBar', () => ({ NavBar: () => <div data-testid="navbar" /> }))
 
-vi.mock('@imposter/ui', () => ({
+vi.mock('@red-handed/ui', () => ({
   Avatar: ({ username }: { username: string }) => <div data-testid="avatar">{username}</div>,
   Badge: ({ tier }: { tier: string }) => <div data-testid="badge">{tier}</div>,
 }))
 
-vi.mock('@imposter/shared', () => ({
+vi.mock('@red-handed/shared', () => ({
   RANK_CONFIG: {
     wooden:      { label: 'Wooden',      color: '#8B6914', icon: '🪵', lpRequired: 100 },
     bronze:      { label: 'Bronze',      color: '#CD7F32', icon: '🥉', lpRequired: 200 },
@@ -82,7 +82,7 @@ const achievementsResponse: any[] = [
 ]
 
 const profileStatsResponse = {
-  stats: { totalGames: 30, wins: 18, losses: 12, winRate: 0.6, asVillager: 22, asImposter: 8, survived: 15 },
+  stats: { totalGames: 30, wins: 18, losses: 12, winRate: 0.6, asVillager: 22, asRedHanded: 8, survived: 15 },
   recentGames: [
     { gameId: 'g1', role: 'villager', survived: true, winnerTeam: 'villagers', didWin: true, rounds: 3, playedAt: new Date().toISOString() },
   ],

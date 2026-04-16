@@ -27,7 +27,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'imposter-auth',
+      name: 'red-handed-auth',
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),

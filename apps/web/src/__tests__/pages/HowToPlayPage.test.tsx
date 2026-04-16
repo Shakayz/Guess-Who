@@ -40,10 +40,10 @@ describe('HowToPlayPage', () => {
     expect(screen.getByText('offline.special')).toBeInTheDocument()
   })
 
-  it('lists base roles (villager, imposter)', () => {
+  it('lists base roles (villager, redHanded)', () => {
     renderPage()
     expect(screen.getAllByText('offline.villager').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('offline.imposter').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('offline.redHanded').length).toBeGreaterThan(0)
   })
 
   it('lists all villager-side special roles', () => {
@@ -59,7 +59,7 @@ describe('HowToPlayPage', () => {
     }
   })
 
-  it('lists all imposter-side special roles', () => {
+  it('lists all red-handed-side special roles', () => {
     renderPage()
     for (const key of [
       'offline.doubleAgent',

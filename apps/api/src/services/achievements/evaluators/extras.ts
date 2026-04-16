@@ -1,5 +1,5 @@
 // Extra achievements to reach the 400 target. Organized by theme: calendar
-// moments, hourly play, imposter/detective specific combos, role-specific
+// moments, hourly play, redHanded/detective specific combos, role-specific
 // clever ones. All fire on game_end so they're lightweight to add.
 
 import type { AchievementDef, Evaluator } from '../types'
@@ -151,54 +151,54 @@ const detectiveExtras = merge(
     (ctx) => (ctx.stats.winsByRole['detective'] ?? 0) >= 25,
   ),
   single(
-    { key: 'reveal_imposter', name: 'Exposed!', description: 'Win a game where you were the detective', icon: '📸', category: 'detective', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
+    { key: 'reveal_redHanded', name: 'Exposed!', description: 'Win a game where you were the detective', icon: '📸', category: 'detective', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
     'game_end',
     (ctx) => ctx.type === 'game_end' && ctx.role === 'detective' && ctx.isWinner,
   ),
 )
 
-// ─── Imposter extras (8) ────────────────────────────────────────────────────
+// ─── RedHanded extras (8) ────────────────────────────────────────────────────
 
-const imposterExtras = merge(
+const redHandedExtras = merge(
   single(
-    { key: 'imposter_5', name: 'Con Artist', description: '5 imposter wins', icon: '🎪', category: 'imposter', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'red_handed_5', name: 'Con Artist', description: '5 redHanded wins', icon: '🎪', category: 'red_handed', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
-    (ctx) => ctx.stats.totalImposterWins >= 5,
+    (ctx) => ctx.stats.totalRedHandedWins >= 5,
   ),
   single(
-    { key: 'imposter_25', name: 'Master of Deception', description: '25 imposter wins', icon: '🕵️', category: 'imposter', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
+    { key: 'red_handed_25', name: 'Master of Deception', description: '25 redHanded wins', icon: '🕵️', category: 'red_handed', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
     'game_end',
-    (ctx) => ctx.stats.totalImposterWins >= 25,
+    (ctx) => ctx.stats.totalRedHandedWins >= 25,
   ),
   single(
-    { key: 'imposter_small_lobby', name: 'Tight Spot', description: 'Win as imposter in a 4-5 player game', icon: '🎯', category: 'imposter', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'red_handed_small_lobby', name: 'Tight Spot', description: 'Win as red-handed in a 4-5 player game', icon: '🎯', category: 'red_handed', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.isImposter && ctx.isWinner && ctx.playerCount <= 5,
+    (ctx) => ctx.type === 'game_end' && ctx.isRedHanded && ctx.isWinner && ctx.playerCount <= 5,
   ),
   single(
-    { key: 'blended_in', name: 'Blended In', description: 'Survive as imposter in a 6+ player game', icon: '🫥', category: 'imposter', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'blended_in', name: 'Blended In', description: 'Survive as redHanded in a 6+ player game', icon: '🫥', category: 'red_handed', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.isImposter && ctx.survived && ctx.playerCount >= 6,
+    (ctx) => ctx.type === 'game_end' && ctx.isRedHanded && ctx.survived && ctx.playerCount >= 6,
   ),
   single(
-    { key: 'imposter_all_modes', name: 'Omni-Imposter', description: 'Win as imposter in normal, special, and ranked modes', icon: '🎨', category: 'imposter', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
+    { key: 'red_handed_all_modes', name: 'Omni Red-Handed', description: 'Win as red-handed in normal, special, and ranked modes', icon: '🎨', category: 'red_handed', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
     'game_end',
-    (ctx) => ctx.stats.totalImposterWins >= 30 && ctx.stats.rankedWins >= 5,
+    (ctx) => ctx.stats.totalRedHandedWins >= 30 && ctx.stats.rankedWins >= 5,
   ),
   single(
-    { key: 'imposter_streak_3', name: 'Triple Agent', description: 'Reach 3 imposter wins', icon: '🔱', category: 'imposter', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'red_handed_streak_3', name: 'Triple Agent', description: 'Reach 3 redHanded wins', icon: '🔱', category: 'red_handed', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
-    (ctx) => ctx.stats.totalImposterWins >= 3,
+    (ctx) => ctx.stats.totalRedHandedWins >= 3,
   ),
   single(
-    { key: 'tricked_one', name: 'Trickster', description: 'Win as imposter after being suspected', icon: '🃏', category: 'imposter', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
+    { key: 'tricked_one', name: 'Trickster', description: 'Win as red-handed after being suspected', icon: '🃏', category: 'red_handed', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
     'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.isImposter && ctx.isWinner,
+    (ctx) => ctx.type === 'game_end' && ctx.isRedHanded && ctx.isWinner,
   ),
   single(
-    { key: 'shadow_master', name: 'Shadow Master', description: 'Reach 75 imposter wins', icon: '🌑', category: 'imposter', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
+    { key: 'shadow_master', name: 'Shadow Master', description: 'Reach 75 redHanded wins', icon: '🌑', category: 'red_handed', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
     'game_end',
-    (ctx) => ctx.stats.totalImposterWins >= 75,
+    (ctx) => ctx.stats.totalRedHandedWins >= 75,
   ),
 )
 
@@ -208,7 +208,7 @@ const gameplayExtras = merge(
   single(
     { key: 'vote_streak_3', name: 'Sherlock', description: 'Win 3 games while voting correctly', icon: '🔍', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.isWinner && !ctx.isImposter && ctx.stats.totalWins >= 3,
+    (ctx) => ctx.type === 'game_end' && ctx.isWinner && !ctx.isRedHanded && ctx.stats.totalWins >= 3,
   ),
   single(
     { key: 'five_streak', name: 'On Fire', description: 'Reach 5 total wins', icon: '🔥', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
@@ -323,7 +323,7 @@ const secretExtras = merge(
   single(
     { key: 'one_hp', name: 'One HP', description: 'Win as a surviving villager in a 6+ player game', icon: '❤️', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
     'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.isWinner && ctx.survived && !ctx.isImposter && ctx.playerCount >= 6,
+    (ctx) => ctx.type === 'game_end' && ctx.isWinner && ctx.survived && !ctx.isRedHanded && ctx.playerCount >= 6,
   ),
   single(
     { key: 'weekend_warrior', name: 'Weekend Warrior', description: 'Play a game on a Saturday or Sunday', icon: '🌴', category: 'secret', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars, isSecret: true },
@@ -354,9 +354,9 @@ const secretExtras = merge(
     (ctx) => ctx.stats.friendCount >= 100,
   ),
   single(
-    { key: 'balanced_diet', name: 'Balanced Diet', description: 'Win equal imposter and villager games (10 each)', icon: '⚖️', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
+    { key: 'balanced_diet', name: 'Balanced Diet', description: 'Win equal redHanded and villager games (10 each)', icon: '⚖️', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
     'game_end',
-    (ctx) => ctx.stats.totalImposterWins >= 10 && ctx.stats.totalVillagerWins >= 10,
+    (ctx) => ctx.stats.totalRedHandedWins >= 10 && ctx.stats.totalVillagerWins >= 10,
   ),
   single(
     { key: 'first_dm', name: 'Hello!', description: 'Send your first direct message', icon: '✉️', category: 'secret', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars, isSecret: true },
@@ -369,9 +369,9 @@ const secretExtras = merge(
     (ctx) => Object.keys(ctx.stats.gamesByRole).length >= 14,
   ),
   single(
-    { key: 'never_imposter', name: 'Always Good', description: 'Play 30 games without ever being imposter', icon: '😇', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
+    { key: 'never_redHanded', name: 'Always Good', description: 'Play 30 games without ever being redHanded', icon: '😇', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
     'game_end',
-    (ctx) => ctx.stats.totalGames >= 30 && (ctx.stats.gamesByRole['imposter'] ?? 0) === 0,
+    (ctx) => ctx.stats.totalGames >= 30 && (ctx.stats.gamesByRole['red_handed'] ?? 0) === 0,
   ),
   single(
     { key: 'never_villager', name: 'Never a Farmer', description: 'Play 30 games without ever being a plain villager', icon: '🌪️', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
@@ -384,18 +384,18 @@ const secretExtras = merge(
     (ctx) => ctx.type === 'game_end' && ctx.gameMode === 'ranked' && ctx.stats.rankTier === 'wooden',
   ),
   single(
-    { key: 'mythic_imposter_ratio', name: 'Mythic Deceiver', description: 'Win 500 imposter games with 70%+ imposter win rate', icon: '🌌', category: 'secret', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars, isSecret: true },
+    { key: 'mythic_red_handed_ratio', name: 'Mythic Deceiver', description: 'Win 500 redHanded games with 70%+ redHanded win rate', icon: '🌌', category: 'secret', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars, isSecret: true },
     'game_end',
     (ctx) => {
-      const imposterGames =
-        (ctx.stats.gamesByRole['imposter'] ?? 0) +
+      const redHandedGames =
+        (ctx.stats.gamesByRole['red_handed'] ?? 0) +
         (ctx.stats.gamesByRole['double_agent'] ?? 0) +
         (ctx.stats.gamesByRole['infiltrator'] ?? 0) +
         (ctx.stats.gamesByRole['kamikaze'] ?? 0) +
         (ctx.stats.gamesByRole['corruptor'] ?? 0) +
         (ctx.stats.gamesByRole['inverter'] ?? 0)
-      return ctx.stats.totalImposterWins >= 500 && imposterGames > 0 &&
-        ctx.stats.totalImposterWins / imposterGames >= 0.7
+      return ctx.stats.totalRedHandedWins >= 500 && redHandedGames > 0 &&
+        ctx.stats.totalRedHandedWins / redHandedGames >= 0.7
     },
   ),
 )
@@ -504,7 +504,7 @@ export const EXTRAS_DEFS: AchievementDef[] = [
   ...monthAchievements,
   ...hourlyAchievements,
   ...detectiveExtras.defs,
-  ...imposterExtras.defs,
+  ...redHandedExtras.defs,
   ...gameplayExtras.defs,
   ...secretExtras.defs,
   ...socialExtras.defs,
@@ -517,7 +517,7 @@ export const EXTRAS_EVALS: Evaluator[] = [
   ...monthEvals,
   ...hourlyEvals,
   ...detectiveExtras.evals,
-  ...imposterExtras.evals,
+  ...redHandedExtras.evals,
   ...gameplayExtras.evals,
   ...secretExtras.evals,
   ...socialExtras.evals,

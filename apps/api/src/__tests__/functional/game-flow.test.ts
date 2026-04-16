@@ -5,11 +5,11 @@ import {
   getMostVoted,
   shuffleArray,
   generateRoomCode,
-} from '@imposter/shared'
-import type { Player, Vote } from '@imposter/shared'
+} from '@red-handed/shared'
+import type { Player, Vote } from '@red-handed/shared'
 
 // Re-import without mock for functional tests of game logic
-vi.unmock('@imposter/shared')
+vi.unmock('@red-handed/shared')
 
 function makePlayer(overrides: Partial<Player> = {}): Player {
   return {
@@ -44,19 +44,19 @@ describe('Game Flow - Functional Tests', () => {
       expect(sameOrder).toBe(false)
     })
 
-    it('assigns imposter and villager roles correctly', () => {
+    it('assigns redHanded and villager roles correctly', () => {
       const players = Array.from({ length: 8 }, (_, i) => makePlayer({ username: `p${i}` }))
       const shuffled = shuffleArray([...players])
-      const imposterCount = 2
+      const redHandedCount = 2
 
       shuffled.forEach((p, idx) => {
-        p.role = idx < imposterCount ? 'imposter' : 'villager'
+        p.role = idx < redHandedCount ? 'red_handed' : 'villager'
       })
 
-      const imposters = shuffled.filter((p) => p.role === 'imposter')
+      const redHanded = shuffled.filter((p) => p.role === 'red_handed')
       const villagers = shuffled.filter((p) => p.role === 'villager')
 
-      expect(imposters.length).toBe(2)
+      expect(redHanded.length).toBe(2)
       expect(villagers.length).toBe(6)
     })
   })
@@ -106,7 +106,7 @@ describe('Game Flow - Functional Tests', () => {
     it('eliminating a player changes their status', () => {
       const players = [
         makePlayer({ userId: 'u1', role: 'villager' }),
-        makePlayer({ userId: 'u2', role: 'imposter' }),
+        makePlayer({ userId: 'u2', role: 'red_handed' }),
         makePlayer({ userId: 'u3', role: 'villager' }),
         makePlayer({ userId: 'u4', role: 'villager' }),
       ]
@@ -122,27 +122,27 @@ describe('Game Flow - Functional Tests', () => {
   })
 
   describe('Win Condition', () => {
-    it('villagers win when all imposters are eliminated', () => {
+    it('villagers win when all redHanded are eliminated', () => {
       const players: Player[] = [
         makePlayer({ role: 'villager', status: 'alive' }),
         makePlayer({ role: 'villager', status: 'alive' }),
         makePlayer({ role: 'villager', status: 'alive' }),
-        makePlayer({ role: 'imposter', status: 'eliminated' }),
-        makePlayer({ role: 'imposter', status: 'eliminated' }),
+        makePlayer({ role: 'red_handed', status: 'eliminated' }),
+        makePlayer({ role: 'red_handed', status: 'eliminated' }),
       ]
 
       expect(checkWinCondition(players)).toBe('villagers')
     })
 
-    it('imposters win when they equal or outnumber villagers', () => {
+    it('redHanded win when they equal or outnumber villagers', () => {
       const players: Player[] = [
         makePlayer({ role: 'villager', status: 'alive' }),
-        makePlayer({ role: 'imposter', status: 'alive' }),
+        makePlayer({ role: 'red_handed', status: 'alive' }),
         makePlayer({ role: 'villager', status: 'eliminated' }),
         makePlayer({ role: 'villager', status: 'eliminated' }),
       ]
 
-      expect(checkWinCondition(players)).toBe('imposters')
+      expect(checkWinCondition(players)).toBe('red_handed')
     })
 
     it('game continues when both sides have players and villagers outnumber', () => {
@@ -150,7 +150,7 @@ describe('Game Flow - Functional Tests', () => {
         makePlayer({ role: 'villager', status: 'alive' }),
         makePlayer({ role: 'villager', status: 'alive' }),
         makePlayer({ role: 'villager', status: 'alive' }),
-        makePlayer({ role: 'imposter', status: 'alive' }),
+        makePlayer({ role: 'red_handed', status: 'alive' }),
       ]
 
       expect(checkWinCondition(players)).toBeNull()
@@ -160,29 +160,29 @@ describe('Game Flow - Functional Tests', () => {
       const players: Player[] = [
         makePlayer({ role: 'detective', status: 'alive' }),
         makePlayer({ role: 'villager', status: 'alive' }),
-        makePlayer({ role: 'imposter', status: 'eliminated' }),
+        makePlayer({ role: 'red_handed', status: 'eliminated' }),
       ]
 
       expect(checkWinCondition(players)).toBe('villagers')
     })
 
-    it('double_agent counts as imposter for win condition', () => {
+    it('double_agent counts as redHanded for win condition', () => {
       const players: Player[] = [
         makePlayer({ role: 'villager', status: 'alive' }),
         makePlayer({ role: 'double_agent', status: 'alive' }),
         makePlayer({ role: 'villager', status: 'eliminated' }),
       ]
 
-      expect(checkWinCondition(players)).toBe('imposters')
+      expect(checkWinCondition(players)).toBe('red_handed')
     })
   })
 
   describe('Full Game Simulation', () => {
     it('simulates a complete game from start to villager victory', () => {
-      // Setup: 6 players, 2 imposters
+      // Setup: 6 players, 2 redHanded
       const players: Player[] = [
-        makePlayer({ userId: 'v1', username: 'alice', role: 'imposter', status: 'alive' }),
-        makePlayer({ userId: 'v2', username: 'bob', role: 'imposter', status: 'alive' }),
+        makePlayer({ userId: 'v1', username: 'alice', role: 'red_handed', status: 'alive' }),
+        makePlayer({ userId: 'v2', username: 'bob', role: 'red_handed', status: 'alive' }),
         makePlayer({ userId: 'v3', username: 'carol', role: 'villager', status: 'alive' }),
         makePlayer({ userId: 'v4', username: 'dave', role: 'villager', status: 'alive' }),
         makePlayer({ userId: 'v5', username: 'eve', role: 'villager', status: 'alive' }),
@@ -193,7 +193,7 @@ describe('Game Flow - Functional Tests', () => {
       const round1Order = shuffleArray(players.filter((p) => p.status === 'alive').map((p) => p.userId))
       expect(round1Order.length).toBe(6)
 
-      // Round 1: Voting - imposter v1 gets eliminated
+      // Round 1: Voting - redHanded v1 gets eliminated
       const round1Votes: Vote[] = [
         { voterId: 'v3', targetId: 'v1', timestamp: new Date().toISOString() },
         { voterId: 'v4', targetId: 'v1', timestamp: new Date().toISOString() },
@@ -207,7 +207,7 @@ describe('Game Flow - Functional Tests', () => {
       players.find((p) => p.userId === eliminated1)!.status = 'eliminated'
       expect(checkWinCondition(players)).toBeNull() // Game continues: 4v vs 1i
 
-      // Round 2: Voting - imposter v2 gets eliminated
+      // Round 2: Voting - redHanded v2 gets eliminated
       const round2Votes: Vote[] = [
         { voterId: 'v3', targetId: 'v2', timestamp: new Date().toISOString() },
         { voterId: 'v4', targetId: 'v2', timestamp: new Date().toISOString() },
@@ -219,7 +219,7 @@ describe('Game Flow - Functional Tests', () => {
       expect(eliminated2).toBe('v2')
       players.find((p) => p.userId === eliminated2)!.status = 'eliminated'
 
-      // All imposters eliminated
+      // All redHanded eliminated
       expect(checkWinCondition(players)).toBe('villagers')
     })
   })

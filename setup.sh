@@ -1,10 +1,10 @@
 #!/bin/bash
-# ── Fresh machine setup for Imposter Game ─────────────────────────────────────
+# ── Fresh machine setup for Red Handed ─────────────────────────────────────
 # Run once after cloning: bash setup.sh
 # ─────────────────────────────────────────────────────────────────────────────
 set -e
 
-echo "Setting up Imposter Game..."
+echo "Setting up Red Handed..."
 
 # Create .env from example if it doesn't exist
 if [ ! -f apps/api/.env ]; then

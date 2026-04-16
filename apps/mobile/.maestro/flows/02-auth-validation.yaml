@@ -9,13 +9,13 @@
 # These strings live in packages/shared/src/i18n/en.ts — if they change, update
 # the assertions here.
 
-appId: ${APP_ID:-com.imposter.game}
+appId: ${APP_ID:-com.redhanded.game}
 ---
 - launchApp:
     clearState: true
 
 - extendedWaitUntil:
-    visible: "Imposter Game"
+    visible: "Red Handed"
     timeout: 15000
 
 # Switch into Sign Up mode so the username field appears.

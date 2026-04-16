@@ -1,24 +1,24 @@
 # Web E2E (Playwright)
 
-End-to-end browser tests for `@imposter/web`.
+End-to-end browser tests for `@red-handed/web`.
 
 ## Running
 
 ```bash
 # All specs, headless, both projects (desktop + mobile viewport):
-pnpm --filter @imposter/web e2e
+pnpm --filter @red-handed/web e2e
 
 # Just chromium:
-pnpm --filter @imposter/web e2e --project=chromium
+pnpm --filter @red-handed/web e2e --project=chromium
 
 # Visible browser (debugging):
-pnpm --filter @imposter/web e2e:headed
+pnpm --filter @red-handed/web e2e:headed
 
 # Playwright UI runner (watch mode, best DX):
-pnpm --filter @imposter/web e2e:ui
+pnpm --filter @red-handed/web e2e:ui
 
 # After a failed run, open the HTML report:
-pnpm --filter @imposter/web e2e:report
+pnpm --filter @red-handed/web e2e:report
 ```
 
 The `playwright.config.ts` launches `pnpm dev` on port 5173 automatically

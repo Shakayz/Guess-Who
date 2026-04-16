@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useGameStore } from '../store/game'
 import { useSocialStore } from '../store/social'
-import type { Room, Round, ChatMessage } from '@imposter/shared'
+import type { Room, Round, ChatMessage } from '@red-handed/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -14,7 +14,7 @@ const makeRoom = (overrides: Partial<Room> = {}): Room => ({
   settings: {
     maxPlayers: 8,
     minPlayers: 3,
-    imposterCount: 1,
+    redHandedCount: 1,
     speakingTimeSeconds: 30,
     votingTimeSeconds: 60,
     wordPackId: 'default',
@@ -115,9 +115,9 @@ describe('useGameStore', () => {
   })
 
   it('setRoleAndWord sets role, word, and villagerWord', () => {
-    useGameStore.getState().setRoleAndWord('imposter', 'cat', 'dog')
+    useGameStore.getState().setRoleAndWord('red_handed', 'cat', 'dog')
     const state = useGameStore.getState()
-    expect(state.myRole).toBe('imposter')
+    expect(state.myRole).toBe('red_handed')
     expect(state.myWord).toBe('cat')
     expect(state.myVillagerWord).toBe('dog')
   })
@@ -133,7 +133,7 @@ describe('useGameStore', () => {
   })
 
   it('setRevealedPlayer stores revealed player info', () => {
-    const p = { userId: 'u1', username: 'bob', role: 'imposter' }
+    const p = { userId: 'u1', username: 'bob', role: 'red_handed' }
     useGameStore.getState().setRevealedPlayer(p)
     expect(useGameStore.getState().revealedPlayer).toEqual(p)
   })
@@ -176,7 +176,7 @@ describe('useGameStore', () => {
   it('reset clears all game state and records lastResetAt', () => {
     // Populate state first
     useGameStore.getState().setRoom(makeRoom())
-    useGameStore.getState().setRoleAndWord('imposter', 'cat')
+    useGameStore.getState().setRoleAndWord('red_handed', 'cat')
     useGameStore.getState().addMessage(makeMessage())
 
     const beforeReset = Date.now()

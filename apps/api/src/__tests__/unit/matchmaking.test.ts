@@ -66,7 +66,7 @@ beforeEach(async () => {
   mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', locale: 'en', rankPoints: 100, starCoins: 100 })
   mockPrisma.room.create.mockResolvedValue({
     id: 'room-new', code: 'NEWC', hostId: 'user-1',
-    maxPlayers: 8, imposterCount: 1,
+    maxPlayers: 8, redHandedCount: 1,
     speakingTimeSeconds: 30, votingTimeSeconds: 30,
     isPrivate: false, language: 'en',
     createdAt: new Date(),
@@ -318,7 +318,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
 
     mockPrisma.room.create.mockResolvedValue({
       id: 'room-de', code: 'XYZW', hostId: 'user-de0',
-      maxPlayers: 10, imposterCount: 2,
+      maxPlayers: 10, redHandedCount: 2,
       speakingTimeSeconds: 30, votingTimeSeconds: 30,
       isPrivate: false, language: 'de',
       createdAt: new Date(),
@@ -354,7 +354,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
 
     mockPrisma.room.create.mockResolvedValue({
       id: 'room-it-ranked', code: 'RNKD', hostId: 'user-it0',
-      maxPlayers: 10, imposterCount: 3,
+      maxPlayers: 10, redHandedCount: 3,
       speakingTimeSeconds: 30, votingTimeSeconds: 30,
       isPrivate: false, language: 'it',
       createdAt: new Date(),
@@ -426,7 +426,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
 
     mockPrisma.room.create.mockResolvedValue({
       id: 'room-zh', code: 'ABCD', hostId: 'user-zh0',
-      maxPlayers: 10, imposterCount: 2,
+      maxPlayers: 10, redHandedCount: 2,
       speakingTimeSeconds: 30, votingTimeSeconds: 30,
       isPrivate: false, language: 'zh', createdAt: new Date(),
     })
@@ -488,7 +488,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
 
     mockPrisma.room.create.mockResolvedValue({
       id: 'room-es-forced', code: 'FORC', hostId: 'user-es0',
-      maxPlayers: 10, imposterCount: 1,
+      maxPlayers: 10, redHandedCount: 1,
       speakingTimeSeconds: 30, votingTimeSeconds: 30,
       isPrivate: false, language: 'es', createdAt: new Date(),
     })
@@ -525,7 +525,7 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
 
     mockPrisma.room.create.mockResolvedValue({
       id: 'room-pl-broadcast', code: 'BCAST', hostId: 'user-pl0',
-      maxPlayers: 10, imposterCount: 2,
+      maxPlayers: 10, redHandedCount: 2,
       speakingTimeSeconds: 30, votingTimeSeconds: 30,
       isPrivate: false, language: 'pl', createdAt: new Date(),
     })
@@ -599,7 +599,7 @@ describe('executeMatch — stops window when queue empties after match (lines 15
 
     mockPrisma.room.create.mockResolvedValue({
       id: 'room-fi', code: 'ABCF', hostId: 'user-fi0',
-      maxPlayers: 10, imposterCount: 2,
+      maxPlayers: 10, redHandedCount: 2,
       speakingTimeSeconds: 30, votingTimeSeconds: 30,
       isPrivate: false, language: 'fi', createdAt: new Date(),
     })

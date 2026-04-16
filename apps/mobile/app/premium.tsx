@@ -46,7 +46,7 @@ export default function PremiumScreen() {
             Go Premium
           </Text>
           <Text className="text-neutral-400 text-center" style={{ fontSize: 13 * fontScale }}>
-            The best way to play Imposter Game
+            The best way to play Red Handed
           </Text>
         </View>
 

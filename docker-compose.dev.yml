@@ -1,4 +1,4 @@
-name: imposter-dev
+name: red-handed-dev
 # ── Full development stack ─────────────────────────────────────────────────────
 # Usage:
 #   docker compose -f docker-compose.dev.yml up          # start everything
@@ -16,9 +16,9 @@ services:
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: imposter-postgres-dev
+    container_name: red-handed-postgres-dev
     environment:
-      POSTGRES_DB:       imposter_game_dev
+      POSTGRES_DB:       red_handed_dev
       POSTGRES_USER:     postgres
       POSTGRES_PASSWORD: postgres
     ports:
@@ -34,7 +34,7 @@ services:
   # ── Redis ───────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: imposter-redis-dev
+    container_name: red-handed-redis-dev
     command: redis-server --appendonly yes
     ports:
       - "6379:6379"
@@ -51,14 +51,14 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile.dev
-    container_name: imposter-api-dev
+    container_name: red-handed-api-dev
     # Override localhost URLs from apps/api/.env with Docker service names
     env_file:
       - path: apps/api/.env
         required: false   # optional — env vars below take precedence
     environment:
       NODE_ENV:     development
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/imposter_game_dev
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/red_handed_dev
       REDIS_URL:    redis://redis:6379
       JWT_SECRET:   ${JWT_SECRET:-dev-only-secret-please-change-in-production-123}
       ALLOWED_ORIGINS: >-
@@ -71,8 +71,8 @@ services:
       - ./apps/api/prisma:/app/apps/api/prisma
       # Shared package — mount src + dist so host rebuilds are visible without a
       # full image rebuild. After editing packages/shared, run
-      #   pnpm --filter @imposter/shared build
-      # on the host (or inside the container), then `docker restart imposter-api-dev`.
+      #   pnpm --filter @red-handed/shared build
+      # on the host (or inside the container), then `docker restart red-handed-api-dev`.
       - ./packages/shared/src:/app/packages/shared/src
       - ./packages/shared/dist:/app/packages/shared/dist
     depends_on:
@@ -87,7 +87,7 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile.dev
-    container_name: imposter-web-dev
+    container_name: red-handed-web-dev
     environment:
       # Used by vite.config.ts to proxy /api and /socket.io to the api container
       API_TARGET: http://api:3001
@@ -100,8 +100,8 @@ services:
       - ./apps/web/src:/app/apps/web/src
       - ./apps/web/public:/app/apps/web/public
       # Shared package source — after editing, rebuild dist with
-      #   docker exec imposter-web-dev pnpm --filter @imposter/shared build
-      # then restart imposter-web-dev so Vite reloads the bundle.
+      #   docker exec red-handed-web-dev pnpm --filter @red-handed/shared build
+      # then restart red-handed-web-dev so Vite reloads the bundle.
       - ./packages/shared/src:/app/packages/shared/src
     depends_on:
       - api

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 export type CategoryFilter =
   | 'all'
   | 'gameplay'
-  | 'imposter'
+  | 'red_handed'
   | 'detective'
   | 'social'
   | 'ranked'
@@ -27,7 +27,7 @@ interface Props {
 const CATEGORIES: { value: CategoryFilter; label: string; icon: string }[] = [
   { value: 'all',          label: 'All',         icon: '🌐' },
   { value: 'gameplay',     label: 'Gameplay',    icon: '🎮' },
-  { value: 'imposter',     label: 'Imposter',    icon: '🎭' },
+  { value: 'red_handed',     label: 'Red-Handed',    icon: '🎭' },
   { value: 'detective',    label: 'Detective',   icon: '🕵️' },
   { value: 'special_role', label: 'Special',     icon: '⚡' },
   { value: 'social',       label: 'Social',      icon: '🤝' },

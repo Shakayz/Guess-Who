@@ -57,7 +57,7 @@ vi.mock('../../lib/socket', () => ({
 
 vi.mock('../../components/NavBar', () => ({ NavBar: () => <div data-testid="navbar" /> }))
 
-vi.mock('@imposter/shared', () => ({
+vi.mock('@red-handed/shared', () => ({
   WORD_CATEGORIES: [
     { key: 'food', label: 'Food', icon: '🍕' },
     { key: 'animals', label: 'Animals', icon: '🐶' },
@@ -79,7 +79,7 @@ describe('HomePage', () => {
 
   it('renders without crashing and shows heading', () => {
     render(<HomePage />)
-    expect(screen.getByText(/Imposter/i)).toBeInTheDocument()
+    expect(screen.getByText(/RedHanded/i)).toBeInTheDocument()
   })
 
   it('renders the NavBar', () => {

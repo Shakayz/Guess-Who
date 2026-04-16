@@ -390,18 +390,18 @@ describe('User Routes', () => {
         createdAt: new Date('2025-01-01'),
       })
       // statsForMode runs TWICE (ranked + unranked), 5 counts each → 10 values.
-      // Ranked: 12/8 games, 8 wins, 9 villager, 3 imposter, 6 survived
-      // Unranked:  8   games, 4 wins, 6 villager, 2 imposter, 4 survived
+      // Ranked: 12/8 games, 8 wins, 9 villager, 3 redHanded, 6 survived
+      // Unranked:  8   games, 4 wins, 6 villager, 2 redHanded, 4 survived
       mockGameParticipation.count
         .mockResolvedValueOnce(12)   // ranked totalGames
         .mockResolvedValueOnce(8)    // ranked wins
         .mockResolvedValueOnce(9)    // ranked asVillager
-        .mockResolvedValueOnce(3)    // ranked asImposter
+        .mockResolvedValueOnce(3)    // ranked asRedHanded
         .mockResolvedValueOnce(6)    // ranked survived
         .mockResolvedValueOnce(8)    // unranked totalGames
         .mockResolvedValueOnce(4)    // unranked wins
         .mockResolvedValueOnce(6)    // unranked asVillager
-        .mockResolvedValueOnce(2)    // unranked asImposter
+        .mockResolvedValueOnce(2)    // unranked asRedHanded
         .mockResolvedValueOnce(4)    // unranked survived
       mockGameParticipation.findMany.mockResolvedValue([])
       // 3 honors gifted inside the same ranked game
@@ -464,9 +464,9 @@ describe('User Routes', () => {
           game: { id: 'g1', winnerTeam: 'villagers', startedAt: new Date(), _count: { rounds: 2 } },
         },
         {
-          role: 'imposter',
+          role: 'red_handed',
           survived: false,
-          game: { id: 'g2', winnerTeam: 'imposters', startedAt: new Date(), _count: { rounds: 3 } },
+          game: { id: 'g2', winnerTeam: 'red_handed', startedAt: new Date(), _count: { rounds: 3 } },
         },
         {
           role: 'detective',
@@ -476,7 +476,7 @@ describe('User Routes', () => {
         {
           role: 'double_agent',
           survived: false,
-          game: { id: 'g4', winnerTeam: 'imposters', startedAt: new Date(), _count: { rounds: 2 } },
+          game: { id: 'g4', winnerTeam: 'red_handed', startedAt: new Date(), _count: { rounds: 2 } },
         },
       ])
       mockHonor.findMany.mockResolvedValue([])
@@ -496,13 +496,13 @@ describe('User Routes', () => {
       expect(g1.didWin).toBe(true) // villager + villagers win
 
       const g2 = body.recentGames.find((g: any) => g.gameId === 'g2')
-      expect(g2.didWin).toBe(true) // imposter + imposters win
+      expect(g2.didWin).toBe(true) // redHanded + redHanded win
 
       const g3 = body.recentGames.find((g: any) => g.gameId === 'g3')
       expect(g3.didWin).toBe(true) // detective + villagers win
 
       const g4 = body.recentGames.find((g: any) => g.gameId === 'g4')
-      expect(g4.didWin).toBe(true) // double_agent + imposters win
+      expect(g4.didWin).toBe(true) // double_agent + redHanded win
     })
 
     it('returns winRate as 0 when totalGames is 0', async () => {

@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
-import { xpProgressInLevel } from '@imposter/shared'
+import { xpProgressInLevel } from '@red-handed/shared'
 import { evaluateEvent } from '../services/achievements'
 import bcrypt from 'bcryptjs'
 
@@ -309,7 +309,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         ? { gameMode: 'ranked' }
         : { gameMode: { not: 'ranked' } }
 
-      const [totalGames, wins, asVillager, asImposter, survived] = await Promise.all([
+      const [totalGames, wins, asVillager, asRedHanded, survived] = await Promise.all([
         prisma.gameParticipation.count({
           where: { userId: id, game: gameModeFilter },
         }),
@@ -319,8 +319,8 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
             OR: [
               { role: 'villager',     game: { winnerTeam: 'villagers', ...gameModeFilter } },
               { role: 'detective',    game: { winnerTeam: 'villagers', ...gameModeFilter } },
-              { role: 'imposter',     game: { winnerTeam: 'imposters', ...gameModeFilter } },
-              { role: 'double_agent', game: { winnerTeam: 'imposters', ...gameModeFilter } },
+              { role: 'red_handed',     game: { winnerTeam: 'red_handed', ...gameModeFilter } },
+              { role: 'double_agent', game: { winnerTeam: 'red_handed', ...gameModeFilter } },
             ],
           },
         }),
@@ -328,7 +328,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
           where: { userId: id, role: { in: ['villager', 'detective'] }, game: gameModeFilter },
         }),
         prisma.gameParticipation.count({
-          where: { userId: id, role: { in: ['imposter', 'double_agent'] }, game: gameModeFilter },
+          where: { userId: id, role: { in: ['red_handed', 'double_agent'] }, game: gameModeFilter },
         }),
         prisma.gameParticipation.count({
           where: { userId: id, survived: true, game: gameModeFilter },
@@ -340,7 +340,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         losses: totalGames - wins,
         winRate: totalGames ? Math.round((wins / totalGames) * 100) : 0,
         asVillager,
-        asImposter,
+        asRedHanded,
         survived,
       }
     }
@@ -414,8 +414,8 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       didWin:
         (p.role === 'villager' && p.game.winnerTeam === 'villagers') ||
         (p.role === 'detective' && p.game.winnerTeam === 'villagers') ||
-        (p.role === 'imposter' && p.game.winnerTeam === 'imposters') ||
-        (p.role === 'double_agent' && p.game.winnerTeam === 'imposters'),
+        (p.role === 'red_handed' && p.game.winnerTeam === 'red_handed') ||
+        (p.role === 'double_agent' && p.game.winnerTeam === 'red_handed'),
       rounds: p.game._count.rounds,
       playedAt: p.game.startedAt,
     }))
@@ -427,7 +427,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     const wins      = statsRanked.wins      + statsUnranked.wins
     const losses    = totalGames - wins
     const asVillager = statsRanked.asVillager + statsUnranked.asVillager
-    const asImposter = statsRanked.asImposter + statsUnranked.asImposter
+    const asRedHanded = statsRanked.asRedHanded + statsUnranked.asRedHanded
     const survived   = statsRanked.survived   + statsUnranked.survived
 
     // Lifetime honors (merged by type) for back-compat too.
@@ -446,7 +446,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         losses,
         winRate: totalGames ? Math.round((wins / totalGames) * 100) : 0,
         asVillager,
-        asImposter,
+        asRedHanded,
         survived,
       },
       statsRanked,

@@ -4,7 +4,7 @@ import crypto from 'crypto'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
 import { sendPasswordResetEmail } from '../services/email'
-import { xpProgressInLevel } from '@imposter/shared'
+import { xpProgressInLevel } from '@red-handed/shared'
 import bcrypt from 'bcryptjs'
 
 const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de'] as const

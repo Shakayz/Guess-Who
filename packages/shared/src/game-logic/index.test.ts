@@ -8,7 +8,7 @@ import {
   generateRoomCode,
   tallyVotes,
   isVillagerSideRole,
-  isImposterSideRole,
+  isRedHandedSideRole,
   isJesterRole,
 } from './index'
 import type { Player, Vote } from '../types'
@@ -37,7 +37,7 @@ function makeVote(voterId: string, targetId: string): Vote {
 
 describe('countAlive', () => {
   it('returns zeros for an empty array', () => {
-    expect(countAlive([])).toEqual({ villagers: 0, imposters: 0, jesters: 0 })
+    expect(countAlive([])).toEqual({ villagers: 0, redHanded: 0, jesters: 0 })
   })
 
   it('counts alive villagers only', () => {
@@ -45,23 +45,23 @@ describe('countAlive', () => {
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'alive' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 2, imposters: 0, jesters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 2, redHanded: 0, jesters: 0 })
   })
 
-  it('counts alive imposters only', () => {
+  it('counts alive redHanded only', () => {
     const players = [
-      makePlayer({ id: '1', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '1', role: 'red_handed', status: 'alive' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 0, imposters: 1, jesters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 0, redHanded: 1, jesters: 0 })
   })
 
   it('ignores eliminated players', () => {
     const players = [
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'eliminated' }),
-      makePlayer({ id: '3', role: 'imposter', status: 'eliminated' }),
+      makePlayer({ id: '3', role: 'red_handed', status: 'eliminated' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 1, imposters: 0, jesters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 1, redHanded: 0, jesters: 0 })
   })
 
   it('counts detective as villager', () => {
@@ -69,15 +69,15 @@ describe('countAlive', () => {
       makePlayer({ id: '1', role: 'detective', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'alive' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 2, imposters: 0, jesters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 2, redHanded: 0, jesters: 0 })
   })
 
-  it('counts double_agent as imposter', () => {
+  it('counts double_agent as redHanded', () => {
     const players = [
       makePlayer({ id: '1', role: 'double_agent', status: 'alive' }),
-      makePlayer({ id: '2', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '2', role: 'red_handed', status: 'alive' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 0, imposters: 2, jesters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 0, redHanded: 2, jesters: 0 })
   })
 
   it('counts mayor as villager-side', () => {
@@ -85,44 +85,44 @@ describe('countAlive', () => {
       makePlayer({ id: '1', role: 'mayor', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'alive' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 2, imposters: 0, jesters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 2, redHanded: 0, jesters: 0 })
   })
 
-  it('counts infiltrator as imposter-side', () => {
+  it('counts infiltrator as red-handed-side', () => {
     const players = [
       makePlayer({ id: '1', role: 'infiltrator', status: 'alive' }),
-      makePlayer({ id: '2', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '2', role: 'red_handed', status: 'alive' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 0, imposters: 2, jesters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 0, redHanded: 2, jesters: 0 })
   })
 
   it('counts jester as its own team', () => {
     const players = [
       makePlayer({ id: '1', role: 'jester', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'alive' }),
-      makePlayer({ id: '3', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '3', role: 'red_handed', status: 'alive' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 1, imposters: 1, jesters: 1 })
+    expect(countAlive(players)).toEqual({ villagers: 1, redHanded: 1, jesters: 1 })
   })
 
   it('counts a mixed roster correctly', () => {
     const players = [
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
       makePlayer({ id: '2', role: 'detective', status: 'alive' }),
-      makePlayer({ id: '3', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '3', role: 'red_handed', status: 'alive' }),
       makePlayer({ id: '4', role: 'double_agent', status: 'alive' }),
       makePlayer({ id: '5', role: 'villager', status: 'eliminated' }),
-      makePlayer({ id: '6', role: 'imposter', status: 'eliminated' }),
+      makePlayer({ id: '6', role: 'red_handed', status: 'eliminated' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 2, imposters: 2, jesters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 2, redHanded: 2, jesters: 0 })
   })
 
   it('handles all players eliminated', () => {
     const players = [
       makePlayer({ id: '1', role: 'villager', status: 'eliminated' }),
-      makePlayer({ id: '2', role: 'imposter', status: 'eliminated' }),
+      makePlayer({ id: '2', role: 'red_handed', status: 'eliminated' }),
     ]
-    expect(countAlive(players)).toEqual({ villagers: 0, imposters: 0, jesters: 0 })
+    expect(countAlive(players)).toEqual({ villagers: 0, redHanded: 0, jesters: 0 })
   })
 })
 
@@ -136,29 +136,29 @@ describe('team role helpers', () => {
     expect(isVillagerSideRole('mayor')).toBe(true)
   })
 
-  it('isVillagerSideRole returns false for imposter-side and jester', () => {
-    expect(isVillagerSideRole('imposter')).toBe(false)
+  it('isVillagerSideRole returns false for red-handed-side and jester', () => {
+    expect(isVillagerSideRole('red_handed')).toBe(false)
     expect(isVillagerSideRole('double_agent')).toBe(false)
     expect(isVillagerSideRole('infiltrator')).toBe(false)
     expect(isVillagerSideRole('jester')).toBe(false)
   })
 
-  it('isImposterSideRole returns true for imposter, double_agent, infiltrator', () => {
-    expect(isImposterSideRole('imposter')).toBe(true)
-    expect(isImposterSideRole('double_agent')).toBe(true)
-    expect(isImposterSideRole('infiltrator')).toBe(true)
+  it('isRedHandedSideRole returns true for redHanded, double_agent, infiltrator', () => {
+    expect(isRedHandedSideRole('red_handed')).toBe(true)
+    expect(isRedHandedSideRole('double_agent')).toBe(true)
+    expect(isRedHandedSideRole('infiltrator')).toBe(true)
   })
 
-  it('isImposterSideRole returns false for villager-side and jester', () => {
-    expect(isImposterSideRole('villager')).toBe(false)
-    expect(isImposterSideRole('mayor')).toBe(false)
-    expect(isImposterSideRole('jester')).toBe(false)
+  it('isRedHandedSideRole returns false for villager-side and jester', () => {
+    expect(isRedHandedSideRole('villager')).toBe(false)
+    expect(isRedHandedSideRole('mayor')).toBe(false)
+    expect(isRedHandedSideRole('jester')).toBe(false)
   })
 
   it('isJesterRole returns true only for jester', () => {
     expect(isJesterRole('jester')).toBe(true)
     expect(isJesterRole('villager')).toBe(false)
-    expect(isJesterRole('imposter')).toBe(false)
+    expect(isJesterRole('red_handed')).toBe(false)
   })
 })
 
@@ -172,70 +172,70 @@ describe('checkWinCondition', () => {
   it('returns null when both counts are zero', () => {
     const players = [
       makePlayer({ id: '1', role: 'villager', status: 'eliminated' }),
-      makePlayer({ id: '2', role: 'imposter', status: 'eliminated' }),
+      makePlayer({ id: '2', role: 'red_handed', status: 'eliminated' }),
     ]
     expect(checkWinCondition(players)).toBeNull()
   })
 
-  it('returns "villagers" when all imposters are eliminated', () => {
+  it('returns "villagers" when all redHanded are eliminated', () => {
     const players = [
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'alive' }),
-      makePlayer({ id: '3', role: 'imposter', status: 'eliminated' }),
+      makePlayer({ id: '3', role: 'red_handed', status: 'eliminated' }),
     ]
     expect(checkWinCondition(players)).toBe('villagers')
   })
 
-  it('returns "imposters" when 1 imposter equals 1 villager', () => {
+  it('returns "red_handed" when 1 redHanded equals 1 villager', () => {
     const players = [
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
-      makePlayer({ id: '2', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '2', role: 'red_handed', status: 'alive' }),
     ]
-    expect(checkWinCondition(players)).toBe('imposters')
+    expect(checkWinCondition(players)).toBe('red_handed')
   })
 
-  it('returns "imposters" when 2 imposters equal 2 villagers', () => {
+  it('returns "red_handed" when 2 redHanded equal 2 villagers', () => {
     const players = [
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'alive' }),
-      makePlayer({ id: '3', role: 'imposter', status: 'alive' }),
-      makePlayer({ id: '4', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '3', role: 'red_handed', status: 'alive' }),
+      makePlayer({ id: '4', role: 'red_handed', status: 'alive' }),
     ]
-    expect(checkWinCondition(players)).toBe('imposters')
+    expect(checkWinCondition(players)).toBe('red_handed')
   })
 
-  it('returns "imposters" when imposters outnumber villagers', () => {
+  it('returns "red_handed" when redHanded outnumber villagers', () => {
     const players = [
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
-      makePlayer({ id: '2', role: 'imposter', status: 'alive' }),
-      makePlayer({ id: '3', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '2', role: 'red_handed', status: 'alive' }),
+      makePlayer({ id: '3', role: 'red_handed', status: 'alive' }),
     ]
-    expect(checkWinCondition(players)).toBe('imposters')
+    expect(checkWinCondition(players)).toBe('red_handed')
   })
 
   it('returns null when game is still ongoing', () => {
     const players = [
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'alive' }),
-      makePlayer({ id: '3', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '3', role: 'red_handed', status: 'alive' }),
     ]
     expect(checkWinCondition(players)).toBeNull()
   })
 
-  it('handles detective and double_agent roles correctly (1v1 → imposters win)', () => {
+  it('handles detective and double_agent roles correctly (1v1 → redHanded win)', () => {
     const players = [
       makePlayer({ id: '1', role: 'detective', status: 'alive' }),
       makePlayer({ id: '2', role: 'double_agent', status: 'alive' }),
     ]
-    // 1 villager-side (detective) vs 1 imposter-side (double_agent) → imposters reach parity
-    expect(checkWinCondition(players)).toBe('imposters')
+    // 1 villager-side (detective) vs 1 red-handed-side (double_agent) → redHanded reach parity
+    expect(checkWinCondition(players)).toBe('red_handed')
   })
 
-  it('villagers win with detective alive and imposters gone', () => {
+  it('villagers win with detective alive and redHanded gone', () => {
     const players = [
       makePlayer({ id: '1', role: 'detective', status: 'alive' }),
       makePlayer({ id: '2', role: 'double_agent', status: 'eliminated' }),
-      makePlayer({ id: '3', role: 'imposter', status: 'eliminated' }),
+      makePlayer({ id: '3', role: 'red_handed', status: 'eliminated' }),
     ]
     expect(checkWinCondition(players)).toBe('villagers')
   })
@@ -245,7 +245,7 @@ describe('checkWinCondition', () => {
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'alive' }),
     ]
-    // 0 imposters => villagers win
+    // 0 redHanded => villagers win
     expect(checkWinCondition(players)).toBe('villagers')
   })
 
@@ -253,19 +253,19 @@ describe('checkWinCondition', () => {
     const players = [
       makePlayer({ id: '1', role: 'mayor', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'alive' }),
-      makePlayer({ id: '3', role: 'imposter', status: 'eliminated' }),
+      makePlayer({ id: '3', role: 'red_handed', status: 'eliminated' }),
     ]
     expect(checkWinCondition(players)).toBe('villagers')
   })
 
-  it('counts infiltrator in imposter team for win condition', () => {
+  it('counts infiltrator in redHanded team for win condition', () => {
     const players = [
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
       makePlayer({ id: '2', role: 'infiltrator', status: 'alive' }),
-      makePlayer({ id: '3', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '3', role: 'red_handed', status: 'alive' }),
     ]
-    // 1 villager vs 2 imposter-side → imposters win
-    expect(checkWinCondition(players)).toBe('imposters')
+    // 1 villager vs 2 red-handed-side → redHanded win
+    expect(checkWinCondition(players)).toBe('red_handed')
   })
 
   it('ignores jester alive when checking win condition', () => {
@@ -273,21 +273,21 @@ describe('checkWinCondition', () => {
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
       makePlayer({ id: '2', role: 'villager', status: 'alive' }),
       makePlayer({ id: '3', role: 'jester', status: 'alive' }),
-      makePlayer({ id: '4', role: 'imposter', status: 'eliminated' }),
+      makePlayer({ id: '4', role: 'red_handed', status: 'eliminated' }),
     ]
-    // Jester is ignored — villagers win because imposters = 0
+    // Jester is ignored — villagers win because redHanded = 0
     expect(checkWinCondition(players)).toBe('villagers')
   })
 
-  it('jester alive does not block imposter majority win', () => {
+  it('jester alive does not block redHanded majority win', () => {
     const players = [
       makePlayer({ id: '1', role: 'villager', status: 'alive' }),
-      makePlayer({ id: '2', role: 'imposter', status: 'alive' }),
-      makePlayer({ id: '3', role: 'imposter', status: 'alive' }),
+      makePlayer({ id: '2', role: 'red_handed', status: 'alive' }),
+      makePlayer({ id: '3', role: 'red_handed', status: 'alive' }),
       makePlayer({ id: '4', role: 'jester', status: 'alive' }),
     ]
-    // 1 villager vs 2 imposters → imposters win (jester doesn't pad villager team)
-    expect(checkWinCondition(players)).toBe('imposters')
+    // 1 villager vs 2 redHanded → redHanded win (jester doesn't pad villager team)
+    expect(checkWinCondition(players)).toBe('red_handed')
   })
 })
 
@@ -454,7 +454,7 @@ describe('tallyVotes', () => {
     const players = [
       makePlayer({ id: 'a', role: 'villager' }),
       makePlayer({ id: 'b', role: 'villager' }),
-      makePlayer({ id: 'c', role: 'imposter' }),
+      makePlayer({ id: 'c', role: 'red_handed' }),
     ]
     const votes = [makeVote('a', 'c'), makeVote('b', 'c')]
     const result = tallyVotes(votes, players)
@@ -467,7 +467,7 @@ describe('tallyVotes', () => {
     const players = [
       makePlayer({ id: 'mayor', role: 'mayor', mayorDoubleActive: true }),
       makePlayer({ id: 'v1', role: 'villager' }),
-      makePlayer({ id: 'imp', role: 'imposter' }),
+      makePlayer({ id: 'imp', role: 'red_handed' }),
     ]
     // mayor votes 'imp' (weight 2), v1 votes 'mayor' (weight 1)
     const votes = [makeVote('mayor', 'imp'), makeVote('v1', 'mayor')]
@@ -480,7 +480,7 @@ describe('tallyVotes', () => {
     const players = [
       makePlayer({ id: 'mayor', role: 'mayor', mayorDoubleActive: false }),
       makePlayer({ id: 'v1', role: 'villager' }),
-      makePlayer({ id: 'imp', role: 'imposter' }),
+      makePlayer({ id: 'imp', role: 'red_handed' }),
     ]
     const votes = [makeVote('mayor', 'imp'), makeVote('v1', 'mayor')]
     const result = tallyVotes(votes, players)
@@ -494,7 +494,7 @@ describe('tallyVotes', () => {
       makePlayer({ id: 'mayor', role: 'mayor', mayorDoubleActive: true }),
       makePlayer({ id: 'v1', role: 'villager' }),
       makePlayer({ id: 'v2', role: 'villager' }),
-      makePlayer({ id: 'imp', role: 'imposter' }),
+      makePlayer({ id: 'imp', role: 'red_handed' }),
     ]
     // Without mayor boost: 2-2 tie between imp and mayor
     const votes = [
@@ -556,7 +556,7 @@ describe('tallyVotes', () => {
       makePlayer({ id: 'inv', role: 'inverter', inverterActive: true }),
       makePlayer({ id: 'v1', role: 'villager' }),
       makePlayer({ id: 'v2', role: 'villager' }),
-      makePlayer({ id: 'imp', role: 'imposter' }),
+      makePlayer({ id: 'imp', role: 'red_handed' }),
     ]
     const votes = [
       makeVote('v1', 'imp'),
@@ -597,44 +597,44 @@ describe('tallyVotes', () => {
 // ─── Evil twins override ────────────────────────────────────────────────────
 
 describe('checkWinCondition — evil twins', () => {
-  it('overrides imposter win when both twins alive', () => {
+  it('overrides redHanded win when both twins alive', () => {
     const players = [
       makePlayer({ id: 'tv', role: 'twin_villager', twinPartnerUserId: 'ti' }),
-      makePlayer({ id: 'ti', role: 'twin_imposter', twinPartnerUserId: 'tv' }),
-      makePlayer({ id: 'imp', role: 'imposter', status: 'eliminated' }),
+      makePlayer({ id: 'ti', role: 'twin_red_handed', twinPartnerUserId: 'tv' }),
+      makePlayer({ id: 'imp', role: 'red_handed', status: 'eliminated' }),
     ]
-    // 1 villager-side (tv) vs 1 imposter-side (ti) → imposters >= villagers
+    // 1 villager-side (tv) vs 1 red-handed-side (ti) → redHanded >= villagers
     // BUT both twins alive → evil_twins wins
     expect(checkWinCondition(players)).toBe('evil_twins')
   })
 
-  it('falls back to villagers when twin_imposter is dead', () => {
+  it('falls back to villagers when twin_red_handed is dead', () => {
     const players = [
       makePlayer({ id: 'tv', role: 'twin_villager', twinPartnerUserId: 'ti' }),
-      makePlayer({ id: 'ti', role: 'twin_imposter', twinPartnerUserId: 'tv', status: 'eliminated' }),
+      makePlayer({ id: 'ti', role: 'twin_red_handed', twinPartnerUserId: 'tv', status: 'eliminated' }),
       makePlayer({ id: 'v1', role: 'villager' }),
     ]
-    // imposters=0 → villagers win (but twin_villager is individually a loser per game rules)
+    // redHanded=0 → villagers win (but twin_villager is individually a loser per game rules)
     expect(checkWinCondition(players)).toBe('villagers')
   })
 
-  it('falls back to imposters when twin_villager is dead', () => {
+  it('falls back to redHanded when twin_villager is dead', () => {
     const players = [
       makePlayer({ id: 'tv', role: 'twin_villager', twinPartnerUserId: 'ti', status: 'eliminated' }),
-      makePlayer({ id: 'ti', role: 'twin_imposter', twinPartnerUserId: 'tv' }),
+      makePlayer({ id: 'ti', role: 'twin_red_handed', twinPartnerUserId: 'tv' }),
       makePlayer({ id: 'v1', role: 'villager' }),
     ]
-    // 1 villager vs 1 imposter → imposters win (standard parity)
-    expect(checkWinCondition(players)).toBe('imposters')
+    // 1 villager vs 1 redHanded → redHanded win (standard parity)
+    expect(checkWinCondition(players)).toBe('red_handed')
   })
 
   it('does not trigger evil_twins if twin pairing is broken', () => {
     const players = [
       makePlayer({ id: 'tv', role: 'twin_villager' /* no twinPartnerUserId */ }),
-      makePlayer({ id: 'ti', role: 'twin_imposter' /* no twinPartnerUserId */ }),
+      makePlayer({ id: 'ti', role: 'twin_red_handed' /* no twinPartnerUserId */ }),
     ]
-    // Unpaired twins → standard rule applies (1v1 → imposters)
-    expect(checkWinCondition(players)).toBe('imposters')
+    // Unpaired twins → standard rule applies (1v1 → redHanded)
+    expect(checkWinCondition(players)).toBe('red_handed')
   })
 })
 

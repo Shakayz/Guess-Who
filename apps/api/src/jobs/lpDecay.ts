@@ -8,8 +8,8 @@ const logger = childLogger('lp-decay')
 
 // BullMQ requires maxRetriesPerRequest: null
 const bullRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })
-import { LP_DECAY, getTierFromLP } from '@imposter/shared'
-import type { RankTier } from '@imposter/shared'
+import { LP_DECAY, getTierFromLP } from '@red-handed/shared'
+import type { RankTier } from '@red-handed/shared'
 
 const QUEUE_NAME = 'lp-decay'
 

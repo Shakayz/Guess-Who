@@ -6,14 +6,14 @@ version: '3.9'
 
 networks:
   dev_net:
-    name: imposter_dev_net
+    name: red_handed_dev_net
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: imposter-postgres-dev
+    container_name: red-handed-postgres-dev
     environment:
-      POSTGRES_DB: imposter_game_dev
+      POSTGRES_DB: red_handed_dev
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
@@ -31,7 +31,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: imposter-redis-dev
+    container_name: red-handed-redis-dev
     command: redis-server --appendonly yes
     volumes:
       - redis_dev_data:/data
@@ -47,11 +47,11 @@ services:
 
   api:
     image: ghcr.io/shakayz/guess-who/api:dev
-    container_name: imposter-api-dev
+    container_name: red-handed-api-dev
     environment:
       NODE_ENV: development
       PORT: 3001
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/imposter_game_dev
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/red_handed_dev
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
@@ -76,7 +76,7 @@ services:
 
   web:
     image: ghcr.io/shakayz/guess-who/web:dev
-    container_name: imposter-web-dev
+    container_name: red-handed-web-dev
     ports:
       - "3080:80"    # port 3080 to avoid conflict with pfv:8080 and prod:80
     depends_on:

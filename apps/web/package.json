@@ -1,5 +1,5 @@
 {
-  "name": "@imposter/web",
+  "name": "@red-handed/web",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -16,8 +16,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@imposter/shared": "workspace:*",
-    "@imposter/ui": "workspace:*",
+    "@red-handed/shared": "workspace:*",
+    "@red-handed/ui": "workspace:*",
     "@tanstack/react-query": "^5.0.0",
     "i18next": "^23.0.0",
     "i18next-browser-languagedetector": "^7.0.0",
