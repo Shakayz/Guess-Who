@@ -24,7 +24,6 @@ import type {
   SimpleCtx,
   SocialCtx,
   DailyLoginCtx,
-  ShopCtx,
   UserStats,
 } from './types'
 
@@ -41,7 +40,6 @@ type EventPartial =
   | ({ userId: string } & Partial<Omit<GameEndCtx, 'stats' | 'now' | 'type' | 'userId'>>)
   | ({ userId: string } & Partial<Omit<SocialCtx, 'stats' | 'now' | 'type' | 'userId'>>)
   | ({ userId: string } & Partial<Omit<DailyLoginCtx, 'stats' | 'now' | 'type' | 'userId'>>)
-  | ({ userId: string } & Partial<Omit<ShopCtx, 'stats' | 'now' | 'type' | 'userId'>>)
   | ({ userId: string } & Partial<Omit<SimpleCtx, 'stats' | 'now' | 'type' | 'userId'>>)
 
 function buildCtx(

@@ -78,9 +78,9 @@ red-handed/
 ### Progression & Economy
 - **Rank system** — Wooden → Bronze → Silver → Gold → Platinum → Diamond → Master → Grandmaster
 - **75 achievements** — Bronze/Silver/Gold/Platinum tiers across gameplay categories
-- **Season Pass** — Free + Premium tiers with exclusive rewards
-- **Coin Shop** — Cosmetics (avatar frames, name colors, badges)
-- **Gifting** — Send cosmetics and coins to friends
+- **Season Pass** — Free + Premium tiers with star-coin / gold-coin / title rewards
+- **Coin Shop** — Gold coin packs and the season pass (no cosmetic catalog)
+- **Gifting** — Send star coins to friends
 - **Word Packs** — Community and premium word packs
 
 ### Production Features
@@ -198,7 +198,7 @@ pnpm format
 | **Content** | WordPack, WordPair |
 | **Social** | Friendship, DirectMessage, Honor, Block, Report |
 | **Progression** | Achievement, UserAchievement |
-| **Economy** | Cosmetic, UserCosmetic, Purchase, Gift |
+| **Economy** | Purchase, Gift |
 | **Season** | SeasonPass, SeasonTier, SeasonPassClaim |
 
 ---

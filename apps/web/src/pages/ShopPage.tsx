@@ -4,19 +4,9 @@ import { NavBar } from '../components/NavBar'
 // import { GOLD_COIN_PACKS } from '@red-handed/shared'  // TODO: re-enable when premium is ready
 const GOLD_COIN_PACKS: readonly { id: string; amount: number; price: number; bonus: number }[] = [] // placeholder
 
-type Tab = 'coins' | 'cosmetics' | 'season'
-
-const MOCK_COSMETICS = [
-  { id: '1', name: 'Shadow Cloak',    type: 'avatar_outfit',   price: 200, currency: 'star', icon: '🦇', isNew: true },
-  { id: '2', name: 'Gold Crown',      type: 'avatar_accessory', price: 150, currency: 'star', icon: '👑', isNew: false },
-  { id: '3', name: 'Neon Frame',      type: 'card_background',  price: 80,  currency: 'star', icon: '🌈', isNew: false },
-  { id: '4', name: 'Smoke Reveal',    type: 'word_effect',      price: 500, currency: 'gold', icon: '💨', isNew: true },
-  { id: '5', name: 'The Architect',   type: 'title',            price: 300, currency: 'star', icon: '🏗️', isNew: false },
-  { id: '6', name: 'Detective Badge', type: 'badge',            price: 120, currency: 'star', icon: '🔍', isNew: false },
-]
+type Tab = 'coins' | 'season'
 
 const SEASON_PERKS = [
-  '🎭 Exclusive Season 1 avatar frame',
   '⚡ 1.5× XP boost on all games',
   '💰 +50 Gold Coins per month',
   '🌟 Access to Premium Word Packs',
@@ -51,7 +41,7 @@ export default function ShopPage() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-3xl font-extrabold text-white tracking-tight">{t('shop.shop')}</h1>
-              <p className="text-neutral-500 text-sm mt-1">Cosmetics, coins & season pass</p>
+              <p className="text-neutral-500 text-sm mt-1">Coins & season pass</p>
             </div>
             {/* Wallet */}
             <div className="flex items-center gap-2">
@@ -69,7 +59,6 @@ export default function ShopPage() {
           {/* Tabs */}
           <div className="flex gap-2 mb-6">
             <TabButton active={tab === 'coins'}     onClick={() => setTab('coins')}>💰 Gold Coins</TabButton>
-            <TabButton active={tab === 'cosmetics'} onClick={() => setTab('cosmetics')}>🎨 Cosmetics</TabButton>
             <TabButton active={tab === 'season'}    onClick={() => setTab('season')}>👑 Season Pass</TabButton>
           </div>
 
@@ -104,36 +93,7 @@ export default function ShopPage() {
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-neutral-600 text-center">Gold Coins are used for premium cosmetics and word packs.</p>
-            </div>
-          )}
-
-          {/* Cosmetics */}
-          {tab === 'cosmetics' && (
-            <div className="space-y-4">
-              <p className="text-xs text-neutral-500 uppercase tracking-widest font-semibold">Available items</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {MOCK_COSMETICS.map((item) => (
-                  <div key={item.id} className="card relative flex flex-col items-center text-center gap-2 hover:border-neutral-700 transition-colors cursor-pointer hover:-translate-y-0.5">
-                    {item.isNew && (
-                      <span className="absolute top-2 right-2 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded-full">NEW</span>
-                    )}
-                    <span className="text-4xl mt-1">{item.icon}</span>
-                    <div>
-                      <p className="text-sm font-semibold text-white">{item.name}</p>
-                      <p className="text-xs text-neutral-500 capitalize">{item.type.replace(/_/g, ' ')}</p>
-                    </div>
-                    <button className={[
-                      'w-full py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                      item.currency === 'gold'
-                        ? 'bg-amber-950/60 hover:bg-amber-900/60 text-amber-400 border border-amber-800/40'
-                        : 'bg-neutral-800 hover:bg-neutral-700 text-white',
-                    ].join(' ')}>
-                      {item.currency === 'gold' ? '💰' : '⭐'} {item.price}
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <p className="text-xs text-neutral-600 text-center">Gold Coins are used for premium word packs.</p>
             </div>
           )}
 
