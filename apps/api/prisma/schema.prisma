@@ -40,7 +40,6 @@ model User {
   gameParticipations  GameParticipation[]
   sentHonors          Honor[]             @relation("sender")
   receivedHonors      Honor[]             @relation("receiver")
-  cosmetics           UserCosmetic[]
   achievements        UserAchievement[]
   sentFriendRequests     Friendship[]    @relation("SentRequests")
   receivedFriendRequests Friendship[]    @relation("ReceivedRequests")
@@ -213,37 +212,6 @@ model Honor {
   @@map("honors")
 }
 
-model Cosmetic {
-  id          String   @id @default(cuid())
-  type        String   @db.VarChar(30)
-  name        String
-  description String?
-  imageUrl    String
-  price       Int
-  currency    String   @default("star") @db.VarChar(10)
-  isLimited   Boolean  @default(false)
-  seasonId    String?
-  createdAt   DateTime @default(now())
-
-  owners UserCosmetic[]
-
-  @@map("cosmetics")
-}
-
-model UserCosmetic {
-  id          String   @id @default(cuid())
-  userId      String
-  cosmeticId  String
-  equippedAt  DateTime?
-  createdAt   DateTime @default(now())
-
-  user      User      @relation(fields: [userId],      references: [id])
-  cosmetic  Cosmetic  @relation(fields: [cosmeticId],  references: [id])
-
-  @@unique([userId, cosmeticId])
-  @@map("user_cosmetics")
-}
-
 model Achievement {
   id          String   @id @default(cuid())
   key         String   @unique
@@ -345,8 +313,8 @@ model SeasonTier {
   seasonPassId String
   tierNumber   Int
   xpRequired   Int
-  rewardType   String   @db.VarChar(20)  // 'starCoins' | 'goldCoins' | 'cosmetic' | 'title'
-  rewardValue  String                   // amount or cosmeticId
+  rewardType   String   @db.VarChar(20)  // 'starCoins' | 'goldCoins' | 'title'
+  rewardValue  String                   // amount or title
   isPremium    Boolean  @default(false)
 
   seasonPass SeasonPass        @relation(fields: [seasonPassId], references: [id])
@@ -375,7 +343,6 @@ model Gift {
   id          String   @id @default(cuid())
   senderId    String
   receiverId  String
-  cosmeticId  String?
   coinAmount  Int      @default(0)
   message     String?  @db.VarChar(200)
   claimed     Boolean  @default(false)

@@ -93,6 +93,13 @@ describe('E2E User Journey', () => {
 
     // Step 3: Create a room
     mockPrismaUser.findUnique.mockResolvedValue({ locale: 'en' })
+    // rooms.ts now wraps the host debit + room.create in prisma.$transaction
+    // (atomic debit + create — see security fix for private-lobby farming).
+    // Pass through the transaction callback with the same user/room mocks.
+    mockPrismaUser.updateMany = vi.fn().mockResolvedValue({ count: 1 })
+    ;(prisma as any).$transaction = vi.fn(async (fn: any) =>
+      fn({ user: mockPrismaUser, room: mockPrismaRoom }),
+    )
     mockPrismaRoom.create.mockResolvedValue({
       id: 'e2e-room-1',
       code: 'XYZABC',
@@ -105,15 +112,6 @@ describe('E2E User Journey', () => {
       isPrivate: false,
       language: 'en',
     })
-    // POST /api/rooms now wraps the host-debit + room.create in a single
-    // prisma.$transaction for atomicity — wire the mock so the callback
-    // runs against a tx that forwards room.create to our existing mock.
-    ;(prisma as any).$transaction = vi.fn(async (fn: any) =>
-      fn({
-        user: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
-        room: { create: mockPrismaRoom.create },
-      }),
-    )
     mockRedis.set.mockResolvedValue('OK')
 
     const createRoomRes = await app.inject({

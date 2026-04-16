@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// i18n stub: prefer the `defaultValue` fallback when the component supplies one,
-// so the test sees the real English copy instead of the raw key.
+// i18n stub: return the defaultValue when one is provided (with interpolation),
+// otherwise return the raw key so we can match keys directly in assertions.
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, opts?: any) => {
@@ -20,17 +20,14 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../../components/NavBar', () => ({ NavBar: () => <div data-testid="navbar" /> }))
 
-// Stub the API. The shop hits GET /auth/me and GET /shop/cosmetics on mount.
+// The shop hits GET /auth/me on mount. No cosmetics endpoint anymore — they
+// were removed from the game design when avatars were dropped.
 const mockGet = vi.fn()
 vi.mock('../../lib/api', () => ({
   api: {
     get: (...args: any[]) => mockGet(...args),
     post: vi.fn(),
   },
-}))
-
-vi.mock('../../lib/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }))
 
 import ShopPage from '../../pages/ShopPage'
@@ -53,12 +50,6 @@ describe('ShopPage', () => {
       if (url === '/auth/me') {
         return Promise.resolve({ starCoins: 125, goldCoins: 3 })
       }
-      if (url === '/shop/cosmetics') {
-        return Promise.resolve([
-          { id: '1', name: 'Shadow Cloak', type: 'avatar_outfit', price: 200, currency: 'star', icon: '🦇', isNew: true },
-          { id: '2', name: 'Gold Crown',   type: 'avatar_accessory', price: 150, currency: 'star', icon: '👑' },
-        ])
-      }
       return Promise.resolve(null)
     })
   })
@@ -73,7 +64,7 @@ describe('ShopPage', () => {
     expect(screen.getByTestId('navbar')).toBeInTheDocument()
   })
 
-  it('shows the live star-coin balance in the header chip', async () => {
+  it('shows the live star-coin and gold-coin balance in the header chips', async () => {
     renderShop()
     // Comes from the /auth/me mock, formatted via toLocaleString (just "125" here).
     await waitFor(() => {
@@ -96,21 +87,9 @@ describe('ShopPage', () => {
     expect(screen.getByText('shop.earnGameReward')).toBeInTheDocument()
   })
 
-  it('switches to Cosmetics tab and renders items from the API', async () => {
+  it('does not expose a cosmetics tab (removed from game design)', () => {
     renderShop()
-    fireEvent.click(screen.getByText('shop.tabCosmetics'))
-    await waitFor(() => {
-      expect(screen.getByText('Shadow Cloak')).toBeInTheDocument()
-      expect(screen.getByText('Gold Crown')).toBeInTheDocument()
-    })
-  })
-
-  it('shows NEW badge for new cosmetic items', async () => {
-    renderShop()
-    fireEvent.click(screen.getByText('shop.tabCosmetics'))
-    await waitFor(() => {
-      expect(screen.getByText('NEW')).toBeInTheDocument()
-    })
+    expect(screen.queryByText('shop.tabCosmetics')).not.toBeInTheDocument()
   })
 
   it('switches to Season tab and shows the "coming soon" copy', () => {
@@ -119,9 +98,9 @@ describe('ShopPage', () => {
     expect(screen.getByText('shop.seasonComingSoon')).toBeInTheDocument()
   })
 
-  it('can switch back to the Coins tab from Cosmetics', async () => {
+  it('can switch back to the Coins tab from Season', async () => {
     renderShop()
-    fireEvent.click(screen.getByText('shop.tabCosmetics'))
+    fireEvent.click(screen.getByText('shop.tabSeason'))
     fireEvent.click(screen.getByText('shop.tabCoins'))
     await waitFor(() => {
       expect(screen.getByText(/shop\.packsUnavailable/)).toBeInTheDocument()

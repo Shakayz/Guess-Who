@@ -54,8 +54,6 @@ export type EventType =
   | 'gift_sent'
   | 'gift_received'
   | 'daily_login'
-  | 'shop_purchase'
-  | 'cosmetic_equipped'
   | 'word_pack_created'
   | 'avatar_changed'
   | 'level_up'
@@ -84,8 +82,6 @@ export interface UserStats {
   giftReceivedCount: number
   // economy
   starCoinsCurrent: number
-  shopPurchaseCount: number
-  cosmeticOwnedCount: number
   // ranked
   rankedGames: number
   rankedWins: number
@@ -131,12 +127,6 @@ export interface DailyLoginCtx extends BaseCtx {
   newStreakCount: number
 }
 
-export interface ShopCtx extends BaseCtx {
-  type: 'shop_purchase' | 'cosmetic_equipped'
-  cosmeticId?: string
-  pricePaid?: number
-}
-
 export interface SimpleCtx extends BaseCtx {
   type:
     | 'word_pack_created'
@@ -149,7 +139,7 @@ export interface SimpleCtx extends BaseCtx {
   newTier?: string
 }
 
-export type EventContext = GameEndCtx | SocialCtx | DailyLoginCtx | ShopCtx | SimpleCtx
+export type EventContext = GameEndCtx | SocialCtx | DailyLoginCtx | SimpleCtx
 
 export interface Evaluator {
   key: string

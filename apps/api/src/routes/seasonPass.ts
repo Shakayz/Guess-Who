@@ -82,13 +82,9 @@ export const seasonPassRoutes: FastifyPluginAsync = async (fastify) => {
       } else if (tier.rewardType === 'goldCoins') {
         // TODO: re-enable when premium is ready
         // await tx.user.update({ where: { id: userId }, data: { goldCoins: { increment: parseInt(tier.rewardValue) } } })
-      } else if (tier.rewardType === 'cosmetic') {
-        await tx.userCosmetic.upsert({
-          where: { userId_cosmeticId: { userId, cosmeticId: tier.rewardValue } },
-          update: {},
-          create: { userId, cosmeticId: tier.rewardValue },
-        })
       }
+      // 'title' rewards are recorded via the seasonPassClaim row only — no
+      // additional state to flip until titles get a backing model.
     })
 
     req.log.info({ userId, tierId, rewardType: tier.rewardType }, 'season pass tier claimed')

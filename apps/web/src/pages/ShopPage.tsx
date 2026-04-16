@@ -1,14 +1,11 @@
 import React, { useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
-import { createLogger } from '../lib/logger'
 
-const log = createLogger('shop')
-
-type Tab = 'coins' | 'cosmetics' | 'season'
+type Tab = 'coins' | 'season'
 
 /**
  * Gold-coin packs shown in the "Coins" tab. Real Stripe checkout is disabled
@@ -21,20 +18,10 @@ type Tab = 'coins' | 'cosmetics' | 'season'
  * and POST /api/shop/packs/:id/checkout to redirect to Stripe.
  */
 const PLACEHOLDER_COIN_PACKS = [
-  { id: 'small',   amount: 500,   price: '$1.99',  bonus: 0 },
-  { id: 'medium',  amount: 1500,  price: '$4.99',  bonus: 150, popular: true },
-  { id: 'large',   amount: 5000,  price: '$14.99', bonus: 750 },
+  { id: 'small',  amount: 500,   price: '$1.99',  bonus: 0 },
+  { id: 'medium', amount: 1500,  price: '$4.99',  bonus: 150, popular: true },
+  { id: 'large',  amount: 5000,  price: '$14.99', bonus: 750 },
 ] as const
-
-interface Cosmetic {
-  id: string
-  name: string
-  type: string
-  price: number
-  currency: 'star' | 'gold'
-  icon?: string | null
-  isNew?: boolean
-}
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -55,18 +42,18 @@ export default function ShopPage() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
 
-  // Initial tab is driven by the `?tab=` URL param so the InsufficientCoinsModal
-  // can link directly to /shop?tab=coins.
+  // Initial tab is driven by the `?tab=` URL param so the
+  // InsufficientCoinsModal can link directly to /shop?tab=coins.
   const initial = (params.get('tab') as Tab) || 'coins'
   const [tab, setTabState] = useState<Tab>(
-    initial === 'coins' || initial === 'cosmetics' || initial === 'season' ? initial : 'coins',
+    initial === 'coins' || initial === 'season' ? initial : 'coins',
   )
   const setTab = (next: Tab) => {
     setTabState(next)
     setParams({ tab: next }, { replace: true })
   }
 
-  // Live balance — re-uses the cached ['me'] key NavBar/Profile already seed.
+  // Live balance — re-uses the cached ['me'] key other screens seed.
   const { data: me } = useQuery<{ starCoins?: number; goldCoins?: number }>({
     queryKey: ['me'],
     queryFn: () => api.get('/auth/me'),
@@ -87,7 +74,7 @@ export default function ShopPage() {
               <h1 className="text-3xl font-extrabold text-white tracking-tight">{t('shop.shop')}</h1>
               <p className="text-neutral-500 text-sm mt-1">{t('shop.subtitle')}</p>
             </div>
-            {/* Live wallet — reflects the server-authoritative balance */}
+            {/* Live wallet — server-authoritative balance */}
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700">
                 <span className="text-sm">⭐</span>
@@ -100,15 +87,14 @@ export default function ShopPage() {
             </div>
           </div>
 
-          {/* Tabs */}
+          {/* Tabs — cosmetics tab was removed from the game design, so the
+              shop now carries only coins + season pass. */}
           <div className="flex gap-2 mb-6 overflow-x-auto">
-            <TabButton active={tab === 'coins'}     onClick={() => setTab('coins')}>{t('shop.tabCoins')}</TabButton>
-            <TabButton active={tab === 'cosmetics'} onClick={() => setTab('cosmetics')}>{t('shop.tabCosmetics')}</TabButton>
-            <TabButton active={tab === 'season'}    onClick={() => setTab('season')}>{t('shop.tabSeason')}</TabButton>
+            <TabButton active={tab === 'coins'}  onClick={() => setTab('coins')}>{t('shop.tabCoins')}</TabButton>
+            <TabButton active={tab === 'season'} onClick={() => setTab('season')}>{t('shop.tabSeason')}</TabButton>
           </div>
 
           {tab === 'coins' && <CoinsTab onPlayClick={() => navigate('/')} />}
-          {tab === 'cosmetics' && <CosmeticsTab starCoins={starCoins} goldCoins={goldCoins} />}
           {tab === 'season' && <SeasonTab />}
         </div>
       </main>
@@ -122,8 +108,9 @@ function CoinsTab({ onPlayClick }: { onPlayClick: () => void }) {
   const { t } = useTranslation()
   return (
     <div className="space-y-6">
-      {/* Pack grid — visually available but non-functional until payments are
-          re-enabled server-side. The banner underneath makes this explicit. */}
+      {/* Pack grid — visually available but non-functional until payments
+          are re-enabled server-side. The banner underneath makes that
+          explicit so players don't click in vain. */}
       <section>
         <p className="text-xs text-neutral-500 uppercase tracking-widest font-semibold mb-3">{t('shop.packsTitle')}</p>
         <div className="grid grid-cols-3 gap-3">
@@ -160,8 +147,8 @@ function CoinsTab({ onPlayClick }: { onPlayClick: () => void }) {
         </div>
       </section>
 
-      {/* Honest alternative: point the player at the free earning mechanics
-          that already exist in the game (dailyRewards.ts). */}
+      {/* Honest alternative — the game's real earning mechanics. These are
+          the channels dailyRewards.ts already implements on the server. */}
       <section>
         <p className="text-xs text-neutral-500 uppercase tracking-widest font-semibold mb-3">{t('shop.earnTitle')}</p>
         <div className="space-y-2">
@@ -185,99 +172,6 @@ function EarnRow({ icon, text }: { icon: string; text: string }) {
     <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-800">
       <span className="text-xl shrink-0">{icon}</span>
       <p className="text-sm text-neutral-300">{text}</p>
-    </div>
-  )
-}
-
-// ─── Cosmetics tab ────────────────────────────────────────────────────────────
-
-function CosmeticsTab({ starCoins, goldCoins }: { starCoins: number; goldCoins: number }) {
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
-  const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
-
-  const { data: cosmetics, isLoading } = useQuery<Cosmetic[]>({
-    queryKey: ['shop', 'cosmetics'],
-    queryFn: () => api.get('/shop/cosmetics'),
-    staleTime: 10 * 60 * 1000,
-  })
-
-  const purchase = useMutation({
-    mutationFn: (id: string) => api.post(`/shop/cosmetics/${id}/purchase`, {}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['me'] })
-      setToast({ kind: 'ok', text: t('shop.purchaseSuccess') })
-      setTimeout(() => setToast(null), 3500)
-    },
-    onError: (err: any) => {
-      log.error('cosmetic purchase failed', { error: err?.message })
-      setToast({ kind: 'err', text: err?.data?.error ?? t('shop.purchaseFailed') })
-      setTimeout(() => setToast(null), 3500)
-    },
-  })
-
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-neutral-500 uppercase tracking-widest font-semibold">{t('shop.cosmeticsTitle')}</p>
-
-      {toast && (
-        <div
-          role="alert"
-          className={[
-            'px-3 py-2.5 rounded-xl text-sm text-center',
-            toast.kind === 'ok'
-              ? 'bg-emerald-950/40 border border-emerald-800/50 text-emerald-300'
-              : 'bg-red-950/50 border border-red-800/50 text-red-300',
-          ].join(' ')}
-        >
-          {toast.text}
-        </div>
-      )}
-
-      {isLoading ? (
-        <div className="text-center text-neutral-500 py-8">…</div>
-      ) : !cosmetics || cosmetics.length === 0 ? (
-        <p className="text-center text-neutral-500 py-8 text-sm">{t('shop.cosmeticsEmpty')}</p>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {cosmetics.map((item) => {
-            const canAfford =
-              item.currency === 'star' ? starCoins >= item.price : goldCoins >= item.price
-            const isBuying = purchase.isPending && purchase.variables === item.id
-            return (
-              <div
-                key={item.id}
-                className="card relative flex flex-col items-center text-center gap-2 hover:border-neutral-700 transition-colors"
-              >
-                {item.isNew && (
-                  <span className="absolute top-2 right-2 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded-full">
-                    NEW
-                  </span>
-                )}
-                <span className="text-4xl mt-1">{item.icon || '🎨'}</span>
-                <div>
-                  <p className="text-sm font-semibold text-white">{item.name}</p>
-                  <p className="text-xs text-neutral-500 capitalize">{item.type.replace(/_/g, ' ')}</p>
-                </div>
-                <button
-                  onClick={() => purchase.mutate(item.id)}
-                  disabled={!canAfford || isBuying || item.currency === 'gold'}
-                  className={[
-                    'w-full py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                    item.currency === 'gold'
-                      ? 'bg-amber-950/60 text-amber-400/60 border border-amber-800/40 cursor-not-allowed'
-                      : canAfford
-                        ? 'bg-brand-600 hover:bg-brand-500 text-white'
-                        : 'bg-neutral-800 text-neutral-500 cursor-not-allowed',
-                  ].join(' ')}
-                >
-                  {isBuying ? '…' : `${item.currency === 'gold' ? '💰' : '⭐'} ${item.price}`}
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }

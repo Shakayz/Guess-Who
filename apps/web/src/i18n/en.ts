@@ -628,6 +628,10 @@ export default {
     next: 'Next →',
     pageOf: 'Page {{page}} of {{total}}',
     loadError: 'Failed to load history',
+    tabUnranked: 'Unranked',
+    tabRanked: 'Ranked',
+    noUnrankedGames: 'No unranked games yet',
+    noRankedGames: 'No ranked games yet',
   },
   profile: {
     starCoins: 'Star Coins',

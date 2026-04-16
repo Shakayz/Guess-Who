@@ -1,21 +1,20 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useResponsive } from '../lib/responsive'
 import { HapticManager } from '../lib/haptics'
-import { SoundManager } from '../lib/sounds'
 import { api } from '../lib/api'
 import { createLogger } from '../lib/logger'
 
 const log = createLogger('shop')
 
-// Mobile mirror of the web ShopPage. Coin packs are shown as "coming soon"
-// because GET /api/shop/packs currently returns 503 (payments disabled).
-// Cosmetics tab is wired to the live API.
+// Mobile mirror of the web ShopPage. Cosmetics were removed from the game
+// design (no avatar to attach them to), so the shop now only carries coin
+// packs (placeholder — payments disabled server-side) and the season pass.
 
-type Tab = 'coins' | 'cosmetics' | 'season'
+type Tab = 'coins' | 'season'
 
 /**
  * Placeholder packs shown in the Coins tab. When payments are re-enabled
@@ -27,16 +26,6 @@ const PLACEHOLDER_COIN_PACKS = [
   { id: 'medium', amount: 1500, price: '$4.99',  bonus: 150, popular: true },
   { id: 'large',  amount: 5000, price: '$14.99', bonus: 750 },
 ] as const
-
-interface Cosmetic {
-  id: string
-  name: string
-  type: string
-  price: number
-  currency: 'star' | 'gold'
-  icon?: string | null
-  isNew?: boolean
-}
 
 function TabButton({
   active,
@@ -77,9 +66,7 @@ export default function ShopScreen() {
   // Initial tab is driven by the `?tab=` URL param so the
   // InsufficientCoinsModal can deep-link to /shop?tab=coins.
   const initial: Tab =
-    params.tab === 'cosmetics' || params.tab === 'season' || params.tab === 'coins'
-      ? (params.tab as Tab)
-      : 'coins'
+    params.tab === 'season' || params.tab === 'coins' ? (params.tab as Tab) : 'coins'
   const [tab, setTab] = useState<Tab>(initial)
 
   const switchTab = (next: Tab) => {
@@ -87,8 +74,8 @@ export default function ShopScreen() {
     setTab(next)
   }
 
-  // Live balance — refreshed on focus via `fetchMe`. Plain useEffect pattern
-  // because the mobile app doesn't use react-query.
+  // Live balance — refreshed on mount. Plain useEffect pattern because the
+  // mobile app doesn't bundle react-query.
   const [starCoins, setStarCoins] = useState(0)
   const [goldCoins, setGoldCoins] = useState(0)
   const fetchMe = useCallback(() => {
@@ -138,7 +125,7 @@ export default function ShopScreen() {
             {t('shop.shop', { defaultValue: 'Shop' })}
           </Text>
           <Text className="text-neutral-500 mt-1" style={{ fontSize: 12 * fontScale }}>
-            {t('shop.subtitle', { defaultValue: 'Buy coins, unlock cosmetics & more' })}
+            {t('shop.subtitle', { defaultValue: 'Buy coins & more' })}
           </Text>
         </View>
 
@@ -147,12 +134,6 @@ export default function ShopScreen() {
             active={tab === 'coins'}
             onPress={() => switchTab('coins')}
             label={t('shop.tabCoins', { defaultValue: '⭐ Star Coins' })}
-            fontScale={fontScale}
-          />
-          <TabButton
-            active={tab === 'cosmetics'}
-            onPress={() => switchTab('cosmetics')}
-            label={t('shop.tabCosmetics', { defaultValue: '🎨 Cosmetics' })}
             fontScale={fontScale}
           />
           <TabButton
@@ -170,15 +151,6 @@ export default function ShopScreen() {
               HapticManager.selection()
               router.push('/')
             }}
-          />
-        )}
-        {tab === 'cosmetics' && (
-          <CosmeticsTab
-            fontScale={fontScale}
-            isTablet={isTablet}
-            starCoins={starCoins}
-            goldCoins={goldCoins}
-            onBalanceChanged={fetchMe}
           />
         )}
         {tab === 'season' && (
@@ -291,178 +263,6 @@ function EarnRow({ icon, text, fontScale }: { icon: string; text: string; fontSc
       <Text className="text-neutral-300 flex-1" style={{ fontSize: 12 * fontScale, lineHeight: 16 * fontScale }}>
         {text}
       </Text>
-    </View>
-  )
-}
-
-// ─── Cosmetics tab ────────────────────────────────────────────────────────────
-
-function CosmeticsTab({
-  fontScale,
-  isTablet,
-  starCoins,
-  goldCoins,
-  onBalanceChanged,
-}: {
-  fontScale: number
-  isTablet: boolean
-  starCoins: number
-  goldCoins: number
-  onBalanceChanged: () => void
-}) {
-  const { t } = useTranslation()
-  const [cosmetics, setCosmetics] = useState<Cosmetic[] | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [buyingId, setBuyingId] = useState<string | null>(null)
-  const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    api
-      .get<Cosmetic[]>('/shop/cosmetics')
-      .then((data) => {
-        if (!cancelled) setCosmetics(data)
-      })
-      .catch((err) => {
-        log.warn('cosmetics fetch failed', { error: err?.message })
-        if (!cancelled) setCosmetics([])
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const buy = async (id: string) => {
-    setBuyingId(id)
-    try {
-      await api.post(`/shop/cosmetics/${id}/purchase`, {})
-      SoundManager.play('success')
-      HapticManager.medium()
-      onBalanceChanged()
-      setToast({
-        kind: 'ok',
-        text: t('shop.purchaseSuccess', { defaultValue: 'Purchased! The item is in your collection.' }),
-      })
-    } catch (err: any) {
-      log.error('cosmetic purchase failed', { error: err?.message })
-      setToast({
-        kind: 'err',
-        text: err?.data?.error ?? t('shop.purchaseFailed', { defaultValue: 'Purchase failed.' }),
-      })
-    } finally {
-      setBuyingId(null)
-      setTimeout(() => setToast(null), 3500)
-    }
-  }
-
-  if (loading) {
-    return (
-      <View className="items-center py-8">
-        <ActivityIndicator color="#a78bfa" />
-      </View>
-    )
-  }
-
-  return (
-    <View style={{ gap: 12 }}>
-      <Text
-        className="text-neutral-500 font-semibold uppercase"
-        style={{ fontSize: 10 * fontScale, letterSpacing: 1 }}
-      >
-        {t('shop.cosmeticsTitle', { defaultValue: 'Cosmetics' })}
-      </Text>
-      {toast && (
-        <View
-          className={[
-            'rounded-xl px-3 py-2.5',
-            toast.kind === 'ok'
-              ? 'bg-emerald-950/40 border border-emerald-800/50'
-              : 'bg-red-950/50 border border-red-800/50',
-          ].join(' ')}
-        >
-          <Text
-            className={toast.kind === 'ok' ? 'text-emerald-300 text-center' : 'text-red-300 text-center'}
-            style={{ fontSize: 12 * fontScale }}
-          >
-            {toast.text}
-          </Text>
-        </View>
-      )}
-      {!cosmetics || cosmetics.length === 0 ? (
-        <Text className="text-neutral-500 text-center py-8" style={{ fontSize: 13 * fontScale }}>
-          {t('shop.cosmeticsEmpty', { defaultValue: 'No cosmetics available yet — check back soon.' })}
-        </Text>
-      ) : (
-        <View className="flex-row flex-wrap" style={{ gap: 10 }}>
-          {cosmetics.map((item) => {
-            const canAfford =
-              item.currency === 'star' ? starCoins >= item.price : goldCoins >= item.price
-            const isBuying = buyingId === item.id
-            const disabled = !canAfford || isBuying || item.currency === 'gold'
-            return (
-              <View
-                key={item.id}
-                className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 items-center"
-                style={{ width: isTablet ? '31%' : '47%', gap: 6 }}
-              >
-                {item.isNew && (
-                  <View className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-emerald-950/60">
-                    <Text className="text-emerald-400 font-bold" style={{ fontSize: 8 }}>NEW</Text>
-                  </View>
-                )}
-                <Text style={{ fontSize: 32 }}>{item.icon || '🎨'}</Text>
-                <Text
-                  className="text-white font-semibold text-center"
-                  style={{ fontSize: 12 * fontScale }}
-                  numberOfLines={1}
-                >
-                  {item.name}
-                </Text>
-                <Text
-                  className="text-neutral-500 capitalize text-center"
-                  style={{ fontSize: 10 * fontScale }}
-                  numberOfLines={1}
-                >
-                  {item.type.replace(/_/g, ' ')}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    if (disabled) return
-                    HapticManager.light()
-                    buy(item.id)
-                  }}
-                  disabled={disabled}
-                  className={[
-                    'w-full items-center rounded-lg mt-1 py-1.5',
-                    item.currency === 'gold'
-                      ? 'bg-amber-950/60 border border-amber-800/40'
-                      : canAfford
-                        ? 'bg-violet-600'
-                        : 'bg-neutral-800',
-                  ].join(' ')}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    className={
-                      item.currency === 'gold'
-                        ? 'text-amber-400 font-semibold'
-                        : canAfford
-                          ? 'text-white font-semibold'
-                          : 'text-neutral-500 font-semibold'
-                    }
-                    style={{ fontSize: 11 * fontScale }}
-                  >
-                    {isBuying ? '…' : `${item.currency === 'gold' ? '💰' : '⭐'} ${item.price}`}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )
-          })}
-        </View>
-      )}
     </View>
   )
 }

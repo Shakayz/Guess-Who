@@ -8,6 +8,7 @@ import { Avatar } from '@imposter/ui'
 import type { Clue } from '@imposter/shared'
 import { createLogger } from '../lib/logger'
 import { SoundManager } from '../lib/sounds'
+import { VoiceChannel } from '../lib/webrtc'
 import { EliminationReveal } from '../components/EliminationReveal'
 // Overlays removed — they blocked gameplay and caused desync between players
 
@@ -206,7 +207,7 @@ const PlayerClueHistoryModal = memo(({
         >
           {/* Header */}
           <div className="flex items-center gap-3 px-4 py-4 border-b border-neutral-800 shrink-0">
-            <Avatar username={player.username} size="sm" />
+            <Avatar src={player.avatarUrl} username={player.username} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="font-bold text-white truncate">{getDisplayName(player.userId, player.username)}</p>
               {gameOver && roleInfo && (
@@ -369,6 +370,16 @@ export default function GamePage() {
   const [vocalTurnIndex, setVocalTurnIndex] = useState(0)
   const [vocalTotalSpeakers, setVocalTotalSpeakers] = useState(0)
   const vocalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // ── Voice (WebRTC) state ─────────────────────────────────────────────────
+  // `voiceStatus` follows the lifecycle of mic capture + signaling. The
+  // `voiceChannelRef` holds the live VoiceChannel instance so the cleanup
+  // effect can tear it down deterministically. `voiceMutedManually` lets the
+  // user override the auto-mute (mic only hot during their vocal turn).
+  type VoiceStatus = 'idle' | 'requesting' | 'connected' | 'denied' | 'unsupported' | 'error'
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle')
+  const [voiceMutedManually, setVoiceMutedManually] = useState(false)
+  const [voicePeerCount, setVoicePeerCount] = useState(0)
+  const voiceChannelRef = useRef<VoiceChannel | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const phaseRef = useRef<Phase>('clues')
@@ -812,6 +823,78 @@ export default function GamePage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, deadChatMessages])
+
+  // ── Voice channel: request mic + open peer mesh ────────────────────────
+  // We do NOT auto-start the channel — browsers gate getUserMedia on a user
+  // gesture and an unsolicited prompt is hostile UX. The "Enable mic" button
+  // in the vocal-mode card calls this. Once started, the channel survives
+  // round transitions and only tears down when the game ends or the
+  // component unmounts.
+  const startVoice = useCallback(async () => {
+    if (voiceChannelRef.current || !user?.id) return
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setVoiceStatus('unsupported')
+      return
+    }
+    setVoiceStatus('requesting')
+    const vc = new VoiceChannel({ socket: getSocket(), selfUserId: user.id })
+    vc.onPeersChanged = (ids) => setVoicePeerCount(ids.length)
+    vc.onMicError = (err) => {
+      const denied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+      setVoiceStatus(denied ? 'denied' : 'error')
+      voiceChannelRef.current = null
+    }
+    try {
+      await vc.start()
+      voiceChannelRef.current = vc
+      setVoiceStatus('connected')
+    } catch {
+      // onMicError already updated status; nothing else to do.
+    }
+  }, [user?.id])
+
+  const stopVoice = useCallback(() => {
+    if (voiceChannelRef.current) {
+      voiceChannelRef.current.destroy()
+      voiceChannelRef.current = null
+    }
+    setVoiceStatus('idle')
+    setVoicePeerCount(0)
+  }, [])
+
+  // Tear down the voice channel when leaving the game page or when vocalMode
+  // gets switched off (which shouldn't happen mid-game, but defensive cleanup
+  // is cheap). This also handles HMR cleanly.
+  useEffect(() => {
+    return () => stopVoice()
+    // We only want this to run on unmount — `stopVoice` is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Stop voice when the game finishes so the mic is released between games.
+  useEffect(() => {
+    if (room?.status === 'finished' || room?.status === 'waiting') stopVoice()
+  }, [room?.status, stopVoice])
+
+  // Auto-mute the local mic when it's not our turn to speak. The user can
+  // override via the mute button (`voiceMutedManually`), in which case their
+  // explicit choice wins. We only enforce the auto behaviour during the
+  // vocal clue phase — at all other times the mic stays open so peers can
+  // still hear ambient reactions during voting / reveal.
+  useEffect(() => {
+    const vc = voiceChannelRef.current
+    if (!vc || voiceStatus !== 'connected') return
+    if (voiceMutedManually) {
+      vc.setMicEnabled(false)
+      return
+    }
+    if (phase === 'clues' && vocalMode && vocalSpeakerId) {
+      const isMyTurn = vocalSpeakerId === user?.id
+      vc.setMicEnabled(isMyTurn)
+    } else {
+      vc.setMicEnabled(true)
+    }
+  }, [voiceStatus, voiceMutedManually, phase, vocalMode, vocalSpeakerId, user?.id])
 
   const submitClue = (e: React.FormEvent) => {
     e.preventDefault()
@@ -1366,6 +1449,97 @@ export default function GamePage() {
                     {t('game.vocalWaiting', 'Waiting for the next speaker...')}
                   </p>
                 )}
+                {/* ── Microphone controls (real audio streaming) ───────── */}
+                <div className="mt-3 mb-3 pt-3 border-t border-neutral-800/60">
+                  {voiceStatus === 'idle' && (
+                    <button
+                      type="button"
+                      onClick={startVoice}
+                      className="w-full px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <span>🎙️</span>
+                      <span>{t('game.voiceEnable', 'Enable microphone')}</span>
+                    </button>
+                  )}
+                  {voiceStatus === 'requesting' && (
+                    <p className="text-xs text-neutral-400 text-center py-2">
+                      {t('game.voiceRequesting', 'Requesting microphone permission...')}
+                    </p>
+                  )}
+                  {voiceStatus === 'denied' && (
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-amber-400 flex-1">
+                        {t('game.voiceDenied', 'Mic permission denied. Allow it in your browser settings, then retry.')}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={startVoice}
+                        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
+                      >
+                        {t('game.voiceRetry', 'Retry')}
+                      </button>
+                    </div>
+                  )}
+                  {voiceStatus === 'unsupported' && (
+                    <p className="text-xs text-neutral-500 text-center py-1">
+                      {t('game.voiceUnsupported', 'Audio streaming is not supported in this browser.')}
+                    </p>
+                  )}
+                  {voiceStatus === 'error' && (
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-red-400 flex-1">
+                        {t('game.voiceError', 'Microphone capture failed.')}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={startVoice}
+                        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
+                      >
+                        {t('game.voiceRetry', 'Retry')}
+                      </button>
+                    </div>
+                  )}
+                  {voiceStatus === 'connected' && (() => {
+                    // Mic is "live" when track is enabled. We mirror the same
+                    // logic the auto-mute effect uses to decide what to show.
+                    const autoMicLive = !voiceMutedManually && (
+                      !(phase === 'clues' && vocalMode && vocalSpeakerId) || vocalSpeakerId === user?.id
+                    )
+                    return (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-xs text-neutral-400">
+                          <span className={[
+                            'w-2 h-2 rounded-full',
+                            autoMicLive ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-600',
+                          ].join(' ')} />
+                          <span>
+                            {autoMicLive
+                              ? t('game.voiceMicLive', 'Mic live')
+                              : t('game.voiceMicMuted', 'Mic muted')}
+                          </span>
+                          <span className="text-neutral-600">·</span>
+                          <span>
+                            {t('game.voicePeerCount', '{{count}} connected', { count: voicePeerCount })}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setVoiceMutedManually((m) => !m)}
+                          aria-pressed={voiceMutedManually}
+                          aria-label={voiceMutedManually ? 'Unmute microphone' : 'Mute microphone'}
+                          className={[
+                            'px-2 py-1 rounded text-xs font-medium transition-colors',
+                            voiceMutedManually
+                              ? 'bg-red-600/20 text-red-300 hover:bg-red-600/30'
+                              : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700',
+                          ].join(' ')}
+                        >
+                          {voiceMutedManually ? t('game.voiceUnmute', 'Unmute') : t('game.voiceMute', 'Mute')}
+                        </button>
+                      </div>
+                    )
+                  })()}
+                </div>
                 {isMyTurn && (
                   <button
                     type="button"
@@ -1483,7 +1657,7 @@ export default function GamePage() {
                         : 'border-neutral-800 bg-neutral-900/40 hover:border-amber-700/60 hover:bg-gradient-to-r hover:from-amber-950/30 hover:to-neutral-900/40 hover:shadow-md hover:shadow-amber-950/30 hover:-translate-y-0.5 hover:scale-[1.015]',
                     ].join(' ')}
                   >
-                    <Avatar username={p.username} size="sm" />
+                    <Avatar src={p.avatarUrl} username={p.username} size="sm" />
                     <span className="flex-1 font-semibold text-white text-sm">{getDisplayName(p.userId, p.username)}</span>
                     {votedFor === p.userId && (
                       <span className="text-amber-400 text-xs font-bold">{t('game.yourVoteLabel')}</span>
@@ -1631,7 +1805,7 @@ export default function GamePage() {
                     ].join(' ')}
                     style={{ animationDelay: `${i * 0.05}s` }}
                   >
-                    <Avatar username={player?.username ?? '?'} size="xs" />
+                    <Avatar src={player?.avatarUrl} username={player?.username ?? '?'} size="xs" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-xs font-semibold text-neutral-400">
@@ -1826,6 +2000,12 @@ export default function GamePage() {
                       ? isSpeakingNow ? 'bg-brand-400 animate-heartbeat' : 'bg-emerald-400 animate-pulse'
                       : p.status === 'forfeited' ? 'bg-orange-700' : 'bg-neutral-700',
                   ].join(' ')} />
+                  <Avatar
+                    src={p.avatarUrl}
+                    username={p.username}
+                    size="xs"
+                    className={p.status !== 'alive' ? 'opacity-50 grayscale' : ''}
+                  />
                   {getDisplayName(p.userId, p.username)}
                   {canReveal && (
                     <button

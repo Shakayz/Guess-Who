@@ -111,17 +111,15 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     const rankedMaxPlayers    = 10
     const rankedImposterCount = 3
 
-    // Private lobbies: only the host pays 10 ⭐ at creation. Public (matchmade)
-    // rooms charge every player when the game actually starts — see
-    // startGameForRoom in socket/handlers/room.ts.
+    // Private lobbies: the host pays 10 ⭐ at creation as a commitment fee, which
+    // covers the FIRST game only. Subsequent games in the same private lobby are
+    // charged at game start (see startGameForRoom in socket/handlers/room.ts) —
+    // this closes an infinite-replay farming exploit where one 10 ⭐ fee used to
+    // cover unlimited games.
     //
-    // ── Atomic: charge + room-create in one transaction ──
-    // Previously the host was debited in a standalone updateMany BEFORE the
-    // room was created. If `prisma.room.create` then failed (unique-code
-    // collision, connection drop, constraint error, etc.) the host had
-    // already lost 10 ⭐ with nothing to show for it and no refund path. We
-    // now run both operations inside the same transaction so any failure
-    // rolls the charge back.
+    // The debit and the Room row are created in a single transaction so a failed
+    // room.create can never leave the host with coins deducted and no room —
+    // both operations succeed together or the whole thing rolls back.
     const isPrivateLobby = settings?.isPrivate === true
     let room
     try {
@@ -149,11 +147,13 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
           },
         })
       })
-    } catch (err: any) {
-      if (err?.message === 'INSUFFICIENT_STARS') {
+    } catch (err) {
+      if (err instanceof Error && err.message === 'INSUFFICIENT_STARS') {
         req.log.warn({ userId: payload.sub }, 'lobby creation refused: insufficient stars')
         return reply.status(402).send({ error: 'INSUFFICIENT_STARS', required: DAILY_COST })
       }
+      // Anything else (DB connection drop, unique-code collision, etc.)
+      // rolls the whole $transaction back — no orphaned debit to refund.
       req.log.error({ err, userId: payload.sub }, 'lobby creation failed — charges rolled back')
       throw err
     }
@@ -168,6 +168,12 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
       gameMode: settings?.gameMode ?? 'normal',
       vocalMode,
       vocalSpeakingTimeSeconds,
+      // Private lobbies: the host already paid 10 ⭐ at creation. This flag is
+      // consumed by startGameForRoom for the host's FIRST game in this room.
+      // It is intentionally NOT re-set by buildResetState, so the host is
+      // charged again for every subsequent game (prevents infinite-replay
+      // farming on a single 10 ⭐ fee).
+      hostPrepaid: isPrivateLobby,
     }), 'EX', 21600)
     req.log.info({ userId: payload.sub, roomId: room.id, roomCode: room.code }, 'room created')
     return reply.status(201).send(room)

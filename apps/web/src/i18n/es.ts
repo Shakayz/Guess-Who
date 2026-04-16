@@ -593,6 +593,10 @@ export default {
     next: 'Siguiente →',
     pageOf: 'Página {{page}} de {{total}}',
     loadError: 'Error al cargar',
+    tabUnranked: 'No clasificadas',
+    tabRanked: 'Clasificadas',
+    noUnrankedGames: 'Sin partidas no clasificadas todavía',
+    noRankedGames: 'Sin partidas clasificadas todavía',
   },
   profile: {
     starCoins: 'StarCoins',

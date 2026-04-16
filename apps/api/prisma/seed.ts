@@ -11382,37 +11382,8 @@ async function main() {
   console.log(`Seeded ${ACHIEVEMENTS.length} achievements`)
 
   // ── Cosmetics ─────────────────────────────────────────────────────────────
-  const COSMETICS = [
-    { type: 'avatar',          name: 'Shadow Fox',      description: 'A sleek dark fox',        imageUrl: '/cosmetics/avatar_fox.png',        price: 200, currency: 'star' },
-    { type: 'avatar',          name: 'Neon Wolf',       description: 'Glowing cyber wolf',      imageUrl: '/cosmetics/avatar_wolf.png',       price: 350, currency: 'star' },
-    { type: 'avatar',          name: 'Crystal Bird',    description: 'Icy blue bird',           imageUrl: '/cosmetics/avatar_bird.png',       price: 300, currency: 'star' },
-    { type: 'avatar',          name: 'Gold Dragon',     description: 'Legendary dragon',        imageUrl: '/cosmetics/avatar_dragon.png',     price: 500, currency: 'gold' },
-    { type: 'avatar',          name: 'Phantom Cat',     description: 'Mystery cat',             imageUrl: '/cosmetics/avatar_cat.png',        price: 150, currency: 'star' },
-    { type: 'card_background', name: 'Midnight',        description: 'Dark starry night',       imageUrl: '/cosmetics/bg_midnight.png',       price: 100, currency: 'star' },
-    { type: 'card_background', name: 'Sunset',          description: 'Orange sunset glow',      imageUrl: '/cosmetics/bg_sunset.png',         price: 100, currency: 'star' },
-    { type: 'card_background', name: 'Aurora',          description: 'Northern lights',         imageUrl: '/cosmetics/bg_aurora.png',         price: 250, currency: 'star' },
-    { type: 'card_background', name: 'Royal Gold',      description: 'Gilded luxury theme',     imageUrl: '/cosmetics/bg_gold.png',           price: 300, currency: 'gold' },
-    { type: 'badge',           name: 'Detective Badge', description: 'I found the imposter!',   imageUrl: '/cosmetics/badge_detective.png',   price: 200, currency: 'star' },
-    { type: 'badge',           name: 'Imposter Badge',  description: 'Master of deception',     imageUrl: '/cosmetics/badge_imposter.png',   price: 200, currency: 'star' },
-    { type: 'badge',           name: 'Crown Badge',     description: 'Top player',              imageUrl: '/cosmetics/badge_crown.png',       price: 500, currency: 'gold' },
-    { type: 'title',           name: 'The Imposter',    description: 'You look sus',            imageUrl: '/cosmetics/title_imposter.png',    price: 150, currency: 'star' },
-    { type: 'title',           name: 'The Detective',   description: 'Eyes everywhere',         imageUrl: '/cosmetics/title_detective.png',   price: 150, currency: 'star' },
-    { type: 'title',           name: 'The Legendary',   description: 'Beyond compare',          imageUrl: '/cosmetics/title_legend.png',      price: 400, currency: 'gold' },
-    { type: 'word_effect',     name: 'Fire Words',      description: 'Flaming text on reveal',  imageUrl: '/cosmetics/fx_fire.png',           price: 200, currency: 'star' },
-    { type: 'word_effect',     name: 'Glitch Words',    description: 'Glitchy digital effect',  imageUrl: '/cosmetics/fx_glitch.png',         price: 250, currency: 'star' },
-    { type: 'word_effect',     name: 'Galaxy Words',    description: 'Space particle effect',   imageUrl: '/cosmetics/fx_galaxy.png',         price: 350, currency: 'gold' },
-  ]
-  for (const c of COSMETICS) {
-    await prisma.cosmetic.upsert({
-      where: { id: c.name.replace(/\s+/g, '_').toLowerCase() },
-      create: { ...c, id: c.name.replace(/\s+/g, '_').toLowerCase() },
-      update: {},
-    }).catch(async () => {
-      const existing = await prisma.cosmetic.findFirst({ where: { name: c.name } })
-      if (!existing) await prisma.cosmetic.create({ data: c })
-    })
-  }
-  console.log(`Seeded ${COSMETICS.length} cosmetics`)
+  // Cosmetics were removed from the game design — there's no avatar to attach
+  // them to, so the catalog and the seeding step are gone.
 
   // ── Season Pass ───────────────────────────────────────────────────────────
   try {

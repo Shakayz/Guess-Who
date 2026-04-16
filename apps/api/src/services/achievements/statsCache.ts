@@ -30,8 +30,6 @@ function empty(): UserStats {
     giftSentCount: 0,
     giftReceivedCount: 0,
     starCoinsCurrent: 0,
-    shopPurchaseCount: 0,
-    cosmeticOwnedCount: 0,
     rankedGames: 0,
     rankedWins: 0,
     rankTier: 'wooden',
@@ -62,7 +60,6 @@ export async function buildUserStats(userId: string): Promise<UserStats> {
       dmSent,
       giftSent,
       giftReceived,
-      cosmeticOwned,
       achievementsRows,
       wordPackRows,
     ] = await Promise.all([
@@ -101,7 +98,6 @@ export async function buildUserStats(userId: string): Promise<UserStats> {
       prisma.directMessage.count({ where: { senderId: userId } }).catch(() => 0),
       prisma.gift.count({ where: { senderId: userId } }).catch(() => 0),
       prisma.gift.count({ where: { receiverId: userId } }).catch(() => 0),
-      prisma.userCosmetic.count({ where: { userId } }).catch(() => 0),
       prisma.userAchievement.findMany({
         where: { userId },
         select: { claimedAt: true },
@@ -155,8 +151,6 @@ export async function buildUserStats(userId: string): Promise<UserStats> {
     stats.dmSentCount = dmSent
     stats.giftSentCount = giftSent
     stats.giftReceivedCount = giftReceived
-    stats.cosmeticOwnedCount = cosmeticOwned
-    stats.shopPurchaseCount = cosmeticOwned
     stats.achievementsUnlockedCount = achievementsRows.length
     stats.achievementsClaimedCount = achievementsRows.filter((a) => a.claimedAt !== null).length
     stats.wordPacksCreated = wordPackRows
