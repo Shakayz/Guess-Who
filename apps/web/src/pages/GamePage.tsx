@@ -206,7 +206,7 @@ const PlayerClueHistoryModal = memo(({
         >
           {/* Header */}
           <div className="flex items-center gap-3 px-4 py-4 border-b border-neutral-800 shrink-0">
-            <Avatar username={player.username} size="sm" />
+            <Avatar src={player.avatarUrl} username={player.username} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="font-bold text-white truncate">{getDisplayName(player.userId, player.username)}</p>
               {gameOver && roleInfo && (
@@ -1483,7 +1483,7 @@ export default function GamePage() {
                         : 'border-neutral-800 bg-neutral-900/40 hover:border-amber-700/60 hover:bg-gradient-to-r hover:from-amber-950/30 hover:to-neutral-900/40 hover:shadow-md hover:shadow-amber-950/30 hover:-translate-y-0.5 hover:scale-[1.015]',
                     ].join(' ')}
                   >
-                    <Avatar username={p.username} size="sm" />
+                    <Avatar src={p.avatarUrl} username={p.username} size="sm" />
                     <span className="flex-1 font-semibold text-white text-sm">{getDisplayName(p.userId, p.username)}</span>
                     {votedFor === p.userId && (
                       <span className="text-amber-400 text-xs font-bold">{t('game.yourVoteLabel')}</span>
@@ -1631,7 +1631,7 @@ export default function GamePage() {
                     ].join(' ')}
                     style={{ animationDelay: `${i * 0.05}s` }}
                   >
-                    <Avatar username={player?.username ?? '?'} size="xs" />
+                    <Avatar src={player?.avatarUrl} username={player?.username ?? '?'} size="xs" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-xs font-semibold text-neutral-400">
@@ -1826,6 +1826,12 @@ export default function GamePage() {
                       ? isSpeakingNow ? 'bg-brand-400 animate-heartbeat' : 'bg-emerald-400 animate-pulse'
                       : p.status === 'forfeited' ? 'bg-orange-700' : 'bg-neutral-700',
                   ].join(' ')} />
+                  <Avatar
+                    src={p.avatarUrl}
+                    username={p.username}
+                    size="xs"
+                    className={p.status !== 'alive' ? 'opacity-50 grayscale' : ''}
+                  />
                   {getDisplayName(p.userId, p.username)}
                   {canReveal && (
                     <button
