@@ -1,6 +1,11 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+// `.mts` is loaded as ESM, so __dirname isn't defined — derive it from import.meta.
+// (`.mts` keeps Vite from loading via its deprecated CJS Node API.)
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   plugins: [react()],
