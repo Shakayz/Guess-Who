@@ -121,12 +121,9 @@ describe('Tutorial Routes', () => {
 
   describe('POST /api/tutorial/complete', () => {
     it('grants 50 star coins the first time the tutorial is completed', async () => {
-      mockPrismaUser.findUnique.mockResolvedValue({
-        id: 'user-1',
-        tutorialCompleted: false,
-        starCoins: 100,
-      })
-      mockPrismaUser.update.mockResolvedValue({ starCoins: 150 })
+      // updateMany flips the flag atomically; count===1 means we just credited.
+      mockPrismaUser.updateMany.mockResolvedValue({ count: 1 })
+      mockPrismaUser.findUnique.mockResolvedValue({ starCoins: 150 })
 
       const res = await app.inject({
         method: 'POST',
@@ -143,8 +140,9 @@ describe('Tutorial Routes', () => {
 
       // Critical: the update MUST flip the flag AND increment coins atomically
       // using the `tutorialCompleted: false` guard so concurrent requests
-      // can't double-grant the reward.
-      expect(mockPrismaUser.update).toHaveBeenCalledWith(
+      // can't double-grant the reward. We use updateMany (not update) so a
+      // no-op returns { count: 0 } instead of throwing P2025 on a retry.
+      expect(mockPrismaUser.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'user-1', tutorialCompleted: false },
           data: expect.objectContaining({
@@ -156,11 +154,9 @@ describe('Tutorial Routes', () => {
     })
 
     it('does not re-grant coins if the tutorial was already completed', async () => {
-      mockPrismaUser.findUnique.mockResolvedValue({
-        id: 'user-1',
-        tutorialCompleted: true,
-        starCoins: 200,
-      })
+      // count===0 means the guard rejected the update (flag already true)
+      mockPrismaUser.updateMany.mockResolvedValue({ count: 0 })
+      mockPrismaUser.findUnique.mockResolvedValue({ starCoins: 200 })
 
       const res = await app.inject({
         method: 'POST',
@@ -174,7 +170,30 @@ describe('Tutorial Routes', () => {
       expect(body.alreadyCompleted).toBe(true)
       expect(body.reward).toBe(0)
       expect(body.starCoins).toBe(200)
-      expect(mockPrismaUser.update).not.toHaveBeenCalled()
+    })
+
+    it('returns a clean alreadyCompleted=true on a retry after a prior success (no P2025)', async () => {
+      // Regression: the old code used prisma.user.update with a non-unique
+      // where guard, which threw P2025 when the flag had already been
+      // flipped by a concurrent call — surfacing as a 500 ("Impossible de
+      // créditer votre récompense pour le moment — réessayez") to the user.
+      // With updateMany we just get count:0 and report alreadyCompleted.
+      mockPrismaUser.updateMany.mockResolvedValue({ count: 0 })
+      mockPrismaUser.findUnique.mockResolvedValue({ starCoins: 150 })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/tutorial/complete',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toMatchObject({
+        success: true,
+        alreadyCompleted: true,
+        reward: 0,
+        starCoins: 150,
+      })
     })
 
     it('returns 401 without an auth token', async () => {
@@ -183,6 +202,7 @@ describe('Tutorial Routes', () => {
     })
 
     it('returns 404 if the user does not exist', async () => {
+      mockPrismaUser.updateMany.mockResolvedValue({ count: 0 })
       mockPrismaUser.findUnique.mockResolvedValue(null)
 
       const res = await app.inject({
