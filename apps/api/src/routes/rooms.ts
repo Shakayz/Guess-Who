@@ -111,34 +111,48 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     const rankedMaxPlayers    = 10
     const rankedImposterCount = 3
 
-    // Private lobbies: only the host pays 10 ⭐ at creation. Public (matchmade)
-    // rooms charge every player when the game actually starts — see
-    // startGameForRoom in socket/handlers/room.ts.
+    // Private lobbies: the host pays 10 ⭐ at creation as a commitment fee, which
+    // covers the FIRST game only. Subsequent games in the same private lobby are
+    // charged at game start (see startGameForRoom in socket/handlers/room.ts) —
+    // this closes an infinite-replay farming exploit where one 10 ⭐ fee used to
+    // cover unlimited games.
+    //
+    // The debit and the Room row are created in a single transaction so a failed
+    // room.create can never leave the host with coins deducted and no room.
     const isPrivateLobby = settings?.isPrivate === true
-    if (isPrivateLobby) {
-      const debit = await prisma.user.updateMany({
-        where: { id: payload.sub, starCoins: { gte: DAILY_COST } },
-        data:  { starCoins: { decrement: DAILY_COST } },
+    let room
+    try {
+      room = await prisma.$transaction(async (tx) => {
+        if (isPrivateLobby) {
+          const debit = await tx.user.updateMany({
+            where: { id: payload.sub, starCoins: { gte: DAILY_COST } },
+            data:  { starCoins: { decrement: DAILY_COST } },
+          })
+          if (debit.count === 0) {
+            throw new Error('INSUFFICIENT_STARS')
+          }
+        }
+        return tx.room.create({
+          data: {
+            code,
+            hostId: payload.sub,
+            maxPlayers:           isRanked ? rankedMaxPlayers    : (settings?.maxPlayers ?? 10),
+            imposterCount:        isRanked ? rankedImposterCount : (settings?.imposterCount ?? 2),
+            speakingTimeSeconds:  settings?.speakingTimeSeconds ?? 30,
+            votingTimeSeconds:    settings?.votingTimeSeconds ?? 30,
+            wordPackId:           settings?.wordPackId ?? 'default',
+            isPrivate:            settings?.isPrivate ?? false,
+            language:             settings?.language ?? host?.locale ?? 'en',
+          },
+        })
       })
-      if (debit.count === 0) {
+    } catch (err) {
+      if (err instanceof Error && err.message === 'INSUFFICIENT_STARS') {
         req.log.warn({ userId: payload.sub }, 'lobby creation refused: insufficient stars')
         return reply.status(402).send({ error: 'INSUFFICIENT_STARS', required: DAILY_COST })
       }
+      throw err
     }
-
-    const room = await prisma.room.create({
-      data: {
-        code,
-        hostId: payload.sub,
-        maxPlayers:           isRanked ? rankedMaxPlayers    : (settings?.maxPlayers ?? 10),
-        imposterCount:        isRanked ? rankedImposterCount : (settings?.imposterCount ?? 2),
-        speakingTimeSeconds:  settings?.speakingTimeSeconds ?? 30,
-        votingTimeSeconds:    settings?.votingTimeSeconds ?? 30,
-        wordPackId:           settings?.wordPackId ?? 'default',
-        isPrivate:            settings?.isPrivate ?? false,
-        language:             settings?.language ?? host?.locale ?? 'en',
-      },
-    })
     // Ranked never uses vocal mode — it's typed-clue only.
     const vocalMode = !isRanked && (settings?.vocalMode ?? false)
     const vocalSpeakingTimeSeconds = Math.min(60, Math.max(5, settings?.vocalSpeakingTimeSeconds ?? 10))
@@ -150,6 +164,12 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
       gameMode: settings?.gameMode ?? 'normal',
       vocalMode,
       vocalSpeakingTimeSeconds,
+      // Private lobbies: the host already paid 10 ⭐ at creation. This flag is
+      // consumed by startGameForRoom for the host's FIRST game in this room.
+      // It is intentionally NOT re-set by buildResetState, so the host is
+      // charged again for every subsequent game (prevents infinite-replay
+      // farming on a single 10 ⭐ fee).
+      hostPrepaid: isPrivateLobby,
     }), 'EX', 21600)
     req.log.info({ userId: payload.sub, roomId: room.id, roomCode: room.code }, 'room created')
     return reply.status(201).send(room)

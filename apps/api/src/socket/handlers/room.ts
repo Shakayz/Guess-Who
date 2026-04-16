@@ -42,15 +42,24 @@ async function startGameForRoom(
     // All players must be ready (matchmade rooms auto-ready everyone)
     if (state.players.some((p: any) => !p.isReady)) return
 
-    // ── Charge 10 ⭐ per player for public/matchmade rooms ────────────────────
-    // Private lobbies already charged the host at creation (POST /rooms), so
-    // only public rooms (unranked matchmaking, special, ranked) debit here.
-    // The whole debit runs in a single transaction — if any player lacks the
+    // ── Charge 10 ⭐ per game ──────────────────────────────────────────────────
+    //
+    // Public/matchmade rooms: every player pays 10 ⭐ at the start of every
+    //   game (unranked matchmaking, special, ranked).
+    //
+    // Private lobbies: the HOST pays 10 ⭐ per game. The first game in a
+    //   lobby is covered by the commitment fee charged at POST /rooms, marked
+    //   via `state.hostPrepaid`. We consume that flag here for the first
+    //   start, and charge fresh on every subsequent start. `buildResetState`
+    //   intentionally drops the flag after game end so the host cannot farm
+    //   unlimited games on a single 10 ⭐ fee.
+    //
+    // The whole debit runs in a single transaction — if anyone lacks the
     // funds we abort the start entirely and tell the room who's short.
-    if (room.isPrivate === false) {
-      const playerIds: string[] = state.players.map((p: any) => p.userId)
-      let failedUserId: string | null = null
-      try {
+    let failedUserId: string | null = null
+    try {
+      if (room.isPrivate === false) {
+        const playerIds: string[] = state.players.map((p: any) => p.userId)
         await prisma.$transaction(async (tx) => {
           for (const uid of playerIds) {
             const debit = await tx.user.updateMany({
@@ -63,18 +72,34 @@ async function startGameForRoom(
             }
           }
         })
-      } catch {
-        log.warn({ roomId, failedUserId }, 'game start refused: insufficient stars')
-        io.to(`room:${roomId}`).emit('game:start:failed' as any, {
-          reason: 'INSUFFICIENT_STARS',
-          userId: failedUserId ?? '',
-          required: DAILY_COST,
+      } else if (state.hostPrepaid === true) {
+        // First game in this private lobby — the POST /rooms fee covers it.
+        // Consume the flag atomically before the game starts so concurrent
+        // starts can't double-spend the prepayment.
+        state.hostPrepaid = false
+        await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+      } else {
+        // Subsequent game in an existing private lobby — charge the host.
+        const debit = await prisma.user.updateMany({
+          where: { id: room.hostId, starCoins: { gte: DAILY_COST } },
+          data:  { starCoins: { decrement: DAILY_COST } },
         })
-        // Release the 10s lock immediately so the host can retry once the
-        // broke player leaves or tops up.
-        await (redis as any).del(startLockKey)
-        return
+        if (debit.count === 0) {
+          failedUserId = room.hostId
+          throw new Error('INSUFFICIENT_STARS')
+        }
       }
+    } catch {
+      log.warn({ roomId, failedUserId }, 'game start refused: insufficient stars')
+      io.to(`room:${roomId}`).emit('game:start:failed' as any, {
+        reason: 'INSUFFICIENT_STARS',
+        userId: failedUserId ?? '',
+        required: DAILY_COST,
+      })
+      // Release the 10s lock immediately so the host can retry once the
+      // broke player leaves or tops up.
+      await (redis as any).del(startLockKey)
+      return
     }
 
     // Assign roles
