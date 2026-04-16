@@ -524,9 +524,8 @@ export default {
     premium: 'Premium',
     free: 'Free',
     // Shop page — new keys for the coin store
-    subtitle: 'Buy coins, unlock cosmetics & more',
+    subtitle: 'Buy coins & unlock the season pass',
     tabCoins: '⭐ Star Coins',
-    tabCosmetics: '🎨 Cosmetics',
     tabSeason: '👑 Season Pass',
     packsTitle: 'Star Coin Packs',
     packsUnavailable: 'Coin packs are coming soon — payments are temporarily disabled.',
@@ -535,10 +534,6 @@ export default {
     earnStreak: '7-day streak: +100 ⭐ every 7 days.',
     earnGameReward: 'Play a game: +10 to +90 ⭐ depending on role & result.',
     earnPlayNow: 'Play a game',
-    cosmeticsTitle: 'Cosmetics',
-    cosmeticsEmpty: 'No cosmetics available yet — check back soon.',
-    purchaseSuccess: 'Purchased! The item is in your collection.',
-    purchaseFailed: 'Purchase failed.',
     seasonComingSoon: 'Season Pass coming soon.',
   },
   insufficientCoins: {
