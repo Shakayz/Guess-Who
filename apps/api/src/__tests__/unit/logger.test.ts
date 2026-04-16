@@ -18,7 +18,7 @@ describe('rootLogger', () => {
 
   it('carries the base fields (service, env)', () => {
     const bindings = rootLogger.bindings()
-    expect(bindings.service).toBe('imposter-api')
+    expect(bindings.service).toBe('red-handed-api')
     expect(bindings.env).toBeDefined()
   })
 })
@@ -28,7 +28,7 @@ describe('childLogger', () => {
     const child = childLogger('socket:room')
     const bindings = child.bindings()
     expect(bindings.name).toBe('socket:room')
-    expect(bindings.service).toBe('imposter-api')
+    expect(bindings.service).toBe('red-handed-api')
   })
 
   it('returns distinct instances for distinct names', () => {

@@ -19,8 +19,8 @@ RUN pnpm install --frozen-lockfile
 # ── Layer 2: build shared packages (cached until packages/* changes)
 COPY packages/shared ./packages/shared
 COPY packages/ui     ./packages/ui
-RUN pnpm --filter @imposter/shared build
-RUN pnpm --filter @imposter/ui     build
+RUN pnpm --filter @red-handed/shared build
+RUN pnpm --filter @red-handed/ui     build
 
 # ── Layer 3: copy web source (overridden by volume mount at runtime)
 COPY apps/web ./apps/web

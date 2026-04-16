@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io'
-import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
-import { shuffleArray } from '@imposter/shared'
+import type { ServerToClientEvents, ClientToServerEvents } from '@red-handed/shared'
+import { shuffleArray } from '@red-handed/shared'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
 import { childLogger } from '../../config/logger'
@@ -104,7 +104,7 @@ async function startGameForRoom(
 
     // Assign roles
     const players: any[] = shuffleArray([...state.players])
-    const imposterCount = Math.min(room.imposterCount, Math.floor(players.length / 3))
+    const redHandedCount = Math.min(room.redHandedCount, Math.floor(players.length / 3))
     const detectiveCount    = Math.max(0, state.detectiveCount    ?? (state.enableDetective   ? 1 : 0))
     const doubleAgentCount  = Math.max(0, state.doubleAgentCount  ?? (state.enableDoubleAgent ? 1 : 0))
     const guardianCount     = Math.max(0, state.guardianCount     ?? 0)
@@ -119,18 +119,18 @@ async function startGameForRoom(
     const kamikazeCount     = Math.min(2, Math.max(0, state.kamikazeCount    ?? 0))
     const corruptorCount    = Math.min(1, Math.max(0, state.corruptorCount   ?? 0))
     const inverterCount     = Math.min(1, Math.max(0, state.inverterCount    ?? 0))
-    // evilTwinsEnabled = 0 | 1. When enabled, uses exactly 2 slots (one villager, one imposter twin).
+    // evilTwinsEnabled = 0 | 1. When enabled, uses exactly 2 slots (one villager, one redHanded twin).
     const evilTwinsEnabled  = Math.min(1, Math.max(0, state.evilTwinsEnabled ?? 0))
     const evilTwinSlots     = evilTwinsEnabled * 2
 
-    // imposterCount is the TOTAL evil budget; special evil roles come from within it.
+    // redHandedCount is the TOTAL evil budget; special evil roles come from within it.
     const specialEvilCount = doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled
-    const normalImposters = Math.max(0, imposterCount - specialEvilCount)
+    const normalRedHanded = Math.max(0, redHandedCount - specialEvilCount)
 
     // Safety: total non-villager slots must not exceed player count.
-    // imposterCount already includes special evil roles, so don't double-count.
+    // redHandedCount already includes special evil roles, so don't double-count.
     const totalSpecial =
-      imposterCount +
+      redHandedCount +
       detectiveCount + guardianCount + mayorCount + jesterCount +
       judgeCount + revenantCount +
       evilTwinsEnabled // +1 for twin_villager (villager-side half)
@@ -139,28 +139,28 @@ async function startGameForRoom(
     }
 
     // Cumulative bounds — each role occupies a contiguous slice of the
-    // shuffled players array. normalImposters fills whatever is left after
-    // special evil roles are subtracted from imposterCount.
+    // shuffled players array. normalRedHanded fills whatever is left after
+    // special evil roles are subtracted from redHandedCount.
     const bounds = {
-      imposter:    normalImposters,
-      doubleAgent: normalImposters + doubleAgentCount,
-      infiltrator: normalImposters + doubleAgentCount + infiltratorCount,
-      kamikaze:    normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount,
-      corruptor:   normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount,
-      inverter:    normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount,
-      twinImposter: normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled,
-      detective:   normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount,
-      guardian:    normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount,
-      mayor:       normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount,
-      judge:       normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount,
-      revenant:    normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount,
-      twinVillager: normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount + evilTwinsEnabled,
-      jester:      normalImposters + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount + evilTwinsEnabled + jesterCount,
+      redHanded:    normalRedHanded,
+      doubleAgent: normalRedHanded + doubleAgentCount,
+      infiltrator: normalRedHanded + doubleAgentCount + infiltratorCount,
+      kamikaze:    normalRedHanded + doubleAgentCount + infiltratorCount + kamikazeCount,
+      corruptor:   normalRedHanded + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount,
+      inverter:    normalRedHanded + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount,
+      twinRedHanded: normalRedHanded + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled,
+      detective:   normalRedHanded + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount,
+      guardian:    normalRedHanded + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount,
+      mayor:       normalRedHanded + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount,
+      judge:       normalRedHanded + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount,
+      revenant:    normalRedHanded + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount,
+      twinVillager: normalRedHanded + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount + evilTwinsEnabled,
+      jester:      normalRedHanded + doubleAgentCount + infiltratorCount + kamikazeCount + corruptorCount + inverterCount + evilTwinsEnabled + detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount + evilTwinsEnabled + jesterCount,
     }
     let roleIdx = 0
     players.forEach((p) => {
-      if (roleIdx < bounds.imposter) {
-        p.role = 'imposter'
+      if (roleIdx < bounds.redHanded) {
+        p.role = 'red_handed'
       } else if (roleIdx < bounds.doubleAgent) {
         p.role = 'double_agent'
       } else if (roleIdx < bounds.infiltrator) {
@@ -173,8 +173,8 @@ async function startGameForRoom(
         p.role = 'inverter'
         p.inverterUsed = false
         p.inverterActive = false
-      } else if (roleIdx < bounds.twinImposter) {
-        p.role = 'twin_imposter'
+      } else if (roleIdx < bounds.twinRedHanded) {
+        p.role = 'twin_red_handed'
       } else if (roleIdx < bounds.detective) {
         p.role = 'detective'
         p.detectiveRevealUsed = false
@@ -202,7 +202,7 @@ async function startGameForRoom(
     // Evil twins pairing: link the two twins so each knows the other.
     if (evilTwinsEnabled) {
       const twinV = players.find((p: any) => p.role === 'twin_villager')
-      const twinI = players.find((p: any) => p.role === 'twin_imposter')
+      const twinI = players.find((p: any) => p.role === 'twin_red_handed')
       if (twinV && twinI) {
         twinV.twinPartnerUserId = twinI.userId
         twinI.twinPartnerUserId = twinV.userId
@@ -247,7 +247,7 @@ async function startGameForRoom(
       }
     } catch { /* use fallback */ }
 
-    // Randomly swap which word goes to villagers vs imposters
+    // Randomly swap which word goes to villagers vs redHanded
     if (Math.random() < 0.5) {
       wordPair = { wordA: wordPair.wordB, wordB: wordPair.wordA }
     }
@@ -261,7 +261,7 @@ async function startGameForRoom(
         },
       })
       const round = await tx.round.create({
-        data: { gameId: game.id, roundNumber: 1, villagerWord: wordPair.wordA, imposterWord: wordPair.wordB },
+        data: { gameId: game.id, roundNumber: 1, villagerWord: wordPair.wordA, redHandedWord: wordPair.wordB },
       })
       await tx.gameParticipation.createMany({
         data: players.map((p: any) => ({
@@ -277,7 +277,7 @@ async function startGameForRoom(
     state.gameId = game.id
     state.currentRound = 1
     state.villagerWord = wordPair.wordA
-    state.imposterWord = wordPair.wordB
+    state.redHandedWord = wordPair.wordB
     state.rounds = [{ id: round.id, roundNumber: 1, votes: [], clues: [],
       speakingOrder: players.map((p: any) => p.userId) }]
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
@@ -295,7 +295,7 @@ async function startGameForRoom(
       currentRound: 1, maxRounds: state.maxRounds ?? 0,
       createdAt: room.createdAt.toISOString(),
       settings: {
-        maxPlayers: room.maxPlayers, minPlayers: 3, imposterCount: room.imposterCount,
+        maxPlayers: room.maxPlayers, minPlayers: 3, redHandedCount: room.redHandedCount,
         speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
         wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
@@ -315,19 +315,19 @@ async function startGameForRoom(
       },
     } as any)
 
-    // Roles that get the IMPOSTER word. All other roles get the villager word.
-    // Kamikaze, corruptor, inverter, twin_imposter play on the imposter team
-    // and must know the imposter word. Infiltrator blends in and plays imposter
+    // Roles that get the RED_HANDED word. All other roles get the villager word.
+    // Kamikaze, corruptor, inverter, twin_red_handed play on the redHanded team
+    // and must know the redHanded word. Infiltrator blends in and plays redHanded
     // team but receives the VILLAGER word (the whole point of the role).
-    const imposterWordRoles = new Set([
-      'imposter', 'double_agent', 'kamikaze', 'corruptor', 'inverter', 'twin_imposter',
+    const redHandedWordRoles = new Set([
+      'red_handed', 'double_agent', 'kamikaze', 'corruptor', 'inverter', 'twin_red_handed',
     ])
 
     for (const playerData of players) {
-      const getsImposterWord = imposterWordRoles.has(playerData.role)
+      const getsRedHandedWord = redHandedWordRoles.has(playerData.role)
       const payload = {
         round: roundPayload as any,
-        yourWord: getsImposterWord ? wordPair.wordB : wordPair.wordA,
+        yourWord: getsRedHandedWord ? wordPair.wordB : wordPair.wordA,
         yourRole: playerData.role,
         yourVillagerWord: playerData.role === 'double_agent' ? wordPair.wordA : undefined,
       }
@@ -489,12 +489,12 @@ export function registerRoomHandlers(
 
           // Re-send word/role + full phase sync if game is already in progress
           if (state.status === 'in_progress' || state.status === 'voting') {
-            const getsImposterWord = alreadyIn.role === 'imposter' || alreadyIn.role === 'double_agent'
+            const getsRedHandedWord = alreadyIn.role === 'red_handed' || alreadyIn.role === 'double_agent'
             const rounds: any[] = state.rounds ?? []
             const currentRoundData = rounds.find((r: any) => r.roundNumber === state.currentRound) ?? null
             socket.emit('game:started', {
               round: currentRoundData,
-              yourWord: getsImposterWord ? state.imposterWord : state.villagerWord,
+              yourWord: getsRedHandedWord ? state.redHandedWord : state.villagerWord,
               yourRole: alreadyIn.role,
               yourVillagerWord: alreadyIn.role === 'double_agent' ? state.villagerWord : undefined,
             })
@@ -537,7 +537,7 @@ export function registerRoomHandlers(
         settings: {
           maxPlayers: room.maxPlayers,
           minPlayers: 3,
-          imposterCount: room.imposterCount,
+          redHandedCount: room.redHandedCount,
           speakingTimeSeconds: room.speakingTimeSeconds,
           votingTimeSeconds: room.votingTimeSeconds,
           wordPackId: room.wordPackId,
@@ -656,30 +656,30 @@ export function registerRoomHandlers(
     // Min 3 players (was incorrectly clamped to 4 here, even though the rest
     // of the codebase advertises 3 as the minimum).
     if (typeof newSettings.maxPlayers === 'number')          dbUpdate.maxPlayers          = Math.min(20, Math.max(3,   newSettings.maxPlayers))
-    if (typeof newSettings.imposterCount === 'number')       dbUpdate.imposterCount       = Math.min(6,  Math.max(1,   newSettings.imposterCount))
+    if (typeof newSettings.redHandedCount === 'number')       dbUpdate.redHandedCount       = Math.min(6,  Math.max(1,   newSettings.redHandedCount))
     if (typeof newSettings.speakingTimeSeconds === 'number') dbUpdate.speakingTimeSeconds = Math.min(120, Math.max(10, newSettings.speakingTimeSeconds))
     if (typeof newSettings.votingTimeSeconds === 'number')   dbUpdate.votingTimeSeconds   = Math.min(120, Math.max(15, newSettings.votingTimeSeconds))
     if (typeof newSettings.language === 'string' && SUPPORTED_LOCALES.includes(newSettings.language)) dbUpdate.language = newSettings.language
 
-    // Ranked games are locked at 10 players + 3 imposters. Any client
+    // Ranked games are locked at 10 players + 3 redHanded. Any client
     // attempt to change these values is ignored.
     if (state.gameMode === 'ranked') {
       dbUpdate.maxPlayers    = 10
-      dbUpdate.imposterCount = 3
+      dbUpdate.redHandedCount = 3
     }
 
-    // Enforce the 1/3 imposter rule on the resolved (final) values, no matter
-    // which field changed in this update. imposterCount must be ≤ floor(maxPlayers/3).
+    // Enforce the 1/3 redHanded rule on the resolved (final) values, no matter
+    // which field changed in this update. redHandedCount must be ≤ floor(maxPlayers/3).
     const finalMaxPlayers = (dbUpdate.maxPlayers as number | undefined) ?? room.maxPlayers
-    const finalImposterCount = (dbUpdate.imposterCount as number | undefined) ?? room.imposterCount
+    const finalRedHandedCount = (dbUpdate.redHandedCount as number | undefined) ?? room.redHandedCount
     const evilCap = Math.max(1, Math.floor(finalMaxPlayers / 3))
-    const cappedImposters = Math.max(1, Math.min(finalImposterCount, evilCap))
-    if (cappedImposters !== finalImposterCount) {
-      dbUpdate.imposterCount = cappedImposters
+    const cappedRedHanded = Math.max(1, Math.min(finalRedHandedCount, evilCap))
+    if (cappedRedHanded !== finalRedHandedCount) {
+      dbUpdate.redHandedCount = cappedRedHanded
     }
 
-    // In special mode, enforce that special evil roles fit within imposterCount.
-    // imposterCount is the total evil budget; specials must not exceed it.
+    // In special mode, enforce that special evil roles fit within redHandedCount.
+    // redHandedCount is the total evil budget; specials must not exceed it.
     if (state.gameMode === 'special') {
       const specialKeys = [
         'doubleAgentCount',
@@ -698,12 +698,12 @@ export function registerRoomHandlers(
         + (state.inverterCount ?? 0)
         + (state.evilTwinsEnabled ?? 0)
 
-      if (sumSpecialEvil > cappedImposters) {
-        // Reduce in reverse priority order until specials fit within imposterCount.
-        for (let i = specialKeys.length - 1; i >= 0 && sumSpecialEvil > cappedImposters; i--) {
+      if (sumSpecialEvil > cappedRedHanded) {
+        // Reduce in reverse priority order until specials fit within redHandedCount.
+        for (let i = specialKeys.length - 1; i >= 0 && sumSpecialEvil > cappedRedHanded; i--) {
           const key = specialKeys[i]
           const current = (state as any)[key] ?? 0
-          const excess = sumSpecialEvil - cappedImposters
+          const excess = sumSpecialEvil - cappedRedHanded
           const reduceBy = Math.min(current, excess)
           ;(state as any)[key] = current - reduceBy
           sumSpecialEvil -= reduceBy
@@ -721,7 +721,7 @@ export function registerRoomHandlers(
       maxRounds: state.maxRounds ?? 0,
       createdAt: updatedRoom.createdAt.toISOString(),
       settings: {
-        maxPlayers: updatedRoom.maxPlayers, minPlayers: 3, imposterCount: updatedRoom.imposterCount,
+        maxPlayers: updatedRoom.maxPlayers, minPlayers: 3, redHandedCount: updatedRoom.redHandedCount,
         speakingTimeSeconds: updatedRoom.speakingTimeSeconds, votingTimeSeconds: updatedRoom.votingTimeSeconds,
         wordPackId: updatedRoom.wordPackId, isPrivate: updatedRoom.isPrivate, language: updatedRoom.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
@@ -770,7 +770,7 @@ export function registerRoomHandlers(
       maxRounds: state.maxRounds ?? 0,
       createdAt: room.createdAt.toISOString(),
       settings: {
-        maxPlayers: room.maxPlayers, minPlayers: 3, imposterCount: room.imposterCount,
+        maxPlayers: room.maxPlayers, minPlayers: 3, redHandedCount: room.redHandedCount,
         speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
         wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
@@ -836,7 +836,7 @@ export function registerRoomHandlers(
       await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
       // ── Infiltrator dissimulation ──
-      // The Infiltrator plays on the imposter team but is shown as a plain
+      // The Infiltrator plays on the redHanded team but is shown as a plain
       // 'villager' to the Detective. Without this, the Infiltrator would be
       // trivially outed.
       const revealedRole = target.role === 'infiltrator' ? 'villager' : target.role

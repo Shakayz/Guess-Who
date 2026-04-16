@@ -37,7 +37,7 @@ vi.mock('ioredis', () => ({
 // ─── Now import the module under test ──────────────────────────────────────
 
 import { startLpDecayWorker, scheduleLpDecayJob } from '@/jobs/lpDecay'
-import { LP_DECAY, getTierFromLP } from '@imposter/shared'
+import { LP_DECAY, getTierFromLP } from '@red-handed/shared'
 
 // Cast prisma to access vi.fn() helpers
 const prismaMock = prisma as any

@@ -14,8 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../../lib/api'
-import { RANK_CONFIG } from '@imposter/shared'
-import type { RankTier } from '@imposter/shared'
+import { RANK_CONFIG } from '@red-handed/shared'
+import type { RankTier } from '@red-handed/shared'
 import { useResponsive } from '../../../lib/responsive'
 
 const REPORT_REASONS = [

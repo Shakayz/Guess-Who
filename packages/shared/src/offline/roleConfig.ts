@@ -14,7 +14,7 @@
  */
 export type OfflineRole =
   | 'villager'
-  | 'imposter'
+  | 'red_handed'
   | 'detective'
   | 'doubleAgent'
   | 'guardian'
@@ -27,9 +27,9 @@ export type OfflineRole =
   | 'corruptor'
   | 'inverter'
   | 'twinVillager'
-  | 'twinImposter'
+  | 'twinRedHanded'
 
-export type OfflineTeam = 'villager' | 'imposter' | 'pair' | 'neutral'
+export type OfflineTeam = 'villager' | 'red_handed' | 'pair' | 'neutral'
 
 /** Role accent colour. Matches Tailwind palette names so consumers can plug
  *  it directly into their own classname builders without a translation table. */
@@ -61,15 +61,15 @@ export interface OfflineRoleDef {
   i18nInstructionKey: string
 }
 
-/** Roles that play for the imposter team (know the imposter word). */
+/** Roles that play for the redHanded team (know the redHanded word). */
 export const EVIL_OFFLINE_ROLES: readonly OfflineRole[] = [
-  'imposter',
+  'red_handed',
   'doubleAgent',
   'infiltrator',
   'kamikaze',
   'corruptor',
   'inverter',
-  'twinImposter',
+  'twinRedHanded',
 ] as const
 
 export function isEvilOfflineRole(role: OfflineRole): boolean {
@@ -81,20 +81,20 @@ export const REVENANT_POST_DEATH_ROUNDS = 2
 
 export const OFFLINE_ROLE_REGISTRY: Readonly<Record<OfflineRole, OfflineRoleDef>> = {
   villager:     { key: 'villager',     team: 'villager', iconEmoji: '🟢', colorToken: 'emerald', i18nLabelKey: 'offline.villager',     i18nDescKey: 'offline.htpVillagerDesc',     i18nInstructionKey: 'offline.roleInstructionVillager' },
-  imposter:     { key: 'imposter',     team: 'imposter', iconEmoji: '🔴', colorToken: 'red',     i18nLabelKey: 'offline.imposter',     i18nDescKey: 'offline.htpImposterDesc',     i18nInstructionKey: 'offline.roleInstructionImposter' },
+  red_handed:   { key: 'red_handed',     team: 'red_handed', iconEmoji: '🔴', colorToken: 'red',     i18nLabelKey: 'offline.redHanded',     i18nDescKey: 'offline.htpRedHandedDesc',     i18nInstructionKey: 'offline.roleInstructionRedHanded' },
   detective:    { key: 'detective',    team: 'villager', iconEmoji: '🔍', colorToken: 'blue',    i18nLabelKey: 'offline.detective',    i18nDescKey: 'offline.htpDetectiveDesc',    i18nInstructionKey: 'offline.roleInstructionDetective' },
-  doubleAgent:  { key: 'doubleAgent',  team: 'imposter', iconEmoji: '🕵️', colorToken: 'amber',   i18nLabelKey: 'offline.doubleAgent',  i18nDescKey: 'offline.htpDoubleAgentDesc',  i18nInstructionKey: 'offline.roleInstructionDoubleAgent' },
+  doubleAgent:  { key: 'doubleAgent',  team: 'red_handed', iconEmoji: '🕵️', colorToken: 'amber',   i18nLabelKey: 'offline.doubleAgent',  i18nDescKey: 'offline.htpDoubleAgentDesc',  i18nInstructionKey: 'offline.roleInstructionDoubleAgent' },
   guardian:     { key: 'guardian',     team: 'villager', iconEmoji: '🛡️', colorToken: 'yellow',  i18nLabelKey: 'offline.guardian',     i18nDescKey: 'offline.htpGuardianDesc',     i18nInstructionKey: 'offline.roleInstructionGuardian' },
   mayor:        { key: 'mayor',        team: 'villager', iconEmoji: '👑', colorToken: 'indigo',  i18nLabelKey: 'offline.mayor',        i18nDescKey: 'offline.htpMayorDesc',        i18nInstructionKey: 'offline.roleInstructionMayor' },
   judge:        { key: 'judge',        team: 'villager', iconEmoji: '⚖️', colorToken: 'emerald', i18nLabelKey: 'offline.judge',        i18nDescKey: 'offline.htpJudgeDesc',        i18nInstructionKey: 'offline.roleInstructionJudge' },
   revenant:     { key: 'revenant',     team: 'villager', iconEmoji: '👻', colorToken: 'teal',    i18nLabelKey: 'offline.revenant',     i18nDescKey: 'offline.htpRevenantDesc',     i18nInstructionKey: 'offline.roleInstructionRevenant' },
-  infiltrator:  { key: 'infiltrator',  team: 'imposter', iconEmoji: '🥷', colorToken: 'fuchsia', i18nLabelKey: 'offline.infiltrator',  i18nDescKey: 'offline.htpInfiltratorDesc',  i18nInstructionKey: 'offline.roleInstructionInfiltrator' },
+  infiltrator:  { key: 'infiltrator',  team: 'red_handed', iconEmoji: '🥷', colorToken: 'fuchsia', i18nLabelKey: 'offline.infiltrator',  i18nDescKey: 'offline.htpInfiltratorDesc',  i18nInstructionKey: 'offline.roleInstructionInfiltrator' },
   jester:       { key: 'jester',       team: 'neutral',  iconEmoji: '🃏', colorToken: 'pink',    i18nLabelKey: 'offline.jester',       i18nDescKey: 'offline.htpJesterDesc',       i18nInstructionKey: 'offline.roleInstructionJester' },
-  kamikaze:     { key: 'kamikaze',     team: 'imposter', iconEmoji: '💥', colorToken: 'red',     i18nLabelKey: 'offline.kamikaze',     i18nDescKey: 'offline.htpKamikazeDesc',     i18nInstructionKey: 'offline.roleInstructionKamikaze' },
-  corruptor:    { key: 'corruptor',    team: 'imposter', iconEmoji: '🕷️', colorToken: 'orange',  i18nLabelKey: 'offline.corruptor',    i18nDescKey: 'offline.htpCorruptorDesc',    i18nInstructionKey: 'offline.roleInstructionCorruptor' },
-  inverter:     { key: 'inverter',     team: 'imposter', iconEmoji: '🔄', colorToken: 'rose',    i18nLabelKey: 'offline.inverter',     i18nDescKey: 'offline.htpInverterDesc',     i18nInstructionKey: 'offline.roleInstructionInverter' },
+  kamikaze:     { key: 'kamikaze',     team: 'red_handed', iconEmoji: '💥', colorToken: 'red',     i18nLabelKey: 'offline.kamikaze',     i18nDescKey: 'offline.htpKamikazeDesc',     i18nInstructionKey: 'offline.roleInstructionKamikaze' },
+  corruptor:    { key: 'corruptor',    team: 'red_handed', iconEmoji: '🕷️', colorToken: 'orange',  i18nLabelKey: 'offline.corruptor',    i18nDescKey: 'offline.htpCorruptorDesc',    i18nInstructionKey: 'offline.roleInstructionCorruptor' },
+  inverter:     { key: 'inverter',     team: 'red_handed', iconEmoji: '🔄', colorToken: 'rose',    i18nLabelKey: 'offline.inverter',     i18nDescKey: 'offline.htpInverterDesc',     i18nInstructionKey: 'offline.roleInstructionInverter' },
   twinVillager: { key: 'twinVillager', team: 'pair',     iconEmoji: '👯', colorToken: 'purple',  i18nLabelKey: 'offline.twinVillager', i18nDescKey: 'offline.htpEvilTwinsDesc',    i18nInstructionKey: 'offline.roleInstructionTwinVillager' },
-  twinImposter: { key: 'twinImposter', team: 'pair',     iconEmoji: '👯', colorToken: 'purple',  i18nLabelKey: 'offline.twinImposter', i18nDescKey: 'offline.htpEvilTwinsDesc',    i18nInstructionKey: 'offline.roleInstructionTwinImposter' },
+  twinRedHanded: { key: 'twinRedHanded', team: 'pair',     iconEmoji: '👯', colorToken: 'purple',  i18nLabelKey: 'offline.twinRedHanded', i18nDescKey: 'offline.htpEvilTwinsDesc',    i18nInstructionKey: 'offline.roleInstructionTwinRedHanded' },
 }
 
 /** Roles grouped by team for the lobby steppers and how-to-play accordion.
@@ -107,7 +107,7 @@ export const VILLAGER_OFFLINE_ROLES: readonly OfflineRole[] = [
   'revenant',
 ] as const
 
-export const IMPOSTER_OFFLINE_ROLES: readonly OfflineRole[] = [
+export const RED_HANDED_OFFLINE_ROLES: readonly OfflineRole[] = [
   'doubleAgent',
   'infiltrator',
   'kamikaze',
@@ -118,5 +118,5 @@ export const IMPOSTER_OFFLINE_ROLES: readonly OfflineRole[] = [
 export const NEUTRAL_OFFLINE_ROLES: readonly OfflineRole[] = ['jester'] as const
 
 /** A `Pair` slot consumes one player from each side; UI shows it as a single
- *  toggle ("Evil Twins") that becomes the twin_imposter + twin_villager duo. */
-export const PAIR_OFFLINE_ROLES: readonly OfflineRole[] = ['twinImposter', 'twinVillager'] as const
+ *  toggle ("Evil Twins") that becomes the twin_red_handed + twin_villager duo. */
+export const PAIR_OFFLINE_ROLES: readonly OfflineRole[] = ['twinRedHanded', 'twinVillager'] as const

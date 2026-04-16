@@ -106,7 +106,7 @@ function DeepLinkHandler() {
     const parsed = Linking.parse(url)
     const { hostname, path, queryParams } = parsed
 
-    // Handle imposter://lobby/{code}
+    // Handle redhanded://lobby/{code}
     if (hostname === 'lobby' && path) {
       const code = path.replace(/^\//, '')
       if (code && token) {
@@ -115,7 +115,7 @@ function DeepLinkHandler() {
       return
     }
 
-    // Handle imposter://game/{code}
+    // Handle redhanded://game/{code}
     if (hostname === 'game' && path) {
       const code = path.replace(/^\//, '')
       if (code && token) {
@@ -124,7 +124,7 @@ function DeepLinkHandler() {
       return
     }
 
-    // Handle imposter://reset-password?token=xxx
+    // Handle redhanded://reset-password?token=xxx
     if (hostname === 'reset-password') {
       const resetToken = queryParams?.token as string | undefined
       if (resetToken) {

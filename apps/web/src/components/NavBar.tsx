@@ -60,7 +60,7 @@ export function NavBar() {
       <div className="flex items-center gap-5">
         <button onClick={() => navigate('/')} className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-base">🎭</div>
-          <span className="font-bold text-white tracking-tight">Imposter</span>
+          <span className="font-bold text-white tracking-tight">Red Handed</span>
         </button>
         <nav role="navigation" aria-label="Main navigation" className="hidden md:flex items-center gap-1 lg:gap-2">
           {NAV_PATHS.map((path) => {

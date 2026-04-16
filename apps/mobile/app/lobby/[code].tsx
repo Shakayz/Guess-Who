@@ -20,12 +20,12 @@ import {
   WORD_CATEGORIES,
   ZERO_SPECIAL_COUNTS,
   autoReduceOverflow,
-  clampImposterCount,
+  clampRedHandedCount,
   computeMaxRoleCounts,
   isNeutralUnlocked,
-  maxImpostersFor,
-} from '@imposter/shared'
-import type { Room, GameMode, WordCategory, SpecialRoleCounts } from '@imposter/shared'
+  maxRedHandedFor,
+} from '@red-handed/shared'
+import type { Room, GameMode, WordCategory, SpecialRoleCounts } from '@red-handed/shared'
 import { useResponsive } from '../../lib/responsive'
 import { createLogger } from '../../lib/logger'
 import { SoundManager } from '../../lib/sounds'
@@ -77,7 +77,7 @@ function NumStepper({
 }
 
 // ─── RoleStepper ─────────────────────────────────────────────────────────────
-// Single special-role row used by villager / imposter / pair / neutral
+// Single special-role row used by villager / redHanded / pair / neutral
 // sections. Mirrors the web `RoleStepper` shape with NativeWind classes.
 
 const ROLE_STEPPER_ACCENT = {
@@ -219,7 +219,7 @@ function RoleGuideRow({
 
 interface Settings {
   maxPlayers: number
-  imposterCount: number
+  redHandedCount: number
   speakingTimeSeconds: number
   votingTimeSeconds: number
   maxRounds: number
@@ -355,7 +355,7 @@ function SettingsPanel({
       {/* Special Roles (special mode only) */}
       {settings.gameMode === 'special' && (() => {
         const counts = settingsToCounts(settings)
-        const max = computeMaxRoleCounts(settings.maxPlayers, settings.imposterCount, counts)
+        const max = computeMaxRoleCounts(settings.maxPlayers, settings.redHandedCount, counts)
         const neutralUnlocked = isNeutralUnlocked(settings.maxPlayers)
         const neutralLockReason = neutralUnlocked ? null : 'Unlocked at 10+ players.'
         return (
@@ -370,7 +370,7 @@ function SettingsPanel({
               <RoleStepper
                 icon="🔍"
                 label="Detective"
-                description="Each round, secretly checks if a chosen player is an imposter."
+                description="Each round, secretly checks if a chosen player is an redHanded."
                 value={settings.detectiveCount}
                 max={max.detective}
                 onChange={(v) => onChange({ ...settings, detectiveCount: v })}
@@ -414,15 +414,15 @@ function SettingsPanel({
               />
             </View>
 
-            {/* Imposter side */}
+            {/* RedHanded side */}
             <View className="gap-2">
               <Text className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
-                🔴 Imposters
+                🔴 RedHanded
               </Text>
               <RoleStepper
                 icon="🕵️"
                 label="Double Agent"
-                description="Pretends to be a villager but wins with the imposters."
+                description="Pretends to be a villager but wins with the redHanded."
                 value={settings.doubleAgentCount}
                 max={max.doubleAgent}
                 onChange={(v) => onChange({ ...settings, doubleAgentCount: v })}
@@ -431,7 +431,7 @@ function SettingsPanel({
               <RoleStepper
                 icon="🥷"
                 label="Infiltrator"
-                description="An extra imposter who starts knowing the villager word."
+                description="An extra redHanded who starts knowing the villager word."
                 value={settings.infiltratorCount}
                 max={max.infiltrator}
                 onChange={(v) => onChange({ ...settings, infiltratorCount: v })}
@@ -474,7 +474,7 @@ function SettingsPanel({
               <RoleStepper
                 icon="👯"
                 label="Evil Twins"
-                description="One secret villager twin + one secret imposter twin (counts as 2 players)."
+                description="One secret villager twin + one secret redHanded twin (counts as 2 players)."
                 value={settings.evilTwinsEnabled}
                 max={max.evilTwins}
                 onChange={(v) => onChange({ ...settings, evilTwinsEnabled: v })}
@@ -568,13 +568,13 @@ function SettingsPanel({
           min={3}
           max={20}
           onChange={(v) => {
-            // Auto-clamp imposters and reduce evil-side overflow when player count drops.
-            const nextImposters = clampImposterCount(v, settings.imposterCount)
-            const reduced = autoReduceOverflow(v, nextImposters, settingsToCounts(settings))
+            // Auto-clamp redHanded and reduce evil-side overflow when player count drops.
+            const nextRedHanded = clampRedHandedCount(v, settings.redHandedCount)
+            const reduced = autoReduceOverflow(v, nextRedHanded, settingsToCounts(settings))
             onChange({
               ...settings,
               maxPlayers: v,
-              imposterCount: nextImposters,
+              redHandedCount: nextRedHanded,
               detectiveCount:   reduced.counts.detective,
               guardianCount:    reduced.counts.guardian,
               mayorCount:       reduced.counts.mayor,
@@ -591,16 +591,16 @@ function SettingsPanel({
           }}
         />
         <NumStepper
-          label="Imposters"
-          value={settings.imposterCount}
+          label="Red-Handed"
+          value={settings.redHandedCount}
           min={1}
-          max={maxImpostersFor(settings.maxPlayers)}
+          max={maxRedHandedFor(settings.maxPlayers)}
           onChange={(v) => {
-            const clamped = clampImposterCount(settings.maxPlayers, v)
+            const clamped = clampRedHandedCount(settings.maxPlayers, v)
             const reduced = autoReduceOverflow(settings.maxPlayers, clamped, settingsToCounts(settings))
             onChange({
               ...settings,
-              imposterCount: clamped,
+              redHandedCount: clamped,
               doubleAgentCount: reduced.counts.doubleAgent,
               infiltratorCount: reduced.counts.infiltrator,
               kamikazeCount:    reduced.counts.kamikaze,
@@ -702,7 +702,7 @@ interface Friend {
 
 const DEFAULT_SETTINGS: Settings = {
   maxPlayers: 10,
-  imposterCount: 2,
+  redHandedCount: 2,
   speakingTimeSeconds: 30,
   votingTimeSeconds: 30,
   maxRounds: 0,
@@ -752,7 +752,7 @@ export default function LobbyScreen() {
       gameMode: s.gameMode,
       categories: s.categories,
       maxPlayers: s.maxPlayers,
-      imposterCount: s.imposterCount,
+      redHandedCount: s.redHandedCount,
       speakingTimeSeconds: s.speakingTimeSeconds,
       votingTimeSeconds: s.votingTimeSeconds,
       maxRounds: s.maxRounds,
@@ -840,7 +840,7 @@ export default function LobbyScreen() {
         setSettings((prev) => ({
           ...prev,
           maxPlayers: r.settings.maxPlayers,
-          imposterCount: r.settings.imposterCount,
+          redHandedCount: r.settings.redHandedCount,
           speakingTimeSeconds: r.settings.speakingTimeSeconds,
           votingTimeSeconds: r.settings.votingTimeSeconds,
           maxRounds: rs.maxRounds ?? 0,
@@ -1233,7 +1233,7 @@ export default function LobbyScreen() {
             <Text className="text-neutral-700">·</Text>
             <Text className="text-xs text-neutral-500">{settings.maxPlayers} max</Text>
             <Text className="text-neutral-700">·</Text>
-            <Text className="text-xs text-neutral-500">{settings.imposterCount} imposters</Text>
+            <Text className="text-xs text-neutral-500">{settings.redHandedCount} redHanded</Text>
             {settings.maxRounds > 0 && (
               <>
                 <Text className="text-neutral-700">·</Text>
@@ -1353,15 +1353,15 @@ export default function LobbyScreen() {
                 desc="After being eliminated, continues to secretly cast votes for 2 more rounds as a ghost." />
             </View>
 
-            {/* Imposter roles */}
+            {/* RedHanded roles */}
             <View className="gap-2">
               <Text className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
-                🔴 Imposter Side
+                🔴 RedHanded Side
               </Text>
               <RoleGuideRow icon="🕵️" name="Double Agent" accent="red"
-                desc="Knows the imposters' word and plays for their team, but appears as a villager." />
+                desc="Knows the redHanded' word and plays for their team, but appears as a villager." />
               <RoleGuideRow icon="🥷" name="Infiltrator" accent="red"
-                desc="An imposter who knows the villager word. Appears as villager to the Detective." />
+                desc="An redHanded who knows the villager word. Appears as villager to the Detective." />
               <RoleGuideRow icon="💣" name="Kamikaze" accent="red"
                 desc="When voted out, picks one player to drag down with them — both are eliminated." />
               <RoleGuideRow icon="🧪" name="Corruptor" accent="red"
@@ -1376,7 +1376,7 @@ export default function LobbyScreen() {
                 ⚖️ Pair
               </Text>
               <RoleGuideRow icon="👯" name="Evil Twins" accent="amber"
-                desc="A linked pair — one villager, one imposter. They know each other. Both win if both survive to the end." />
+                desc="A linked pair — one villager, one redHanded. They know each other. Both win if both survive to the end." />
             </View>
 
             {/* Neutral */}

@@ -12,7 +12,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTranslation } from 'react-i18next'
 
-const TUTORIAL_STORAGE_KEY = 'imposter-tutorial-completed'
+const TUTORIAL_STORAGE_KEY = 'red-handed-tutorial-completed'
 
 /** Async version — resolves to true if the user has already completed the tutorial. */
 export async function hasTutorialCompleted(): Promise<boolean> {
@@ -203,12 +203,12 @@ function StepWelcome({ t }: { t: TFn }) {
       </View>
       <View>
         <Text className="text-2xl font-extrabold text-white text-center mb-2">
-          {t('tutorial.welcomeTitle', 'Welcome to Imposter!')}
+          {t('tutorial.welcomeTitle', 'Welcome to Red-Handed!')}
         </Text>
         <Text className="text-neutral-400 text-sm text-center leading-5">
           {t(
             'tutorial.welcomeDesc',
-            'A social deduction game where words are your weapon. Blend in or find the imposter — the choice is yours.',
+            'A social deduction game where words are your weapon. Blend in or find the redHanded — the choice is yours.',
           )}
         </Text>
       </View>
@@ -220,7 +220,7 @@ function StepWelcome({ t }: { t: TFn }) {
               {t('tutorial.welcomeVillagers', 'Villagers')}
             </Text>
             <Text className="text-xs text-neutral-500">
-              {t('tutorial.welcomeVillagersDesc', 'Know the secret word and must find the imposter')}
+              {t('tutorial.welcomeVillagersDesc', 'Know the secret word and must find the redHanded')}
             </Text>
           </View>
         </View>
@@ -228,10 +228,10 @@ function StepWelcome({ t }: { t: TFn }) {
           <Text style={{ fontSize: 22 }}>🔪</Text>
           <View className="flex-1">
             <Text className="text-sm font-semibold text-red-400">
-              {t('tutorial.welcomeImposters', 'Imposters')}
+              {t('tutorial.welcomeRedHanded', 'Red-Handed')}
             </Text>
             <Text className="text-xs text-neutral-500">
-              {t('tutorial.welcomeImpostersDesc', 'Have a different word and must blend in undetected')}
+              {t('tutorial.welcomeRedHandedDesc', 'Have a different word and must blend in undetected')}
             </Text>
           </View>
         </View>
@@ -262,7 +262,7 @@ function StepRoles({ t }: { t: TFn }) {
         <Text className="text-neutral-600 font-bold text-xs">vs</Text>
         <View className="flex-1 items-center px-3 py-3 rounded-xl bg-red-950/40 border border-red-800/40">
           <Text className="text-[10px] font-bold uppercase tracking-widest text-red-600 mb-1">
-            {t('tutorial.imposterWord', 'Imposter Word')}
+            {t('tutorial.redHandedWord', 'Red-Handed Word')}
           </Text>
           <Text className="text-base font-bold text-red-400">🍔 Burger</Text>
         </View>
@@ -271,7 +271,7 @@ function StepRoles({ t }: { t: TFn }) {
       <Text className="text-sm text-neutral-300 leading-5">
         {t(
           'tutorial.rolesExplain1',
-          'Everyone receives the same category but imposters get a different word. The words are similar, making it tricky!',
+          'Everyone receives the same category but redHanded get a different word. The words are similar, making it tricky!',
         )}
       </Text>
 
@@ -280,7 +280,7 @@ function StepRoles({ t }: { t: TFn }) {
         <Text className="text-xs text-amber-300/80 leading-4 flex-1">
           {t(
             'tutorial.rolesExplain2',
-            'Give clues about your word without saying it directly. If the imposter figures out the villager word, they can blend in perfectly!',
+            'Give clues about your word without saying it directly. If the redHanded figures out the villager word, they can blend in perfectly!',
           )}
         </Text>
       </View>
@@ -306,7 +306,7 @@ function StepPhases({ t }: { t: TFn }) {
       title: t('tutorial.phaseVotingTitle', 'Voting'),
       desc: t(
         'tutorial.phaseVotingDesc',
-        'Vote for who you think is the imposter. The player with the most votes is eliminated.',
+        'Vote for who you think is the redHanded. The player with the most votes is eliminated.',
       ),
       bg: 'bg-amber-950/40',
       border: 'border-amber-700/40',
@@ -440,7 +440,7 @@ function StepTips({ t }: { t: TFn }) {
     },
     {
       icon: '🤫',
-      text: t('tutorial.tipImposter', 'As imposter, listen carefully to villager clues to figure out their word.'),
+      text: t('tutorial.tipRedHanded', 'As red-handed, listen carefully to villager clues to figure out their word.'),
     },
     {
       icon: '🗳️',
@@ -478,7 +478,7 @@ function StepTips({ t }: { t: TFn }) {
         <View className="flex-row items-center gap-2 px-4 py-2 rounded-full bg-emerald-950/40 border border-emerald-800/40">
           <Text className="text-emerald-400 text-sm">✓</Text>
           <Text className="text-emerald-400 text-xs font-semibold">
-            {t('tutorial.readyMessage', "You're all set! Time to find the imposter.")}
+            {t('tutorial.readyMessage', "You're all set! Time to find the redHanded.")}
           </Text>
         </View>
       </View>

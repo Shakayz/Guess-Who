@@ -18,7 +18,7 @@ Every line carries these base fields so logs grep and filter cleanly:
 
 | Field     | Description                                                          |
 |-----------|----------------------------------------------------------------------|
-| `service` | Always `imposter-api`                                                |
+| `service` | Always `red-handed-api`                                                |
 | `env`     | `development` / `test` / `production` (from `NODE_ENV`)              |
 | `pid`     | Node process id — useful when running multiple workers               |
 | `name`    | Module namespace, e.g. `socket:room`, `prisma`, `lp-decay`, `push`   |
@@ -34,9 +34,9 @@ fields (`userId`, etc.) alongside the base set.
 Controlled by `LOG_LEVEL` (default is `info`, `silent` in tests):
 
 ```bash
-LOG_LEVEL=debug  pnpm --filter @imposter/api dev   # verbose
-LOG_LEVEL=warn   pnpm --filter @imposter/api dev   # only warnings & errors
-LOG_LEVEL=silent pnpm --filter @imposter/api dev   # everything off (used by tests)
+LOG_LEVEL=debug  pnpm --filter @red-handed/api dev   # verbose
+LOG_LEVEL=warn   pnpm --filter @red-handed/api dev   # only warnings & errors
+LOG_LEVEL=silent pnpm --filter @red-handed/api dev   # everything off (used by tests)
 ```
 
 ### Where the logs go
@@ -57,10 +57,10 @@ Set `LOG_TO_FILE=0` (or `false`) to force the file sink off in production.
 
 ```bash
 # Pretty stdout, no file — the default dev experience:
-pnpm --filter @imposter/api dev
+pnpm --filter @red-handed/api dev
 
 # Force file logging in dev too (useful for after-the-fact grepping):
-LOG_TO_FILE=1 pnpm --filter @imposter/api dev
+LOG_TO_FILE=1 pnpm --filter @red-handed/api dev
 
 # Tail the file:
 tail -f apps/api/logs/api.log
@@ -93,7 +93,7 @@ The production container writes to stdout **and** to `apps/api/logs/api.log`.
 - **stdout** is captured by the `awslogs` driver and forwarded to CloudWatch
   Logs under the log group configured in `infra/aws/` (30-day retention — see
   the infra README).
-- **Browse in the console:** AWS → CloudWatch → Log groups → `/ecs/imposter-api`
+- **Browse in the console:** AWS → CloudWatch → Log groups → `/ecs/red-handed-api`
   (or whatever your stack named it) → pick a stream by task id.
 - **Query with Logs Insights** — example: "every error in the last hour":
   ```
@@ -104,7 +104,7 @@ The production container writes to stdout **and** to `apps/api/logs/api.log`.
   ```
 - **CLI:**
   ```bash
-  aws logs tail /ecs/imposter-api --follow --since 15m
+  aws logs tail /ecs/red-handed-api --follow --since 15m
   ```
 
 #### 4. Quick filters (JSON output)
@@ -185,7 +185,7 @@ consistent prefix:
   land there. Filter by the `[module]` bracket to narrow scope.
 - Set the floor via `VITE_LOG_LEVEL` at build time:
   ```bash
-  VITE_LOG_LEVEL=debug pnpm --filter @imposter/web dev
+  VITE_LOG_LEVEL=debug pnpm --filter @red-handed/web dev
   ```
   Defaults to `info`.
 
@@ -202,7 +202,7 @@ prints them.
 
 ### Where to see them
 
-- **`pnpm --filter @imposter/mobile dev`** — the Metro terminal shows every
+- **`pnpm --filter @red-handed/mobile dev`** — the Metro terminal shows every
   log.
 - **Expo DevTools** → "Logs" tab.
 - **Device console:**
@@ -226,7 +226,7 @@ Example — verbose JSON logs streamed to both stdout and a custom file:
 NODE_ENV=production \
 LOG_LEVEL=debug \
 LOG_TO_FILE=1 \
-LOG_FILE=/var/log/imposter/api.log \
+LOG_FILE=/var/log/red-handed/api.log \
 node dist/index.js
 ```
 

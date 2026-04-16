@@ -78,11 +78,11 @@ vi.mock('../../lib/socket', () => ({
   getSocket: () => ({ on: mockSocketOn, off: mockSocketOff, emit: mockSocketEmit, connected: false }),
 }))
 
-vi.mock('@imposter/ui', () => ({
+vi.mock('@red-handed/ui', () => ({
   Avatar: ({ username }: { username: string }) => <div data-testid="avatar">{username}</div>,
 }))
 
-vi.mock('@imposter/shared', () => ({}))
+vi.mock('@red-handed/shared', () => ({}))
 
 import GamePage from '../../pages/GamePage'
 
@@ -152,9 +152,9 @@ describe('GamePage', () => {
     expect(mockSocketOff).toHaveBeenCalled()
   })
 
-  it('renders as imposter role', () => {
+  it('renders as redHanded role', () => {
     mockGameState.room = mockRoom
-    mockGameState.myRole = 'imposter'
+    mockGameState.myRole = 'red_handed'
     mockGameState.myWord = 'pasta'
     mockGameState.currentRound = mockRound
     render(<GamePage />)
@@ -203,8 +203,8 @@ describe('GamePage', () => {
       act(() => {
         roundEndedCall[1]({
           round: {
-            id: 'rnd1', roundNumber: 1, eliminatedPlayerId: 'u2', eliminatedRole: 'imposter',
-            wordReveal: { villagerWord: 'pizza', imposterWord: 'pasta' },
+            id: 'rnd1', roundNumber: 1, eliminatedPlayerId: 'u2', eliminatedRole: 'red_handed',
+            wordReveal: { villagerWord: 'pizza', redHandedWord: 'pasta' },
             votes: [{ voterId: 'u1', targetId: 'u2' }],
           },
           nextRound: null,
@@ -447,7 +447,7 @@ describe('GamePage', () => {
       act(() => {
         votingCall[1]({ timeSeconds: 30, players: [{ userId: 'u1' }, { userId: 'u2' }] })
       })
-      expect(screen.getByText('game.voteOutImposter')).toBeInTheDocument()
+      expect(screen.getByText('game.voteOutRedHanded')).toBeInTheDocument()
     }
     expect(document.body).toBeInTheDocument()
   })
@@ -465,7 +465,7 @@ describe('GamePage', () => {
           round: {
             id: 'rnd1', roundNumber: 1, eliminatedPlayerId: null,
             votes: [{ voterId: 'u1', targetId: 'u2' }, { voterId: 'u2', targetId: 'u1' }],
-            wordReveal: { villagerWord: 'pizza', imposterWord: 'pasta' },
+            wordReveal: { villagerWord: 'pizza', redHandedWord: 'pasta' },
           },
           nextRound: null,
         })
@@ -590,7 +590,7 @@ describe('GamePage', () => {
     mockGameState.myRole = 'detective'
     mockGameState.myWord = 'pizza'
     mockGameState.currentRound = mockRound
-    mockGameState.revealedPlayer = { userId: 'u2', username: 'opponent', role: 'imposter' }
+    mockGameState.revealedPlayer = { userId: 'u2', username: 'opponent', role: 'red_handed' }
     render(<GamePage />)
     // The detective reveal toast shows "🔍 opponent: [role]" in the same div
     const revealToast = document.querySelector('[style*="border-color"]')

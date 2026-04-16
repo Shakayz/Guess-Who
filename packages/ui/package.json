@@ -1,5 +1,5 @@
 {
-  "name": "@imposter/ui",
+  "name": "@red-handed/ui",
   "version": "0.0.1",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -19,7 +19,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@imposter/shared": "workspace:*"
+    "@red-handed/shared": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18",

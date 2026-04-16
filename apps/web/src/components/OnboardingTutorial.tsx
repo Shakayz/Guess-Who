@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const TUTORIAL_STORAGE_KEY = 'imposter-tutorial-completed'
+const TUTORIAL_STORAGE_KEY = 'red-handed-tutorial-completed'
 
 /** Returns true if the user has already completed (or dismissed) the tutorial. */
 export function hasTutorialCompleted(): boolean {
@@ -224,10 +224,10 @@ function StepWelcome() {
       </div>
       <div>
         <h2 className="text-2xl font-extrabold text-white mb-2">
-          {t('tutorial.welcomeTitle', 'Welcome to Imposter!')}
+          {t('tutorial.welcomeTitle', 'Welcome to Red-Handed!')}
         </h2>
         <p className="text-neutral-400 text-sm leading-relaxed max-w-xs mx-auto">
-          {t('tutorial.welcomeDesc', 'A social deduction game where words are your weapon. Blend in or find the imposter — the choice is yours.')}
+          {t('tutorial.welcomeDesc', 'A social deduction game where words are your weapon. Blend in or find the redHanded — the choice is yours.')}
         </p>
       </div>
       <div className="w-full mt-2 space-y-2">
@@ -241,7 +241,7 @@ function StepWelcome() {
               {t('tutorial.welcomeVillagers', 'Villagers')}
             </p>
             <p className="text-xs text-neutral-500">
-              {t('tutorial.welcomeVillagersDesc', 'Know the secret word and must find the imposter')}
+              {t('tutorial.welcomeVillagersDesc', 'Know the secret word and must find the redHanded')}
             </p>
           </div>
         </div>
@@ -252,10 +252,10 @@ function StepWelcome() {
           <span className="text-2xl animate-float-soft" style={{ animationDelay: '1s' }}>🔪</span>
           <div>
             <p className="text-sm font-semibold text-red-400">
-              {t('tutorial.welcomeImposters', 'Imposters')}
+              {t('tutorial.welcomeRedHanded', 'Red-Handed')}
             </p>
             <p className="text-xs text-neutral-500">
-              {t('tutorial.welcomeImpostersDesc', 'Have a different word and must blend in undetected')}
+              {t('tutorial.welcomeRedHandedDesc', 'Have a different word and must blend in undetected')}
             </p>
           </div>
         </div>
@@ -289,7 +289,7 @@ function StepRoles() {
         <span className="text-neutral-600 font-bold text-xs">vs</span>
         <div className="flex-1 text-center px-3 py-3 rounded-xl bg-red-950/40 border border-red-800/40">
           <p className="text-[10px] font-bold uppercase tracking-widest text-red-600 mb-1">
-            {t('tutorial.imposterWord', 'Imposter Word')}
+            {t('tutorial.redHandedWord', 'Red-Handed Word')}
           </p>
           <p className="text-lg font-bold text-red-400">🍔 Burger</p>
         </div>
@@ -297,12 +297,12 @@ function StepRoles() {
 
       <div className="space-y-2 mt-2">
         <p className="text-sm text-neutral-300 leading-relaxed">
-          {t('tutorial.rolesExplain1', 'Everyone receives the same category but imposters get a different word. The words are similar, making it tricky!')}
+          {t('tutorial.rolesExplain1', 'Everyone receives the same category but redHanded get a different word. The words are similar, making it tricky!')}
         </p>
         <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-950/30 border border-amber-800/30">
           <span className="text-amber-400 mt-0.5 text-sm">💡</span>
           <p className="text-xs text-amber-300/80 leading-relaxed">
-            {t('tutorial.rolesExplain2', 'Give clues about your word without saying it directly. If the imposter figures out the villager word, they can blend in perfectly!')}
+            {t('tutorial.rolesExplain2', 'Give clues about your word without saying it directly. If the redHanded figures out the villager word, they can blend in perfectly!')}
           </p>
         </div>
       </div>
@@ -326,7 +326,7 @@ function StepPhases() {
     {
       icon: '🗳️',
       title: t('tutorial.phaseVotingTitle', 'Voting'),
-      desc: t('tutorial.phaseVotingDesc', 'Vote for who you think is the imposter. The player with the most votes is eliminated.'),
+      desc: t('tutorial.phaseVotingDesc', 'Vote for who you think is the redHanded. The player with the most votes is eliminated.'),
       color: 'amber',
       borderColor: 'border-amber-700/40',
       bgColor: 'bg-amber-950/40',
@@ -462,7 +462,7 @@ function StepTips() {
     },
     {
       icon: '🤫',
-      text: t('tutorial.tipImposter', "As imposter, listen carefully to villager clues to figure out their word."),
+      text: t('tutorial.tipRedHanded', "As redHanded, listen carefully to villager clues to figure out their word."),
     },
     {
       icon: '🗳️',
@@ -501,7 +501,7 @@ function StepTips() {
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-950/40 border border-emerald-800/40">
           <span className="text-emerald-400 text-sm">✓</span>
           <span className="text-emerald-400 text-xs font-semibold">
-            {t('tutorial.readyMessage', "You're all set! Time to find the imposter.")}
+            {t('tutorial.readyMessage', "You're all set! Time to find the redHanded.")}
           </span>
         </div>
       </div>

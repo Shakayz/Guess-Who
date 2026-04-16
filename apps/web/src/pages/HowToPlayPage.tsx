@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { TUTORIAL_COMPLETION_REWARD } from '@imposter/shared'
+import { TUTORIAL_COMPLETION_REWARD } from '@red-handed/shared'
 import { NavBar } from '../components/NavBar'
 
 export default function HowToPlayPage() {
@@ -58,8 +58,8 @@ export default function HowToPlayPage() {
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span>🔴</span>
-                  <span className="text-red-400 font-semibold">{t('offline.imposter')}</span>
-                  <span className="text-neutral-500">— {t('offline.htpImposterDesc')}</span>
+                  <span className="text-red-400 font-semibold">{t('offline.redHanded')}</span>
+                  <span className="text-neutral-500">— {t('offline.htpRedHandedDesc')}</span>
                 </div>
               </div>
             </div>
@@ -109,10 +109,10 @@ export default function HowToPlayPage() {
                 </div>
               </div>
 
-              {/* 🔴 Imposters */}
+              {/* 🔴 RedHanded */}
               <div className="space-y-1">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
-                  🔴 {t('offline.teamImposters', 'Imposters')}
+                  🔴 {t('offline.teamRedHanded', 'Red-Handed')}
                 </p>
                 <div className="ml-1 space-y-1">
                   <div className="flex items-start gap-2 text-xs">
@@ -123,7 +123,7 @@ export default function HowToPlayPage() {
                   <div className="flex items-start gap-2 text-xs">
                     <span className="shrink-0">🥷</span>
                     <span className="text-fuchsia-400 font-semibold shrink-0">{t('offline.infiltrator', 'Infiltrator')}</span>
-                    <span className="text-neutral-500">— {t('offline.htpInfiltratorDesc', 'Knows the villager word, but plays for the imposters. Appears as villager to the detective.')}</span>
+                    <span className="text-neutral-500">— {t('offline.htpInfiltratorDesc', 'Knows the villager word, but plays for the redHanded. Appears as villager to the detective.')}</span>
                   </div>
                   <div className="flex items-start gap-2 text-xs">
                     <span className="shrink-0">💥</span>
@@ -152,7 +152,7 @@ export default function HowToPlayPage() {
                   <div className="flex items-start gap-2 text-xs">
                     <span className="shrink-0">👯</span>
                     <span className="text-purple-300 font-semibold shrink-0">{t('offline.evilTwins', 'Evil Twins')}</span>
-                    <span className="text-neutral-500">— {t('offline.htpEvilTwinsDesc', 'A linked pair (one villager, one imposter) who win together if both survive — but lose individually if separated.')}</span>
+                    <span className="text-neutral-500">— {t('offline.htpEvilTwinsDesc', 'A linked pair (one villager, one redHanded) who win together if both survive — but lose individually if separated.')}</span>
                   </div>
                 </div>
               </div>

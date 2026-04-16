@@ -31,7 +31,7 @@ export default function TermsPage() {
 
             <Section title="1. Acceptance of Terms">
               <p>
-                By accessing or using Imposter (the "Game"), you agree to be bound by these Terms of Service. If you do
+                By accessing or using RedHanded (the "Game"), you agree to be bound by these Terms of Service. If you do
                 not agree to these terms, please do not use the Game.
               </p>
             </Section>
@@ -113,8 +113,8 @@ export default function TermsPage() {
             <Section title="9. Contact">
               <p>
                 If you have questions about these terms, please contact us at{' '}
-                <a href="mailto:support@imposter.game" className="text-brand-400 hover:text-brand-300 transition-colors">
-                  support@imposter.game
+                <a href="mailto:support@redhanded.game" className="text-brand-400 hover:text-brand-300 transition-colors">
+                  support@redhanded.game
                 </a>
                 .
               </p>

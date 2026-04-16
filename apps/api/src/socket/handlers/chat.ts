@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io'
-import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
+import type { ServerToClientEvents, ClientToServerEvents } from '@red-handed/shared'
 import { childLogger } from '../../config/logger'
 
 const log = childLogger('socket:chat')

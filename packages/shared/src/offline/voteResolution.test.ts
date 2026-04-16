@@ -15,7 +15,7 @@ const player = (name: string, role: VotablePlayer['role']): VotablePlayer => ({
 
 describe('applyCorruptorSilencing', () => {
   it('returns an empty set when no corruptor is alive', () => {
-    const alive = [player('Alice', 'villager'), player('Bob', 'imposter')]
+    const alive = [player('Alice', 'villager'), player('Bob', 'red_handed')]
     const silenced = applyCorruptorSilencing(alive, {})
     expect(silenced.size).toBe(0)
   })
@@ -24,7 +24,7 @@ describe('applyCorruptorSilencing', () => {
     const alive = [
       player('Alice', 'villager'),
       player('Eve', 'corruptor'),
-      player('Bob', 'imposter'),
+      player('Bob', 'red_handed'),
     ]
     const silenced = applyCorruptorSilencing(alive, { Eve: 'Alice' })
     expect(silenced.has('Alice')).toBe(true)
@@ -122,7 +122,7 @@ describe('findEligibleJudge', () => {
     const alive = [
       player('Alice', 'villager'),
       player('Judge', 'judge'),
-      player('Bob', 'imposter'),
+      player('Bob', 'red_handed'),
     ]
     const judge = findEligibleJudge(alive, ['Alice', 'Bob'])
     expect(judge?.name).toBe('Judge')
@@ -135,7 +135,7 @@ describe('findEligibleJudge', () => {
   })
 
   it('returns undefined when no judge is alive', () => {
-    const alive = [player('Alice', 'villager'), player('Bob', 'imposter')]
+    const alive = [player('Alice', 'villager'), player('Bob', 'red_handed')]
     expect(findEligibleJudge(alive, ['Alice', 'Bob'])).toBeUndefined()
   })
 })
@@ -143,7 +143,7 @@ describe('findEligibleJudge', () => {
 describe('finalizeRound', () => {
   const alive: VotablePlayer[] = [
     player('Alice', 'villager'),
-    player('Bob', 'imposter'),
+    player('Bob', 'red_handed'),
     player('Carol', 'villager'),
     player('Eve', 'corruptor'),
     player('Judge', 'judge'),

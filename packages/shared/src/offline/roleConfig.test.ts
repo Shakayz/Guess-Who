@@ -1,6 +1,6 @@
 import {
   EVIL_OFFLINE_ROLES,
-  IMPOSTER_OFFLINE_ROLES,
+  RED_HANDED_OFFLINE_ROLES,
   NEUTRAL_OFFLINE_ROLES,
   OFFLINE_ROLE_REGISTRY,
   PAIR_OFFLINE_ROLES,
@@ -14,7 +14,7 @@ describe('OFFLINE_ROLE_REGISTRY', () => {
   it('contains an entry for every role key', () => {
     const roles: OfflineRole[] = [
       'villager',
-      'imposter',
+      'red_handed',
       'detective',
       'doubleAgent',
       'guardian',
@@ -27,7 +27,7 @@ describe('OFFLINE_ROLE_REGISTRY', () => {
       'corruptor',
       'inverter',
       'twinVillager',
-      'twinImposter',
+      'twinRedHanded',
     ]
     for (const role of roles) {
       expect(OFFLINE_ROLE_REGISTRY[role]).toBeDefined()
@@ -38,7 +38,7 @@ describe('OFFLINE_ROLE_REGISTRY', () => {
   it('each registry entry has all required i18n keys and visual tokens', () => {
     for (const [key, def] of Object.entries(OFFLINE_ROLE_REGISTRY)) {
       expect(def.key).toBe(key)
-      expect(def.team).toMatch(/^(villager|imposter|pair|neutral)$/)
+      expect(def.team).toMatch(/^(villager|red_handed|pair|neutral)$/)
       expect(typeof def.iconEmoji).toBe('string')
       expect(def.iconEmoji.length).toBeGreaterThan(0)
       expect(typeof def.colorToken).toBe('string')
@@ -50,25 +50,25 @@ describe('OFFLINE_ROLE_REGISTRY', () => {
 
   it('assigns expected teams for each role', () => {
     expect(OFFLINE_ROLE_REGISTRY.villager.team).toBe('villager')
-    expect(OFFLINE_ROLE_REGISTRY.imposter.team).toBe('imposter')
+    expect(OFFLINE_ROLE_REGISTRY.red_handed.team).toBe('red_handed')
     expect(OFFLINE_ROLE_REGISTRY.detective.team).toBe('villager')
     expect(OFFLINE_ROLE_REGISTRY.guardian.team).toBe('villager')
     expect(OFFLINE_ROLE_REGISTRY.mayor.team).toBe('villager')
     expect(OFFLINE_ROLE_REGISTRY.judge.team).toBe('villager')
     expect(OFFLINE_ROLE_REGISTRY.revenant.team).toBe('villager')
-    expect(OFFLINE_ROLE_REGISTRY.doubleAgent.team).toBe('imposter')
-    expect(OFFLINE_ROLE_REGISTRY.infiltrator.team).toBe('imposter')
-    expect(OFFLINE_ROLE_REGISTRY.kamikaze.team).toBe('imposter')
-    expect(OFFLINE_ROLE_REGISTRY.corruptor.team).toBe('imposter')
-    expect(OFFLINE_ROLE_REGISTRY.inverter.team).toBe('imposter')
+    expect(OFFLINE_ROLE_REGISTRY.doubleAgent.team).toBe('red_handed')
+    expect(OFFLINE_ROLE_REGISTRY.infiltrator.team).toBe('red_handed')
+    expect(OFFLINE_ROLE_REGISTRY.kamikaze.team).toBe('red_handed')
+    expect(OFFLINE_ROLE_REGISTRY.corruptor.team).toBe('red_handed')
+    expect(OFFLINE_ROLE_REGISTRY.inverter.team).toBe('red_handed')
     expect(OFFLINE_ROLE_REGISTRY.jester.team).toBe('neutral')
     expect(OFFLINE_ROLE_REGISTRY.twinVillager.team).toBe('pair')
-    expect(OFFLINE_ROLE_REGISTRY.twinImposter.team).toBe('pair')
+    expect(OFFLINE_ROLE_REGISTRY.twinRedHanded.team).toBe('pair')
   })
 
   it('twins share a visual color token', () => {
     expect(OFFLINE_ROLE_REGISTRY.twinVillager.colorToken).toBe(
-      OFFLINE_ROLE_REGISTRY.twinImposter.colorToken,
+      OFFLINE_ROLE_REGISTRY.twinRedHanded.colorToken,
     )
   })
 
@@ -80,13 +80,13 @@ describe('OFFLINE_ROLE_REGISTRY', () => {
 
 describe('isEvilOfflineRole', () => {
   it.each([
-    ['imposter', true],
+    ['red_handed', true],
     ['doubleAgent', true],
     ['infiltrator', true],
     ['kamikaze', true],
     ['corruptor', true],
     ['inverter', true],
-    ['twinImposter', true],
+    ['twinRedHanded', true],
     ['villager', false],
     ['detective', false],
     ['guardian', false],
@@ -107,9 +107,9 @@ describe('team groupings', () => {
     }
   })
 
-  it('IMPOSTER_OFFLINE_ROLES contains only imposter-team roles', () => {
-    for (const role of IMPOSTER_OFFLINE_ROLES) {
-      expect(OFFLINE_ROLE_REGISTRY[role].team).toBe('imposter')
+  it('RED_HANDED_OFFLINE_ROLES contains only red-handed-team roles', () => {
+    for (const role of RED_HANDED_OFFLINE_ROLES) {
+      expect(OFFLINE_ROLE_REGISTRY[role].team).toBe('red_handed')
     }
   })
 
@@ -136,21 +136,21 @@ describe('team groupings', () => {
   it('special-role groups are disjoint (no role in two buckets)', () => {
     const all = [
       ...VILLAGER_OFFLINE_ROLES,
-      ...IMPOSTER_OFFLINE_ROLES,
+      ...RED_HANDED_OFFLINE_ROLES,
       ...NEUTRAL_OFFLINE_ROLES,
       ...PAIR_OFFLINE_ROLES,
     ]
     expect(new Set(all).size).toBe(all.length)
   })
 
-  it('special-role groups cover all non-base (non-villager/imposter) roles', () => {
+  it('special-role groups cover all non-base (non-villager/redHanded) roles', () => {
     const grouped = new Set<OfflineRole>([
       ...VILLAGER_OFFLINE_ROLES,
-      ...IMPOSTER_OFFLINE_ROLES,
+      ...RED_HANDED_OFFLINE_ROLES,
       ...NEUTRAL_OFFLINE_ROLES,
       ...PAIR_OFFLINE_ROLES,
     ])
-    const base: OfflineRole[] = ['villager', 'imposter']
+    const base: OfflineRole[] = ['villager', 'red_handed']
     const expected = (Object.keys(OFFLINE_ROLE_REGISTRY) as OfflineRole[]).filter(
       (r) => !base.includes(r),
     )

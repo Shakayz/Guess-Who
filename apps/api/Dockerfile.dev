@@ -18,14 +18,14 @@ RUN pnpm install --frozen-lockfile
 
 # ── Layer 2: build shared package (cached until packages/shared changes)
 COPY packages/shared ./packages/shared
-RUN pnpm --filter @imposter/shared build
+RUN pnpm --filter @red-handed/shared build
 
 # ── Layer 3: copy API source (overridden by volume mount at runtime)
 COPY apps/api ./apps/api
 
 # Generate Prisma client from schema bundled in the image.
 # Re-generated at startup too (see CMD) in case the mounted schema differs.
-RUN pnpm --filter @imposter/api exec prisma generate
+RUN pnpm --filter @red-handed/api exec prisma generate
 
 WORKDIR /app/apps/api
 

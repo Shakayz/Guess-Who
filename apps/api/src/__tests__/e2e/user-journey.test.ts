@@ -14,7 +14,7 @@ vi.mock('bcryptjs', () => ({
 }))
 
 // Mock the shared package's generateRoomCode
-vi.mock('@imposter/shared', () => ({
+vi.mock('@red-handed/shared', () => ({
   generateRoomCode: vi.fn().mockReturnValue('XYZABC'),
 }))
 
@@ -104,7 +104,7 @@ describe('E2E User Journey', () => {
       code: 'XYZABC',
       hostId: 'e2e-user-1',
       maxPlayers: 10,
-      imposterCount: 2,
+      redHandedCount: 2,
       speakingTimeSeconds: 30,
       votingTimeSeconds: 30,
       wordPackId: 'default',
@@ -120,7 +120,7 @@ describe('E2E User Journey', () => {
       payload: {
         settings: {
           maxPlayers: 10,
-          imposterCount: 2,
+          redHandedCount: 2,
           gameMode: 'normal',
         },
       },

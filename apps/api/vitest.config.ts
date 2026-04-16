@@ -16,7 +16,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@imposter/shared': path.resolve(__dirname, '../../packages/shared/src'),
+      '@red-handed/shared': path.resolve(__dirname, '../../packages/shared/src'),
     },
   },
 })
