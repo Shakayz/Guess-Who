@@ -30,7 +30,7 @@ export default function PrivacyPage() {
             </div>
 
             <Section title="1. Data We Collect">
-              <p>When you use Imposter, we collect the following information:</p>
+              <p>When you use Red Handed, we collect the following information:</p>
               <ul className="list-disc list-inside space-y-1 pl-2">
                 <li>
                   <strong className="text-white">Account information:</strong> username, email address, and hashed
@@ -135,8 +135,8 @@ export default function PrivacyPage() {
             <Section title="10. Contact">
               <p>
                 For privacy-related questions or data requests, please contact us at{' '}
-                <a href="mailto:privacy@imposter.game" className="text-brand-400 hover:text-brand-300 transition-colors">
-                  privacy@imposter.game
+                <a href="mailto:privacy@redhanded.game" className="text-brand-400 hover:text-brand-300 transition-colors">
+                  privacy@redhanded.game
                 </a>
                 .
               </p>

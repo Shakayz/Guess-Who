@@ -18,9 +18,9 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY packages/shared ./packages/shared
 COPY packages/ui ./packages/ui
 COPY apps/web ./apps/web
-RUN pnpm --filter @imposter/shared build
-RUN pnpm --filter @imposter/ui build
-RUN pnpm --filter @imposter/web build
+RUN pnpm --filter @red-handed/shared build
+RUN pnpm --filter @red-handed/ui build
+RUN pnpm --filter @red-handed/web build
 
 FROM nginx:alpine AS runner
 RUN apk add --no-cache curl

@@ -16,7 +16,7 @@ function emptyStats(): UserStats {
   return {
     totalGames: 0,
     totalWins: 0,
-    totalImposterWins: 0,
+    totalRedHandedWins: 0,
     totalVillagerWins: 0,
     totalJesterWins: 0,
     survivedWins: 0,

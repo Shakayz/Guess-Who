@@ -25,7 +25,7 @@ test.describe('Auth page', () => {
   test.beforeEach(async ({ page }) => {
     // Fresh load each test — guarantees we're signed out.
     await page.goto('/auth')
-    await expect(page.getByText('Imposter Game')).toBeVisible()
+    await expect(page.getByText('Red Handed')).toBeVisible()
   })
 
   test('renders sign-in form by default', async ({ page }) => {

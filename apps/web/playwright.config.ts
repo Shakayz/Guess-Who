@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
 /**
- * Playwright E2E config for the Imposter Game web app.
+ * Playwright E2E config for the Red Handed web app.
  *
  * WHAT THIS SUITE COVERS
  * ----------------------
@@ -16,9 +16,9 @@ import { defineConfig, devices } from '@playwright/test'
  *
  * RUNNING
  * -------
- *   pnpm --filter @imposter/web e2e          # headless
- *   pnpm --filter @imposter/web e2e:headed   # visible browser
- *   pnpm --filter @imposter/web e2e:ui       # Playwright UI runner
+ *   pnpm --filter @red-handed/web e2e          # headless
+ *   pnpm --filter @red-handed/web e2e:headed   # visible browser
+ *   pnpm --filter @red-handed/web e2e:ui       # Playwright UI runner
  */
 export default defineConfig({
   testDir: './e2e',

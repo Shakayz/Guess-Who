@@ -50,12 +50,12 @@ function makeGameState(overrides: Record<string, any> = {}) {
     status: 'voting',
     currentRound: 1,
     villagerWord: 'Apple',
-    imposterWord: 'Pear',
+    redHandedWord: 'Pear',
     players: [
       { userId: 'u1', username: 'Alice', role: 'villager', status: 'alive' },
       { userId: 'u2', username: 'Bob',   role: 'villager', status: 'alive' },
       { userId: 'u3', username: 'Carol', role: 'villager', status: 'alive' },
-      { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'alive' },
+      { userId: 'u4', username: 'Dave',  role: 'red_handed', status: 'alive' },
     ],
     rounds: [
       { id: 'round-1', roundNumber: 1, votes: [], clues: [], speakingOrder: ['u1', 'u2', 'u3', 'u4'] },
@@ -285,14 +285,14 @@ describe('clue:submit — word detection', () => {
     expect(clue.flaggedForWord).toBe(true)
   })
 
-  it('flags clue and eliminates imposter who says the imposter word', async () => {
+  it('flags clue and eliminates redHanded who says the redHanded word', async () => {
     const { eliminatePlayerForWord } = await import('../../socket/gameLoop')
     const io = makeIo()
-    const socket = makeSocket('u4', ['room:room-1']) // u4 is imposter
+    const socket = makeSocket('u4', ['room:room-1']) // u4 is redHanded
     const state = makeGameState({ status: 'in_progress' })
     mockRedis.get.mockResolvedValue(JSON.stringify(state))
     registerGameHandlers(io, socket)
-    // u4 is imposter; imposterWord = 'Pear'
+    // u4 is redHanded; redHandedWord = 'Pear'
     await socket._fire('clue:submit', 'Pear is delicious')
     expect(eliminatePlayerForWord).toHaveBeenCalled()
   })

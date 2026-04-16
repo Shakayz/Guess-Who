@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client'
 import { Platform } from 'react-native'
-import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
+import type { ServerToClientEvents, ClientToServerEvents } from '@red-handed/shared'
 import { useAuthStore } from '../store/auth'
 import { createLogger } from './logger'
 

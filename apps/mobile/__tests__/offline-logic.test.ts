@@ -4,14 +4,14 @@ import {
   EVIL_OFFLINE_ROLES,
   isEvilOfflineRole,
   VILLAGER_OFFLINE_ROLES,
-  IMPOSTER_OFFLINE_ROLES,
+  RED_HANDED_OFFLINE_ROLES,
   NEUTRAL_OFFLINE_ROLES,
   ZERO_SPECIAL_COUNTS,
   computeMaxRoleCounts,
-  maxImpostersFor,
-  clampImposterCount,
-  getDefaultImposterCount,
-} from '@imposter/shared'
+  maxRedHandedFor,
+  clampRedHandedCount,
+  getDefaultRedHandedCount,
+} from '@red-handed/shared'
 
 // Smoke-tests for the offline mode's core shared logic. The mobile app
 // leans on these helpers for setup validation, so a regression here would
@@ -26,15 +26,15 @@ describe('offline role registry (mobile entry point)', () => {
     }
   })
 
-  it('every special role in the registry is categorised (villager / imposter / neutral)', () => {
+  it('every special role in the registry is categorised (villager / redHanded / neutral)', () => {
     const bucketed = new Set([
       ...VILLAGER_OFFLINE_ROLES,
-      ...IMPOSTER_OFFLINE_ROLES,
+      ...RED_HANDED_OFFLINE_ROLES,
       ...NEUTRAL_OFFLINE_ROLES,
     ])
     // The *_OFFLINE_ROLES lists enumerate SPECIAL roles only — base villager,
-    // base imposter, and the paired twin roles are intentionally absent.
-    const BASE = new Set(['villager', 'imposter', 'twinVillager', 'twinImposter'])
+    // base redHanded, and the paired twin roles are intentionally absent.
+    const BASE = new Set(['villager', 'red_handed', 'twinVillager', 'twinRedHanded'])
     const uncategorised = Object.keys(OFFLINE_ROLE_REGISTRY).filter((r) => {
       if (BASE.has(r)) return false
       return !bucketed.has(r as any)
@@ -51,26 +51,26 @@ describe('offline role registry (mobile entry point)', () => {
     expect(isEvilOfflineRole('jester')).toBe(false)
   })
 
-  it('maxImpostersFor stays within the 1..6 band and grows with player count', () => {
-    expect(maxImpostersFor(3)).toBeGreaterThanOrEqual(1)
-    expect(maxImpostersFor(3)).toBeLessThanOrEqual(6)
-    expect(maxImpostersFor(20)).toBe(6)
-    expect(maxImpostersFor(9)).toBeGreaterThanOrEqual(maxImpostersFor(3))
+  it('maxRedHandedFor stays within the 1..6 band and grows with player count', () => {
+    expect(maxRedHandedFor(3)).toBeGreaterThanOrEqual(1)
+    expect(maxRedHandedFor(3)).toBeLessThanOrEqual(6)
+    expect(maxRedHandedFor(20)).toBe(6)
+    expect(maxRedHandedFor(9)).toBeGreaterThanOrEqual(maxRedHandedFor(3))
   })
 
-  it('clampImposterCount clamps to [1, maxImpostersFor(playerCount)]', () => {
+  it('clampRedHandedCount clamps to [1, maxRedHandedFor(playerCount)]', () => {
     const playerCount = 6
-    const max = maxImpostersFor(playerCount)
+    const max = maxRedHandedFor(playerCount)
     // Signature is (playerCount, requested).
-    expect(clampImposterCount(playerCount, 0)).toBe(1)
-    expect(clampImposterCount(playerCount, -5)).toBe(1)
-    expect(clampImposterCount(playerCount, max + 99)).toBe(max)
-    expect(clampImposterCount(playerCount, 1)).toBe(1)
+    expect(clampRedHandedCount(playerCount, 0)).toBe(1)
+    expect(clampRedHandedCount(playerCount, -5)).toBe(1)
+    expect(clampRedHandedCount(playerCount, max + 99)).toBe(max)
+    expect(clampRedHandedCount(playerCount, 1)).toBe(1)
   })
 
-  it('getDefaultImposterCount returns ≥ 1 across the supported player range', () => {
+  it('getDefaultRedHandedCount returns ≥ 1 across the supported player range', () => {
     for (let p = 3; p <= 20; p++) {
-      expect(getDefaultImposterCount(p)).toBeGreaterThanOrEqual(1)
+      expect(getDefaultRedHandedCount(p)).toBeGreaterThanOrEqual(1)
     }
   })
 

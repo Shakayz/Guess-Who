@@ -1,4 +1,4 @@
-name: imposter-pfv
+name: red-handed-pfv
 # ── PFV (Pré-Production/Validation) ────────────────────────────────────────────
 # Used by: .github/workflows/cd-pfv.yml
 # Production-like config with separate DB and QA-accessible ports
@@ -6,14 +6,14 @@ name: imposter-pfv
 
 networks:
   pfv_net:
-    name: imposter_pfv_net
+    name: red_handed_pfv_net
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: imposter-postgres-pfv
+    container_name: red-handed-postgres-pfv
     environment:
-      POSTGRES_DB: imposter_game_pfv
+      POSTGRES_DB: red_handed_pfv
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
@@ -31,7 +31,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: imposter-redis-pfv
+    container_name: red-handed-redis-pfv
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_pfv_data:/data
@@ -48,11 +48,11 @@ services:
   api:
     image: ghcr.io/shakayz/guess-who/api:pfv
     platform: linux/amd64
-    container_name: imposter-api-pfv
+    container_name: red-handed-api-pfv
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/imposter_game_pfv
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/red_handed_pfv
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       JWT_SECRET: ${JWT_SECRET}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
@@ -80,7 +80,7 @@ services:
   web:
     image: ghcr.io/shakayz/guess-who/web:pfv
     platform: linux/amd64
-    container_name: imposter-web-pfv
+    container_name: red-handed-web-pfv
     ports:
       - "8080:80"    # port 8080 to avoid conflict with dev:5173 and prod:80
     depends_on:

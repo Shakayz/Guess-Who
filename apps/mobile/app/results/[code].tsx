@@ -10,8 +10,8 @@ import { useRouter } from 'expo-router'
 import { useGameStore } from '../../store/game'
 import { useAuthStore } from '../../store/auth'
 import { getSocket, disconnectSocket } from '../../lib/socket'
-import { RANK_CONFIG } from '@imposter/shared'
-import type { HonorType } from '@imposter/shared'
+import { RANK_CONFIG } from '@red-handed/shared'
+import type { HonorType } from '@red-handed/shared'
 import { useTranslation } from 'react-i18next'
 import { useResponsive } from '../../lib/responsive'
 import { HapticManager } from '../../lib/haptics'
@@ -26,7 +26,7 @@ const HONOR_OPTIONS: { type: HonorType; label: string; icon: string }[] = [
 
 const MOCK_PLAYERS = [
   { id: 'p1', userId: 'u1', username: 'Alice', role: 'villager' as const, isHost: false, isReady: true, status: 'alive' as const, avatarUrl: null, honorGiven: false },
-  { id: 'p2', userId: 'u2', username: 'Bob', role: 'imposter' as const, isHost: false, isReady: true, status: 'eliminated' as const, avatarUrl: null, honorGiven: false },
+  { id: 'p2', userId: 'u2', username: 'Bob', role: 'red_handed' as const, isHost: false, isReady: true, status: 'eliminated' as const, avatarUrl: null, honorGiven: false },
   { id: 'p3', userId: 'u3', username: 'Charlie', role: 'villager' as const, isHost: false, isReady: true, status: 'alive' as const, avatarUrl: null, honorGiven: false },
   { id: 'p4', userId: 'u4', username: 'Diana', role: 'villager' as const, isHost: false, isReady: true, status: 'alive' as const, avatarUrl: null, honorGiven: false },
 ]
@@ -45,8 +45,8 @@ export default function ResultsScreen() {
   const winner = result?.winner ?? 'villagers'
   const rewards = result?.rewards ?? { starCoinsEarned: 25, xpEarned: 120, lpChange: 18, achievements: [] }
   const players = room?.players?.length ? room.players : MOCK_PLAYERS
-  const isImposter = myRole === 'imposter' || myRole === 'double_agent'
-  const didWin = (winner === 'villagers' && !isImposter) || (winner === 'imposters' && isImposter)
+  const isRedHanded = myRole === 'red_handed' || myRole === 'double_agent'
+  const didWin = (winner === 'villagers' && !isRedHanded) || (winner === 'red_handed' && isRedHanded)
 
   useEffect(() => {
     SoundManager.play(didWin ? 'success' : 'error')
@@ -130,17 +130,17 @@ export default function ResultsScreen() {
             style={{ fontSize: 13 * fontScale }}
           >
             {winner === 'villagers'
-              ? 'Villagers found the imposters'
-              : 'Imposters escaped detection'}
+              ? 'Villagers found the redHanded'
+              : 'Red-Handed escaped detection'}
           </Text>
 
           {/* Role indicator */}
           <View className="flex-row items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full bg-black/20 border border-white/10">
             <Text style={{ fontSize: 12 }}>
-              {isImposter ? '🎭' : '🏘️'}
+              {isRedHanded ? '🎭' : '🏘️'}
             </Text>
             <Text className="text-neutral-400 text-xs font-semibold">
-              You played as {isImposter ? 'Imposter' : 'Villager'}
+              You played as {isRedHanded ? 'Red-Handed' : 'Villager'}
             </Text>
           </View>
         </View>
@@ -216,7 +216,7 @@ export default function ResultsScreen() {
           <View className="gap-2">
             {players.map((p) => {
               const role = (p as any).role as string | undefined
-              const isImposterRole = role === 'imposter' || role === 'double_agent'
+              const isRedHandedRole = role === 'red_handed' || role === 'double_agent'
               const survived = p.status === 'alive'
               const isMe = p.userId === user?.id
               return (
@@ -224,24 +224,24 @@ export default function ResultsScreen() {
                   key={p.id}
                   className={[
                     'flex-row items-center gap-3 px-3 py-3 rounded-xl border overflow-hidden',
-                    isMe && isImposterRole
+                    isMe && isRedHandedRole
                       ? 'border-red-700/50 bg-red-950/20'
                       : isMe
                       ? 'border-violet-700/50 bg-violet-950/20'
-                      : isImposterRole
+                      : isRedHandedRole
                       ? 'border-red-900/30 bg-red-950/10'
                       : 'border-neutral-800/60 bg-neutral-800/20',
                   ].join(' ')}
                 >
-                  {/* Left accent for imposters */}
-                  {isImposterRole && (
+                  {/* Left accent for redHanded */}
+                  {isRedHandedRole && (
                     <View className="absolute left-0 top-0 bottom-0 w-0.5 bg-red-600/60" />
                   )}
                   {/* Avatar */}
                   <View
                     className={[
                       'rounded-full items-center justify-center',
-                      isImposterRole ? 'bg-red-800/60' : isMe ? 'bg-violet-700' : 'bg-neutral-700',
+                      isRedHandedRole ? 'bg-red-800/60' : isMe ? 'bg-violet-700' : 'bg-neutral-700',
                     ].join(' ')}
                     style={{ width: 34, height: 34 }}
                   >
@@ -263,7 +263,7 @@ export default function ResultsScreen() {
                       <View
                         className={[
                           'flex-row items-center gap-1 px-2 py-0.5 rounded-full border',
-                          isImposterRole
+                          isRedHandedRole
                             ? 'bg-red-950/60 border-red-800/60'
                             : role === 'detective'
                             ? 'bg-sky-950/60 border-sky-800/60'
@@ -271,15 +271,15 @@ export default function ResultsScreen() {
                         ].join(' ')}
                       >
                         <Text style={{ fontSize: 10 }}>
-                          {role === 'imposter' ? '🎭' : role === 'double_agent' ? '🕵️' : role === 'detective' ? '🔍' : '🏘️'}
+                          {role === 'red_handed' ? '🎭' : role === 'double_agent' ? '🕵️' : role === 'detective' ? '🔍' : '🏘️'}
                         </Text>
                         <Text
                           className={[
                             'text-[10px] font-bold',
-                            isImposterRole ? 'text-red-400' : role === 'detective' ? 'text-sky-400' : 'text-violet-400',
+                            isRedHandedRole ? 'text-red-400' : role === 'detective' ? 'text-sky-400' : 'text-violet-400',
                           ].join(' ')}
                         >
-                          {role === 'imposter' ? 'Imposter' : role === 'double_agent' ? 'Double Agent' : role === 'detective' ? 'Detective' : 'Villager'}
+                          {role === 'red_handed' ? 'Red-Handed' : role === 'double_agent' ? 'Double Agent' : role === 'detective' ? 'Detective' : 'Villager'}
                         </Text>
                       </View>
                       {/* Survived status */}

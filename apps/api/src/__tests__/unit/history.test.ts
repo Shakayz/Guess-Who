@@ -241,7 +241,7 @@ describe('History Routes', () => {
       mockGameParticipation.findUnique.mockResolvedValue({
         gameId: 'game-2',
         userId: 'user-1',
-        role: 'imposter',
+        role: 'red_handed',
         survived: false,
         starCoinsEarned: 10,
       })
@@ -253,7 +253,7 @@ describe('History Routes', () => {
         participations: [
           {
             userId: 'user-1',
-            role: 'imposter',
+            role: 'red_handed',
             survived: false,
             starCoinsEarned: 10,
             user: { id: 'user-1', username: 'testuser', avatarUrl: null },
@@ -264,9 +264,9 @@ describe('History Routes', () => {
             id: 'round-1',
             roundNumber: 1,
             villagerWord: 'apple',
-            imposterWord: 'fruit',
+            redHandedWord: 'fruit',
             eliminatedId: 'user-1',
-            eliminatedRole: 'imposter',
+            eliminatedRole: 'red_handed',
             clues: [{ playerId: 'user-1', text: 'juicy', createdAt: new Date() }],
             votes: [{ voterId: 'user-2', targetId: 'user-1' }],
           },

@@ -1,11 +1,11 @@
 import { create } from 'zustand'
-import type { Room, Round, ChatMessage, RewardSummary } from '@imposter/shared'
+import type { Room, Round, ChatMessage, RewardSummary } from '@red-handed/shared'
 import { createLogger } from '../lib/logger'
 
 const log = createLogger('game')
 
 interface GameResult {
-  winner: 'villagers' | 'imposters'
+  winner: 'villagers' | 'red_handed'
   finalRound: Round
   rewards: RewardSummary
 }

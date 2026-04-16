@@ -1,5 +1,5 @@
 {
-  "family": "imposter-api",
+  "family": "red-handed-api",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
@@ -37,7 +37,7 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/${ENVIRONMENT}/imposter-api",
+          "awslogs-group": "/ecs/${ENVIRONMENT}/red-handed-api",
           "awslogs-region": "${AWS_REGION}",
           "awslogs-stream-prefix": "api"
         }

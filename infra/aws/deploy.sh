@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────
-# deploy.sh — Deploy Imposter Game to AWS ECS Fargate
+# deploy.sh — Deploy Red Handed to AWS ECS Fargate
 #
 # Usage:
 #   ./deploy.sh <environment> [api-image-tag] [web-image-tag]
@@ -23,17 +23,17 @@ case "$ENV" in
   *) echo "ERROR: Environment must be dev, staging, or prod"; exit 1 ;;
 esac
 
-CLUSTER="${ENV}-imposter-cluster"
-API_SERVICE="${ENV}-imposter-api"
-WEB_SERVICE="${ENV}-imposter-web"
-API_TASK_FAMILY="${ENV}-imposter-api"
-WEB_TASK_FAMILY="${ENV}-imposter-web"
+CLUSTER="${ENV}-red-handed-cluster"
+API_SERVICE="${ENV}-red-handed-api"
+WEB_SERVICE="${ENV}-red-handed-web"
+API_TASK_FAMILY="${ENV}-red-handed-api"
+WEB_TASK_FAMILY="${ENV}-red-handed-web"
 REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 ROLLBACK_API_TASK=""
 ROLLBACK_WEB_TASK=""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Deploying Imposter Game — ${ENV}"
+echo "  Deploying Red Handed — ${ENV}"
 echo "  API image tag: ${API_TAG}"
 echo "  Web image tag: ${WEB_TAG}"
 echo "  Cluster:       ${CLUSTER}"

@@ -15,11 +15,11 @@ permissions:
 
 env:
   AWS_REGION: eu-west-3
-  ECR_REPO: 700672899544.dkr.ecr.eu-west-3.amazonaws.com/imposter-api
+  ECR_REPO: 700672899544.dkr.ecr.eu-west-3.amazonaws.com/red-handed-api
   S3_BUCKET: aghazzaf-web-staging
   CF_DIST_ID: E1ZIQ7E8U04EBD
   VM_HOST: 35.181.233.160
-  ROLE_ARN: arn:aws:iam::700672899544:role/GitHubActionsImposterDeploy
+  ROLE_ARN: arn:aws:iam::700672899544:role/GitHubActionsRedHandedDeploy
 
 jobs:
   deploy:
@@ -40,8 +40,8 @@ jobs:
 
       - name: Build shared packages
         run: |
-          pnpm --filter @imposter/shared build
-          pnpm --filter @imposter/ui build
+          pnpm --filter @red-handed/shared build
+          pnpm --filter @red-handed/ui build
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -55,7 +55,7 @@ jobs:
           VITE_API_URL: https://staging-api.aghazzaf.com
           VITE_SOCKET_URL: https://staging-api.aghazzaf.com
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
-        run: pnpm --filter @imposter/web build
+        run: pnpm --filter @red-handed/web build
 
       - name: Sync web to S3
         run: |
@@ -99,9 +99,9 @@ jobs:
           scp -i ~/.ssh/deploy deploy/docker-compose.staging.yml ubuntu@${{ env.VM_HOST }}:/tmp/docker-compose.staging.yml
           scp -i ~/.ssh/deploy deploy/Caddyfile ubuntu@${{ env.VM_HOST }}:/tmp/Caddyfile
           ssh -i ~/.ssh/deploy ubuntu@${{ env.VM_HOST }} \
-            "sudo mkdir -p /opt/imposter \
-             && sudo mv /tmp/docker-compose.staging.yml /opt/imposter/docker-compose.staging.yml \
-             && sudo mv /tmp/Caddyfile /opt/imposter/Caddyfile"
+            "sudo mkdir -p /opt/red-handed \
+             && sudo mv /tmp/docker-compose.staging.yml /opt/red-handed/docker-compose.staging.yml \
+             && sudo mv /tmp/Caddyfile /opt/red-handed/Caddyfile"
 
       - name: Get ECR password
         id: ecr
@@ -115,7 +115,7 @@ jobs:
           ECR_PW: ${{ steps.ecr.outputs.pw }}
         run: |
           ssh -i ~/.ssh/deploy ubuntu@${{ env.VM_HOST }} \
-            "cd /opt/imposter \
+            "cd /opt/red-handed \
              && sudo touch .env && sudo chmod 600 .env \
              && for kv in 'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}' 'GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}' 'ALLOWED_ORIGINS=${ALLOWED_ORIGINS}'; do \
                   key=\${kv%%=*}; \

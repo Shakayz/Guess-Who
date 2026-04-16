@@ -5,9 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../store/auth'
 import { NavBar } from '../components/NavBar'
-import { Avatar, Badge } from '@imposter/ui'
-import { RANK_CONFIG, LEVEL_CAP } from '@imposter/shared'
-import type { RankTier } from '@imposter/shared'
+import { Avatar, Badge } from '@red-handed/ui'
+import { RANK_CONFIG, LEVEL_CAP } from '@red-handed/shared'
+import type { RankTier } from '@red-handed/shared'
 import { api } from '../lib/api'
 
 const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/gif,image/webp'
@@ -40,7 +40,7 @@ interface UserStats {
   losses: number
   winRate: number
   asVillager: number
-  asImposter: number
+  asRedHanded: number
   survived: number
 }
 
@@ -469,7 +469,7 @@ export default function ProfilePage() {
                         { label: t('profile.winRate'),     value: `${activeStats.winRate}%`, icon: '🏆' },
                         { label: t('profile.wins'),        value: activeStats.wins, icon: '✅' },
                         { label: t('profile.asVillager'),  value: activeStats.asVillager, icon: '🏘️' },
-                        { label: t('profile.asImposter'),  value: activeStats.asImposter, icon: '🎭' },
+                        { label: t('profile.asRedHanded'),  value: activeStats.asRedHanded, icon: '🎭' },
                         { label: t('profile.survived'),    value: activeStats.survived, icon: '💪' },
                       ].map((s) => (
                         <div key={s.label} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/60 text-center">
@@ -547,7 +547,7 @@ export default function ProfilePage() {
                         </span>
                         <span className="text-neutral-600">·</span>
                         <span className="text-xs text-neutral-400">
-                          {g.role === 'imposter' ? t('gameDetail.imposterRole') : g.role === 'double_agent' ? '🕵️ D.Agent' : g.role === 'detective' ? '🔍 Detective' : t('gameDetail.villagerRole')}
+                          {g.role === 'red_handed' ? t('gameDetail.redHandedRole') : g.role === 'double_agent' ? '🕵️ D.Agent' : g.role === 'detective' ? '🔍 Detective' : t('gameDetail.villagerRole')}
                         </span>
                         <span className="text-neutral-600">·</span>
                         <span className="text-xs text-neutral-500">{g.rounds}R</span>
