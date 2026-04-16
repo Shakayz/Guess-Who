@@ -6,8 +6,7 @@ import { evaluateEvent } from '../services/achievements'
 
 const sendGiftSchema = z.object({
   receiverUsername: z.string().min(1),
-  coinAmount:       z.number().int().min(0).optional().default(0),
-  cosmeticId:       z.string().optional(),
+  coinAmount:       z.number().int().min(1),
   message:          z.string().max(200).optional(),
 })
 
@@ -25,16 +24,12 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(gifts)
   })
 
-  // POST /api/gifts/send — send a gift to a friend
+  // POST /api/gifts/send — send a star-coin gift to a friend
   fastify.post('/send', async (req, reply) => {
     const senderId = (req.user as { sub: string }).sub
     const body = sendGiftSchema.parse(req.body)
 
-    if (!body.coinAmount && !body.cosmeticId) {
-      return reply.status(400).send({ error: 'Must provide coinAmount or cosmeticId' })
-    }
-
-    req.log.info({ senderId, receiverUsername: body.receiverUsername, coinAmount: body.coinAmount, cosmeticId: body.cosmeticId }, 'gift send attempt')
+    req.log.info({ senderId, receiverUsername: body.receiverUsername, coinAmount: body.coinAmount }, 'gift send attempt')
 
     // Resolve receiver
     const receiver = await prisma.user.findUnique({ where: { username: body.receiverUsername } })
@@ -56,31 +51,26 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
     })
     if (!friendship) return reply.status(403).send({ error: 'You can only gift friends' })
 
-    // Deduct sender coins if gifting coins
-    if (body.coinAmount > 0) {
-      const sender = await prisma.user.findUnique({ where: { id: senderId }, select: { starCoins: true } })
-      if (!sender || sender.starCoins < body.coinAmount) {
-        return reply.status(400).send({ error: 'Insufficient star coins' })
-      }
+    // Deduct sender coins
+    const sender = await prisma.user.findUnique({ where: { id: senderId }, select: { starCoins: true } })
+    if (!sender || sender.starCoins < body.coinAmount) {
+      return reply.status(400).send({ error: 'Insufficient star coins' })
     }
 
     const gift = await prisma.$transaction(async (tx) => {
-      if (body.coinAmount > 0) {
-        await tx.user.update({ where: { id: senderId }, data: { starCoins: { decrement: body.coinAmount } } })
-      }
+      await tx.user.update({ where: { id: senderId }, data: { starCoins: { decrement: body.coinAmount } } })
       return tx.gift.create({
         data: {
           senderId,
           receiverId: receiver.id,
           coinAmount: body.coinAmount,
-          cosmeticId: body.cosmeticId,
           message: body.message,
         },
         include: { sender: { select: { id: true, username: true, avatarUrl: true } } },
       })
     })
 
-    req.log.info({ senderId, receiverId: receiver.id, giftId: gift.id, coinAmount: body.coinAmount, cosmeticId: body.cosmeticId }, 'gift sent')
+    req.log.info({ senderId, receiverId: receiver.id, giftId: gift.id, coinAmount: body.coinAmount }, 'gift sent')
 
     // Notify receiver if online
     const io = (fastify as any).io
@@ -90,7 +80,6 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
         giftId: gift.id,
         from: gift.sender,
         coinAmount: gift.coinAmount,
-        cosmeticId: gift.cosmeticId,
         message: gift.message,
       })
     }
@@ -130,13 +119,6 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
       }
       if (gift.coinAmount > 0) {
         await tx.user.update({ where: { id: userId }, data: { starCoins: { increment: gift.coinAmount } } })
-      }
-      if (gift.cosmeticId) {
-        await tx.userCosmetic.upsert({
-          where: { userId_cosmeticId: { userId, cosmeticId: gift.cosmeticId } },
-          update: {},
-          create: { userId, cosmeticId: gift.cosmeticId },
-        })
       }
     }).catch((err: any) => {
       if (err.statusCode === 409) return reply.status(409).send({ error: 'Already claimed' })

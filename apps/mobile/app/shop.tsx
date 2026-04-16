@@ -6,23 +6,13 @@ import { useResponsive } from '../lib/responsive'
 import { HapticManager } from '../lib/haptics'
 import { SoundManager } from '../lib/sounds'
 
-// Mobile mirror of the web ShopPage. Same three tabs (coins / cosmetics /
-// season) and the same mock catalog so the two platforms stay in sync
-// until the real store API ships.
+// Mobile mirror of the web ShopPage. Cosmetics were removed from the game
+// design (no avatar to attach them to), so the shop now only carries the
+// gold-coin packs and the season pass.
 
-type Tab = 'coins' | 'cosmetics' | 'season'
-
-const MOCK_COSMETICS = [
-  { id: '1', name: 'Shadow Cloak',    type: 'avatar_outfit',    price: 200, currency: 'star', icon: '🦇', isNew: true },
-  { id: '2', name: 'Gold Crown',      type: 'avatar_accessory', price: 150, currency: 'star', icon: '👑', isNew: false },
-  { id: '3', name: 'Neon Frame',      type: 'card_background',  price: 80,  currency: 'star', icon: '🌈', isNew: false },
-  { id: '4', name: 'Smoke Reveal',    type: 'word_effect',      price: 500, currency: 'gold', icon: '💨', isNew: true },
-  { id: '5', name: 'The Architect',   type: 'title',            price: 300, currency: 'star', icon: '🏗️', isNew: false },
-  { id: '6', name: 'Detective Badge', type: 'badge',            price: 120, currency: 'star', icon: '🔍', isNew: false },
-]
+type Tab = 'coins' | 'season'
 
 const SEASON_PERKS = [
-  '🎭 Exclusive Season 1 avatar frame',
   '⚡ 1.5× XP boost on all games',
   '💰 +50 Gold Coins per month',
   '🌟 Access to Premium Word Packs',
@@ -62,7 +52,7 @@ function TabButton({
 export default function ShopScreen() {
   const router = useRouter()
   const { px, fontScale, isTablet } = useResponsive()
-  const [tab, setTab] = useState<Tab>('cosmetics')
+  const [tab, setTab] = useState<Tab>('coins')
 
   const switchTab = (next: Tab) => {
     HapticManager.selection()
@@ -108,13 +98,12 @@ export default function ShopScreen() {
             Shop
           </Text>
           <Text className="text-neutral-500 mt-1" style={{ fontSize: 12 * fontScale }}>
-            Cosmetics, coins & season pass
+            Coins & season pass
           </Text>
         </View>
 
         <View className="flex-row gap-2">
           <TabButton active={tab === 'coins'} onPress={() => switchTab('coins')} label="💰 Gold Coins" fontScale={fontScale} />
-          <TabButton active={tab === 'cosmetics'} onPress={() => switchTab('cosmetics')} label="🎨 Cosmetics" fontScale={fontScale} />
           <TabButton active={tab === 'season'} onPress={() => switchTab('season')} label="👑 Season" fontScale={fontScale} />
         </View>
 
@@ -129,57 +118,8 @@ export default function ShopScreen() {
                 Gold Coin packs are launching soon.
               </Text>
               <Text className="text-neutral-500 text-center" style={{ fontSize: 11 * fontScale, lineHeight: 16 * fontScale }}>
-                Gold Coins will be used for premium cosmetics and word packs.
+                Gold Coins will be used for premium word packs.
               </Text>
-            </View>
-          </View>
-        )}
-
-        {tab === 'cosmetics' && (
-          <View className="gap-4">
-            <Text className="text-neutral-500 font-semibold uppercase tracking-widest" style={{ fontSize: 10 * fontScale }}>
-              Available items
-            </Text>
-            <View className="flex-row flex-wrap" style={{ gap: 10 }}>
-              {MOCK_COSMETICS.map((item) => (
-                <View
-                  key={item.id}
-                  className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 items-center"
-                  style={{ width: isTablet ? '31%' : '47%', gap: 6 }}
-                >
-                  {item.isNew && (
-                    <View className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-emerald-950/60">
-                      <Text className="text-emerald-400 font-bold" style={{ fontSize: 8 }}>
-                        NEW
-                      </Text>
-                    </View>
-                  )}
-                  <Text style={{ fontSize: 32 }}>{item.icon}</Text>
-                  <Text className="text-white font-semibold text-center" style={{ fontSize: 12 * fontScale }} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text className="text-neutral-500 capitalize text-center" style={{ fontSize: 10 * fontScale }} numberOfLines={1}>
-                    {item.type.replace(/_/g, ' ')}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={buy}
-                    className={[
-                      'w-full items-center rounded-lg mt-1 py-1.5',
-                      item.currency === 'gold'
-                        ? 'bg-amber-950/60 border border-amber-800/40'
-                        : 'bg-neutral-800',
-                    ].join(' ')}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      className={item.currency === 'gold' ? 'text-amber-400 font-semibold' : 'text-white font-semibold'}
-                      style={{ fontSize: 11 * fontScale }}
-                    >
-                      {item.currency === 'gold' ? '💰' : '⭐'} {item.price}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
             </View>
           </View>
         )}

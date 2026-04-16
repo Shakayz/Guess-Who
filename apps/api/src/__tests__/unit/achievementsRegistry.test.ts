@@ -88,8 +88,6 @@ describe('EVALUATORS_BY_EVENT', () => {
       'gift_sent',
       'gift_received',
       'daily_login',
-      'shop_purchase',
-      'cosmetic_equipped',
       'word_pack_created',
       'avatar_changed',
       'level_up',

@@ -23,8 +23,7 @@ const seasonData = {
   tiers: [
     { id: 't1', tierNumber: 1, xpRequired: 100, rewardType: 'starCoins', rewardValue: '50', isPremium: false, claimed: true, unlocked: true },
     { id: 't2', tierNumber: 2, xpRequired: 200, rewardType: 'goldCoins', rewardValue: '10', isPremium: false, claimed: false, unlocked: true },
-    { id: 't3', tierNumber: 3, xpRequired: 300, rewardType: 'cosmetic', rewardValue: 'avatar_frame', isPremium: true, claimed: false, unlocked: false },
-    { id: 't4', tierNumber: 4, xpRequired: 400, rewardType: 'title', rewardValue: 'Champion', isPremium: false, claimed: false, unlocked: false },
+    { id: 't3', tierNumber: 3, xpRequired: 300, rewardType: 'title', rewardValue: 'Champion', isPremium: true, claimed: false, unlocked: false },
   ],
 }
 
@@ -178,13 +177,13 @@ describe('SeasonPassPage', () => {
     })
   })
 
-  it('renders cosmetic reward type with correct label', async () => {
+  it('renders title reward type with correct value', async () => {
     mockApiGet.mockResolvedValueOnce(seasonData)
     await act(async () => {
       render(<SeasonPassPage />, { wrapper })
     })
     await waitFor(() => {
-      expect(screen.getByText(/Cosmetic Item/)).toBeInTheDocument()
+      expect(screen.getByText(/Champion/)).toBeInTheDocument()
     })
   })
 })

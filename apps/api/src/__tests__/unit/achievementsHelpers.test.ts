@@ -30,8 +30,6 @@ function emptyStats(): UserStats {
     giftSentCount: 0,
     giftReceivedCount: 0,
     starCoinsCurrent: 0,
-    shopPurchaseCount: 0,
-    cosmeticOwnedCount: 0,
     rankedGames: 0,
     rankedWins: 0,
     rankTier: 'wooden',
