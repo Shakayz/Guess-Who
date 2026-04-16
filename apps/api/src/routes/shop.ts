@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
 import { evaluateEvent } from '../services/achievements'
-// import { GOLD_COIN_PACKS } from '@imposter/shared'  // TODO: re-enable when premium is ready
+// import { GOLD_COIN_PACKS } from '@red-handed/shared'  // TODO: re-enable when premium is ready
 // import { env } from '../config/env'                  // TODO: re-enable when premium is ready
 
 export const shopRoutes: FastifyPluginAsync = async (fastify) => {

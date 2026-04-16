@@ -103,7 +103,7 @@ beforeEach(() => {
 
   mockPrisma.room.findUnique.mockResolvedValue({
     id: 'room-1', code: 'ABCD', hostId: 'user-1', status: 'waiting',
-    speakingTimeSeconds: 30, votingTimeSeconds: 30, maxPlayers: 8, imposterCount: 1,
+    speakingTimeSeconds: 30, votingTimeSeconds: 30, maxPlayers: 8, redHandedCount: 1,
   })
   mockPrisma.room.update.mockResolvedValue({})
   mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', username: 'TestUser', avatarUrl: null })
@@ -457,7 +457,7 @@ describe('detective:reveal handler (socket/index.ts)', () => {
     const state = {
       players: [
         { userId: 'user-1', role: 'detective', status: 'alive', detectiveRevealUsed: false },
-        { userId: 'user-2', role: 'imposter',  status: 'eliminated', username: 'Dave' },
+        { userId: 'user-2', role: 'red_handed',  status: 'eliminated', username: 'Dave' },
       ],
     }
     mockPrisma.room.findUnique.mockResolvedValue({ id: 'room-1', code: 'ABCD' })
@@ -484,7 +484,7 @@ describe('detective:reveal handler (socket/index.ts)', () => {
     const state = {
       players: [
         { userId: 'user-1', role: 'detective', status: 'alive', detectiveRevealUsed: false },
-        { userId: 'user-2', role: 'imposter',  status: 'alive', username: 'Dave' },
+        { userId: 'user-2', role: 'red_handed',  status: 'alive', username: 'Dave' },
       ],
     }
     mockPrisma.room.findUnique.mockResolvedValue({ id: 'room-1', code: 'ABCD' })
@@ -500,7 +500,7 @@ describe('detective:reveal handler (socket/index.ts)', () => {
 
     expect(socket.emit).toHaveBeenCalledWith('detective:reveal-result', expect.objectContaining({
       targetUserId: 'user-2',
-      role: 'imposter',
+      role: 'red_handed',
     }))
   })
 })
@@ -598,7 +598,7 @@ describe('disconnect handler', () => {
       status: 'in_progress',
       players: [
         { userId: 'user-1', username: 'Alice', role: 'villager', status: 'alive' },
-        { userId: 'user-2', username: 'Bob',   role: 'imposter', status: 'alive' },
+        { userId: 'user-2', username: 'Bob',   role: 'red_handed', status: 'alive' },
       ],
     }
 

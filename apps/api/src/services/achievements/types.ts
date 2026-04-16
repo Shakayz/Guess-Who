@@ -3,7 +3,7 @@
 // wider service graph.
 
 import type { Server } from 'socket.io'
-import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
+import type { ServerToClientEvents, ClientToServerEvents } from '@red-handed/shared'
 
 export type IO = Server<ClientToServerEvents, ServerToClientEvents>
 
@@ -11,7 +11,7 @@ export type Difficulty = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' |
 
 export type Category =
   | 'gameplay'
-  | 'imposter'
+  | 'red_handed'
   | 'detective'
   | 'social'
   | 'ranked'
@@ -68,7 +68,7 @@ export interface UserStats {
   // game counts
   totalGames: number
   totalWins: number
-  totalImposterWins: number
+  totalRedHandedWins: number
   totalVillagerWins: number
   totalJesterWins: number
   survivedWins: number
@@ -114,8 +114,8 @@ export interface GameEndCtx extends BaseCtx {
   role: string
   survived: boolean
   isWinner: boolean
-  isImposter: boolean
-  winner: 'villagers' | 'imposters' | 'jester' | 'evil_twins' | 'draw'
+  isRedHanded: boolean
+  winner: 'villagers' | 'red_handed' | 'jester' | 'evil_twins' | 'draw'
   gameMode: 'normal' | 'special' | 'ranked'
   playerCount: number
   language: string

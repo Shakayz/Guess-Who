@@ -3,8 +3,8 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { NavBar } from '../components/NavBar'
-import { WORD_CATEGORIES, MATCHMAKING_CONFIG, TUTORIAL_COMPLETION_REWARD } from '@imposter/shared'
-import type { WordCategory, MatchmakingStatus } from '@imposter/shared'
+import { WORD_CATEGORIES, MATCHMAKING_CONFIG, TUTORIAL_COMPLETION_REWARD } from '@red-handed/shared'
+import type { WordCategory, MatchmakingStatus } from '@red-handed/shared'
 import { connectSocket, getSocket } from '../lib/socket'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
@@ -740,8 +740,8 @@ export default function HomePage() {
                     <div className="flex items-start gap-3 p-3 rounded-xl bg-neutral-900 border border-neutral-800">
                       <span className="text-lg">🔪</span>
                       <div>
-                        <p className="text-sm font-semibold text-white">{t('home.htp.imposterTitle')}</p>
-                        <p className="text-xs text-neutral-500 leading-relaxed">{t('home.htp.imposterDesc')}</p>
+                        <p className="text-sm font-semibold text-white">{t('home.htp.redHandedTitle')}</p>
+                        <p className="text-xs text-neutral-500 leading-relaxed">{t('home.htp.redHandedDesc')}</p>
                       </div>
                     </div>
                   </div>
@@ -757,7 +757,7 @@ export default function HomePage() {
                     </div>
                     <div className="flex items-center gap-2 text-sm text-neutral-300">
                       <span className="text-red-400">✓</span>
-                      {t('home.htp.imposterWin')}
+                      {t('home.htp.redHandedWin')}
                     </div>
                   </div>
                 </section>

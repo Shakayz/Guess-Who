@@ -25,6 +25,6 @@ export const useAuthStore = create<AuthState>()(
         set({ token: null, user: null })
       },
     }),
-    { name: 'imposter-auth' },
+    { name: 'red-handed-auth' },
   ),
 )

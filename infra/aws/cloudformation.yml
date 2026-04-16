@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Guess-Who (Imposter Game) — Full AWS infrastructure.
+  Guess-Who (Red Handed) — Full AWS infrastructure.
   VPC, RDS PostgreSQL 16, ElastiCache Redis 7, ECS Fargate (API + Web),
   ALB with WebSocket/sticky-session support, S3, CloudWatch.
 
@@ -16,7 +16,7 @@ Parameters:
 
   DomainName:
     Type: String
-    Description: Primary domain name (e.g. imposter-game.com)
+    Description: Primary domain name (e.g. red-handed.com)
 
   ACMCertificateArn:
     Type: String
@@ -71,14 +71,14 @@ Resources:
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: !Sub ${Environment}-imposter-vpc
+          Value: !Sub ${Environment}-red-handed-vpc
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub ${Environment}-imposter-igw
+          Value: !Sub ${Environment}-red-handed-igw
 
   IGWAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -144,7 +144,7 @@ Resources:
       SubnetId: !Ref PublicSubnetA
       Tags:
         - Key: Name
-          Value: !Sub ${Environment}-imposter-nat
+          Value: !Sub ${Environment}-red-handed-nat
 
   # --- Route Tables ---
   PublicRouteTable:
@@ -285,14 +285,14 @@ Resources:
     DeletionPolicy: Snapshot
     UpdateReplacePolicy: Snapshot
     Properties:
-      DBInstanceIdentifier: !Sub ${Environment}-imposter-db
+      DBInstanceIdentifier: !Sub ${Environment}-red-handed-db
       Engine: postgres
       EngineVersion: '16'
       DBInstanceClass: db.t3.micro
       AllocatedStorage: 20
       MaxAllocatedStorage: 100
       StorageType: gp3
-      DBName: imposter_game
+      DBName: red_handed
       MasterUsername: postgres
       MasterUserPassword: !Ref DBPassword
       MultiAZ: !If [IsProd, true, false]
@@ -323,7 +323,7 @@ Resources:
   RedisCluster:
     Type: AWS::ElastiCache::CacheCluster
     Properties:
-      ClusterName: !Sub ${Environment}-imposter-redis
+      ClusterName: !Sub ${Environment}-red-handed-redis
       Engine: redis
       EngineVersion: '7.0'
       CacheNodeType: cache.t3.micro
@@ -342,7 +342,7 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub ${Environment}-imposter-assets-${AWS::AccountId}
+      BucketName: !Sub ${Environment}-red-handed-assets-${AWS::AccountId}
       VersioningConfiguration:
         Status: Enabled
       BucketEncryption:
@@ -364,13 +364,13 @@ Resources:
   APILogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /ecs/${Environment}/imposter-api
+      LogGroupName: !Sub /ecs/${Environment}/red-handed-api
       RetentionInDays: !If [IsProd, 30, 7]
 
   WebLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /ecs/${Environment}/imposter-web
+      LogGroupName: !Sub /ecs/${Environment}/red-handed-web
       RetentionInDays: !If [IsProd, 30, 7]
 
   # ─────────────────────────────────────────────────────────────
@@ -379,7 +379,7 @@ Resources:
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${Environment}-imposter-ecs-execution
+      RoleName: !Sub ${Environment}-red-handed-ecs-execution
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -403,7 +403,7 @@ Resources:
   ECSTaskRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${Environment}-imposter-ecs-task
+      RoleName: !Sub ${Environment}-red-handed-ecs-task
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -432,7 +432,7 @@ Resources:
   ALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub ${Environment}-imposter-alb
+      Name: !Sub ${Environment}-red-handed-alb
       Scheme: internet-facing
       Type: application
       Subnets:
@@ -448,7 +448,7 @@ Resources:
   APITargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub ${Environment}-imposter-api-tg
+      Name: !Sub ${Environment}-red-handed-api-tg
       Port: 3001
       Protocol: HTTP
       VpcId: !Ref VPC
@@ -472,7 +472,7 @@ Resources:
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub ${Environment}-imposter-web-tg
+      Name: !Sub ${Environment}-red-handed-web-tg
       Port: 80
       Protocol: HTTP
       VpcId: !Ref VPC
@@ -548,7 +548,7 @@ Resources:
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: !Sub ${Environment}-imposter-cluster
+      ClusterName: !Sub ${Environment}-red-handed-cluster
       ClusterSettings:
         - Name: containerInsights
           Value: enabled
@@ -557,7 +557,7 @@ Resources:
   APITaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Sub ${Environment}-imposter-api
+      Family: !Sub ${Environment}-red-handed-api
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
       Cpu: '512'
@@ -578,7 +578,7 @@ Resources:
               Value: '3001'
             - Name: DATABASE_URL
               Value: !Sub
-                - postgresql://postgres:${DBPassword}@${DBHost}:5432/imposter_game
+                - postgresql://postgres:${DBPassword}@${DBHost}:5432/red_handed
                 - DBHost: !GetAtt RDSInstance.Endpoint.Address
             - Name: REDIS_URL
               Value: !Sub
@@ -609,7 +609,7 @@ Resources:
   WebTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Sub ${Environment}-imposter-web
+      Family: !Sub ${Environment}-red-handed-web
       NetworkMode: awsvpc
       RequiresCompatibilities: [FARGATE]
       Cpu: '256'
@@ -648,7 +648,7 @@ Resources:
       - APIListenerRule
       - SocketIOListenerRule
     Properties:
-      ServiceName: !Sub ${Environment}-imposter-api
+      ServiceName: !Sub ${Environment}-red-handed-api
       Cluster: !Ref ECSCluster
       TaskDefinition: !Ref APITaskDefinition
       DesiredCount: 2
@@ -678,7 +678,7 @@ Resources:
     Type: AWS::ECS::Service
     DependsOn: HTTPSListener
     Properties:
-      ServiceName: !Sub ${Environment}-imposter-web
+      ServiceName: !Sub ${Environment}-red-handed-web
       Cluster: !Ref ECSCluster
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 2
@@ -758,7 +758,7 @@ Outputs:
     Description: DNS name of the Application Load Balancer
     Value: !GetAtt ALB.DNSName
     Export:
-      Name: !Sub ${Environment}-imposter-alb-dns
+      Name: !Sub ${Environment}-red-handed-alb-dns
 
   ALBHostedZoneId:
     Description: Hosted zone ID of the ALB (for Route 53 alias records)
@@ -768,19 +768,19 @@ Outputs:
     Description: RDS PostgreSQL endpoint
     Value: !GetAtt RDSInstance.Endpoint.Address
     Export:
-      Name: !Sub ${Environment}-imposter-rds-endpoint
+      Name: !Sub ${Environment}-red-handed-rds-endpoint
 
   RedisEndpoint:
     Description: ElastiCache Redis endpoint
     Value: !GetAtt RedisCluster.RedisEndpoint.Address
     Export:
-      Name: !Sub ${Environment}-imposter-redis-endpoint
+      Name: !Sub ${Environment}-red-handed-redis-endpoint
 
   ECSClusterName:
     Description: ECS Cluster name
     Value: !Ref ECSCluster
     Export:
-      Name: !Sub ${Environment}-imposter-ecs-cluster
+      Name: !Sub ${Environment}-red-handed-ecs-cluster
 
   ECSAPIServiceName:
     Description: ECS API Service name
@@ -794,10 +794,10 @@ Outputs:
     Description: S3 bucket for static assets
     Value: !Ref AssetsBucket
     Export:
-      Name: !Sub ${Environment}-imposter-s3-bucket
+      Name: !Sub ${Environment}-red-handed-s3-bucket
 
   VPCId:
     Description: VPC ID
     Value: !Ref VPC
     Export:
-      Name: !Sub ${Environment}-imposter-vpc-id
+      Name: !Sub ${Environment}-red-handed-vpc-id

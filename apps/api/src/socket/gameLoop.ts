@@ -1,10 +1,10 @@
 import type { Server } from 'socket.io'
-import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
+import type { ServerToClientEvents, ClientToServerEvents } from '@red-handed/shared'
 import {
   getTiedPlayerIds,
   checkWinCondition,
   tallyVotes,
-  isImposterSideRole,
+  isRedHandedSideRole,
   isVillagerSideRole,
   isJesterRole,
   isTwinRole,
@@ -14,11 +14,11 @@ import {
   LEVEL_CAP,
   levelFromXp,
   xpProgressInLevel,
-} from '@imposter/shared'
+} from '@red-handed/shared'
 import { evaluateEvent } from '../services/achievements'
 
 /** Final winner label used across all end-game branches. */
-type Winner = 'villagers' | 'imposters' | 'jester' | 'evil_twins' | 'draw'
+type Winner = 'villagers' | 'red_handed' | 'jester' | 'evil_twins' | 'draw'
 
 /**
  * Server-side mirror of the `didWin` computation in ResultsPage.tsx:308. Used
@@ -29,7 +29,7 @@ type Winner = 'villagers' | 'imposters' | 'jester' | 'evil_twins' | 'draw'
 function didPlayerWin(player: any, winner: Winner, allPlayers: any[]): boolean {
   if (winner === 'draw') return false
   const role = player.role
-  const isImposterSide = isImposterSideRole(role)
+  const isRedHandedSide = isRedHandedSideRole(role)
   const isVillagerSide = isVillagerSideRole(role)
   const isJester = isJesterRole(role)
   const isTwin = isTwinRole(role)
@@ -43,7 +43,7 @@ function didPlayerWin(player: any, winner: Winner, allPlayers: any[]): boolean {
 
   return (
     (winner === 'villagers'  && isVillagerSide && !twinPartnerDead) ||
-    (winner === 'imposters'  && isImposterSide && !twinPartnerDead) ||
+    (winner === 'red_handed'  && isRedHandedSide && !twinPartnerDead) ||
     (winner === 'jester'     && isJester) ||
     (winner === 'evil_twins' && isTwin)
   )
@@ -54,12 +54,12 @@ function starCoinsForPlayer(winner: Winner, didWin: boolean): number {
   if (winner === 'draw') return 20
   if (!didWin) return 10
   if (winner === 'villagers')  return 50
-  if (winner === 'imposters')  return 80
+  if (winner === 'red_handed')  return 80
   if (winner === 'jester')     return 60
   if (winner === 'evil_twins') return 90
   return 10
 }
-import type { RankTier } from '@imposter/shared'
+import type { RankTier } from '@red-handed/shared'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
 import { childLogger } from '../config/logger'
@@ -143,7 +143,7 @@ function buildRoundPayload(round: any) {
 /** Shared LP delta calculator — avoids 4x duplication */
 function getWinLpDelta(role: string, winner: string): number {
   const r = role as any
-  const isImposter = isImposterSideRole(r)
+  const isRedHanded = isRedHandedSideRole(r)
   const isJester = isJesterRole(r)
   const isTwin = isTwinRole(r)
 
@@ -151,16 +151,16 @@ function getWinLpDelta(role: string, winner: string): number {
   // include jester roles, so this is defensive. We reuse the villager-loss
   // constant so a jester win doesn't leak extra LP into ranked stats.
   if (winner === 'jester') {
-    return isJester ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS
+    return isJester ? LP_REWARDS.RED_HANDED_WIN : LP_REWARDS.VILLAGER_LOSS
   }
-  // Evil twins co-win — both twins get imposter-size LP gain; everyone else loses.
+  // Evil twins co-win — both twins get red-handed-size LP gain; everyone else loses.
   if (winner === 'evil_twins') {
-    return isTwin ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS
+    return isTwin ? LP_REWARDS.RED_HANDED_WIN : LP_REWARDS.VILLAGER_LOSS
   }
   if (winner === 'villagers') {
-    return isImposter ? LP_REWARDS.IMPOSTER_LOSS : LP_REWARDS.VILLAGER_WIN
+    return isRedHanded ? LP_REWARDS.RED_HANDED_LOSS : LP_REWARDS.VILLAGER_WIN
   }
-  return isImposter ? LP_REWARDS.IMPOSTER_WIN : LP_REWARDS.VILLAGER_LOSS
+  return isRedHanded ? LP_REWARDS.RED_HANDED_WIN : LP_REWARDS.VILLAGER_LOSS
 }
 
 /**
@@ -239,8 +239,8 @@ function tickRevenantVotes(state: any, currentRound: any): void {
 }
 
 function getSurvivalLpDelta(role: string): number {
-  const isImposter = isImposterSideRole(role as any)
-  return isImposter ? LP_REWARDS.SURVIVAL_IMPOSTER_WIN : LP_REWARDS.SURVIVAL_VILLAGER_LOSS
+  const isRedHanded = isRedHandedSideRole(role as any)
+  return isRedHanded ? LP_REWARDS.SURVIVAL_RED_HANDED_WIN : LP_REWARDS.SURVIVAL_VILLAGER_LOSS
 }
 
 /** Fetch push tokens for a list of user IDs (only returns users with tokens set) */
@@ -295,7 +295,7 @@ async function applyRankedLP(
 
       // Forfeited players always get the maximum loss, regardless of team result
       const lpDelta = player.status === 'forfeited'
-        ? LP_REWARDS.IMPOSTER_LOSS
+        ? LP_REWARDS.RED_HANDED_LOSS
         : getLpDelta(player, players)
       const { newLP, newTier, promoted, demoted } = computeRankUpdate(user.rankPoints, lpDelta)
       const oldTier            = user.rankTier as RankTier
@@ -356,7 +356,7 @@ async function applyXpAndLevel(
         winner === 'draw'
           ? false
           : (winner === 'villagers' && isVillagerSideRole(role)) ||
-            (winner === 'imposters' && isImposterSideRole(role)) ||
+            (winner === 'red_handed' && isRedHandedSideRole(role)) ||
             (winner === 'jester'    && isJesterRole(role)) ||
             (winner === 'evil_twins' && isTwinRole(role))
       // Twin loss override: a surviving twin whose partner died does NOT win
@@ -461,7 +461,7 @@ async function finishGameWithWinner(
     if (tokenMap.size > 0) {
       const winnerLabel =
         winner === 'villagers'  ? 'Villagers' :
-        winner === 'imposters'  ? 'Imposters' :
+        winner === 'red_handed'  ? 'Red-Handed' :
         winner === 'jester'     ? 'The Jester' :
         winner === 'evil_twins' ? 'The Evil Twins' :
         'Draw'
@@ -489,7 +489,7 @@ async function finishGameWithWinner(
     const language = state.language ?? 'en'
     for (const p of state.players as any[]) {
       const role = p.role ?? ''
-      const isImposter = isImposterSideRole(role)
+      const isRedHanded = isRedHandedSideRole(role)
       const isWinner = didPlayerWin(p, winner, state.players)
       const survived = p.status === 'alive'
       await evaluateEvent(io, 'game_end', {
@@ -498,7 +498,7 @@ async function finishGameWithWinner(
         role,
         survived,
         isWinner,
-        isImposter,
+        isRedHanded,
         winner,
         gameMode,
         playerCount,
@@ -1087,7 +1087,7 @@ async function _resolveRound(io: IO, roomId: string) {
   // Add word reveal from DB
   const dbRound = await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
   currentRound.wordReveal = dbRound
-    ? { villagerWord: dbRound.villagerWord, imposterWord: dbRound.imposterWord }
+    ? { villagerWord: dbRound.villagerWord, redHandedWord: dbRound.redHandedWord }
     : null
 
   // ── Persist votes to RoundVote table ────────────────────────────────────────
@@ -1154,32 +1154,32 @@ async function _resolveRound(io: IO, roomId: string) {
       return
     }
 
-    // Imposters win if they survive all rounds (only when a round limit is set)
-    // Re-check win condition first — all imposters may have been eliminated this final round
+    // RedHanded win if they survive all rounds (only when a round limit is set)
+    // Re-check win condition first — all redHanded may have been eliminated this final round
     if (maxRounds > 0 && nextRoundNumber > maxRounds) {
       const finalWinner = checkWinCondition(state.players as any)
-      if (finalWinner && finalWinner !== 'imposters') {
+      if (finalWinner && finalWinner !== 'red_handed') {
         await finishGameWithWinner(io, roomId, state, finalWinner, roundPayload)
         return
       }
-      // Survival win for imposters — uses the lighter survival LP rewards
+      // Survival win for redHanded — uses the lighter survival LP rewards
       // instead of the standard delta. Inlined here to keep the special LP table.
       state.status = 'finished'
       await saveState(roomId, state)
       await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
       if (game) {
-        await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: 'imposters', endedAt: new Date() } }).catch(() => {})
+        await prisma.game.update({ where: { id: game.id }, data: { winnerTeam: 'red_handed', endedAt: new Date() } }).catch(() => {})
       }
       io.to(`room:${roomId}`).emit('round:ended', { round: roundPayload as any })
       const isRankedSurvival = state.gameMode === 'ranked'
       if (isRankedSurvival) {
         await applyRankedLP(io, roomId, state.players, (player) => getSurvivalLpDelta(player.role ?? ''))
       }
-      await applyXpAndLevel(io, state.players, 'imposters', isRankedSurvival)
+      await applyXpAndLevel(io, state.players, 'red_handed', isRankedSurvival)
       const survivalLpChange = isRankedSurvival ? LP_REWARDS.SURVIVAL_VILLAGER_LOSS : 0
       const rewards = { starCoinsEarned: 80, xpEarned: 120, lpChange: survivalLpChange, achievements: [] }
       setTimeout(async () => { try {
-        io.to(`room:${roomId}`).emit('game:finished', { winner: 'imposters', finalRound: roundPayload as any, rewards })
+        io.to(`room:${roomId}`).emit('game:finished', { winner: 'red_handed', finalRound: roundPayload as any, rewards })
         await resetRoomAfterGame(roomId, state)
       } catch (err) { logger.error({ err }, '[survival:game:finished] emit error') } }, 3000)
       return
@@ -1192,7 +1192,7 @@ async function _resolveRound(io: IO, roomId: string) {
         gameId: game.id,
         roundNumber: nextRoundNumber,
         villagerWord: dbRound?.villagerWord ?? '',
-        imposterWord: dbRound?.imposterWord ?? '',
+        redHandedWord: dbRound?.redHandedWord ?? '',
       },
     }).catch(() => null)
     if (!nextDbRound) return
@@ -1374,7 +1374,7 @@ async function resolveRoundNoElimination(io: IO, roomId: string, state: any) {
       gameId: game.id,
       roundNumber: nextRoundNumber,
       villagerWord: dbRound?.villagerWord ?? '',
-      imposterWord: dbRound?.imposterWord ?? '',
+      redHandedWord: dbRound?.redHandedWord ?? '',
     },
   }).catch(() => null)
   if (!nextDbRound) return
@@ -1538,7 +1538,7 @@ async function finalizeTiebreakerElimination(
         gameId: game.id,
         roundNumber: nextRoundNumber,
         villagerWord: dbRound?.villagerWord ?? '',
-        imposterWord: dbRound?.imposterWord ?? '',
+        redHandedWord: dbRound?.redHandedWord ?? '',
       },
     }).catch(() => null)
     if (!nextDbRound) return
@@ -1687,7 +1687,7 @@ async function continueRoundAfterKamikaze(
   // Pull word reveal from DB for game-end payloads
   const dbRound = await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
   currentRound.wordReveal = dbRound
-    ? { villagerWord: dbRound.villagerWord, imposterWord: dbRound.imposterWord }
+    ? { villagerWord: dbRound.villagerWord, redHandedWord: dbRound.redHandedWord }
     : null
 
   // Persist this round's votes (kamikaze elimination came from a vote tally)
@@ -1733,7 +1733,7 @@ async function continueRoundAfterKamikaze(
       gameId: game.id,
       roundNumber: nextRoundNumber,
       villagerWord: dbRound?.villagerWord ?? '',
-      imposterWord: dbRound?.imposterWord ?? '',
+      redHandedWord: dbRound?.redHandedWord ?? '',
     },
   }).catch(() => null)
   if (!nextDbRound) return

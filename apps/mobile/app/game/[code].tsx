@@ -18,7 +18,7 @@ import { useAuthStore } from '../../store/auth'
 import { getSocket } from '../../lib/socket'
 import RoleRevealScreen from '../../components/RoleRevealScreen'
 import EliminationOverlay from '../../components/EliminationOverlay'
-import type { Clue } from '@imposter/shared'
+import type { Clue } from '@red-handed/shared'
 import { useResponsive } from '../../lib/responsive'
 import { createLogger } from '../../lib/logger'
 import { HapticManager } from '../../lib/haptics'
@@ -290,7 +290,7 @@ export default function GameScreen() {
   const [isTie, setIsTie] = useState(false)
   const [wordReveal, setWordReveal] = useState<{
     villagerWord: string
-    imposterWord: string
+    redHandedWord: string
   } | null>(null)
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
   const [clueFlagCounts, setClueFlagCounts] = useState<Record<number, number>>({})
@@ -337,7 +337,7 @@ export default function GameScreen() {
     startTimerRef.current = startTimer
   }, [startTimer])
 
-  const isImposter = myRole === 'imposter' || myRole === 'double_agent'
+  const isRedHanded = myRole === 'red_handed' || myRole === 'double_agent'
   const players = room?.players ?? []
   const alivePlayers = players.filter((p) => p.status === 'alive')
 
@@ -803,13 +803,13 @@ export default function GameScreen() {
               <Text
                 className={[
                   'font-bold',
-                  revealedPlayer.role === 'imposter' || revealedPlayer.role === 'double_agent'
+                  revealedPlayer.role === 'red_handed' || revealedPlayer.role === 'double_agent'
                     ? 'text-red-400'
                     : 'text-emerald-400',
                 ].join(' ')}
               >
-                {revealedPlayer.role === 'imposter'
-                  ? 'Imposter'
+                {revealedPlayer.role === 'red_handed'
+                  ? 'Red-Handed'
                   : revealedPlayer.role === 'double_agent'
                   ? 'Double Agent'
                   : revealedPlayer.role === 'detective'
@@ -836,7 +836,7 @@ export default function GameScreen() {
           <View className="gap-2">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-2">
-                <Text className="text-lg font-extrabold text-white tracking-tight">Imposter</Text>
+                <Text className="text-lg font-extrabold text-white tracking-tight">RedHanded</Text>
                 {code && (
                   <View className="border border-neutral-800 rounded px-2 py-0.5">
                     <Text className="text-xs font-mono text-neutral-500">{code}</Text>
@@ -885,7 +885,7 @@ export default function GameScreen() {
                 </View>
                 <View className="flex-1 rounded-xl bg-orange-950/50 border border-orange-700/50 p-3">
                   <Text className="text-[10px] font-bold uppercase tracking-widest text-orange-500 mb-1.5">
-                    Imposter Word
+                    RedHanded Word
                   </Text>
                   <Text className="text-xl font-extrabold text-orange-200">{myWord}</Text>
                 </View>
@@ -898,7 +898,7 @@ export default function GameScreen() {
             <View
               className={[
                 'rounded-2xl border-2 p-5 overflow-hidden',
-                isImposter
+                isRedHanded
                   ? 'border-red-700/60 bg-red-950/25'
                   : myRole === 'detective'
                   ? 'border-sky-700/60 bg-sky-950/25'
@@ -909,14 +909,14 @@ export default function GameScreen() {
               <View
                 className={[
                   'absolute top-0 left-0 right-0 h-0.5',
-                  isImposter ? 'bg-red-500' : myRole === 'detective' ? 'bg-sky-500' : 'bg-violet-500',
+                  isRedHanded ? 'bg-red-500' : myRole === 'detective' ? 'bg-sky-500' : 'bg-violet-500',
                 ].join(' ')}
               />
               <View className="flex-row items-center gap-4">
                 <View
                   className={[
                     'w-14 h-14 rounded-2xl items-center justify-center border',
-                    isImposter
+                    isRedHanded
                       ? 'bg-red-900/50 border-red-700/40'
                       : myRole === 'detective'
                       ? 'bg-sky-900/50 border-sky-700/40'
@@ -924,13 +924,13 @@ export default function GameScreen() {
                   ].join(' ')}
                 >
                   <Text style={{ fontSize: 28 }}>
-                    {isImposter ? '🎭' : myRole === 'detective' ? '🔍' : '🏘️'}
+                    {isRedHanded ? '🎭' : myRole === 'detective' ? '🔍' : '🏘️'}
                   </Text>
                 </View>
                 <View className="flex-1">
                   <Text className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 mb-1">
-                    {isImposter
-                      ? 'You are the Imposter'
+                    {isRedHanded
+                      ? 'You are the Red-Handed'
                       : myRole === 'detective'
                       ? 'You are the Detective'
                       : 'You are a Villager'}
@@ -938,17 +938,17 @@ export default function GameScreen() {
                   <Text
                     className={[
                       'font-extrabold tracking-tight',
-                      isImposter ? 'text-red-300' : myRole === 'detective' ? 'text-sky-300' : 'text-violet-300',
+                      isRedHanded ? 'text-red-300' : myRole === 'detective' ? 'text-sky-300' : 'text-violet-300',
                     ].join(' ')}
                     style={{ fontSize: 28 }}
                   >
                     {myWord ?? '???'}
                   </Text>
                   <Text className="text-xs text-neutral-500 mt-1 leading-relaxed">
-                    {isImposter
+                    {isRedHanded
                       ? "Blend in — don't reveal you have a different word"
                       : myRole === 'detective'
-                      ? 'Investigate players to find the imposter'
+                      ? 'Investigate players to find the redHanded'
                       : 'Give a clue without saying the word directly'}
                   </Text>
                 </View>
@@ -1000,7 +1000,7 @@ export default function GameScreen() {
           )}
 
           {/* ─── Twin partner banner ──────────────────────────────────────── */}
-          {(myRole === 'twin_villager' || myRole === 'twin_imposter') && twinPartner && (
+          {(myRole === 'twin_villager' || myRole === 'twin_red_handed') && twinPartner && (
             <View className="rounded-xl border border-purple-700/40 bg-purple-900/30 px-4 py-2.5 flex-row items-center gap-2">
               <Text style={{ fontSize: 14 }}>👯</Text>
               <Text className="text-purple-300 font-semibold text-xs">
@@ -1135,7 +1135,7 @@ export default function GameScreen() {
             <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
               <View className="flex-row items-center justify-between mb-2">
                 <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                  Vote out the Imposter
+                  Vote out the RedHanded
                 </Text>
                 {totalVoters > 0 && (
                   <Text
@@ -1245,7 +1245,7 @@ export default function GameScreen() {
               <View
                 className={[
                   'px-5 py-4 items-center',
-                  eliminated?.role === 'imposter' || eliminated?.role === 'double_agent'
+                  eliminated?.role === 'red_handed' || eliminated?.role === 'double_agent'
                     ? 'bg-emerald-950/60'
                     : eliminated
                     ? 'bg-violet-950/60'
@@ -1255,7 +1255,7 @@ export default function GameScreen() {
                 <View
                   className={[
                     'absolute top-0 left-0 right-0 h-0.5',
-                    eliminated?.role === 'imposter' || eliminated?.role === 'double_agent'
+                    eliminated?.role === 'red_handed' || eliminated?.role === 'double_agent'
                       ? 'bg-emerald-500'
                       : eliminated
                       ? 'bg-violet-500'
@@ -1263,7 +1263,7 @@ export default function GameScreen() {
                   ].join(' ')}
                 />
                 <Text style={{ fontSize: 48, marginBottom: 8 }}>
-                  {eliminated?.role === 'imposter' || eliminated?.role === 'double_agent'
+                  {eliminated?.role === 'red_handed' || eliminated?.role === 'double_agent'
                     ? '🎉'
                     : eliminated
                     ? '😬'
@@ -1279,14 +1279,14 @@ export default function GameScreen() {
                   <Text
                     className={[
                       'text-sm font-semibold',
-                      eliminated.role === 'imposter' || eliminated.role === 'double_agent'
+                      eliminated.role === 'red_handed' || eliminated.role === 'double_agent'
                         ? 'text-red-400'
                         : 'text-violet-400',
                     ].join(' ')}
                   >
                     They were a{' '}
-                    {eliminated.role === 'imposter'
-                      ? 'Imposter'
+                    {eliminated.role === 'red_handed'
+                      ? 'Red-Handed'
                       : eliminated.role === 'double_agent'
                       ? 'Double Agent'
                       : eliminated.role === 'detective'
@@ -1310,9 +1310,9 @@ export default function GameScreen() {
                     <Text className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</Text>
                   </View>
                   <View className="flex-1 rounded-xl bg-amber-950/50 border border-amber-700/50 p-3 items-center">
-                    <Text className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-1">Imposter Word</Text>
+                    <Text className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-1">RedHanded Word</Text>
                     <Text className="text-amber-300 font-extrabold text-xl">
-                      {wordReveal.imposterWord}
+                      {wordReveal.redHandedWord}
                     </Text>
                   </View>
                 </View>

@@ -8,15 +8,15 @@ import type { UserStats } from './types'
 const VILLAGER_SIDE_ROLES = [
   'villager', 'detective', 'guardian', 'mayor', 'judge', 'revenant', 'twin_villager',
 ]
-const IMPOSTER_SIDE_ROLES = [
-  'imposter', 'double_agent', 'infiltrator', 'kamikaze', 'corruptor', 'inverter', 'twin_imposter',
+const RED_HANDED_SIDE_ROLES = [
+  'red_handed', 'double_agent', 'infiltrator', 'kamikaze', 'corruptor', 'inverter', 'twin_red_handed',
 ]
 
 function empty(): UserStats {
   return {
     totalGames: 0,
     totalWins: 0,
-    totalImposterWins: 0,
+    totalRedHandedWins: 0,
     totalVillagerWins: 0,
     totalJesterWins: 0,
     survivedWins: 0,
@@ -127,20 +127,20 @@ export async function buildUserStats(userId: string): Promise<UserStats> {
       if (!team) continue
 
       const isVillagerSide = VILLAGER_SIDE_ROLES.includes(p.role)
-      const isImposterSide = IMPOSTER_SIDE_ROLES.includes(p.role)
+      const isRedHandedSide = RED_HANDED_SIDE_ROLES.includes(p.role)
       const isJester = p.role === 'jester'
-      const isTwin = p.role === 'twin_villager' || p.role === 'twin_imposter'
+      const isTwin = p.role === 'twin_villager' || p.role === 'twin_red_handed'
 
       const won =
         (team === 'villagers' && isVillagerSide) ||
-        (team === 'imposters' && isImposterSide) ||
+        (team === 'red_handed' && isRedHandedSide) ||
         (team === 'jester' && isJester) ||
         (team === 'evil_twins' && isTwin)
 
       if (won) {
         stats.totalWins++
         stats.winsByRole[p.role] = (stats.winsByRole[p.role] ?? 0) + 1
-        if (isImposterSide) stats.totalImposterWins++
+        if (isRedHandedSide) stats.totalRedHandedWins++
         if (isVillagerSide) stats.totalVillagerWins++
         if (isJester) stats.totalJesterWins++
         if (p.survived) stats.survivedWins++

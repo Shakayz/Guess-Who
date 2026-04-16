@@ -15,7 +15,7 @@ import { useResponsive } from '../../../lib/responsive'
 
 interface PlayerInfo {
   username: string
-  role: 'villager' | 'imposter' | 'detective' | 'doubleAgent'
+  role: 'villager' | 'red_handed' | 'detective' | 'doubleAgent'
   status: 'survived' | 'eliminated'
 }
 
@@ -39,7 +39,7 @@ interface Round {
 
 interface GameDetail {
   id: string
-  winner: 'villagers' | 'imposters'
+  winner: 'villagers' | 'red_handed'
   players: PlayerInfo[]
   rounds: Round[]
   createdAt: string
@@ -47,9 +47,9 @@ interface GameDetail {
 
 const ROLE_CONFIG: Record<string, { emoji: string; label: string }> = {
   villager: { emoji: '🏘️', label: 'Villager' },
-  imposter: { emoji: '🎭', label: 'Imposter' },
+  red_handed: { emoji: '🎭', label: 'Red-Handed' },
   detective: { emoji: '🔍', label: 'Detective' },
-  doubleAgent: { emoji: '🕵️', label: 'Double Agent' },
+  double_agent: { emoji: '🕵️', label: 'Double Agent' },
 }
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -154,7 +154,7 @@ export default function GameDetailScreen() {
           <Text className="text-neutral-500 text-xs mt-1">
             {game.winner === 'villagers'
               ? t('results.villagersWon')
-              : t('results.impostersWon')}
+              : t('results.redHandedWon')}
           </Text>
           <Text className="text-neutral-600 text-xs mt-2">
             {dateFormatter.format(new Date(game.createdAt))}

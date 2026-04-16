@@ -6,7 +6,7 @@ import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
 
 // Mock the shared package's generateRoomCode
-vi.mock('@imposter/shared', () => ({
+vi.mock('@red-handed/shared', () => ({
   generateRoomCode: vi.fn().mockReturnValue('ABC123'),
 }))
 
@@ -63,7 +63,7 @@ describe('Room Lifecycle - Integration Tests', () => {
         game: {
           room: {
             id: 'room-1', code: 'ABC123', hostId: 'host-user-1',
-            maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30,
+            maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30,
             votingTimeSeconds: 30, wordPackId: 'default', isPrivate: false,
             language: 'en', createdAt: new Date('2025-01-01'),
           },
@@ -87,7 +87,7 @@ describe('Room Lifecycle - Integration Tests', () => {
         game: {
           room: {
             id: 'room-1', code: 'ABC123', hostId: 'host-user-1',
-            maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30,
+            maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30,
             votingTimeSeconds: 30, wordPackId: 'default', isPrivate: false,
             language: 'en', createdAt: new Date('2025-01-01'),
           },
@@ -109,7 +109,7 @@ describe('Room Lifecycle - Integration Tests', () => {
     it('returns active room when game is in_progress', async () => {
       const room = {
         id: 'room-1', code: 'ABC123', hostId: 'host-user-1',
-        maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30,
+        maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30,
         votingTimeSeconds: 30, wordPackId: 'default', isPrivate: false,
         language: 'en', createdAt: new Date('2025-01-01'),
       }
@@ -143,7 +143,7 @@ describe('Room Lifecycle - Integration Tests', () => {
     it('returns active room when game is in voting state', async () => {
       const room = {
         id: 'room-2', code: 'XYZ789', hostId: 'host-user-1',
-        maxPlayers: 8, imposterCount: 1, speakingTimeSeconds: 60,
+        maxPlayers: 8, redHandedCount: 1, speakingTimeSeconds: 60,
         votingTimeSeconds: 30, wordPackId: 'default', isPrivate: true,
         language: 'fr', createdAt: new Date('2025-01-01'),
       }
@@ -185,7 +185,7 @@ describe('Room Lifecycle - Integration Tests', () => {
         code: 'ABC123',
         hostId: 'host-user-1',
         maxPlayers: 10,
-        imposterCount: 2,
+        redHandedCount: 2,
         speakingTimeSeconds: 30,
         votingTimeSeconds: 30,
         wordPackId: 'default',
@@ -216,7 +216,7 @@ describe('Room Lifecycle - Integration Tests', () => {
         code: 'ABC123',
         hostId: 'host-user-1',
         maxPlayers: 8,
-        imposterCount: 1,
+        redHandedCount: 1,
         speakingTimeSeconds: 60,
         votingTimeSeconds: 45,
         wordPackId: 'custom-pack',
@@ -232,7 +232,7 @@ describe('Room Lifecycle - Integration Tests', () => {
         payload: {
           settings: {
             maxPlayers: 8,
-            imposterCount: 1,
+            redHandedCount: 1,
             speakingTimeSeconds: 60,
             votingTimeSeconds: 45,
             wordPackId: 'custom-pack',

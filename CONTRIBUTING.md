@@ -1,4 +1,4 @@
-# Contributing to Imposter Game
+# Contributing to Red Handed
 
 ## Branch Strategy
 

@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
 import { NavBar } from '../components/NavBar'
-import { Avatar, Badge } from '@imposter/ui'
-import { RANK_CONFIG } from '@imposter/shared'
-import type { RankTier, Round } from '@imposter/shared'
+import { Avatar, Badge } from '@red-handed/ui'
+import { RANK_CONFIG } from '@red-handed/shared'
+import type { RankTier, Round } from '@red-handed/shared'
 import { getSocket } from '../lib/socket'
 import { SoundManager } from '../lib/sounds'
 import { PlayerActionMenu } from '../components/PlayerActionMenu'
@@ -274,7 +274,7 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
                 💀 <span className="font-semibold text-white">{eliminated.username}</span>
                 {' '}
                 <span className="text-neutral-500 text-xs">
-                  ({round.eliminatedRole === 'imposter' ? `🎭 ${t('game.roleImposter', 'Imposter')}` : round.eliminatedRole === 'double_agent' ? `🕵️ ${t('game.roleDoubleAgent', 'Double Agent')}` : round.eliminatedRole === 'detective' ? `🔍 ${t('game.roleDetective', 'Detective')}` : `👤 ${t('game.roleVillager', 'Villager')}`})
+                  ({round.eliminatedRole === 'red_handed' ? `🎭 ${t('game.roleRedHanded', 'Red-Handed')}` : round.eliminatedRole === 'double_agent' ? `🕵️ ${t('game.roleDoubleAgent', 'Double Agent')}` : round.eliminatedRole === 'detective' ? `🔍 ${t('game.roleDetective', 'Detective')}` : `👤 ${t('game.roleVillager', 'Villager')}`})
                 </span>
               </span>
             ) : (
@@ -287,7 +287,7 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
           <div className="flex items-center gap-3 ml-9 text-xs">
             <span className="text-brand-400 font-semibold">{round.wordReveal.villagerWord}</span>
             <span className="text-neutral-700">vs</span>
-            <span className="text-amber-400 font-semibold">{round.wordReveal.imposterWord}</span>
+            <span className="text-amber-400 font-semibold">{round.wordReveal.redHandedWord}</span>
           </div>
         )}
       </button>
@@ -302,8 +302,8 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
                 <p className="text-white font-bold">{round.wordReveal.villagerWord}</p>
               </div>
               <div className="rounded-lg bg-amber-950/40 border border-amber-800/40 p-2 text-center">
-                <p className="text-[10px] text-neutral-500 mb-0.5">Imposter Word</p>
-                <p className="text-amber-300 font-bold">{round.wordReveal.imposterWord}</p>
+                <p className="text-[10px] text-neutral-500 mb-0.5">RedHanded Word</p>
+                <p className="text-amber-300 font-bold">{round.wordReveal.redHandedWord}</p>
               </div>
             </div>
           )}
@@ -412,12 +412,12 @@ export default function ResultsPage() {
   const winner = result?.winner ?? 'draw'
   const rewards = result?.rewards
   const players = room?.players?.length ? room.players : []
-  const isImposterSide = myRole === 'imposter' || myRole === 'double_agent' || myRole === 'infiltrator' ||
-    myRole === 'kamikaze' || myRole === 'corruptor' || myRole === 'inverter' || myRole === 'twin_imposter'
+  const isRedHandedSide = myRole === 'red_handed' || myRole === 'double_agent' || myRole === 'infiltrator' ||
+    myRole === 'kamikaze' || myRole === 'corruptor' || myRole === 'inverter' || myRole === 'twin_red_handed'
   const isVillagerSide = myRole === 'villager' || myRole === 'detective' || myRole === 'guardian' ||
     myRole === 'mayor' || myRole === 'judge' || myRole === 'revenant' || myRole === 'twin_villager'
   const isJester = myRole === 'jester'
-  const isTwin = myRole === 'twin_villager' || myRole === 'twin_imposter'
+  const isTwin = myRole === 'twin_villager' || myRole === 'twin_red_handed'
   const isDraw = winner === 'draw'
   // Evil twins override: the surviving twin whose partner died LOSES individually
   // even if their natural team won. We detect this by checking the final round's
@@ -431,7 +431,7 @@ export default function ResultsPage() {
   })()
   const didWin = !isDraw && (
     (winner === 'villagers' && isVillagerSide && !twinPartnerDead) ||
-    (winner === 'imposters' && isImposterSide && !twinPartnerDead) ||
+    (winner === 'red_handed' && isRedHandedSide && !twinPartnerDead) ||
     (winner === 'jester'     && isJester) ||
     (winner === 'evil_twins' && isTwin)
   )
@@ -619,7 +619,7 @@ export default function ResultsPage() {
                       ? t('results.evilTwinsWonDesc', 'Both twins survived — they win together!')
                       : winner === 'villagers'
                         ? t('results.villagersWon')
-                        : t('results.impostersWon')}
+                        : t('results.redHandedWon')}
               </p>
               {twinPartnerDead && !didWin && isTwin && (
                 <p className="text-purple-400 text-xs mt-2 font-semibold">
@@ -637,8 +637,8 @@ export default function ResultsPage() {
                 <p className="text-xl font-extrabold text-white">{result.finalRound.wordReveal.villagerWord}</p>
               </div>
               <div className="card text-center py-4 border-amber-800/30">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">{t('game.imposterWord', 'Imposter Word')}</p>
-                <p className="text-xl font-extrabold text-amber-400">{result.finalRound.wordReveal.imposterWord}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">{t('game.redHandedWord', 'Red-Handed Word')}</p>
+                <p className="text-xl font-extrabold text-amber-400">{result.finalRound.wordReveal.redHandedWord}</p>
               </div>
             </div>
           )}
@@ -736,8 +736,8 @@ export default function ResultsPage() {
                     </div>
                     <span className={[
                       'text-xs font-semibold px-2 py-0.5 rounded-full',
-                      role === 'imposter' || role === 'double_agent' || role === 'infiltrator' ||
-                      role === 'kamikaze' || role === 'corruptor' || role === 'inverter' || role === 'twin_imposter'
+                      role === 'red_handed' || role === 'double_agent' || role === 'infiltrator' ||
+                      role === 'kamikaze' || role === 'corruptor' || role === 'inverter' || role === 'twin_red_handed'
                         ? 'bg-red-950/60 text-red-400 border border-red-800/40'
                         : role === 'jester'
                           ? 'bg-pink-950/60 text-pink-400 border border-pink-800/40'
@@ -745,7 +745,7 @@ export default function ResultsPage() {
                             ? 'bg-purple-950/60 text-purple-400 border border-purple-800/40'
                             : 'bg-brand-950/60 text-brand-400 border border-brand-800/40',
                     ].join(' ')}>
-                      {role === 'imposter' ? t('results.imposter')
+                      {role === 'red_handed' ? t('results.redHanded')
                         : role === 'double_agent' ? t('results.doubleAgent')
                         : role === 'detective' ? t('results.detective')
                         : role === 'guardian' ? t('results.guardian', 'Guardian')
@@ -758,7 +758,7 @@ export default function ResultsPage() {
                         : role === 'corruptor' ? t('results.corruptor', 'Corruptor')
                         : role === 'inverter' ? t('results.inverter', 'Inverter')
                         : role === 'twin_villager' ? t('results.twinVillager', 'Evil Twin (Villager)')
-                        : role === 'twin_imposter' ? t('results.twinImposter', 'Evil Twin (Imposter)')
+                        : role === 'twin_red_handed' ? t('results.twinRedHanded', 'Evil Twin (RedHanded)')
                         : t('results.villager')}
                     </span>
                     {survived !== undefined && (

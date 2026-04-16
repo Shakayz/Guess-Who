@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
-import { TUTORIAL_COMPLETION_REWARD } from '@imposter/shared'
+import { TUTORIAL_COMPLETION_REWARD } from '@red-handed/shared'
 import { prisma } from '../config/prisma'
 
 // Re-exported so existing test imports (`import { TUTORIAL_COMPLETION_REWARD }

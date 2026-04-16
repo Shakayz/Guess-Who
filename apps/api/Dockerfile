@@ -11,12 +11,12 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 
 COPY packages/shared ./packages/shared
 COPY apps/api ./apps/api
-RUN pnpm --filter @imposter/shared build
-RUN pnpm --filter @imposter/api db:generate
-RUN pnpm --filter @imposter/api build
+RUN pnpm --filter @red-handed/shared build
+RUN pnpm --filter @red-handed/api db:generate
+RUN pnpm --filter @red-handed/api build
 
 # Create a self-contained deployment bundle (resolves pnpm symlinks)
-RUN pnpm --filter @imposter/api deploy --prod /app/deploy
+RUN pnpm --filter @red-handed/api deploy --prod /app/deploy
 # Generate Prisma client inside the deploy bundle
 COPY apps/api/prisma /app/deploy/prisma
 RUN cd /app/deploy && npx --yes prisma@5 generate

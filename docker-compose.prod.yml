@@ -6,14 +6,14 @@ version: '3.9'
 
 networks:
   prod_net:
-    name: imposter_prod_net
+    name: red_handed_prod_net
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: imposter-postgres-prod
+    container_name: red-handed-postgres-prod
     environment:
-      POSTGRES_DB: imposter_game_prod
+      POSTGRES_DB: red_handed_prod
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
@@ -31,7 +31,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: imposter-redis-prod
+    container_name: red-handed-redis-prod
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_prod_data:/data
@@ -47,11 +47,11 @@ services:
 
   api:
     image: ghcr.io/shakayz/guess-who/api:latest
-    container_name: imposter-api-prod
+    container_name: red-handed-api-prod
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/imposter_game_prod
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/red_handed_prod
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       JWT_SECRET: ${JWT_SECRET}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
@@ -82,7 +82,7 @@ services:
 
   web:
     image: ghcr.io/shakayz/guess-who/web:latest
-    container_name: imposter-web-prod
+    container_name: red-handed-web-prod
     ports:
       - "80:80"
       - "443:443"
@@ -104,7 +104,7 @@ services:
   # Automatic TLS certificate renewal
   certbot:
     image: certbot/certbot
-    container_name: imposter-certbot
+    container_name: red-handed-certbot
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt
       - certbot_webroot:/var/www/certbot

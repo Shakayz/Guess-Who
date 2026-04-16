@@ -34,7 +34,7 @@ describe('DEFAULT_ACHIEVEMENTS', () => {
   it('every entry uses a known difficulty and category', () => {
     const validCategories = new Set([
       'gameplay',
-      'imposter',
+      'red_handed',
       'detective',
       'social',
       'ranked',

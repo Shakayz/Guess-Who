@@ -1,5 +1,5 @@
 import type { Server } from 'socket.io'
-import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
+import type { ServerToClientEvents, ClientToServerEvents } from '@red-handed/shared'
 import jwt from 'jsonwebtoken'
 import { env } from '../config/env'
 import { childLogger } from '../config/logger'

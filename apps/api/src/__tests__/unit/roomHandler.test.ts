@@ -61,7 +61,7 @@ const defaultRoom = {
   hostId: 'host-1',
   status: 'waiting',
   maxPlayers: 8,
-  imposterCount: 1,
+  redHandedCount: 1,
   speakingTimeSeconds: 30,
   votingTimeSeconds: 30,
   wordPackId: null,
@@ -204,7 +204,7 @@ describe('room:join', () => {
       status: 'in_progress',
       currentRound: 1,
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       phaseStartedAt: Date.now() - 5000,
       phaseDurationSeconds: 30,
       rounds: [{ roundNumber: 1, speakingOrder: ['host-1'], clues: [], votes: [] }],
@@ -320,10 +320,10 @@ describe('room:settings', () => {
     mockRedis.get.mockResolvedValue(JSON.stringify(state))
 
     registerRoomHandlers(io, socket)
-    await socket._fire('room:settings', { gameMode: 'special', maxPlayers: 6, imposterCount: 2 })
+    await socket._fire('room:settings', { gameMode: 'special', maxPlayers: 6, redHandedCount: 2 })
 
     expect(mockPrisma.room.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ maxPlayers: 6, imposterCount: 2 }),
+      data: expect.objectContaining({ maxPlayers: 6, redHandedCount: 2 }),
     }))
     expect(io.to).toHaveBeenCalledWith('room:room-1')
   })
@@ -408,7 +408,7 @@ describe('detective:reveal (room handler)', () => {
       status: 'in_progress',
       players: [
         { userId: 'host-1', role: 'detective', status: 'alive', detectiveRevealUsed: false },
-        { userId: 'target-1', role: 'imposter', status: 'alive', username: 'Villain' },
+        { userId: 'target-1', role: 'red_handed', status: 'alive', username: 'Villain' },
       ],
     }
     mockRedis.get.mockResolvedValue(JSON.stringify(state))
@@ -419,7 +419,7 @@ describe('detective:reveal (room handler)', () => {
 
     expect(socket.emit).toHaveBeenCalledWith('detective:result', expect.objectContaining({
       targetUserId: 'target-1',
-      role: 'imposter',
+      role: 'red_handed',
     }))
   })
 
@@ -863,7 +863,7 @@ describe('room:join — phaseStartedAt null branch (line 274)', () => {
       status: 'in_progress',
       currentRound: 1,
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       phaseStartedAt: null,          // null → elapsedSeconds = 0 (line 274 ':0' branch)
       phaseDurationSeconds: 30,
       rounds: [{ roundNumber: 1, speakingOrder: ['host-1'], clues: [], votes: [] }],
@@ -929,7 +929,7 @@ describe('game:start — detective role assigned (line 54)', () => {
     })
     mockRedis.get.mockResolvedValue(JSON.stringify(gameState))
     mockRedis.del.mockResolvedValue(1)
-    // A detective will be assigned (imposterCount=1 from defaultRoom, detective is index 1)
+    // A detective will be assigned (redHandedCount=1 from defaultRoom, detective is index 1)
     mockPrisma.wordPack.findFirst.mockResolvedValue(null)
     mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
       fn({

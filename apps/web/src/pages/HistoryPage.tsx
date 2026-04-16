@@ -8,8 +8,8 @@ interface GameSummary {
   id: string
   startedAt: string
   endedAt: string
-  winnerTeam: 'villagers' | 'imposters'
-  myRole: 'villager' | 'imposter'
+  winnerTeam: 'villagers' | 'red_handed'
+  myRole: 'villager' | 'red_handed'
   survived: boolean
   starCoinsEarned: number
   roundCount: number
@@ -67,7 +67,7 @@ export default function HistoryPage() {
 
   const didWin = (game: GameSummary) =>
     (game.winnerTeam === 'villagers' && game.myRole === 'villager') ||
-    (game.winnerTeam === 'imposters' && game.myRole === 'imposter')
+    (game.winnerTeam === 'red_handed' && game.myRole === 'red_handed')
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, {
@@ -149,12 +149,12 @@ export default function HistoryPage() {
                         <span
                           className={[
                             'text-xs font-semibold px-2 py-0.5 rounded-full border',
-                            game.myRole === 'imposter'
+                            game.myRole === 'red_handed'
                               ? 'bg-amber-950 text-amber-400 border-amber-800/60'
                               : 'bg-brand-950/60 text-brand-400 border-brand-800/60',
                           ].join(' ')}
                         >
-                          {game.myRole === 'imposter' ? t('gameDetail.imposterRole') : t('gameDetail.villagerRole')}
+                          {game.myRole === 'red_handed' ? t('gameDetail.redHandedRole') : t('gameDetail.villagerRole')}
                         </span>
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-400 bg-neutral-800/60">
                           ⭐ +{game.starCoinsEarned}
@@ -180,7 +180,7 @@ export default function HistoryPage() {
                               onClick={(e) => { e.stopPropagation(); navigate(`/player/${p.userId}`) }}
                               className={[
                                 'text-xs font-semibold px-2 py-0.5 rounded-full border transition-all hover:scale-105',
-                                p.role === 'imposter' || p.role === 'double_agent'
+                                p.role === 'red_handed' || p.role === 'double_agent'
                                   ? 'bg-red-950/30 text-red-400 border-red-900/40 hover:border-red-700/50'
                                   : 'bg-neutral-800/60 text-neutral-300 border-neutral-700/40 hover:border-neutral-600/60',
                               ].join(' ')}

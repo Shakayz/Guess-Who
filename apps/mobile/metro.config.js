@@ -26,10 +26,10 @@ config.resolver.extraNodeModules = {
   "react/jsx-dev-runtime": path.resolve(mobileModules, "react/jsx-dev-runtime"),
 };
 
-// Custom resolver for @imposter/shared subpath imports (Metro doesn't support "exports" natively)
+// Custom resolver for @red-handed/shared subpath imports (Metro doesn't support "exports" natively)
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  const match = moduleName.match(/^@imposter\/shared\/(.+)$/);
+  const match = moduleName.match(/^@red-handed\/shared\/(.+)$/);
   if (match) {
     const subpath = match[1];
     return context.resolveRequest(

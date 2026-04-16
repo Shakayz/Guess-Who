@@ -36,14 +36,14 @@ const singlePageData = {
       roundCount: 3,
       players: [
         { userId: 'u1', username: 'testuser', avatarUrl: null, role: 'villager', survived: true },
-        { userId: 'u2', username: 'opponent', avatarUrl: null, role: 'imposter', survived: false },
+        { userId: 'u2', username: 'opponent', avatarUrl: null, role: 'red_handed', survived: false },
       ],
     },
     {
       id: 'g2',
       startedAt: new Date('2024-01-14').toISOString(),
       endedAt: new Date('2024-01-14').toISOString(),
-      winnerTeam: 'imposters',
+      winnerTeam: 'red_handed',
       myRole: 'villager',
       survived: false,
       starCoinsEarned: 2,

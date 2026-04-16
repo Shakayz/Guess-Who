@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { WORD_CATEGORIES, shuffleArray, OFFLINE_WORD_PAIRS, pickRandomWordPair } from '@imposter/shared'
-import type { WordCategory } from '@imposter/shared'
+import { WORD_CATEGORIES, shuffleArray, OFFLINE_WORD_PAIRS, pickRandomWordPair } from '@red-handed/shared'
+import type { WordCategory } from '@red-handed/shared'
 import { SoundManager } from '../lib/sounds'
 import { HapticManager } from '../lib/haptics'
 
@@ -17,7 +17,7 @@ type GameMode = 'normal' | 'special'
 // on the role card and resolved manually by the players.
 type PlayerRoleType =
   | 'villager'
-  | 'imposter'
+  | 'red_handed'
   | 'detective'
   | 'doubleAgent'
   | 'guardian'
@@ -30,7 +30,7 @@ type PlayerRoleType =
   | 'corruptor'
   | 'inverter'
   | 'twinVillager'
-  | 'twinImposter'
+  | 'twinRedHanded'
 
 interface PlayerRole {
   name: string
@@ -60,12 +60,12 @@ interface SpecialRoleCounts {
   kamikaze: number
   corruptor: number
   inverter: number
-  evilTwins: number // 0 or 1: enables the paired twin_villager + twin_imposter duo
+  evilTwins: number // 0 or 1: enables the paired twin_villager + twin_red_handed duo
 }
 
 interface GameSettings {
   names: string[]
-  imposterCount: number
+  redHandedCount: number
   detectiveCount: number
   doubleAgentCount: number
   guardianCount: number
@@ -88,7 +88,7 @@ interface GameSettings {
 function getRoleConfig(t: any): Record<PlayerRoleType, { label: string; icon: string; color: string; bgClass: string; borderClass: string; textClass: string; badgeClass: string }> {
   return {
     villager:     { label: t('offline.villager'),                         icon: '🟢', color: 'emerald', bgClass: 'bg-emerald-950/70', borderClass: 'border-emerald-700/60', textClass: 'text-emerald-400', badgeClass: 'text-emerald-500' },
-    imposter:     { label: t('offline.imposter'),                         icon: '🔴', color: 'red',     bgClass: 'bg-red-950/70',     borderClass: 'border-red-700/60',     textClass: 'text-red-400',     badgeClass: 'text-red-500' },
+    red_handed:   { label: t('offline.redHanded'),                         icon: '🔴', color: 'red',     bgClass: 'bg-red-950/70',     borderClass: 'border-red-700/60',     textClass: 'text-red-400',     badgeClass: 'text-red-500' },
     detective:    { label: t('offline.detective'),                        icon: '🔍', color: 'blue',    bgClass: 'bg-blue-950/70',    borderClass: 'border-blue-700/60',    textClass: 'text-blue-400',    badgeClass: 'text-blue-500' },
     doubleAgent:  { label: t('offline.doubleAgent'),                      icon: '🕵️', color: 'amber',   bgClass: 'bg-amber-950/70',   borderClass: 'border-amber-700/60',   textClass: 'text-amber-400',   badgeClass: 'text-amber-500' },
     guardian:     { label: t('offline.guardian'),                         icon: '🛡️', color: 'yellow',  bgClass: 'bg-yellow-950/70',  borderClass: 'border-yellow-700/60',  textClass: 'text-yellow-400',  badgeClass: 'text-yellow-500' },
@@ -101,13 +101,13 @@ function getRoleConfig(t: any): Record<PlayerRoleType, { label: string; icon: st
     corruptor:    { label: t('offline.corruptor',    'Corruptor'),        icon: '🕷️', color: 'orange',  bgClass: 'bg-orange-950/70',  borderClass: 'border-orange-700/60',  textClass: 'text-orange-300', badgeClass: 'text-orange-500' },
     inverter:     { label: t('offline.inverter',     'Inverter'),         icon: '🔄', color: 'rose',    bgClass: 'bg-rose-950/70',    borderClass: 'border-rose-700/60',    textClass: 'text-rose-300',    badgeClass: 'text-rose-500' },
     twinVillager: { label: t('offline.twinVillager', 'Villager Twin'),    icon: '👯', color: 'purple',  bgClass: 'bg-purple-950/70',  borderClass: 'border-purple-700/60',  textClass: 'text-purple-300', badgeClass: 'text-purple-500' },
-    twinImposter: { label: t('offline.twinImposter', 'Imposter Twin'),    icon: '👯', color: 'purple',  bgClass: 'bg-purple-950/70',  borderClass: 'border-purple-700/60',  textClass: 'text-purple-300', badgeClass: 'text-purple-500' },
+    twinRedHanded: { label: t('offline.twinRedHanded', 'Red-Handed Twin'),    icon: '👯', color: 'purple',  bgClass: 'bg-purple-950/70',  borderClass: 'border-purple-700/60',  textClass: 'text-purple-300', badgeClass: 'text-purple-500' },
   }
 }
 
-// Imposter-side roles play for the imposter team (know the imposter word).
+// RedHanded-side roles play for the redHanded team (know the redHanded word).
 const EVIL_ROLES: PlayerRoleType[] = [
-  'imposter', 'doubleAgent', 'infiltrator', 'kamikaze', 'corruptor', 'inverter', 'twinImposter',
+  'red_handed', 'doubleAgent', 'infiltrator', 'kamikaze', 'corruptor', 'inverter', 'twinRedHanded',
 ]
 
 /** Number of post-death vote rounds for the Revenant. */
@@ -119,11 +119,11 @@ function isEvilRole(role: PlayerRoleType) {
 
 /**
  * On the reveal card, clarify which base team a *special* role plays for —
- * e.g. a Mayor is still a Villager, a Corruptor is still an Imposter. Returns
- * `null` for roles where this would be redundant (villager/imposter) or
+ * e.g. a Mayor is still a Villager, a Corruptor is still an RedHanded. Returns
+ * `null` for roles where this would be redundant (villager/redHanded) or
  * misleading (jester is solo, twins win as a pair).
  */
-function getBaseTeamForReveal(role: PlayerRoleType): 'villager' | 'imposter' | null {
+function getBaseTeamForReveal(role: PlayerRoleType): 'villager' | 'red_handed' | null {
   switch (role) {
     case 'detective':
     case 'guardian':
@@ -136,7 +136,7 @@ function getBaseTeamForReveal(role: PlayerRoleType): 'villager' | 'imposter' | n
     case 'kamikaze':
     case 'corruptor':
     case 'inverter':
-      return 'imposter'
+      return 'red_handed'
     default:
       return null
   }
@@ -226,7 +226,7 @@ interface SetupPhaseProps {
   initialSettings: GameSettings | null
   onStart: (
     names: string[],
-    imposterCount: number,
+    redHandedCount: number,
     counts: SpecialRoleCounts,
     categories: WordCategory[],
     gameMode: GameMode,
@@ -236,7 +236,7 @@ interface SetupPhaseProps {
 function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
   const { t, i18n } = useTranslation()
   const [names, setNames] = useState<string[]>(initialSettings?.names ?? ['', '', ''])
-  const [imposterCount, setImposterCount] = useState(initialSettings?.imposterCount ?? 1)
+  const [redHandedCount, setRedHandedCount] = useState(initialSettings?.redHandedCount ?? 1)
   const [detectiveCount, setDetectiveCount] = useState(initialSettings?.detectiveCount ?? 1)
   const [doubleAgentCount, setDoubleAgentCount] = useState(initialSettings?.doubleAgentCount ?? 0)
   const [guardianCount, setGuardianCount] = useState(initialSettings?.guardianCount ?? 0)
@@ -263,28 +263,28 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
     }
   }, [gameMode])
 
-  // Cap imposter count to floor(N/3) so imposters never exceed 1/3 of players.
+  // Cap redHanded count to floor(N/3) so redHanded never exceed 1/3 of players.
   // Examples: 3p→1, 4p→1, 5p→1, 6p→2, 9p→3, 12p→4. Always at least 1.
-  const maxImposters = Math.max(1, Math.floor(filledCount / 3))
+  const maxRedHanded = Math.max(1, Math.floor(filledCount / 3))
 
-  // Auto-adjust imposter count to stay within the 1/3 rule whenever the
+  // Auto-adjust redHanded count to stay within the 1/3 rule whenever the
   // player count changes (even when replaying with previous settings).
   useEffect(() => {
-    if (imposterCount > maxImposters) {
-      setImposterCount(maxImposters)
+    if (redHandedCount > maxRedHanded) {
+      setRedHandedCount(maxRedHanded)
     }
-  }, [filledCount, maxImposters])
+  }, [filledCount, maxRedHanded])
 
-  // In special mode, special evil roles must fit within imposterCount.
-  // Decrease the special roles whenever they exceed the imposter budget.
+  // In special mode, special evil roles must fit within redHandedCount.
+  // Decrease the special roles whenever they exceed the redHanded budget.
   useEffect(() => {
     const evilExtras =
       doubleAgentCount + infiltratorCount + kamikazeCount +
       corruptorCount + inverterCount + evilTwinsCount
-    const excess = Math.max(0, evilExtras - imposterCount)
+    const excess = Math.max(0, evilExtras - redHandedCount)
     if (excess > 0) {
       // Reduce in reverse priority order: evilTwins → inverter → corruptor →
-      // kamikaze → infiltrator → doubleAgent (preserve the baseline imposters).
+      // kamikaze → infiltrator → doubleAgent (preserve the baseline redHanded).
       let remaining = excess
       const reducers: [number, (n: number) => void][] = [
         [evilTwinsCount,   setEvilTwinsCount],
@@ -304,7 +304,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
       }
     }
   }, [
-    filledCount, imposterCount, doubleAgentCount, infiltratorCount,
+    filledCount, redHandedCount, doubleAgentCount, infiltratorCount,
     kamikazeCount, corruptorCount, inverterCount, evilTwinsCount,
   ])
 
@@ -361,15 +361,15 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
           evilTwins:   evilTwinsCount,
         }
       : zeroCounts
-    onStart(validNames, imposterCount, specialCounts, categories, gameMode)
+    onStart(validNames, redHandedCount, specialCounts, categories, gameMode)
   }
 
-  // Special evil roles must fit within imposterCount budget.
-  // Evil Twins takes 1 slot on each side (twin_imposter + twin_villager).
+  // Special evil roles must fit within redHandedCount budget.
+  // Evil Twins takes 1 slot on each side (twin_red_handed + twin_villager).
   const evilExtras =
     doubleAgentCount + infiltratorCount + kamikazeCount +
     corruptorCount + inverterCount + evilTwinsCount
-  const evilHeadroom = Math.max(0, imposterCount - evilExtras)
+  const evilHeadroom = Math.max(0, redHandedCount - evilExtras)
 
   const maxDoubleAgents = Math.min(2, doubleAgentCount + evilHeadroom)
   const maxInfiltrators = Math.min(2, infiltratorCount + evilHeadroom)
@@ -380,7 +380,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
   // Villager-side special slots. evilTwins adds 1 villager-side slot (twinVillager).
   const currentGoodSpecial =
     detectiveCount + guardianCount + mayorCount + judgeCount + revenantCount
-  const slotsUsed = imposterCount + currentGoodSpecial + evilTwinsCount // +twinVillager
+  const slotsUsed = redHandedCount + currentGoodSpecial + evilTwinsCount // +twinVillager
   const goodHeadroom = Math.max(0, filledCount - slotsUsed)
 
   const maxDetectives = Math.min(3, detectiveCount + goodHeadroom)
@@ -581,24 +581,24 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
         )}
       </div>
 
-      {/* Imposter count */}
+      {/* RedHanded count */}
       <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
         <p className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">
-          {t('offline.imposterCount')}
+          {t('offline.redHandedCount')}
         </p>
         <div className="flex gap-2">
           {[1, 2, 3, 4, 5, 6].map((n) => {
-            const allowed = n <= maxImposters
+            const allowed = n <= maxRedHanded
             return (
               <button
                 key={n}
-                onClick={() => { if (allowed) setImposterCount(n) }}
+                onClick={() => { if (allowed) setRedHandedCount(n) }}
                 disabled={!allowed}
                 className={[
                   'flex-1 py-3 rounded-xl border font-bold text-lg transition-all',
                   !allowed
                     ? 'bg-neutral-900/40 border-neutral-800/40 text-neutral-700 cursor-not-allowed opacity-40'
-                    : imposterCount === n
+                    : redHandedCount === n
                     ? 'bg-red-950/60 border-red-700/60 text-red-400 shadow-md shadow-red-950/30'
                     : 'bg-neutral-800/60 border-neutral-700/40 text-neutral-400 hover:border-neutral-600/60 hover:text-neutral-300',
                 ].join(' ')}
@@ -668,15 +668,15 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
             />
           </div>
 
-          {/* Imposter side */}
+          {/* RedHanded side */}
           <div className="space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
-              🔴 {t('offline.teamImposters', 'Imposters')}
+              🔴 {t('offline.teamRedHanded', 'Red-Handed')}
             </p>
             <RoleStepper
               icon="🕵️"
               label={t('offline.doubleAgent')}
-              description={t('offline.htpDoubleAgentDesc', 'Knows the imposter word and plays for them, but looks like a villager.')}
+              description={t('offline.htpDoubleAgentDesc', 'Knows the redHanded word and plays for them, but looks like a villager.')}
               value={doubleAgentCount}
               max={maxDoubleAgents}
               onChange={setDoubleAgentCount}
@@ -685,7 +685,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
             <RoleStepper
               icon="🥷"
               label={t('offline.infiltrator', 'Infiltrator')}
-              description={t('offline.htpInfiltratorDesc', 'Knows the villager word but plays for the imposters. Appears as villager to the detective.')}
+              description={t('offline.htpInfiltratorDesc', 'Knows the villager word but plays for the redHanded. Appears as villager to the detective.')}
               value={infiltratorCount}
               max={maxInfiltrators}
               onChange={setInfiltratorCount}
@@ -728,7 +728,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
             <RoleStepper
               icon="👯"
               label={t('offline.evilTwins', 'Evil Twins')}
-              description={t('offline.htpEvilTwinsDesc', 'A linked pair (one villager, one imposter) who win together if both survive. Counts as 2 players.')}
+              description={t('offline.htpEvilTwinsDesc', 'A linked pair (one villager, one redHanded) who win together if both survive. Counts as 2 players.')}
               value={evilTwinsCount}
               max={maxEvilTwins}
               onChange={setEvilTwinsCount}
@@ -842,8 +842,8 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
             </div>
             <div className="flex items-center gap-2 text-xs">
               <span>🔴</span>
-              <span className="text-red-400 font-semibold">{t('offline.imposter')}</span>
-              <span className="text-neutral-500">— {t('offline.htpImposterDesc')}</span>
+              <span className="text-red-400 font-semibold">{t('offline.redHanded')}</span>
+              <span className="text-neutral-500">— {t('offline.htpRedHandedDesc')}</span>
             </div>
           </div>
         </div>
@@ -893,10 +893,10 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
             </div>
           </div>
 
-          {/* 🔴 Imposters */}
+          {/* 🔴 RedHanded */}
           <div className="space-y-1">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
-              🔴 {t('offline.teamImposters', 'Imposters')}
+              🔴 {t('offline.teamRedHanded', 'Red-Handed')}
             </p>
             <div className="ml-1 space-y-1">
               <div className="flex items-start gap-2 text-xs">
@@ -907,7 +907,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
               <div className="flex items-start gap-2 text-xs">
                 <span className="shrink-0">🥷</span>
                 <span className="text-fuchsia-400 font-semibold shrink-0">{t('offline.infiltrator', 'Infiltrator')}</span>
-                <span className="text-neutral-500">— {t('offline.htpInfiltratorDesc', 'Knows the villager word, but plays for the imposters. Appears as villager to the detective.')}</span>
+                <span className="text-neutral-500">— {t('offline.htpInfiltratorDesc', 'Knows the villager word, but plays for the redHanded. Appears as villager to the detective.')}</span>
               </div>
               <div className="flex items-start gap-2 text-xs">
                 <span className="shrink-0">💥</span>
@@ -936,7 +936,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
               <div className="flex items-start gap-2 text-xs">
                 <span className="shrink-0">👯</span>
                 <span className="text-purple-300 font-semibold shrink-0">{t('offline.evilTwins', 'Evil Twins')}</span>
-                <span className="text-neutral-500">— {t('offline.htpEvilTwinsDesc', 'A linked pair (one villager, one imposter) who win together if both survive — but lose individually if separated.')}</span>
+                <span className="text-neutral-500">— {t('offline.htpEvilTwinsDesc', 'A linked pair (one villager, one redHanded) who win together if both survive — but lose individually if separated.')}</span>
               </div>
             </div>
           </div>
@@ -978,7 +978,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
 interface DealingPhaseProps {
   players: PlayerRole[]
   gameMode: GameMode
-  wordPair: { villagerWord: string; imposterWord: string }
+  wordPair: { villagerWord: string; redHandedWord: string }
   onDone: () => void
 }
 
@@ -1017,7 +1017,7 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
 
   const getRoleInstruction = (role: PlayerRoleType) => {
     switch (role) {
-      case 'imposter':     return t('offline.roleInstructionImposter')
+      case 'red_handed':     return t('offline.roleInstructionRedHanded')
       case 'villager':     return t('offline.roleInstructionVillager')
       case 'detective':    return t('offline.roleInstructionDetective')
       case 'doubleAgent':  return t('offline.roleInstructionDoubleAgent')
@@ -1025,13 +1025,13 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
       case 'mayor':        return t('offline.roleInstructionMayor',        'You are the Mayor. Your vote counts double during the voting phase.')
       case 'judge':        return t('offline.roleInstructionJudge',        'You are the Judge. If a vote ends in a tie, you pick who gets eliminated.')
       case 'revenant':     return t('offline.roleInstructionRevenant',     'You are the Revenant. If you get voted out, you still cast votes for the next 2 rounds (announce a player when eliminated).')
-      case 'infiltrator':  return t('offline.roleInstructionInfiltrator',  'You are the Infiltrator. You know the VILLAGER word but you play for the imposters. Blend in and help them win — you look like a villager to the Detective.')
+      case 'infiltrator':  return t('offline.roleInstructionInfiltrator',  'You are the Infiltrator. You know the VILLAGER word but you play for the redHanded. Blend in and help them win — you look like a villager to the Detective.')
       case 'jester':       return t('offline.roleInstructionJester',       'You are the Jester. You win alone if the group votes you out. Act suspicious without being too obvious.')
-      case 'kamikaze':     return t('offline.roleInstructionKamikaze',     'You are a Kamikaze imposter. If you get voted out, pick one player to take down with you — they are eliminated too.')
+      case 'kamikaze':     return t('offline.roleInstructionKamikaze',     'You are a Kamikaze redHanded. If you get voted out, pick one player to take down with you — they are eliminated too.')
       case 'corruptor':    return t('offline.roleInstructionCorruptor',    'You are the Corruptor. At game start, secretly pick one target — their votes don\'t count until you are eliminated.')
       case 'inverter':     return t('offline.roleInstructionInverter',     'You are the Inverter. Once per game, before a vote is tallied, call "Invert!" — the player with the FEWEST votes is eliminated instead.')
-      case 'twinVillager': return t('offline.roleInstructionTwinVillager', 'You are the Villager Twin. You and the Imposter Twin win together if both survive — work with your twin without getting caught.')
-      case 'twinImposter': return t('offline.roleInstructionTwinImposter', 'You are the Imposter Twin. You and the Villager Twin win together if both survive — protect your twin.')
+      case 'twinVillager': return t('offline.roleInstructionTwinVillager', 'You are the Villager Twin. You and the RedHanded Twin win together if both survive — work with your twin without getting caught.')
+      case 'twinRedHanded': return t('offline.roleInstructionTwinRedHanded', 'You are the RedHanded Twin. You and the Villager Twin win together if both survive — protect your twin.')
     }
   }
 
@@ -1139,10 +1139,10 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
                 </div>
                 <div className={`px-6 py-3 rounded-2xl border bg-red-900/30 border-red-800/40`}>
                   <p className="text-xs font-semibold uppercase tracking-widest mb-1 text-red-600">
-                    {t('offline.imposterWord')}
+                    {t('offline.redHandedWord')}
                   </p>
                   <p className="text-2xl font-black tracking-tight text-red-300 drop-shadow-[0_0_12px_rgba(239,68,68,0.5)]">
-                    {wordPair.imposterWord}
+                    {wordPair.redHandedWord}
                   </p>
                 </div>
               </div>
@@ -1175,7 +1175,7 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
               </div>
             )}
 
-            {(current.role === 'twinImposter' || current.role === 'twinVillager') && current.twinPartner && (
+            {(current.role === 'twinRedHanded' || current.role === 'twinVillager') && current.twinPartner && (
               <div className="flex items-center gap-2 bg-purple-950/40 border border-purple-800/40 rounded-xl px-4 py-2.5 text-sm font-semibold text-purple-300">
                 <span>👯</span>
                 <span>{t('game.twinPartnerBanner', { name: current.twinPartner, defaultValue: 'Your twin: {{name}}' })}</span>
@@ -1648,7 +1648,7 @@ function VotePhase({
             👻 {t('game.revenantGhostVoter', { count: revenantGhostRounds[voter.name] ?? 0 })}
           </p>
         )}
-        {step === 'voting' && (voter.role === 'twinImposter' || voter.role === 'twinVillager') && voter.twinPartner && (
+        {step === 'voting' && (voter.role === 'twinRedHanded' || voter.role === 'twinVillager') && voter.twinPartner && (
           <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-950/40 border border-purple-800/40 text-xs font-semibold text-purple-300">
             <span>👯</span>
             <span>{t('game.twinPartnerBanner', { name: voter.twinPartner, defaultValue: 'Your twin: {{name}}' })}</span>
@@ -1724,7 +1724,7 @@ function VotePhase({
 
           <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
             <p className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">
-              {t('offline.whoIsImposter', { name: voter.name })}
+              {t('offline.whoIsRedHanded', { name: voter.name })}
             </p>
             <div className="space-y-2">
               {otherPlayers.map((p) => {
@@ -1950,7 +1950,7 @@ function VoteResult({ votes, eliminated, protectedPlayerName, silencedVoterNames
 interface PlayingPhaseProps {
   players: PlayerRole[]
   gameMode: GameMode
-  wordPair: { villagerWord: string; imposterWord: string }
+  wordPair: { villagerWord: string; redHandedWord: string }
   onRevealRoles: (updatedPlayers: PlayerRole[], manual?: boolean) => void
 }
 
@@ -2358,7 +2358,7 @@ function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRol
 interface ResultsPhaseProps {
   players: PlayerRole[]
   gameMode: GameMode
-  wordPair: { villagerWord: string; imposterWord: string }
+  wordPair: { villagerWord: string; redHandedWord: string }
   manualReveal: boolean
   onPlayAgain: () => void
   onHome: () => void
@@ -2367,11 +2367,11 @@ interface ResultsPhaseProps {
 function ResultsPhase({ players, gameMode, wordPair, manualReveal, onPlayAgain, onHome }: ResultsPhaseProps) {
   const { t } = useTranslation()
   const ROLES = getRoleConfig(t)
-  // All imposter-side roles (including special imposter roles) count as "evil"
+  // All red-handed-side roles (including special redHanded roles) count as "evil"
   // for the win check. The villagers win iff every evil player is eliminated.
   const evilTeam = players.filter((p) => isEvilRole(p.role))
   const eliminatedEvil = evilTeam.filter((p) => p.isEliminated)
-  const impostersWon = !manualReveal && eliminatedEvil.length < evilTeam.length
+  const redHandedWon = !manualReveal && eliminatedEvil.length < evilTeam.length
 
   // Final stinger — bigger reaction for a decisive outcome, softer for
   // a manual reveal (players chose to exit before finishing).
@@ -2382,13 +2382,13 @@ function ResultsPhase({ players, gameMode, wordPair, manualReveal, onPlayAgain, 
       return
     }
     SoundManager.play('game_end')
-    if (impostersWon) HapticManager.error()
+    if (redHandedWon) HapticManager.error()
     else HapticManager.success()
-  }, [manualReveal, impostersWon])
+  }, [manualReveal, redHandedWon])
 
   // Villager-win confetti: 40 particles that rain from the top.
   const confetti = React.useMemo(() => {
-    if (manualReveal || impostersWon) return []
+    if (manualReveal || redHandedWon) return []
     const COLORS = ['#22c55e', '#a78bfa', '#fbbf24', '#f472b6', '#38bdf8']
     return Array.from({ length: 40 }).map((_, i) => ({
       id: i,
@@ -2398,7 +2398,7 @@ function ResultsPhase({ players, gameMode, wordPair, manualReveal, onPlayAgain, 
       color: COLORS[i % COLORS.length],
       size: 6 + Math.random() * 6,
     }))
-  }, [manualReveal, impostersWon])
+  }, [manualReveal, redHandedWon])
 
   return (
     <div className="relative space-y-6 animate-slide-up">
@@ -2421,8 +2421,8 @@ function ResultsPhase({ players, gameMode, wordPair, manualReveal, onPlayAgain, 
           ))}
         </div>
       )}
-      {/* Imposter-win red screen flash */}
-      {!manualReveal && impostersWon && (
+      {/* RedHanded-win red screen flash */}
+      {!manualReveal && redHandedWon && (
         <div className="pointer-events-none fixed inset-0 bg-red-600/50 animate-screen-flash -z-0" aria-hidden />
       )}
       {/* Header */}
@@ -2433,13 +2433,13 @@ function ResultsPhase({ players, gameMode, wordPair, manualReveal, onPlayAgain, 
           'inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold',
           manualReveal
             ? 'bg-neutral-800/60 border-neutral-600/50 text-neutral-300 animate-pop-in'
-            : impostersWon
+            : redHandedWon
               ? 'bg-red-950/60 border-red-700/50 text-red-400 animate-urgent-pulse'
               : 'bg-emerald-950/60 border-emerald-700/50 text-emerald-400 animate-glow-pulse',
         ].join(' ')}>
           {manualReveal
             ? `👁️ ${t('offline.rolesRevealed')}`
-            : impostersWon ? `🔴 ${t('offline.impostersWin')}` : `🟢 ${t('offline.villagersWin')}`}
+            : redHandedWon ? `🔴 ${t('offline.redHandedWin')}` : `🟢 ${t('offline.villagersWin')}`}
         </div>
       </div>
 
@@ -2452,8 +2452,8 @@ function ResultsPhase({ players, gameMode, wordPair, manualReveal, onPlayAgain, 
             <p className="text-lg font-extrabold text-emerald-300">{wordPair.villagerWord}</p>
           </div>
           <div className="p-3 rounded-xl bg-red-950/40 border border-red-800/30">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-red-600 mb-1">{t('offline.imposterWord')}</p>
-            <p className="text-lg font-extrabold text-red-300">{wordPair.imposterWord}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-red-600 mb-1">{t('offline.redHandedWord')}</p>
+            <p className="text-lg font-extrabold text-red-300">{wordPair.redHandedWord}</p>
           </div>
         </div>
       </div>
@@ -2464,7 +2464,7 @@ function ResultsPhase({ players, gameMode, wordPair, manualReveal, onPlayAgain, 
           <p className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-2">{t('offline.roleLegend')}</p>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="flex items-center gap-2"><span>🟢</span><span className="text-emerald-400">{t('offline.villager')}</span></div>
-            <div className="flex items-center gap-2"><span>🔴</span><span className="text-red-400">{t('offline.imposter')}</span></div>
+            <div className="flex items-center gap-2"><span>🔴</span><span className="text-red-400">{t('offline.redHanded')}</span></div>
             <div className="flex items-center gap-2"><span>🔍</span><span className="text-blue-400">{t('offline.detective')}</span></div>
             <div className="flex items-center gap-2"><span>🕵️</span><span className="text-amber-400">{t('offline.doubleAgent')}</span></div>
             <div className="flex items-center gap-2"><span>🛡️</span><span className="text-yellow-400">{t('offline.guardian')}</span></div>
@@ -2540,9 +2540,9 @@ export default function OfflinePage() {
   const [phase, setPhase] = useState<Phase>('setup')
   const [players, setPlayers] = useState<PlayerRole[]>([])
   const [gameMode, setGameMode] = useState<GameMode>('normal')
-  const [wordPair, setWordPair] = useState<{ villagerWord: string; imposterWord: string }>({
+  const [wordPair, setWordPair] = useState<{ villagerWord: string; redHandedWord: string }>({
     villagerWord: '',
-    imposterWord: '',
+    redHandedWord: '',
   })
   // Persist settings across Play Again
   const [lastSettings, setLastSettings] = useState<GameSettings | null>(null)
@@ -2550,7 +2550,7 @@ export default function OfflinePage() {
   const handleStart = useCallback(
     (
       names: string[],
-      imposterCount: number,
+      redHandedCount: number,
       counts: SpecialRoleCounts,
       categories: WordCategory[],
       mode: GameMode,
@@ -2558,7 +2558,7 @@ export default function OfflinePage() {
       // Save settings for Play Again
       setLastSettings({
         names,
-        imposterCount,
+        redHandedCount,
         detectiveCount:   counts.detective,
         doubleAgentCount: counts.doubleAgent,
         guardianCount:    counts.guardian,
@@ -2577,9 +2577,9 @@ export default function OfflinePage() {
       setGameMode(mode)
 
       const rawPair = pickRandomWordPair(categories, shuffleArray, i18n.language)
-      // Randomly swap which word goes to villagers vs imposters
+      // Randomly swap which word goes to villagers vs redHanded
       const pair = Math.random() < 0.5
-        ? { villagerWord: rawPair.imposterWord, imposterWord: rawPair.villagerWord }
+        ? { villagerWord: rawPair.redHandedWord, redHandedWord: rawPair.villagerWord }
         : rawPair
       const playerOrder = shuffleArray([...names])
 
@@ -2587,21 +2587,21 @@ export default function OfflinePage() {
 
       if (mode === 'special') {
         // Build a queue of roles in a fixed team order, then assign to players.
-        // Imposter side first (they get the imposter word except infiltrator),
+        // RedHanded side first (they get the redHanded word except infiltrator),
         // then villager side (villager word), then neutral.
         const queue: PlayerRoleType[] = []
         const specialEvilCount =
           counts.doubleAgent + counts.infiltrator + counts.kamikaze +
           counts.corruptor + counts.inverter + counts.evilTwins
-        const normalImposters = Math.max(0, imposterCount - specialEvilCount)
-        for (let i = 0; i < normalImposters;     i++) queue.push('imposter')
+        const normalRedHanded = Math.max(0, redHandedCount - specialEvilCount)
+        for (let i = 0; i < normalRedHanded;     i++) queue.push('red_handed')
         for (let i = 0; i < counts.doubleAgent;  i++) queue.push('doubleAgent')
         for (let i = 0; i < counts.infiltrator;  i++) queue.push('infiltrator')
         for (let i = 0; i < counts.kamikaze;     i++) queue.push('kamikaze')
         for (let i = 0; i < counts.corruptor;    i++) queue.push('corruptor')
         for (let i = 0; i < counts.inverter;     i++) queue.push('inverter')
         if (counts.evilTwins > 0) {
-          queue.push('twinImposter')
+          queue.push('twinRedHanded')
           queue.push('twinVillager')
         }
         for (let i = 0; i < counts.detective;    i++) queue.push('detective')
@@ -2618,25 +2618,25 @@ export default function OfflinePage() {
         roles = playerOrder.map((name, i) => {
           const role = queue[i]
           // Which side's word does this role get?
-          // Imposter word: imposter, double_agent, kamikaze, corruptor, inverter, twin_imposter
+          // RedHanded word: redHanded, double_agent, kamikaze, corruptor, inverter, twin_red_handed
           // Villager word: everything else (including infiltrator — that's the twist)
-          const getsImposterWord =
-            role === 'imposter' ||
+          const getsRedHandedWord =
+            role === 'red_handed' ||
             role === 'doubleAgent' ||
             role === 'kamikaze' ||
             role === 'corruptor' ||
             role === 'inverter' ||
-            role === 'twinImposter'
+            role === 'twinRedHanded'
           return {
             name,
             role,
-            word: getsImposterWord ? pair.imposterWord : pair.villagerWord,
+            word: getsRedHandedWord ? pair.redHandedWord : pair.villagerWord,
             isEliminated: false,
           }
         })
 
         // Link Evil Twins so each knows their partner's name
-        const twinI = roles.find((p) => p.role === 'twinImposter')
+        const twinI = roles.find((p) => p.role === 'twinRedHanded')
         const twinV = roles.find((p) => p.role === 'twinVillager')
         if (twinI && twinV) {
           twinI.twinPartner = twinV.name
@@ -2646,8 +2646,8 @@ export default function OfflinePage() {
         // Normal mode
         roles = playerOrder.map((name, i) => ({
           name,
-          role: (i < imposterCount ? 'imposter' : 'villager') as PlayerRoleType,
-          word: i < imposterCount ? pair.imposterWord : pair.villagerWord,
+          role: (i < redHandedCount ? 'red_handed' : 'villager') as PlayerRoleType,
+          word: i < redHandedCount ? pair.redHandedWord : pair.villagerWord,
           isEliminated: false,
         }))
       }
@@ -2674,7 +2674,7 @@ export default function OfflinePage() {
   const handlePlayAgain = useCallback(() => {
     setPhase('setup')
     setPlayers([])
-    setWordPair({ villagerWord: '', imposterWord: '' })
+    setWordPair({ villagerWord: '', redHandedWord: '' })
     // lastSettings is preserved so SetupPhase gets initial values
   }, [])
 

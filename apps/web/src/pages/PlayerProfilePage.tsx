@@ -3,8 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
-import { RANK_CONFIG } from '@imposter/shared'
-import type { RankTier } from '@imposter/shared'
+import { RANK_CONFIG } from '@red-handed/shared'
+import type { RankTier } from '@red-handed/shared'
 import { ReportModal } from '../components/ReportModal'
 
 interface PlayerStats {
@@ -13,7 +13,7 @@ interface PlayerStats {
   losses: number
   winRate: number
   asVillager: number
-  asImposter: number
+  asRedHanded: number
   survived: number
 }
 
@@ -228,8 +228,8 @@ export default function PlayerProfilePage() {
                 <span className="text-xs text-neutral-500">{t('playerProfile.asVillager')}</span>
               </div>
               <div className="flex flex-col items-center gap-0.5 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50">
-                <span className="text-xl font-bold text-amber-400">{profile.stats.asImposter}</span>
-                <span className="text-xs text-neutral-500">{t('playerProfile.asImposter')}</span>
+                <span className="text-xl font-bold text-amber-400">{profile.stats.asRedHanded}</span>
+                <span className="text-xs text-neutral-500">{t('playerProfile.asRedHanded')}</span>
               </div>
               <div className="flex flex-col items-center gap-0.5 p-3 rounded-xl bg-neutral-800/60 border border-neutral-700/50">
                 <span className="text-xl font-bold text-white">{profile.stats.survived}</span>
@@ -279,7 +279,7 @@ export default function PlayerProfilePage() {
                         </span>
                         <span className="text-neutral-600">·</span>
                         <span className="text-xs text-neutral-400">
-                          {g.role === 'imposter' ? t('gameDetail.imposterRole') : t('gameDetail.villagerRole')}
+                          {g.role === 'red_handed' ? t('gameDetail.redHandedRole') : t('gameDetail.villagerRole')}
                         </span>
                         <span className="text-neutral-600">·</span>
                         <span className="text-xs text-neutral-500">{g.rounds}R</span>

@@ -118,7 +118,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
         id: r.id,
         roundNumber: r.roundNumber,
         villagerWord: r.villagerWord,
-        imposterWord: r.imposterWord,
+        redHandedWord: r.redHandedWord,
         eliminatedId: r.eliminatedId,
         eliminatedRole: r.eliminatedRole,
         clues: r.clues.map((c) => ({ playerId: c.playerId, text: c.text, createdAt: c.createdAt })),

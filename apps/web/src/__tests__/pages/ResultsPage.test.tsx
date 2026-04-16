@@ -50,12 +50,12 @@ vi.mock('../../lib/socket', () => ({
 
 vi.mock('../../components/NavBar', () => ({ NavBar: () => <div data-testid="navbar" /> }))
 
-vi.mock('@imposter/ui', () => ({
+vi.mock('@red-handed/ui', () => ({
   Avatar: ({ username }: { username: string }) => <div>{username}</div>,
   Badge: ({ tier }: { tier: string }) => <div>{tier}</div>,
 }))
 
-vi.mock('@imposter/shared', () => ({
+vi.mock('@red-handed/shared', () => ({
   RANK_CONFIG: {
     wooden:      { label: 'Wooden',      color: '#8B6914', icon: '🪵', lpRequired: 100 },
     bronze:      { label: 'Bronze',      color: '#CD7F32', icon: '🥉', lpRequired: 200 },
@@ -81,7 +81,7 @@ const winRoom = {
   settings: { gameMode: 'normal', isPrivate: false },
   players: [
     { userId: 'u1', username: 'testuser', role: 'villager', status: 'alive', avatarUrl: null },
-    { userId: 'u2', username: 'enemy', role: 'imposter', status: 'eliminated', avatarUrl: null },
+    { userId: 'u2', username: 'enemy', role: 'red_handed', status: 'eliminated', avatarUrl: null },
   ],
 }
 
@@ -143,9 +143,9 @@ describe('ResultsPage', () => {
     expect(document.body).toBeInTheDocument()
   })
 
-  it('renders when imposters win', () => {
+  it('renders when redHanded win', () => {
     mockGameState.result = {
-      winner: 'imposters',
+      winner: 'red_handed',
       finalRound: { id: 'r1', roundNumber: 2, speakingOrder: [], clues: [], votes: [] },
       rewards: { starCoinsEarned: 5, xpEarned: 25, lpChange: -3, achievements: [] },
     }
@@ -155,14 +155,14 @@ describe('ResultsPage', () => {
     expect(document.body).toBeInTheDocument()
   })
 
-  it('renders when imposter player wins', () => {
+  it('renders when redHanded player wins', () => {
     mockGameState.result = {
-      winner: 'imposters',
+      winner: 'red_handed',
       finalRound: { id: 'r1', roundNumber: 2, speakingOrder: [], clues: [], votes: [] },
       rewards: { starCoinsEarned: 15, xpEarned: 75, lpChange: 10, achievements: [] },
     }
     mockGameState.room = { ...winRoom, settings: { gameMode: 'normal', isPrivate: false } }
-    mockGameState.myRole = 'imposter'
+    mockGameState.myRole = 'red_handed'
     render(<ResultsPage />)
     expect(document.body).toBeInTheDocument()
   })
@@ -222,7 +222,7 @@ describe('ResultsPage', () => {
     mockGameState.completedRounds = [
       {
         id: 'r1', roundNumber: 1, speakingOrder: ['u1', 'u2'], clues: [], votes: [],
-        wordReveal: { villagerWord: 'pizza', imposterWord: 'pasta' }, eliminatedPlayerId: 'u2',
+        wordReveal: { villagerWord: 'pizza', redHandedWord: 'pasta' }, eliminatedPlayerId: 'u2',
       },
     ]
     render(<ResultsPage />)
@@ -246,7 +246,7 @@ describe('ResultsPage', () => {
       winner: 'villagers',
       finalRound: {
         id: 'r1', roundNumber: 1, speakingOrder: [], clues: [], votes: [],
-        wordReveal: { villagerWord: 'pizza', imposterWord: 'pasta' },
+        wordReveal: { villagerWord: 'pizza', redHandedWord: 'pasta' },
       },
       rewards: { starCoinsEarned: 10, xpEarned: 50, lpChange: 5, achievements: [] },
     }
@@ -271,7 +271,7 @@ describe('ResultsPage', () => {
 
   it('shows negative LP in ranked game', () => {
     mockGameState.result = {
-      winner: 'imposters',
+      winner: 'red_handed',
       finalRound: { id: 'r1', roundNumber: 1, speakingOrder: [], clues: [], votes: [] },
       rewards: { starCoinsEarned: 3, xpEarned: 10, lpChange: -15, achievements: [] },
     }
@@ -492,7 +492,7 @@ describe('ResultsPage', () => {
       ...winRoom,
       players: [
         { userId: 'u1', username: 'testuser', role: 'villager', status: 'alive', survived: true, avatarUrl: null },
-        { userId: 'u2', username: 'enemy', role: 'imposter', status: 'eliminated', survived: false, avatarUrl: null },
+        { userId: 'u2', username: 'enemy', role: 'red_handed', status: 'eliminated', survived: false, avatarUrl: null },
       ],
     }
     mockGameState.myRole = 'villager'

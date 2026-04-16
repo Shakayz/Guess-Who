@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io'
-import { generateRoomCode, MATCHMAKING_CONFIG } from '@imposter/shared'
-import type { MatchmakingStatus } from '@imposter/shared'
+import { generateRoomCode, MATCHMAKING_CONFIG } from '@red-handed/shared'
+import type { MatchmakingStatus } from '@red-handed/shared'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
 import { childLogger } from '../../config/logger'
@@ -47,7 +47,7 @@ function getCurrentThreshold(elapsedSeconds: number): number {
   return minPlayers
 }
 
-function computeImposterCount(playerCount: number): number {
+function computeRedHandedCount(playerCount: number): number {
   if (playerCount <= 5) return 1
   if (playerCount <= 8) return 2
   return 3
@@ -103,14 +103,14 @@ async function executeMatch(io: Server<any, any>, queueKey: string, count: numbe
   const locale = parts[2] ?? 'en'
 
   const hostPlayer = players[0]
-  const imposterCount = computeImposterCount(players.length)
+  const redHandedCount = computeRedHandedCount(players.length)
 
   const room = await prisma.room.create({
     data: {
       code: generateRoomCode(),
       hostId: hostPlayer.userId,
       maxPlayers: IDEAL_PLAYERS,
-      imposterCount,
+      redHandedCount,
       speakingTimeSeconds: 30,
       votingTimeSeconds: 30,
       isPrivate: false,
@@ -292,15 +292,15 @@ async function executeRankedMatch(io: Server<any, any>, queueKey: string, player
   const parts = queueKey.split(':')
   const locale = parts[2] ?? 'en'
   const hostPlayer = players[0]
-  // Ranked is locked at exactly 7 villagers + 3 imposters.
-  const imposterCount = 3
+  // Ranked is locked at exactly 7 villagers + 3 redHanded.
+  const redHandedCount = 3
 
   const room = await prisma.room.create({
     data: {
       code: generateRoomCode(),
       hostId: hostPlayer.userId,
       maxPlayers: RANKED_PLAYERS,
-      imposterCount,
+      redHandedCount,
       speakingTimeSeconds: 30,
       votingTimeSeconds: 30,
       isPrivate: false,

@@ -22,8 +22,8 @@ Maestro:
 3. **Install the app on the device/emulator**. Three options:
    - **Dev build** (recommended for CI-style runs):
      `cd apps/mobile && pnpm exec expo run:android`
-     — this installs `com.imposter.game` directly.
-   - **Expo Go**: open the Expo dev server (`pnpm --filter @imposter/mobile dev`)
+     — this installs `com.redhanded.game` directly.
+   - **Expo Go**: open the Expo dev server (`pnpm --filter @red-handed/mobile dev`)
      and scan the QR code. Then set `APP_ID=host.exp.exponent` when running
      flows (see below).
    - **Production APK**: install the output of `eas build --platform android`.
@@ -57,10 +57,10 @@ maestro studio
 | `05-language-picker.yaml` | ❌ | i18n: EN ↔ FR round-trip on the auth screen |
 | `06-offline-mode.yaml` | ❌ | Enter Pass & Play, start a 3-player local game |
 | `07-how-to-play.yaml` | ❌ | Deep link to role reference, back to auth |
-| `08-deep-link-reset-password.yaml` | ❌ | `imposter://reset-password?token=…` routes correctly |
+| `08-deep-link-reset-password.yaml` | ❌ | `redhanded://reset-password?token=…` routes correctly |
 
 All current flows are **backend-free**. They either exercise UI state local
-to the app or call into `@imposter/shared` game logic (offline mode).
+to the app or call into `@red-handed/shared` game logic (offline mode).
 
 ## Why no authenticated flows yet
 

@@ -11,7 +11,7 @@ interface EliminationOverlayProps {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  imposter: 'Imposter',
+  red_handed: 'Red-Handed',
   double_agent: 'Double Agent',
   villager: 'Villager',
   detective: 'Detective',
@@ -19,12 +19,12 @@ const ROLE_LABELS: Record<string, string> = {
 
 function getEmoji(role: string, isSelf: boolean): string {
   if (isSelf) return '\uD83D\uDC80' // skull
-  if (role === 'imposter' || role === 'double_agent') return '\uD83C\uDF89' // party
+  if (role === 'red_handed' || role === 'double_agent') return '\uD83C\uDF89' // party
   return '\uD83D\uDE2C' // grimacing
 }
 
 function isEvilRole(role: string): boolean {
-  return role === 'imposter' || role === 'double_agent'
+  return role === 'red_handed' || role === 'double_agent'
 }
 
 /**

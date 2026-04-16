@@ -1,6 +1,6 @@
-# Imposter Game
+# Red Handed
 
-A real-time multiplayer social deduction game built for **Web**, **iOS**, **Android**, and **Tablets**. Villagers get Word A, imposters get Word B — give clues, detect the imposters, and vote them out before they take over.
+A real-time multiplayer social deduction game built for **Web**, **iOS**, **Android**, and **Tablets**. Villagers get Word A, red-handed get Word B — give clues, detect the red-handed, and vote them out before they take over.
 
 > **991 tests** | **99%+ API coverage** | **25 data models** | **8 languages** | **Offline mode**
 
@@ -25,7 +25,7 @@ A real-time multiplayer social deduction game built for **Web**, **iOS**, **Andr
 ## Project Structure
 
 ```
-imposter-game/
+red-handed/
 ├── apps/
 │   ├── api/               # Fastify REST + WebSocket API (port 3001)
 │   │   ├── prisma/        # Schema, migrations, seed
@@ -60,7 +60,7 @@ imposter-game/
 
 ### Core Gameplay
 - **Real-time game loop** — Speaking → Voting → Elimination phases with configurable timers
-- **4 roles** — Villager, Imposter, Detective (can investigate), Mr. White (no word)
+- **4 roles** — Villager, Red-Handed, Detective (can investigate), Mr. White (no word)
 - **3-20 players** per game (10 for ranked mode)
 - **Room codes** — Create/join rooms with shareable 6-character codes
 - **Matchmaking** — Automatic ranked matchmaking with skill-based pairing
@@ -91,7 +91,7 @@ imposter-game/
 - **Offline Pass & Play** — Local multiplayer without internet (3-20 players)
 - **Password reset** — Email-based forgot password flow
 - **Push notifications** — Expo push API for game events, friend requests, invites
-- **Deep linking** — `imposter://lobby/{code}`, `imposter://game/{code}`
+- **Deep linking** — `redhanded://lobby/{code}`, `redhanded://game/{code}`
 
 ### Accessibility & Responsiveness
 - **ARIA labels** — Screen reader support across all interactive elements
@@ -107,7 +107,7 @@ imposter-game/
 
 ```bash
 # Clone and enter the repo
-git clone <repo-url> && cd imposter-game
+git clone <repo-url> && cd red-handed
 
 # One-time setup (creates .env from template)
 bash setup.sh
@@ -152,11 +152,11 @@ pnpm dev
 npx expo install
 
 # Start Expo dev server
-pnpm --filter @imposter/mobile dev
+pnpm --filter @red-handed/mobile dev
 
 # Or target a specific platform
-pnpm --filter @imposter/mobile android
-pnpm --filter @imposter/mobile ios
+pnpm --filter @red-handed/mobile android
+pnpm --filter @red-handed/mobile ios
 ```
 
 Set `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_SOCKET_URL` for production API URLs.
@@ -168,9 +168,9 @@ Set `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_SOCKET_URL` for production API URLs.
 pnpm test
 
 # Run tests for a specific package
-pnpm --filter @imposter/api test
-pnpm --filter @imposter/web test
-pnpm --filter @imposter/shared test
+pnpm --filter @red-handed/api test
+pnpm --filter @red-handed/web test
+pnpm --filter @red-handed/shared test
 
 # Build all packages
 pnpm build
@@ -179,7 +179,7 @@ pnpm build
 pnpm lint && pnpm typecheck
 
 # Open Prisma Studio (DB browser)
-pnpm --filter @imposter/api db:studio
+pnpm --filter @red-handed/api db:studio
 
 # Format code
 pnpm format
@@ -207,9 +207,9 @@ pnpm format
 
 | Package | Tests | Coverage |
 |---------|-------|----------|
-| `@imposter/api` | 402 | 99.4% |
-| `@imposter/web` | 459 | 97%+ |
-| `@imposter/shared` | 130 | Comprehensive |
+| `@red-handed/api` | 402 | 99.4% |
+| `@red-handed/web` | 459 | 97%+ |
+| `@red-handed/shared` | 130 | Comprehensive |
 | **Total** | **991** | |
 
 Test types: Unit, Integration, Functional, E2E, Performance
@@ -260,12 +260,12 @@ See [infra/aws/README.md](infra/aws/README.md) for deployment instructions.
 ## Game Rules
 
 1. **Host** creates a room (3-20 players, or 10 for ranked)
-2. **Server** assigns roles: imposters, villagers, optionally a detective and Mr. White
-3. **Villagers** receive Word A, **Imposters** receive Word B (semantically similar)
+2. **Server** assigns roles: red-handed, villagers, optionally a detective and Mr. White
+3. **Villagers** receive Word A, **Red-Handed** receive Word B (semantically similar)
 4. Each round: players give **one-sentence clues** without saying their word
 5. After clues, players **vote** to eliminate who they suspect
-6. **Villagers win** when all imposters are eliminated
-7. **Imposters win** when they equal or outnumber remaining villagers
+6. **Villagers win** when all red-handed are eliminated
+7. **Red-Handed win** when they equal or outnumber remaining villagers
 8. **Detective** can reveal one player's role per game
 9. **Mr. White** has no word and must bluff to survive
 
@@ -314,12 +314,12 @@ line is structured JSON (pretty-printed in dev) carrying `service`, `env`,
 
 | Where                     | How                                                       |
 |---------------------------|-----------------------------------------------------------|
-| API in dev (terminal)     | `pnpm --filter @imposter/api dev` — pretty stdout         |
+| API in dev (terminal)     | `pnpm --filter @red-handed/api dev` — pretty stdout         |
 | API rolling log file      | `tail -f apps/api/logs/api.log` (pipe to `npx pino-pretty`) |
 | Docker Compose            | `docker compose logs -f api`                              |
-| AWS ECS (production)      | CloudWatch Logs → `/ecs/imposter-api`, or `aws logs tail /ecs/imposter-api --follow` |
+| AWS ECS (production)      | CloudWatch Logs → `/ecs/red-handed-api`, or `aws logs tail /ecs/red-handed-api --follow` |
 | Web                       | Browser DevTools → Console (filter by `[module]` prefix)  |
-| Mobile (Metro)            | `pnpm --filter @imposter/mobile dev` terminal, or Expo DevTools Logs tab |
+| Mobile (Metro)            | `pnpm --filter @red-handed/mobile dev` terminal, or Expo DevTools Logs tab |
 
 ### Runtime toggles (API)
 
@@ -342,8 +342,8 @@ See [`docs/logs.md`](docs/logs.md) for the full guide, field reference,
 | API crashes at startup | Check `JWT_SECRET` is at least 32 characters |
 | Port already in use | Stop local Postgres/Redis, or change ports in compose file |
 | Mobile can't connect to API | Set `EXPO_PUBLIC_API_URL` to your machine's IP |
-| Build fails on DTS | Run `pnpm --filter @imposter/shared build` first |
-| Tests fail | Ensure shared package is built: `pnpm --filter @imposter/shared build` |
+| Build fails on DTS | Run `pnpm --filter @red-handed/shared build` first |
+| Tests fail | Ensure shared package is built: `pnpm --filter @red-handed/shared build` |
 | Need to see what went wrong | Check the logs — see [`docs/logs.md`](docs/logs.md) |
 
 ---

@@ -38,7 +38,7 @@ GitHub → Settings → Environments → New environment
 | `DEV_SSH_HOST` | `192.168.1.100` |
 | `DEV_SSH_USER` | `ubuntu` |
 | `DEV_SSH_KEY` | Clé privée SSH (contenu complet) |
-| `DEV_DATABASE_URL` | `postgresql://postgres:pass@postgres:5432/imposter_game` |
+| `DEV_DATABASE_URL` | `postgresql://postgres:pass@postgres:5432/red_handed` |
 | `DEV_REDIS_URL` | `redis://redis:6379` |
 | `DEV_JWT_SECRET` | Minimum 32 caractères aléatoires |
 | `DEV_ALLOWED_ORIGINS` | `http://dev.yourdomain.com` |
@@ -53,7 +53,7 @@ GitHub → Settings → Environments → New environment
 | `PFV_SSH_HOST` | IP du serveur PFV |
 | `PFV_SSH_USER` | `ubuntu` |
 | `PFV_SSH_KEY` | Clé privée SSH PFV |
-| `PFV_DATABASE_URL` | `postgresql://postgres:pass@postgres:5432/imposter_game_pfv` |
+| `PFV_DATABASE_URL` | `postgresql://postgres:pass@postgres:5432/red_handed_pfv` |
 | `PFV_REDIS_URL` | `redis://:pass@redis:6379` |
 | `PFV_JWT_SECRET` | Secret JWT PFV (différent du prod) |
 | `PFV_ALLOWED_ORIGINS` | `https://pfv.yourdomain.com` |
@@ -72,7 +72,7 @@ GitHub → Settings → Environments → New environment
 | `PROD_SSH_HOST` | IP du serveur production |
 | `PROD_SSH_USER` | `ubuntu` |
 | `PROD_SSH_KEY` | Clé privée SSH production |
-| `PROD_DATABASE_URL` | `postgresql://postgres:STRONG@postgres:5432/imposter_game` |
+| `PROD_DATABASE_URL` | `postgresql://postgres:STRONG@postgres:5432/red_handed` |
 | `PROD_REDIS_URL` | `redis://:STRONG@redis:6379` |
 | `PROD_JWT_SECRET` | `openssl rand -base64 48` |
 | `PROD_ALLOWED_ORIGINS` | `https://yourdomain.com,https://www.yourdomain.com` |

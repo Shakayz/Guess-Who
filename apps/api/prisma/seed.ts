@@ -11357,14 +11357,14 @@ async function main() {
   // ── Achievements ──────────────────────────────────────────────────────────
   const ACHIEVEMENTS = [
     { key: 'first_win',        name: 'First Win',           description: 'Win your very first game',                     icon: '🏆' },
-    { key: 'first_imposter',   name: 'First Imposter',      description: 'Win a game as the imposter',                   icon: '🎭' },
-    { key: 'perfect_imposter', name: 'Perfect Imposter',    description: 'Win as imposter without being voted out once', icon: '🌟' },
+    { key: 'first_red_handed', name: 'First Red-Handed',     description: 'Win a game as the red-handed',                  icon: '🎭' },
+    { key: 'perfect_red_handed', name: 'Perfect Red-Handed', description: 'Win as red-handed without being voted out once', icon: '🌟' },
     { key: 'ten_wins',         name: 'Veteran',             description: 'Win 10 games total',                          icon: '🎖️' },
-    { key: 'imposter_x10',     name: 'Master of Deception', description: 'Win 10 games as the imposter',                icon: '🕵️' },
+    { key: 'red_handed_x10',   name: 'Master of Deception', description: 'Win 10 games as the red-handed',              icon: '🕵️' },
     { key: 'honor_giver_5',    name: 'Generous',            description: 'Give honor to 5 different players',           icon: '🤝' },
     { key: 'honor_receiver_5', name: 'Beloved',             description: 'Receive 5 honors from other players',         icon: '💖' },
     { key: 'survivor',         name: 'Survivor',            description: 'Survive all rounds without being eliminated', icon: '💪' },
-    { key: 'correct_voter',    name: 'Good Eye',            description: 'Vote correctly to eliminate the imposter',    icon: '👁️' },
+    { key: 'correct_voter',    name: 'Good Eye',            description: 'Vote correctly to eliminate the red-handed',  icon: '👁️' },
     { key: 'social_butterfly', name: 'Social Butterfly',    description: 'Make 5 friends',                              icon: '🦋' },
     // Level milestones — keep in sync with packages/shared LEVEL_MILESTONES
     { key: 'reach_level_5',    name: 'Apprentice',          description: 'Reach player level 5',                         icon: '⚡', category: 'milestones', difficulty: 'bronze',   xpReward: 25 },
@@ -11374,7 +11374,7 @@ async function main() {
     { key: 'reach_level_100',  name: 'Centurion',           description: 'Reach player level 100',                       icon: '🌟', category: 'milestones', difficulty: 'gold',     xpReward: 500 },
     { key: 'reach_level_250',  name: 'Veteran of the Game', description: 'Reach player level 250',                       icon: '🌟', category: 'milestones', difficulty: 'platinum', xpReward: 1000 },
     { key: 'reach_level_500',  name: 'Legendary',           description: 'Reach player level 500',                       icon: '👑', category: 'milestones', difficulty: 'diamond',  xpReward: 2500 },
-    { key: 'reach_level_1000', name: 'Imposter God',        description: 'Reach the maximum level of 1000',              icon: '👑', category: 'milestones', difficulty: 'diamond',  xpReward: 10000 },
+    { key: 'reach_level_1000', name: 'Red-Handed God',      description: 'Reach the maximum level of 1000',              icon: '👑', category: 'milestones', difficulty: 'diamond',  xpReward: 10000 },
   ]
   for (const ach of ACHIEVEMENTS) {
     await prisma.achievement.upsert({ where: { key: ach.key }, create: ach, update: {} })
@@ -11392,10 +11392,10 @@ async function main() {
     { type: 'card_background', name: 'Sunset',          description: 'Orange sunset glow',      imageUrl: '/cosmetics/bg_sunset.png',         price: 100, currency: 'star' },
     { type: 'card_background', name: 'Aurora',          description: 'Northern lights',         imageUrl: '/cosmetics/bg_aurora.png',         price: 250, currency: 'star' },
     { type: 'card_background', name: 'Royal Gold',      description: 'Gilded luxury theme',     imageUrl: '/cosmetics/bg_gold.png',           price: 300, currency: 'gold' },
-    { type: 'badge',           name: 'Detective Badge', description: 'I found the imposter!',   imageUrl: '/cosmetics/badge_detective.png',   price: 200, currency: 'star' },
-    { type: 'badge',           name: 'Imposter Badge',  description: 'Master of deception',     imageUrl: '/cosmetics/badge_imposter.png',   price: 200, currency: 'star' },
+    { type: 'badge',           name: 'Detective Badge', description: 'I found the red-handed!',  imageUrl: '/cosmetics/badge_detective.png',   price: 200, currency: 'star' },
+    { type: 'badge',           name: 'Red-Handed Badge', description: 'Master of deception',     imageUrl: '/cosmetics/badge_red_handed.png',  price: 200, currency: 'star' },
     { type: 'badge',           name: 'Crown Badge',     description: 'Top player',              imageUrl: '/cosmetics/badge_crown.png',       price: 500, currency: 'gold' },
-    { type: 'title',           name: 'The Imposter',    description: 'You look sus',            imageUrl: '/cosmetics/title_imposter.png',    price: 150, currency: 'star' },
+    { type: 'title',           name: 'The Red-Handed',  description: 'You look sus',            imageUrl: '/cosmetics/title_red_handed.png',  price: 150, currency: 'star' },
     { type: 'title',           name: 'The Detective',   description: 'Eyes everywhere',         imageUrl: '/cosmetics/title_detective.png',   price: 150, currency: 'star' },
     { type: 'title',           name: 'The Legendary',   description: 'Beyond compare',          imageUrl: '/cosmetics/title_legend.png',      price: 400, currency: 'gold' },
     { type: 'word_effect',     name: 'Fire Words',      description: 'Flaming text on reveal',  imageUrl: '/cosmetics/fx_fire.png',           price: 200, currency: 'star' },

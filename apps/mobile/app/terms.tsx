@@ -74,7 +74,7 @@ export default function TermsScreen() {
 
         <Section title="1. Acceptance of Terms" fontScale={fontScale}>
           <P fontScale={fontScale}>
-            By accessing or using Imposter (the "Game"), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Game.
+            By accessing or using RedHanded (the "Game"), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Game.
           </P>
         </Section>
 
@@ -138,7 +138,7 @@ export default function TermsScreen() {
 
         <Section title="9. Contact" fontScale={fontScale}>
           <P fontScale={fontScale}>
-            If you have questions about these terms, please contact us at support@imposter.game.
+            If you have questions about these terms, please contact us at support@redhanded.game.
           </P>
         </Section>
       </ScrollView>

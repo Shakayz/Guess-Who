@@ -1,4 +1,4 @@
-# Imposter Game — Project Documentation
+# Red Handed — Project Documentation
 
 > This document is designed to be imported into Notion under **Projects > Guess Who**.
 > Copy each section as a separate Notion page, or import the whole file.
@@ -7,9 +7,9 @@
 
 # Page 1: Project Overview
 
-## What is Imposter Game?
+## What is Red Handed?
 
-A real-time multiplayer social deduction game where villagers get Word A and imposters get Word B. Players give clues, detect imposters, and vote them out. Available on:
+A real-time multiplayer social deduction game where villagers get Word A and red-handed get Word B. Players give clues, detect red-handed, and vote them out. Available on:
 
 - **Web** (React + Vite) — Desktop, tablet, and mobile browsers
 - **iOS** (Expo/React Native) — iPhone and iPad
@@ -132,7 +132,7 @@ packages/
 
 **Room**
 - `id`, `code` (6-char unique), `hostId` → User
-- Config: `status` (waiting/playing/finished), `maxPlayers`, `imposterCount`
+- Config: `status` (waiting/playing/finished), `maxPlayers`, `redHandedCount`
 - Timers: `speakingTimeSeconds`, `votingTimeSeconds`
 - Options: `wordPackId`, `isPrivate`, `language`, `rounds`
 
@@ -143,13 +143,13 @@ packages/
 
 **Round**
 - `id`, `gameId` → Game, `roundNumber`
-- Words: `villagerWord`, `imposterWord`
+- Words: `villagerWord`, `redHandedWord`
 - Elimination: `eliminatedId`, `eliminatedRole`
 
 ### Gameplay Models
 
 **GameParticipation** — Links users to games with role assignment
-- `role` (villager/imposter/detective/mr_white), `survived`, `starCoinsEarned`
+- `role` (villager/red-handed/detective/mr_white), `survived`, `starCoinsEarned`
 
 **RoundVote** — Vote records per round
 - `voterId` → User, `targetId` → User
@@ -333,7 +333,7 @@ packages/
 Room Created → Players Join → Host Starts Game
                                       ↓
                               Roles Assigned
-                           (villager/imposter/detective/mr_white)
+                           (villager/red-handed/detective/mr_white)
                                       ↓
                               ┌── Round Start ──┐
                               │                  │
@@ -357,8 +357,8 @@ Room Created → Players Join → Host Starts Game
                       │
                ┌──────┴──────┐
                │              │
-          Villagers Win   Imposters Win
-         (all imposters   (imposters >=
+          Villagers Win   Red-Handed Win
+         (all red-handed   (red-handed >=
           eliminated)     villagers)
 ```
 
@@ -366,8 +366,8 @@ Room Created → Players Join → Host Starts Game
 
 | Role | Word | Special Ability |
 |------|------|-----------------|
-| **Villager** | Word A (the real word) | None — must identify imposters |
-| **Imposter** | Word B (similar word) | Must blend in with clues |
+| **Villager** | Word A (the real word) | None — must identify red-handed |
+| **Red-Handed** | Word B (similar word) | Must blend in with clues |
 | **Detective** | Word A | Can reveal one player's role per game |
 | **Mr. White** | No word | Must bluff entirely — survives by guessing Word A if caught |
 
@@ -475,7 +475,7 @@ On merge to main/develop/staging:
 # Create/update CloudFormation stack
 aws cloudformation deploy \
   --template-file infra/aws/cloudformation.yml \
-  --stack-name prod-imposter-stack \
+  --stack-name prod-red-handed-stack \
   --parameter-overrides Environment=prod DomainName=yourdomain.com ...
 ```
 
@@ -488,18 +488,18 @@ aws cloudformation deploy \
 | Property | Value |
 |----------|-------|
 | SDK | Expo 51 |
-| Bundle ID (iOS) | com.imposter.game |
-| Package (Android) | com.imposter.game |
-| Scheme | `imposter://` |
+| Bundle ID (iOS) | com.redhanded.game |
+| Package (Android) | com.redhanded.game |
+| Scheme | `redhanded://` |
 | UI Style | Dark mode |
 
 ## Deep Links
 
 | URL | Screen |
 |-----|--------|
-| `imposter://lobby/{code}` | Lobby with room code |
-| `imposter://game/{code}` | Active game |
-| `imposter://reset-password?token=xxx` | Password reset |
+| `redhanded://lobby/{code}` | Lobby with room code |
+| `redhanded://game/{code}` | Active game |
+| `redhanded://reset-password?token=xxx` | Password reset |
 
 ## EAS Build Profiles
 
@@ -514,7 +514,7 @@ aws cloudformation deploy \
 - **Haptic feedback** — Vibration on votes, eliminations, game events
 - **Push notifications** — Game start, friend requests, invites
 - **Sound effects** — Generated audio via expo-av
-- **Deep linking** — Handle `imposter://` URLs
+- **Deep linking** — Handle `redhanded://` URLs
 - **Camera/Photo** — Avatar upload via image picker
 - **Swipeable tutorial** — 6-slide How to Play walkthrough
 
@@ -535,10 +535,10 @@ aws cloudformation deploy \
 
 | Package | Test Files | Tests | Coverage |
 |---------|-----------|-------|----------|
-| @imposter/shared | 5 | 130 | Logic, constants, utils |
-| @imposter/api | 29 | 402 | 99.4% |
-| @imposter/web | 26 | 459 | 97%+ |
-| @imposter/ui | 8 | ~50 | Components |
+| @red-handed/shared | 5 | 130 | Logic, constants, utils |
+| @red-handed/api | 29 | 402 | 99.4% |
+| @red-handed/web | 26 | 459 | 97%+ |
+| @red-handed/ui | 8 | ~50 | Components |
 | **Total** | **68** | **991+** | |
 
 ## Test Categories (API)
@@ -567,14 +567,14 @@ aws cloudformation deploy \
 pnpm test
 
 # Specific package
-pnpm --filter @imposter/api test
-pnpm --filter @imposter/web test
+pnpm --filter @red-handed/api test
+pnpm --filter @red-handed/web test
 
 # Watch mode
-pnpm --filter @imposter/api test -- --watch
+pnpm --filter @red-handed/api test -- --watch
 
 # With coverage
-pnpm --filter @imposter/api test -- --coverage
+pnpm --filter @red-handed/api test -- --coverage
 ```
 
 ---
@@ -633,8 +633,8 @@ pnpm --filter @imposter/api test -- --coverage
 ### Core Game
 - [x] Room creation with 6-char codes
 - [x] Real-time game loop (speaking → voting → elimination)
-- [x] 4 roles: Villager, Imposter, Detective, Mr. White
-- [x] Configurable timers, player count, imposter count
+- [x] 4 roles: Villager, Red-Handed, Detective, Mr. White
+- [x] Configurable timers, player count, red-handed count
 - [x] Tiebreaker system
 - [x] Game reconnection with state sync
 - [x] Offline Pass & Play mode (no internet)

@@ -28,7 +28,7 @@ vi.mock('../../lib/api', () => ({
 
 vi.mock('../../components/NavBar', () => ({ NavBar: () => <div data-testid="navbar" /> }))
 
-vi.mock('@imposter/shared', () => ({
+vi.mock('@red-handed/shared', () => ({
   RANK_CONFIG: {
     wooden:      { label: 'Wooden',      color: '#8B6914', icon: '🪵', lpRequired: 100 },
     bronze:      { label: 'Bronze',      color: '#CD7F32', icon: '🥉', lpRequired: 200 },
@@ -48,10 +48,10 @@ const fullProfile = {
   rankPoints: 600,
   honorPoints: 10,
   createdAt: new Date('2023-01-01').toISOString(),
-  stats: { totalGames: 20, wins: 12, losses: 8, winRate: 60, asVillager: 15, asImposter: 5, survived: 10 },
+  stats: { totalGames: 20, wins: 12, losses: 8, winRate: 60, asVillager: 15, asRedHanded: 5, survived: 10 },
   recentGames: [
     { gameId: 'g1', role: 'villager', survived: true, winnerTeam: 'villagers', didWin: true, rounds: 3, playedAt: new Date().toISOString() },
-    { gameId: 'g2', role: 'imposter', survived: false, winnerTeam: 'villagers', didWin: false, rounds: 2, playedAt: new Date().toISOString() },
+    { gameId: 'g2', role: 'red_handed', survived: false, winnerTeam: 'villagers', didWin: false, rounds: 2, playedAt: new Date().toISOString() },
   ],
   honors: [
     { type: 'teamplayer', count: 5 },
