@@ -14,8 +14,10 @@ set -euo pipefail
 STACK_NAME="${STACK_NAME:-github-oidc-red-handed}"
 REGION="${AWS_REGION:-eu-west-3}"
 CREATE_OIDC_PROVIDER="${CREATE_OIDC_PROVIDER:-auto}"
-GITHUB_ORG="${GITHUB_ORG:-shakayz}"
-GITHUB_REPO="${GITHUB_REPO:-guess-who}"
+# Case-sensitive — must match the exact case registered on GitHub, because
+# GitHub OIDC "sub" claims preserve case and AWS IAM StringLike is case-sensitive.
+GITHUB_ORG="${GITHUB_ORG:-Shakayz}"
+GITHUB_REPO="${GITHUB_REPO:-Guess-Who}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="${SCRIPT_DIR}/github-oidc.yml"

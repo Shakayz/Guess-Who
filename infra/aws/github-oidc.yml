@@ -7,13 +7,17 @@ Description: >
 Parameters:
   GitHubOrg:
     Type: String
-    Default: shakayz
-    Description: GitHub organization / user that owns the repo
+    Default: Shakayz
+    Description: >
+      GitHub organization / user that owns the repo. Case-sensitive — GitHub
+      OIDC "sub" claims preserve the exact case registered on GitHub, and
+      AWS IAM StringLike matching is case-sensitive.
 
   GitHubRepo:
     Type: String
-    Default: guess-who
-    Description: GitHub repository name
+    Default: Guess-Who
+    Description: >
+      GitHub repository name. Case-sensitive (see GitHubOrg).
 
   RoleName:
     Type: String
@@ -100,11 +104,15 @@ Resources:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
-                # Allow:
+                # Allow, from ${GitHubOrg}/${GitHubRepo} only:
                 #  * any branch push (cd-staging.yml)
-                #  * the "production" environment (cd-prod.yml)
+                #  * the "production" / "staging" environments (cd-prod.yml)
                 #  * manual workflow_dispatch runs
-                # from shakayz/guess-who only.
+                #  * pull_request runs
+                # Case matters: GitHub OIDC "sub" claims preserve the exact
+                # case of the owner/repo, and AWS IAM StringLike is case-
+                # sensitive. The GitHubOrg / GitHubRepo parameters must
+                # therefore be the canonical case shown on GitHub.
                 token.actions.githubusercontent.com:sub:
                   - !Sub repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/*
                   - !Sub repo:${GitHubOrg}/${GitHubRepo}:environment:production
