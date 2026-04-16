@@ -7,6 +7,31 @@ import { tryEarlyResolve, tryEarlyVoting, tryEarlyTiebreakerVoting, tryEarlyTieb
 
 const log = childLogger('socket:game')
 
+// Fire-and-forget DB write for a single clue. Failures are logged but never
+// crash the socket flow (and never block the broadcast to the room).
+function persistClue(
+  roundId: string,
+  clue: { playerId: string; text: string; flaggedForWord: boolean },
+): void {
+  try {
+    const p = prisma.roundClue?.create({
+      data: {
+        roundId,
+        playerId: clue.playerId,
+        text: clue.text,
+        flaggedForWord: clue.flaggedForWord,
+      },
+    })
+    if (p && typeof (p as any).catch === 'function') {
+      ;(p as Promise<unknown>).catch((err: unknown) =>
+        log.error({ err, roundId, playerId: clue.playerId }, 'roundClue persist error'),
+      )
+    }
+  } catch (err) {
+    log.error({ err, roundId, playerId: clue.playerId }, 'roundClue persist threw')
+  }
+}
+
 // Whole-word, case-insensitive match
 function containsWord(text: string, word: string): boolean {
   if (!word) return false
@@ -146,6 +171,8 @@ export function registerGameHandlers(
       tiebreakerClues.push(clue)
       state.tiebreakerClues = tiebreakerClues
       await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+      // Persist tiebreaker clue to DB so it appears in history
+      persistClue(currentRound.id, clue)
       io.to(`room:${roomId}`).emit('round:clue-submitted', clue)
       await tryEarlyTiebreakerVoting(io, roomId)
       return
@@ -196,6 +223,9 @@ export function registerGameHandlers(
     // Single Redis write for both normal clue and word-said paths
     currentRound.clues = [...clues, clue]
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+
+    // Persist clue to DB so it appears in history (covers both normal and word-said paths)
+    persistClue(currentRound.id, clue)
 
     io.to(`room:${roomId}`).emit('round:clue-submitted', clue)
 
