@@ -152,13 +152,57 @@ describe('HistoryPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/player/u2')
   })
 
-  it('shows no-games message when games list is empty', async () => {
+  it('shows no-games message when games list is empty (unranked tab)', async () => {
     mockApiGet.mockResolvedValueOnce({ games: [], total: 0, page: 1, totalPages: 1 })
     await act(async () => {
       render(<HistoryPage />)
     })
     await waitFor(() => {
-      expect(screen.getByText('history.noGames')).toBeInTheDocument()
+      expect(screen.getByText('history.noUnrankedGames')).toBeInTheDocument()
+    })
+  })
+
+  it('defaults to the unranked tab and sends mode=unranked', async () => {
+    await act(async () => {
+      render(<HistoryPage />)
+    })
+    expect(mockApiGet).toHaveBeenCalledWith(expect.stringContaining('mode=unranked'))
+    await waitFor(() => {
+      const unrankedTab = screen.getByRole('tab', { name: 'history.tabUnranked' })
+      expect(unrankedTab).toHaveAttribute('aria-selected', 'true')
+    })
+  })
+
+  it('switches to the ranked tab and refetches with mode=ranked', async () => {
+    mockApiGet.mockResolvedValue(singlePageData)
+    await act(async () => {
+      render(<HistoryPage />)
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'history.tabRanked' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('tab', { name: 'history.tabRanked' }))
+    await waitFor(() => {
+      expect(mockApiGet).toHaveBeenCalledWith(expect.stringContaining('mode=ranked'))
+    })
+    const rankedTab = screen.getByRole('tab', { name: 'history.tabRanked' })
+    expect(rankedTab).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('shows ranked-specific empty message when ranked list is empty', async () => {
+    // First render fetches unranked and returns the default singlePageData.
+    // After clicking the ranked tab, return an empty payload.
+    mockApiGet.mockResolvedValueOnce(singlePageData)
+    mockApiGet.mockResolvedValueOnce({ games: [], total: 0, page: 1, totalPages: 1 })
+    await act(async () => {
+      render(<HistoryPage />)
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'history.tabRanked' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('tab', { name: 'history.tabRanked' }))
+    await waitFor(() => {
+      expect(screen.getByText('history.noRankedGames')).toBeInTheDocument()
     })
   })
 

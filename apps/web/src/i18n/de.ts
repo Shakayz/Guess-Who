@@ -583,6 +583,10 @@ export default {
     next: 'Weiter →',
     pageOf: 'Seite {{page}} von {{total}}',
     loadError: 'Fehler beim Laden',
+    tabUnranked: 'Unrankiert',
+    tabRanked: 'Rankiert',
+    noUnrankedGames: 'Noch keine unrankierten Spiele',
+    noRankedGames: 'Noch keine rankierten Spiele',
   },
   profile: {
     starCoins: 'StarCoins',

@@ -4,11 +4,14 @@ import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 
+type HistoryMode = 'unranked' | 'ranked'
+
 interface GameSummary {
   id: string
   startedAt: string
   endedAt: string
   winnerTeam: 'villagers' | 'imposters'
+  gameMode: 'normal' | 'special' | 'ranked'
   myRole: 'villager' | 'imposter'
   survived: boolean
   starCoinsEarned: number
@@ -45,6 +48,7 @@ function SkeletonCard() {
 export default function HistoryPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [mode, setMode] = useState<HistoryMode>('unranked')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<HistoryResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -54,7 +58,7 @@ export default function HistoryPage() {
     setLoading(true)
     setError(null)
     api
-      .get<HistoryResponse>(`/history?page=${page}&limit=10`)
+      .get<HistoryResponse>(`/history?page=${page}&limit=10&mode=${mode}`)
       .then((res) => {
         setData(res)
         setLoading(false)
@@ -63,7 +67,14 @@ export default function HistoryPage() {
         setError(err.message)
         setLoading(false)
       })
-  }, [page])
+  }, [page, mode])
+
+  const selectMode = (next: HistoryMode) => {
+    if (next === mode) return
+    setMode(next)
+    setPage(1)
+    setData(null)
+  }
 
   const didWin = (game: GameSummary) =>
     (game.winnerTeam === 'villagers' && game.myRole === 'villager') ||
@@ -78,6 +89,8 @@ export default function HistoryPage() {
       minute: '2-digit',
     })
 
+  const emptyLabel = mode === 'ranked' ? t('history.noRankedGames') : t('history.noUnrankedGames')
+
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
@@ -89,6 +102,40 @@ export default function HistoryPage() {
             {data && (
               <span className="text-sm text-neutral-500">{data.total} game{data.total !== 1 ? 's' : ''}</span>
             )}
+          </div>
+
+          {/* Tabs: Unranked (unranked + lobby) vs Ranked */}
+          <div
+            role="tablist"
+            aria-label={t('history.title')}
+            className="inline-flex rounded-2xl bg-neutral-900/60 border border-neutral-800 p-1"
+          >
+            <button
+              role="tab"
+              aria-selected={mode === 'unranked'}
+              onClick={() => selectMode('unranked')}
+              className={[
+                'px-4 py-1.5 rounded-xl text-sm font-semibold transition-colors',
+                mode === 'unranked'
+                  ? 'bg-neutral-800 text-white'
+                  : 'text-neutral-400 hover:text-neutral-200',
+              ].join(' ')}
+            >
+              {t('history.tabUnranked')}
+            </button>
+            <button
+              role="tab"
+              aria-selected={mode === 'ranked'}
+              onClick={() => selectMode('ranked')}
+              className={[
+                'px-4 py-1.5 rounded-xl text-sm font-semibold transition-colors',
+                mode === 'ranked'
+                  ? 'bg-neutral-800 text-white'
+                  : 'text-neutral-400 hover:text-neutral-200',
+              ].join(' ')}
+            >
+              {t('history.tabRanked')}
+            </button>
           </div>
 
           {error && (
@@ -108,7 +155,7 @@ export default function HistoryPage() {
           {!loading && !error && data?.games.length === 0 && (
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-12 flex flex-col items-center text-center">
               <span className="text-5xl mb-3">🎮</span>
-              <p className="text-white font-semibold text-lg">{t('history.noGames')}</p>
+              <p className="text-white font-semibold text-lg">{emptyLabel}</p>
               <p className="text-neutral-500 text-sm mt-1">{t('history.noGamesHint')}</p>
             </div>
           )}

@@ -3,19 +3,36 @@ import { prisma } from '../config/prisma'
 
 export const historyRoutes: FastifyPluginAsync = async (fastify) => {
 
-  // GET /api/history?page=1&limit=10
+  // GET /api/history?page=1&limit=10&mode=ranked|unranked
+  // `mode` filters by game.gameMode:
+  //   - 'ranked'   → only ranked games
+  //   - 'unranked' → normal + special (lobby) games
+  //   - omitted    → all games (legacy behavior)
   fastify.get('/', { preHandler: [fastify.authenticate] }, async (req, reply) => {
     const userId = req.user.sub
-    const { page = '1', limit = '10' } = req.query as { page?: string; limit?: string }
+    const { page = '1', limit = '10', mode } = req.query as {
+      page?: string; limit?: string; mode?: string
+    }
     const p = Math.max(1, parseInt(page))
     const l = Math.min(50, Math.max(1, parseInt(limit)))
-    req.log.info({ userId, page: p, limit: l }, 'fetching game history')
+    const modeFilter: 'ranked' | 'unranked' | undefined =
+      mode === 'ranked' || mode === 'unranked' ? mode : undefined
+    req.log.info({ userId, page: p, limit: l, mode: modeFilter }, 'fetching game history')
     const skip = (p - 1) * l
 
+    const gameModeWhere = modeFilter === 'ranked'
+      ? { gameMode: 'ranked' }
+      : modeFilter === 'unranked'
+        ? { gameMode: { not: 'ranked' } }
+        : undefined
+    const where = gameModeWhere
+      ? { userId, game: gameModeWhere }
+      : { userId }
+
     const [total, participations] = await Promise.all([
-      prisma.gameParticipation.count({ where: { userId } }),
+      prisma.gameParticipation.count({ where }),
       prisma.gameParticipation.findMany({
-        where: { userId },
+        where,
         skip,
         take: l,
         orderBy: { createdAt: 'desc' },
@@ -29,6 +46,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
               startedAt: true,
               endedAt: true,
               winnerTeam: true,
+              gameMode: true,
               _count: { select: { rounds: true } },
               participations: {
                 select: {
@@ -49,6 +67,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
       startedAt: p.game.startedAt,
       endedAt: p.game.endedAt,
       winnerTeam: p.game.winnerTeam,
+      gameMode: p.game.gameMode,
       myRole: p.role,
       survived: p.survived,
       starCoinsEarned: p.starCoinsEarned,

@@ -593,6 +593,10 @@ export default {
     next: '下一页 →',
     pageOf: '第 {{page}} / {{total}} 页',
     loadError: '加载失败',
+    tabUnranked: '非排位',
+    tabRanked: '排位',
+    noUnrankedGames: '暂无非排位游戏',
+    noRankedGames: '暂无排位游戏',
   },
   profile: {
     starCoins: '星币',
