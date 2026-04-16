@@ -102,7 +102,7 @@ to AWS via **OIDC** (no long-lived access keys). They assume the role
 
 Run this once per AWS account — it creates the `token.actions.githubusercontent.com`
 OIDC provider and the `GitHubActionsRedHandedDeploy` IAM role with a trust
-policy scoped to `shakayz/guess-who`:
+policy scoped to `Shakayz/Guess-Who`:
 
 ```bash
 ./infra/aws/setup-github-oidc.sh
@@ -120,9 +120,18 @@ Under the hood this deploys `infra/aws/github-oidc.yml`, which provisions:
 - An `AWS::IAM::OIDCProvider` for `token.actions.githubusercontent.com`
 - An `AWS::IAM::Role` whose trust policy only accepts OIDC tokens where:
   - `aud` = `sts.amazonaws.com`
-  - `sub` matches `repo:shakayz/guess-who:ref:refs/heads/*`,
+  - `sub` matches `repo:Shakayz/Guess-Who:ref:refs/heads/*`,
     `...:environment:production`, `...:environment:staging`, or
     `...:pull_request`
+
+> **Case matters.** GitHub OIDC `sub` claims preserve the exact case of the
+> repository owner / name as registered on GitHub (so this repo is
+> `Shakayz/Guess-Who`, not `shakayz/guess-who`). AWS IAM `StringLike`
+> conditions are case-sensitive — a lowercase pattern will reject every
+> real GitHub OIDC token and produce `Not authorized to perform
+> sts:AssumeRoleWithWebIdentity`. If you fork/rename the repo, override
+> `GITHUB_ORG` / `GITHUB_REPO` when running `setup-github-oidc.sh` using
+> the exact case GitHub displays.
 
 ### Troubleshooting `Not authorized to perform sts:AssumeRoleWithWebIdentity`
 
@@ -141,12 +150,14 @@ the role's trust policy is rejecting the GitHub OIDC token. Check:
    must succeed.
 3. **Trust policy covers the caller**. The `sub` claim of the GitHub OIDC
    token looks like:
-   - push to `main`: `repo:shakayz/guess-who:ref:refs/heads/main`
+   - push to `main`: `repo:Shakayz/Guess-Who:ref:refs/heads/main`
    - prod job (uses `environment: production`):
-     `repo:shakayz/guess-who:environment:production`
-   The `StringLike` conditions in `github-oidc.yml` must allow these. If you
-   forked/renamed the repo, update `GitHubOrg`/`GitHubRepo` parameters and
-   redeploy the stack.
+     `repo:Shakayz/Guess-Who:environment:production`
+   The `StringLike` conditions in `github-oidc.yml` must allow these.
+   **Case-sensitive**: the patterns must use the exact case GitHub uses
+   for the owner/repo (see the callout above). If you forked/renamed the
+   repo, update `GitHubOrg` / `GitHubRepo` parameters to the new exact
+   case and redeploy the stack (`./infra/aws/setup-github-oidc.sh`).
 4. **Workflow has `id-token: write`** — already set in both CD workflows.
 
 ## Environment Variable Mapping
