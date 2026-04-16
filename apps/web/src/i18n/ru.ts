@@ -590,6 +590,10 @@ export default {
     next: 'След. →',
     pageOf: 'Страница {{page}} из {{total}}',
     loadError: 'Не удалось загрузить историю',
+    tabUnranked: 'Без рейтинга',
+    tabRanked: 'Рейтинговые',
+    noUnrankedGames: 'Пока нет нерейтинговых игр',
+    noRankedGames: 'Пока нет рейтинговых игр',
   },
   profile: {
     starCoins: 'Звёздные монеты',

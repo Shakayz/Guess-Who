@@ -48,7 +48,7 @@ describe('History Routes', () => {
   // ── GET / ─────────────────────────────────────────────────────────────────────
 
   describe('GET /api/history', () => {
-    const makeParticipation = () => ({
+    const makeParticipation = (gameMode: 'normal' | 'special' | 'ranked' = 'normal') => ({
       role: 'villager',
       survived: true,
       starCoinsEarned: 20,
@@ -57,6 +57,7 @@ describe('History Routes', () => {
         startedAt: new Date('2025-06-01T10:00:00Z'),
         endedAt: new Date('2025-06-01T10:30:00Z'),
         winnerTeam: 'villagers',
+        gameMode,
         _count: { rounds: 3 },
         participations: [
           {
@@ -107,6 +108,59 @@ describe('History Routes', () => {
     it('returns 401 without token', async () => {
       const res = await app.inject({ method: 'GET', url: '/api/history' })
       expect(res.statusCode).toBe(401)
+    })
+
+    it('filters to ranked games when mode=ranked', async () => {
+      mockGameParticipation.count.mockResolvedValue(1)
+      mockGameParticipation.findMany.mockResolvedValue([makeParticipation('ranked')])
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/history?mode=ranked',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      const body = res.json()
+      expect(body.games[0].gameMode).toBe('ranked')
+      const countArgs = mockGameParticipation.count.mock.calls[0][0]
+      expect(countArgs.where.game).toEqual({ gameMode: 'ranked' })
+      const findArgs = mockGameParticipation.findMany.mock.calls[0][0]
+      expect(findArgs.where.game).toEqual({ gameMode: 'ranked' })
+    })
+
+    it('filters to non-ranked games when mode=unranked', async () => {
+      mockGameParticipation.count.mockResolvedValue(1)
+      mockGameParticipation.findMany.mockResolvedValue([makeParticipation('normal')])
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/history?mode=unranked',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      const body = res.json()
+      expect(body.games[0].gameMode).toBe('normal')
+      const countArgs = mockGameParticipation.count.mock.calls[0][0]
+      expect(countArgs.where.game).toEqual({ gameMode: { not: 'ranked' } })
+      const findArgs = mockGameParticipation.findMany.mock.calls[0][0]
+      expect(findArgs.where.game).toEqual({ gameMode: { not: 'ranked' } })
+    })
+
+    it('ignores unknown mode values and returns all games', async () => {
+      mockGameParticipation.count.mockResolvedValue(1)
+      mockGameParticipation.findMany.mockResolvedValue([makeParticipation()])
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/history?mode=bogus',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      const findArgs = mockGameParticipation.findMany.mock.calls[0][0]
+      expect(findArgs.where).not.toHaveProperty('game')
     })
   })
 

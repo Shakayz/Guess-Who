@@ -600,6 +600,10 @@ export default {
     next: '← التالي',
     pageOf: 'صفحة {{page}} من {{total}}',
     loadError: 'فشل في التحميل',
+    tabUnranked: 'غير مصنفة',
+    tabRanked: 'مصنفة',
+    noUnrankedGames: 'لا توجد مباريات غير مصنفة بعد',
+    noRankedGames: 'لا توجد مباريات مصنفة بعد',
   },
   profile: {
     starCoins: 'عملات النجوم',
