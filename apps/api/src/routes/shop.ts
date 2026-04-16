@@ -1,62 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify'
-import { prisma } from '../config/prisma'
-import { redis } from '../config/redis'
-import { evaluateEvent } from '../services/achievements'
 // import { GOLD_COIN_PACKS } from '@red-handed/shared'  // TODO: re-enable when premium is ready
 // import { env } from '../config/env'                  // TODO: re-enable when premium is ready
 
 export const shopRoutes: FastifyPluginAsync = async (fastify) => {
-  // ── Active routes (star-coin cosmetics) ─────────────────────────────────────
-
-  fastify.get('/cosmetics', async (req, reply) => {
-    const cacheKey = 'cosmetics:all'
-    const cached = await redis.get(cacheKey)
-    if (cached) return reply.send(JSON.parse(cached))
-
-    const cosmetics = await prisma.cosmetic.findMany({ orderBy: { createdAt: 'desc' } })
-    await redis.set(cacheKey, JSON.stringify(cosmetics), 'EX', 600) // 10 min cache
-    return reply.send(cosmetics)
-  })
-
-  fastify.post('/cosmetics/:id/purchase', { onRequest: [fastify.authenticate] }, async (req, reply) => {
-    const { id } = req.params as { id: string }
-    const payload = req.user as { sub: string }
-    req.log.info({ userId: payload.sub, cosmeticId: id }, 'cosmetic purchase attempt')
-    const cosmetic = await prisma.cosmetic.findUnique({ where: { id } })
-    if (!cosmetic) {
-      req.log.warn({ userId: payload.sub, cosmeticId: id }, 'cosmetic not found')
-      return reply.status(404).send({ error: 'Cosmetic not found' })
-    }
-    const user = await prisma.user.findUnique({ where: { id: payload.sub } })
-    if (!user) return reply.status(404).send({ error: 'User not found' })
-
-    // Only star-coin purchases allowed for now
-    if (cosmetic.currency !== 'star') {
-      return reply.status(400).send({ error: 'Gold coin purchases are temporarily disabled' })
-    }
-
-    const balance = user.starCoins
-    if (balance < cosmetic.price) {
-      req.log.warn({ userId: payload.sub, cosmeticId: id, balance, price: cosmetic.price }, 'purchase failed: insufficient funds')
-      return reply.status(400).send({ error: 'Insufficient funds' })
-    }
-
-    await prisma.$transaction([
-      prisma.userCosmetic.create({ data: { userId: payload.sub, cosmeticId: id } }),
-      prisma.user.update({
-        where: { id: payload.sub },
-        data: { starCoins: { decrement: cosmetic.price } },
-      }),
-    ])
-    req.log.info({ userId: payload.sub, cosmeticId: id, price: cosmetic.price }, 'cosmetic purchased')
-    // Fire shop_purchase achievement event
-    await evaluateEvent((fastify as any).io ?? null, 'shop_purchase', {
-      userId: payload.sub,
-      cosmeticId: id,
-      pricePaid: cosmetic.price,
-    }).catch(() => {})
-    return reply.send({ success: true })
-  })
+  // Cosmetics were removed from the game design — there are no avatars to
+  // attach them to, so the shop no longer carries any item catalog.
 
   // ── Premium routes (disabled) ───────────────────────────────────────────────
   // TODO: re-enable all routes below when premium/monetization is ready

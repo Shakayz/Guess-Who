@@ -445,7 +445,9 @@ const socialExtras = merge(
   ),
 )
 
-// ─── Economy extras (9) ─────────────────────────────────────────────────────
+// ─── Economy extras (4) ─────────────────────────────────────────────────────
+// Cosmetics were removed from the game design, so the shop / cosmetic-owned
+// achievements are gone too. Star-balance milestones are what's left.
 
 const economyExtras = merge(
   single(
@@ -464,45 +466,15 @@ const economyExtras = merge(
     (ctx) => ctx.stats.starCoinsCurrent >= 50000,
   ),
   single(
-    { key: 'shopper_bronze', name: 'Shopper', description: 'Buy 3 cosmetics', icon: '🛍️', category: 'economy', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
-    'shop_purchase',
-    (ctx) => ctx.stats.cosmeticOwnedCount >= 3,
-  ),
-  single(
-    { key: 'big_spender', name: 'Big Spender', description: 'Own 10 cosmetics', icon: '💸', category: 'economy', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
-    'shop_purchase',
-    (ctx) => ctx.stats.cosmeticOwnedCount >= 10,
-  ),
-  single(
-    { key: 'fashionista', name: 'Fashionista', description: 'Own 50 cosmetics', icon: '👠', category: 'economy', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
-    'shop_purchase',
-    (ctx) => ctx.stats.cosmeticOwnedCount >= 50,
-  ),
-  single(
-    { key: 'collector_supreme', name: 'Collector Supreme', description: 'Own 100 cosmetics', icon: '🏆', category: 'economy', difficulty: 'diamond', xpReward: REWARD.diamond.xp, coinReward: REWARD.diamond.stars },
-    'shop_purchase',
-    (ctx) => ctx.stats.cosmeticOwnedCount >= 100,
-  ),
-  single(
     { key: 'whale', name: 'Whale', description: 'Hold 250,000 stars at once', icon: '🐋', category: 'economy', difficulty: 'diamond', xpReward: REWARD.diamond.xp, coinReward: REWARD.diamond.stars },
     'game_end',
     (ctx) => ctx.stats.starCoinsCurrent >= 250000,
   ),
-  single(
-    { key: 'spender', name: 'Loose Pockets', description: 'Own 5 cosmetics', icon: '💳', category: 'economy', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
-    'shop_purchase',
-    (ctx) => ctx.stats.cosmeticOwnedCount >= 5,
-  ),
 )
 
-// ─── Milestones extras (5) ──────────────────────────────────────────────────
+// ─── Milestones extras (4) ──────────────────────────────────────────────────
 
 const milestonesExtras = merge(
-  single(
-    { key: 'shopper_first', name: 'First Buy', description: 'Buy your first cosmetic', icon: '🛒', category: 'milestones', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
-    'shop_purchase',
-    (ctx) => ctx.stats.shopPurchaseCount >= 1,
-  ),
   single(
     { key: 'all_categories', name: 'Well Rounded', description: 'Play 15 different word packs', icon: '📚', category: 'milestones', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
     'game_end',

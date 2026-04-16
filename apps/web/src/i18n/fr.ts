@@ -595,6 +595,10 @@ export default {
     next: 'Suiv. →',
     pageOf: 'Page {{page}} sur {{total}}',
     loadError: 'Erreur de chargement',
+    tabUnranked: 'Non classées',
+    tabRanked: 'Classées',
+    noUnrankedGames: 'Aucune partie non classée',
+    noRankedGames: 'Aucune partie classée',
   },
   profile: {
     starCoins: 'Étoiles',

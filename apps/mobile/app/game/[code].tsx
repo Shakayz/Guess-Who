@@ -18,6 +18,7 @@ import { useAuthStore } from '../../store/auth'
 import { getSocket } from '../../lib/socket'
 import RoleRevealScreen from '../../components/RoleRevealScreen'
 import EliminationOverlay from '../../components/EliminationOverlay'
+import { Avatar } from '../../components/Avatar'
 import type { Clue } from '@red-handed/shared'
 import { useResponsive } from '../../lib/responsive'
 import { createLogger } from '../../lib/logger'
@@ -1438,6 +1439,9 @@ export default function GameScreen() {
                         isAlive ? (isMe ? 'bg-violet-400' : 'bg-emerald-400') : isForfeited ? 'bg-orange-600' : 'bg-neutral-700',
                       ].join(' ')}
                     />
+                    <View style={{ opacity: isAlive ? 1 : 0.4 }}>
+                      <Avatar url={p.avatarUrl} username={p.username} size={18} />
+                    </View>
                     <Text
                       className={[
                         'text-xs font-semibold',

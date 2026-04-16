@@ -9,6 +9,7 @@ import { registerRoomHandlers } from './handlers/room'
 import { registerGameHandlers } from './handlers/game'
 import { registerChatHandlers } from './handlers/chat'
 import { registerMatchmakingHandlers, cleanupEmptyQueue } from './handlers/matchmaking'
+import { registerVoiceHandlers, leaveVoiceChannel } from './handlers/voice'
 import { sendPushNotification } from '../services/push'
 import { evaluateEvent } from '../services/achievements'
 
@@ -75,6 +76,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     registerGameHandlers(io, socket)
     registerChatHandlers(io, socket)
     registerMatchmakingHandlers(io, socket)
+    registerVoiceHandlers(io, socket)
 
     // DM: send a direct message to another user
     ;(socket as any).on('dm:send', async (data: { toUserId: string; text: string }) => {
@@ -396,6 +398,8 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       const roomKeys = [...socket.rooms].filter((r) => r.startsWith('room:'))
       for (const roomKey of roomKeys) {
         const roomId = roomKey.split(':')[1]
+        // Drop them from any active voice channel for this room and notify peers.
+        await leaveVoiceChannel(io, roomId, userId).catch(() => {})
         const stateRaw = await redis.get(`room:${roomId}:state`)
         if (!stateRaw) continue
         const state = JSON.parse(stateRaw)

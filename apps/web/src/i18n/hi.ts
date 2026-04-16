@@ -600,6 +600,10 @@ export default {
     next: 'आगे →',
     pageOf: '{{total}} में से पेज {{page}}',
     loadError: 'इतिहास लोड करने में विफल',
+    tabUnranked: 'अनरैंक्ड',
+    tabRanked: 'रैंक्ड',
+    noUnrankedGames: 'अभी तक कोई अनरैंक्ड गेम नहीं',
+    noRankedGames: 'अभी तक कोई रैंक्ड गेम नहीं',
   },
   profile: {
     starCoins: 'स्टार कॉइन',

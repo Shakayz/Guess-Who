@@ -174,14 +174,9 @@ packages/
 
 ### Economy Models
 
-**Cosmetic** — Shop items (avatar_frame, name_color, badge, etc.)
-- `price`, `currency` (star_coins/gold_coins), `rarity`, `isLimited`
-
-**UserCosmetic** — Ownership and equipped status
-
 **Purchase** — Stripe transactions for coin packs
 
-**Gift** — Player-to-player gifting
+**Gift** — Player-to-player gifting (star coins only — cosmetics were removed)
 
 ### Progression Models
 
@@ -267,10 +262,8 @@ packages/
 ### Shop & Economy
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/shop` | List shop items |
-| POST | `/shop/purchase` | Buy cosmetic |
 | GET | `/achievements` | List achievements |
-| POST | `/gifts` | Send gift |
+| POST | `/gifts` | Send a star-coin gift |
 | GET | `/season-pass` | Current season info |
 | POST | `/season-pass/claim` | Claim tier reward |
 
@@ -663,9 +656,8 @@ pnpm --filter @red-handed/api test -- --coverage
 
 ### Economy
 - [x] Star Coins and Gold Coins
-- [x] Cosmetic shop
 - [x] Stripe payment integration
-- [x] Player gifting
+- [x] Player gifting (star coins)
 
 ### Production
 - [x] Sound effects (Web Audio API + expo-av)

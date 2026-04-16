@@ -19,13 +19,9 @@ const mockSeasonPassClaim = {
   findUnique: vi.fn(),
   create: vi.fn(),
 }
-const mockUserCosmetic = {
-  upsert: vi.fn(),
-}
 ;(prisma as any).seasonPass = mockSeasonPass
 ;(prisma as any).seasonTier = mockSeasonTier
 ;(prisma as any).seasonPassClaim = mockSeasonPassClaim
-;(prisma as any).userCosmetic = mockUserCosmetic
 
 describe('Season Pass Routes', () => {
   let app: FastifyInstance
@@ -253,20 +249,19 @@ describe('Season Pass Routes', () => {
       expect(res.json().rewardType).toBe('goldCoins')
     })
 
-    it('claims a cosmetic reward (upserts userCosmetic)', async () => {
-      const cosmeticTier = {
+    it('claims a title reward (no extra side-effects)', async () => {
+      const titleTier = {
         ...activeTier,
-        rewardType: 'cosmetic',
-        rewardValue: 'hat-cosmetic-123',
+        rewardType: 'title',
+        rewardValue: 'Champion',
       }
-      mockSeasonTier.findUnique.mockResolvedValue(cosmeticTier)
+      mockSeasonTier.findUnique.mockResolvedValue(titleTier)
       mockPrismaUser.findUnique.mockResolvedValue({ seasonXp: 500, goldCoins: 0 })
       mockSeasonPassClaim.findUnique.mockResolvedValue(null)
-      const mockUpsert = vi.fn().mockResolvedValue({})
+      const seasonPassClaimCreate = vi.fn().mockResolvedValue({})
       ;(prisma.$transaction as any).mockImplementation(async (fn: any) => fn({
-        seasonPassClaim: { create: vi.fn().mockResolvedValue({}) },
+        seasonPassClaim: { create: seasonPassClaimCreate },
         user: { update: vi.fn().mockResolvedValue({}) },
-        userCosmetic: { upsert: mockUpsert },
       }))
 
       const res = await app.inject({
@@ -276,10 +271,8 @@ describe('Season Pass Routes', () => {
       })
 
       expect(res.statusCode).toBe(200)
-      expect(res.json().rewardType).toBe('cosmetic')
-      expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
-        create: expect.objectContaining({ cosmeticId: 'hat-cosmetic-123' }),
-      }))
+      expect(res.json().rewardType).toBe('title')
+      expect(seasonPassClaimCreate).toHaveBeenCalled()
     })
   })
 })
