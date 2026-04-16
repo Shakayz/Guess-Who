@@ -17,7 +17,7 @@ test.describe('i18n language picker', () => {
       } catch {}
     })
     await page.goto('/auth')
-    await expect(page.getByText('Imposter Game')).toBeVisible()
+    await expect(page.getByText('Red Handed')).toBeVisible()
   })
 
   test('defaults to English and "Forgot password?" is visible', async ({ page }) => {

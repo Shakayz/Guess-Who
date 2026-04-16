@@ -64,7 +64,7 @@ model Room {
   hostId              String
   status              String   @default("waiting") @db.VarChar(20)
   maxPlayers          Int      @default(10)
-  imposterCount       Int      @default(2)
+  redHandedCount       Int      @default(2)
   speakingTimeSeconds Int      @default(30)
   votingTimeSeconds   Int      @default(30)
   wordPackId          String   @default("default")
@@ -104,7 +104,7 @@ model Round {
   gameId          String
   roundNumber     Int
   villagerWord    String
-  imposterWord    String
+  redHandedWord    String
   eliminatedId    String?
   eliminatedRole  String?
   createdAt       DateTime @default(now())
@@ -218,7 +218,7 @@ model Achievement {
   name        String
   description String
   icon        String
-  category    String   @default("general") @db.VarChar(30)  // gameplay, social, ranked, imposter, detective, milestones, secret
+  category    String   @default("general") @db.VarChar(30)  // gameplay, social, ranked, redHanded, detective, milestones, secret
   difficulty  String   @default("bronze") @db.VarChar(15)    // bronze, silver, gold, platinum, diamond, mythic
   xpReward    Int      @default(10)
   coinReward  Int      @default(0)

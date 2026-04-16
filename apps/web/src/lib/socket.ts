@@ -1,5 +1,5 @@
 import { io, type Socket } from 'socket.io-client'
-import type { ServerToClientEvents, ClientToServerEvents } from '@imposter/shared'
+import type { ServerToClientEvents, ClientToServerEvents } from '@red-handed/shared'
 import { useAuthStore } from '../store/auth'
 import { createLogger } from './logger'
 

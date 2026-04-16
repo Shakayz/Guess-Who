@@ -63,12 +63,12 @@ vi.mock('../../lib/socket', () => ({
 
 vi.mock('../../components/NavBar', () => ({ NavBar: () => <div data-testid="navbar" /> }))
 
-vi.mock('@imposter/ui', () => ({
+vi.mock('@red-handed/ui', () => ({
   RoomCodeDisplay: ({ code }: { code: string }) => <div data-testid="room-code">{code}</div>,
   PlayerCard: ({ player }: { player: any }) => <div data-testid="player-card">{player.username}</div>,
 }))
 
-vi.mock('@imposter/shared', () => ({
+vi.mock('@red-handed/shared', () => ({
   WORD_CATEGORIES: [
     { key: 'food', label: 'Food', icon: '🍕' },
     { key: 'animals', label: 'Animals', icon: '🐶' },
@@ -135,7 +135,7 @@ describe('LobbyPage', () => {
         { id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: false },
         { id: 'p2', userId: 'u2', username: 'host', isReady: true, isHost: true },
       ],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     expect(screen.getAllByTestId('player-card').length).toBe(2)
@@ -153,7 +153,7 @@ describe('LobbyPage', () => {
         { id: 'p3', userId: 'u3', username: 'p3', isReady: false, isHost: false },
         { id: 'p4', userId: 'u4', username: 'p4', isReady: false, isHost: false },
       ],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     expect(screen.getByText('lobby.notReady')).toBeInTheDocument()
@@ -171,7 +171,7 @@ describe('LobbyPage', () => {
         { id: 'p3', userId: 'u3', username: 'p3', isReady: false, isHost: false },
         { id: 'p4', userId: 'u4', username: 'p4', isReady: false, isHost: false },
       ],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     fireEvent.click(screen.getByText('lobby.notReady'))
@@ -190,7 +190,7 @@ describe('LobbyPage', () => {
         { id: 'p3', userId: 'u3', username: 'player3', isReady: true, isHost: false },
         { id: 'p4', userId: 'u4', username: 'player4', isReady: true, isHost: false },
       ],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     expect(screen.getByText('lobby.startGame')).toBeInTheDocument()
@@ -203,7 +203,7 @@ describe('LobbyPage', () => {
       status: 'waiting',
       hostId: 'u1',
       players: [{ id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: true }],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     expect(screen.getByText(/lobby\.roomSettings/)).toBeInTheDocument()
@@ -216,7 +216,7 @@ describe('LobbyPage', () => {
       status: 'waiting',
       hostId: 'u1',
       players: [{ id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: true }],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     // The settings button shows the room settings label (with emoji prefix, use regex)
@@ -261,7 +261,7 @@ describe('LobbyPage', () => {
         { id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: false },
         { id: 'p2', userId: 'u2', username: 'host', isReady: false, isHost: true },
       ],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     // With 2 players (less than 4 minimum), warning should appear
@@ -282,7 +282,7 @@ describe('LobbyPage', () => {
         status: 'waiting',
         hostId: 'u1',
         players: [],
-        settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+        settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
       })
     })
     expect(document.body).toBeInTheDocument()
@@ -316,7 +316,7 @@ describe('LobbyPage', () => {
       status: 'waiting',
       hostId: 'u1',
       players: [{ id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: true }],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     const settingsBtn = screen.getByRole('button', { name: /lobby\.roomSettings/i })
@@ -334,7 +334,7 @@ describe('LobbyPage', () => {
       status: 'waiting',
       hostId: 'u1',
       players: [{ id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: true }],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     fireEvent.click(screen.getByRole('button', { name: /lobby\.roomSettings/i }))
@@ -355,7 +355,7 @@ describe('LobbyPage', () => {
         { id: 'p3', userId: 'u3', username: 'player3', isReady: true, isHost: false },
         { id: 'p4', userId: 'u4', username: 'player4', isReady: true, isHost: false },
       ],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     const startBtn = screen.getByText('lobby.startGame')
@@ -388,7 +388,7 @@ describe('LobbyPage', () => {
         { id: 'p3', userId: 'u3', username: 'p3', isReady: false, isHost: false },
         { id: 'p4', userId: 'u4', username: 'p4', isReady: false, isHost: false },
       ],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     // Initially shows notReady
@@ -404,7 +404,7 @@ describe('LobbyPage', () => {
           { id: 'p3', userId: 'u3', username: 'p3', isReady: false, isHost: false },
           { id: 'p4', userId: 'u4', username: 'p4', isReady: false, isHost: false },
         ],
-        settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+        settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
       })
     })
     // Now shows the ready state
@@ -430,7 +430,7 @@ describe('LobbyPage', () => {
         { id: 'p3', userId: 'u3', username: 'p3', isReady: false, isHost: false },
         { id: 'p4', userId: 'u4', username: 'p4', isReady: false, isHost: false },
       ],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     // Non-host sees a settings summary, not the panel toggle
@@ -442,7 +442,7 @@ describe('LobbyPage', () => {
     mockRoomState.room = {
       id: 'r1', code: 'ROOM01', status: 'waiting', hostId: 'u2',
       settings: {
-        maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30,
+        maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30,
         isMatchmade: true,
       },
       players: [
@@ -465,7 +465,7 @@ describe('LobbyPage', () => {
         { id: 'p3', userId: 'u3', username: 'player3', isReady: false, isHost: false },
         { id: 'p4', userId: 'u4', username: 'player4', isReady: false, isHost: false },
       ],
-      settings: { maxPlayers: 10, imposterCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
+      settings: { maxPlayers: 10, redHandedCount: 2, speakingTimeSeconds: 30, votingTimeSeconds: 30 },
     }
     render(<LobbyPage />)
     expect(screen.getByText('lobby.waitingAllReady')).toBeInTheDocument()
@@ -480,7 +480,7 @@ describe('LobbyPage', () => {
         id: 'r1', code: 'ROOM01', status: 'waiting', hostId: 'u1',
         players: [{ id: 'p1', userId: 'u1', username: 'testuser', isReady: false, isHost: true }],
         settings: {
-          maxPlayers: 8, imposterCount: 1, speakingTimeSeconds: 45, votingTimeSeconds: 45,
+          maxPlayers: 8, redHandedCount: 1, speakingTimeSeconds: 45, votingTimeSeconds: 45,
           gameMode: 'normal', language: 'fr', categories: [],
           enableDetective: false, enableDoubleAgent: false,
         },

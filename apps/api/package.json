@@ -1,5 +1,5 @@
 {
-  "name": "@imposter/api",
+  "name": "@red-handed/api",
   "version": "0.0.1",
   "private": true,
   "prisma": {
@@ -28,7 +28,7 @@
     "@fastify/rate-limit": "^9.0.0",
     "@fastify/swagger": "^8.0.0",
     "@fastify/swagger-ui": "^3.0.0",
-    "@imposter/shared": "workspace:*",
+    "@red-handed/shared": "workspace:*",
     "@prisma/client": "^5.0.0",
     "@types/nodemailer": "^7.0.11",
     "bcryptjs": "^2.4.3",

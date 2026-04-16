@@ -1,5 +1,5 @@
 {
-  "name": "imposter-game",
+  "name": "red-handed",
   "version": "0.0.1",
   "private": true,
   "packageManager": "pnpm@9.0.0",
@@ -9,7 +9,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "e2e:web": "pnpm --filter @imposter/web e2e",
+    "e2e:web": "pnpm --filter @red-handed/web e2e",
     "e2e:mobile": "cd apps/mobile && maestro test .maestro/",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
     "clean": "turbo run clean && rm -rf node_modules",

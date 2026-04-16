@@ -10,9 +10,9 @@ interface RoleRevealScreenProps {
 }
 
 const ROLE_CONFIG: Record<string, { emoji: string; label: string; color: string; bg: string; border: string; accent: string; glow: string }> = {
-  imposter: {
+  red_handed: {
     emoji: '🎭',
-    label: 'Imposter',
+    label: 'Red-Handed',
     color: 'text-red-400',
     bg: 'bg-red-950/30',
     border: 'border-red-800',
@@ -277,7 +277,7 @@ export default function RoleRevealScreen({
                 <View
                   className={[
                     'absolute top-0 left-6 right-6 h-0.5 rounded-full',
-                    role === 'imposter' || role === 'double_agent'
+                    role === 'red_handed' || role === 'double_agent'
                       ? 'bg-red-500'
                       : role === 'detective'
                       ? 'bg-sky-500'
@@ -316,7 +316,7 @@ export default function RoleRevealScreen({
                   <View className="w-full gap-3">
                     <View className="bg-neutral-900/60 rounded-2xl px-4 py-3 items-center">
                       <Text className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500 mb-1">
-                        Imposter Word
+                        RedHanded Word
                       </Text>
                       <Text className="text-xl font-extrabold text-red-400">{word}</Text>
                     </View>
@@ -337,12 +337,12 @@ export default function RoleRevealScreen({
                 )}
 
                 <Text className="text-neutral-600 text-xs mt-6 text-center">
-                  {role === 'imposter'
+                  {role === 'red_handed'
                     ? "Blend in -- don't reveal you have a different word"
                     : role === 'double_agent'
                     ? 'You know both words -- use this to your advantage'
                     : role === 'detective'
-                    ? 'Investigate players to find the imposter'
+                    ? 'Investigate players to find the redHanded'
                     : 'Give clues without saying the word directly'}
                 </Text>
               </View>

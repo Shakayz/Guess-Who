@@ -16,7 +16,7 @@ export interface SpecialRoleCounts {
   kamikaze:    number
   corruptor:   number
   inverter:    number
-  /** 0 or 1: enables the paired twin_villager + twin_imposter duo. */
+  /** 0 or 1: enables the paired twin_villager + twin_red_handed duo. */
   evilTwins:   number
   jester:      number
 }
@@ -37,10 +37,10 @@ export const ZERO_SPECIAL_COUNTS: Readonly<SpecialRoleCounts> = Object.freeze({
 })
 
 /**
- * Default imposter count for a given table size.
- * 3-4 players → 1 imposter, 5-7 → 2, 8-11 → 3, 12+ → 4.
+ * Default redHanded count for a given table size.
+ * 3-4 players → 1 redHanded, 5-7 → 2, 8-11 → 3, 12+ → 4.
  */
-export function getDefaultImposterCount(playerCount: number): number {
+export function getDefaultRedHandedCount(playerCount: number): number {
   if (playerCount <= 4) return 1
   if (playerCount <= 7) return 2
   if (playerCount <= 11) return 3
@@ -48,10 +48,10 @@ export function getDefaultImposterCount(playerCount: number): number {
 }
 
 /**
- * Hard cap on imposters: imposters never exceed 1/3 of players, but always
+ * Hard cap on redHanded: redHanded never exceed 1/3 of players, but always
  * at least 1, and never more than 6 (server-side ranked rule).
  */
-export function maxImpostersFor(playerCount: number): number {
+export function maxRedHandedFor(playerCount: number): number {
   return Math.max(1, Math.min(6, Math.floor(playerCount / 3)))
 }
 
@@ -60,14 +60,14 @@ export function minPlayersFor(mode: 'normal' | 'special'): number {
   return mode === 'special' ? 5 : 3
 }
 
-/** Counts a single Evil Twins toggle as 1 imposter-side slot AND 1 villager-side
- *  slot, since it produces twinImposter + twinVillager. */
+/** Counts a single Evil Twins toggle as 1 red-handed-side slot AND 1 villager-side
+ *  slot, since it produces twinRedHanded + twinVillager. */
 export interface RoleHeadroom {
-  /** Total evil-side players = imposterCount (which now includes special evil roles). */
+  /** Total evil-side players = redHandedCount (which now includes special evil roles). */
   currentEvil: number
   /** Total villager-side specials currently selected. Does not include base villagers. */
   currentGoodSpecial: number
-  /** Headroom for additional special evil roles within the imposterCount budget. */
+  /** Headroom for additional special evil roles within the redHandedCount budget. */
   evilHeadroom: number
   /** Headroom for villager-side specials. Always leaves at least 1 plain villager. */
   goodHeadroom: number
@@ -75,10 +75,10 @@ export interface RoleHeadroom {
 
 export function computeRoleHeadroom(
   playerCount: number,
-  imposterCount: number,
+  redHandedCount: number,
   counts: SpecialRoleCounts,
 ): RoleHeadroom {
-  // imposterCount is now the TOTAL evil-side budget. Special evil roles
+  // redHandedCount is now the TOTAL evil-side budget. Special evil roles
   // come from within it; evilHeadroom = how many more specials can be added.
   const evilExtras =
     counts.doubleAgent +
@@ -87,13 +87,13 @@ export function computeRoleHeadroom(
     counts.corruptor +
     counts.inverter +
     counts.evilTwins
-  const currentEvil = imposterCount
-  const evilHeadroom = Math.max(0, imposterCount - evilExtras)
+  const currentEvil = redHandedCount
+  const evilHeadroom = Math.max(0, redHandedCount - evilExtras)
 
   const currentGoodSpecial =
     counts.detective + counts.guardian + counts.mayor + counts.judge + counts.revenant
-  // imposterCount already includes all evil roles; evilTwins adds 1 villager-side slot
-  const slotsUsed = imposterCount + currentGoodSpecial + counts.evilTwins // +twinVillager
+  // redHandedCount already includes all evil roles; evilTwins adds 1 villager-side slot
+  const slotsUsed = redHandedCount + currentGoodSpecial + counts.evilTwins // +twinVillager
   // Allow all villager slots to be special (no forced plain villager)
   const goodHeadroom = Math.max(0, playerCount - slotsUsed)
 
@@ -148,12 +148,12 @@ export function isNeutralUnlocked(playerCount: number): boolean {
  */
 export function computeMaxRoleCounts(
   playerCount: number,
-  imposterCount: number,
+  redHandedCount: number,
   counts: SpecialRoleCounts,
 ): MaxSpecialCounts {
   const { evilHeadroom, goodHeadroom } = computeRoleHeadroom(
     playerCount,
-    imposterCount,
+    redHandedCount,
     counts,
   )
   const neutralUnlocked = isNeutralUnlocked(playerCount)
@@ -177,17 +177,17 @@ export function computeMaxRoleCounts(
 }
 
 /**
- * Auto-reduce special evil-side counts when they exceed imposterCount.
- * imposterCount is the total evil budget; special evil roles must fit within it.
+ * Auto-reduce special evil-side counts when they exceed redHandedCount.
+ * redHandedCount is the total evil budget; special evil roles must fit within it.
  * Roles are decremented in reverse priority order so the most exotic roles
- * disappear first while the baseline imposter count is preserved.
+ * disappear first while the baseline redHanded count is preserved.
  *
  * Returns the (possibly mutated) counts AND a flag indicating whether anything
  * changed. Pure: the input is not mutated.
  */
 export function autoReduceOverflow(
   _playerCount: number,
-  imposterCount: number,
+  redHandedCount: number,
   counts: SpecialRoleCounts,
 ): { counts: SpecialRoleCounts; changed: boolean } {
   const evilExtras =
@@ -197,7 +197,7 @@ export function autoReduceOverflow(
     counts.corruptor +
     counts.inverter +
     counts.evilTwins
-  const excess = Math.max(0, evilExtras - imposterCount)
+  const excess = Math.max(0, evilExtras - redHandedCount)
   if (excess === 0) return { counts, changed: false }
 
   // Reduce in reverse priority order: evilTwins → inverter → corruptor →
@@ -224,9 +224,9 @@ export function autoReduceOverflow(
 }
 
 /**
- * Clamp imposter count to the legal range for a given player count.
+ * Clamp redHanded count to the legal range for a given player count.
  * Used by the lobby +/- stepper to enforce ≤ 1/3 of players and ≤ 6.
  */
-export function clampImposterCount(playerCount: number, requested: number): number {
-  return Math.max(1, Math.min(maxImpostersFor(playerCount), requested))
+export function clampRedHandedCount(playerCount: number, requested: number): number {
+  return Math.max(1, Math.min(maxRedHandedFor(playerCount), requested))
 }

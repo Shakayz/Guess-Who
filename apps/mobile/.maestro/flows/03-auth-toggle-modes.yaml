@@ -5,13 +5,13 @@
 #   - Sign Up mode: username field appears, "Forgot password?" hides
 # This is pure UI state — no network dependency.
 
-appId: ${APP_ID:-com.imposter.game}
+appId: ${APP_ID:-com.redhanded.game}
 ---
 - launchApp:
     clearState: true
 
 - extendedWaitUntil:
-    visible: "Imposter Game"
+    visible: "Red Handed"
     timeout: 15000
 
 # Default = Sign In mode. Forgot-password link should be visible.

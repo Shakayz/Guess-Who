@@ -3,10 +3,10 @@ import type { Player, Vote, PlayerRole } from '../types'
 // ─── Team mapping ─────────────────────────────────────────────────────────────
 // Roles grouped by the team whose victory condition they share.
 // - Villager side: plays for villager win.
-// - Imposter side: plays for imposter win.
+// - RedHanded side: plays for redHanded win.
 // - Jester: solo team (wins alone if voted out).
-// - Evil Twins (twin_villager + twin_imposter): paired team. They count toward
-//   their respective villager/imposter sides for the head count, BUT if BOTH
+// - Evil Twins (twin_villager + twin_red_handed): paired team. They count toward
+//   their respective villager/redHanded sides for the head count, BUT if BOTH
 //   are alive when any side would normally win, the evil_twins override fires.
 const VILLAGER_SIDE_ROLES: readonly PlayerRole[] = [
   'villager',
@@ -18,22 +18,22 @@ const VILLAGER_SIDE_ROLES: readonly PlayerRole[] = [
   'twin_villager',
 ] as const
 
-const IMPOSTER_SIDE_ROLES: readonly PlayerRole[] = [
-  'imposter',
+const RED_HANDED_SIDE_ROLES: readonly PlayerRole[] = [
+  'red_handed',
   'double_agent',
   'infiltrator',
   'kamikaze',
   'corruptor',
   'inverter',
-  'twin_imposter',
+  'twin_red_handed',
 ] as const
 
 export function isVillagerSideRole(role: PlayerRole | undefined): boolean {
   return !!role && VILLAGER_SIDE_ROLES.includes(role)
 }
 
-export function isImposterSideRole(role: PlayerRole | undefined): boolean {
-  return !!role && IMPOSTER_SIDE_ROLES.includes(role)
+export function isRedHandedSideRole(role: PlayerRole | undefined): boolean {
+  return !!role && RED_HANDED_SIDE_ROLES.includes(role)
 }
 
 export function isJesterRole(role: PlayerRole | undefined): boolean {
@@ -41,14 +41,14 @@ export function isJesterRole(role: PlayerRole | undefined): boolean {
 }
 
 export function isTwinRole(role: PlayerRole | undefined): boolean {
-  return role === 'twin_villager' || role === 'twin_imposter'
+  return role === 'twin_villager' || role === 'twin_red_handed'
 }
 
-export function countAlive(players: Player[]): { villagers: number; imposters: number; jesters: number } {
+export function countAlive(players: Player[]): { villagers: number; redHanded: number; jesters: number } {
   const alive = players.filter((p) => p.status === 'alive')
   return {
     villagers: alive.filter((p) => isVillagerSideRole(p.role)).length,
-    imposters: alive.filter((p) => isImposterSideRole(p.role)).length,
+    redHanded: alive.filter((p) => isRedHandedSideRole(p.role)).length,
     jesters:   alive.filter((p) => isJesterRole(p.role)).length,
   }
 }
@@ -60,7 +60,7 @@ export function countAlive(players: Player[]): { villagers: number; imposters: n
  * when the jester is eliminated by vote. Jesters still alive are ignored in
  * this calculation (they don't count toward either team's head count).
  *
- * Evil twins: if both twins (twin_villager + twin_imposter, linked by
+ * Evil twins: if both twins (twin_villager + twin_red_handed, linked by
  * `twinPartnerUserId`) are alive at the moment a standard winner would
  * normally be announced, the outcome is upgraded to 'evil_twins' — both twins
  * win together. If one twin is dead when the standard winner is decided, the
@@ -68,26 +68,26 @@ export function countAlive(players: Player[]): { villagers: number; imposters: n
  * LOSER at the results screen (their natural team may have won, but they
  * lose because their pair didn't).
  */
-export function checkWinCondition(players: Player[]): 'villagers' | 'imposters' | 'evil_twins' | null {
-  const { villagers, imposters } = countAlive(players)
+export function checkWinCondition(players: Player[]): 'villagers' | 'red_handed' | 'evil_twins' | null {
+  const { villagers, redHanded } = countAlive(players)
   // No alive players at all — no winner (should not happen in practice)
-  if (villagers === 0 && imposters === 0) return null
+  if (villagers === 0 && redHanded === 0) return null
 
-  let baseWinner: 'villagers' | 'imposters' | null = null
-  if (imposters === 0) baseWinner = 'villagers'
-  else if (imposters >= villagers) baseWinner = 'imposters'
+  let baseWinner: 'villagers' | 'red_handed' | null = null
+  if (redHanded === 0) baseWinner = 'villagers'
+  else if (redHanded >= villagers) baseWinner = 'red_handed'
 
   if (!baseWinner) return null
 
   // Evil twins override: both twins alive → evil_twins win together.
   const twinVillager = players.find((p) => p.role === 'twin_villager')
-  const twinImposter = players.find((p) => p.role === 'twin_imposter')
+  const twinRedHanded = players.find((p) => p.role === 'twin_red_handed')
   if (
     twinVillager &&
-    twinImposter &&
+    twinRedHanded &&
     twinVillager.status === 'alive' &&
-    twinImposter.status === 'alive' &&
-    twinVillager.twinPartnerUserId === twinImposter.userId
+    twinRedHanded.status === 'alive' &&
+    twinVillager.twinPartnerUserId === twinRedHanded.userId
   ) {
     return 'evil_twins'
   }

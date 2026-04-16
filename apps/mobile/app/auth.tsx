@@ -108,13 +108,13 @@ export default function AuthScreen() {
 
   // ─── Google OAuth ────────────────────────────────────────────────────────
 
-  const redirectUri = AuthSession.makeRedirectUri({ scheme: 'imposter', path: 'oauthredirect' })
+  const redirectUri = AuthSession.makeRedirectUri({ scheme: 'red_handed', path: 'oauthredirect' })
 
   const [googleRequest, googleResponse, googlePromptAsync] =
     AuthSession.useAuthRequest(
       {
         clientId: GOOGLE_CLIENT_ID || 'not-configured',
-        redirectUri: redirectUri || 'imposter://oauthredirect',
+        redirectUri: redirectUri || 'redhanded://oauthredirect',
         scopes: ['openid', 'profile', 'email'],
         responseType: AuthSession.ResponseType.Token,
         usePKCE: false,
@@ -441,7 +441,7 @@ export default function AuthScreen() {
                   <View className="absolute top-0 left-0 right-0 h-1/2 bg-white/10 rounded-t-2xl" />
                   <Text style={{ fontSize: isTablet ? 40 : 30 }}>🎭</Text>
                 </View>
-                <Text className="font-extrabold text-white tracking-tight" style={{ fontSize: isTablet ? 36 : 30 }}>Imposter Game</Text>
+                <Text className="font-extrabold text-white tracking-tight" style={{ fontSize: isTablet ? 36 : 30 }}>Red Handed</Text>
                 <View className="flex-row items-center gap-1.5 mt-2 px-3 py-1 rounded-full border border-violet-800/40 bg-violet-950/30">
                   <View className="w-1.5 h-1.5 rounded-full bg-violet-400" />
                   <Text className="text-violet-400 font-semibold" style={{ fontSize: 12 * fontScale }}>{t('home.subtitle')}</Text>

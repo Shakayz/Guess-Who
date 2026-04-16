@@ -2,7 +2,7 @@ import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { PlayerCard } from './PlayerCard'
-import type { Player } from '@imposter/shared'
+import type { Player } from '@red-handed/shared'
 
 const basePlayer: Player = {
   id: 'player-1',
@@ -53,17 +53,17 @@ describe('PlayerCard', () => {
     expect(screen.getByText('villager')).toBeInTheDocument()
   })
 
-  it('shows danger badge variant for imposter role', () => {
-    const playerWithRole = { ...basePlayer, role: 'imposter' as const }
+  it('shows danger badge variant for redHanded role', () => {
+    const playerWithRole = { ...basePlayer, role: 'red_handed' as const }
     render(<PlayerCard player={playerWithRole} showRole />)
-    const badge = screen.getByText('imposter')
+    const badge = screen.getByText('red_handed')
     expect(badge.className).toContain('text-red-400')
   })
 
   it('does not show role badge when showRole is false', () => {
-    const playerWithRole = { ...basePlayer, role: 'imposter' as const }
+    const playerWithRole = { ...basePlayer, role: 'red_handed' as const }
     render(<PlayerCard player={playerWithRole} showRole={false} />)
-    expect(screen.queryByText('imposter')).not.toBeInTheDocument()
+    expect(screen.queryByText('red_handed')).not.toBeInTheDocument()
   })
 
   it('calls onVote with playerId when clicked and canVote is true', () => {

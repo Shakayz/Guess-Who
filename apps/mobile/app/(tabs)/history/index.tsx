@@ -17,8 +17,8 @@ type HistoryMode = 'unranked' | 'ranked'
 
 interface GameSummary {
   id: string
-  winner: 'villagers' | 'imposters'
-  myRole: 'villager' | 'imposter' | 'detective' | 'doubleAgent'
+  winner: 'villagers' | 'red_handed'
+  myRole: 'villager' | 'red_handed' | 'detective' | 'doubleAgent'
   gameMode?: 'normal' | 'special' | 'ranked'
   roundCount: number
   players: string[]
@@ -32,9 +32,9 @@ interface HistoryResponse {
 
 const ROLE_CONFIG: Record<string, { emoji: string; label: string }> = {
   villager: { emoji: '🏘️', label: 'Villager' },
-  imposter: { emoji: '🎭', label: 'Imposter' },
+  red_handed: { emoji: '🎭', label: 'Red-Handed' },
   detective: { emoji: '🔍', label: 'Detective' },
-  doubleAgent: { emoji: '🕵️', label: 'Double Agent' },
+  double_agent: { emoji: '🕵️', label: 'Double Agent' },
 }
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -47,9 +47,9 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 
 function didWin(winner: string, myRole: string): boolean {
   const villagerTeam = ['villager', 'detective']
-  const imposterTeam = ['imposter', 'doubleAgent']
+  const redHandedTeam = ['red_handed', 'doubleAgent']
   if (winner === 'villagers') return villagerTeam.includes(myRole)
-  return imposterTeam.includes(myRole)
+  return redHandedTeam.includes(myRole)
 }
 
 export default function HistoryScreen() {

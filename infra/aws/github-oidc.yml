@@ -1,0 +1,182 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  GitHub Actions OIDC provider + IAM deploy role for Red Handed (Guess-Who).
+  Lets GitHub Actions from shakayz/guess-who assume GitHubActionsRedHandedDeploy
+  via sts:AssumeRoleWithWebIdentity without long-lived AWS credentials.
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Default: shakayz
+    Description: GitHub organization / user that owns the repo
+
+  GitHubRepo:
+    Type: String
+    Default: guess-who
+    Description: GitHub repository name
+
+  RoleName:
+    Type: String
+    Default: GitHubActionsRedHandedDeploy
+    Description: Name of the IAM role that the CD workflows assume
+
+  WebStagingBucket:
+    Type: String
+    Default: aghazzaf-web-staging
+    Description: S3 bucket that hosts the staging web build
+
+  WebProdBucket:
+    Type: String
+    Default: aghazzaf-web-prod
+    Description: S3 bucket that hosts the production web build
+
+  StagingCloudFrontDistributionId:
+    Type: String
+    Default: E1ZIQ7E8U04EBD
+    Description: CloudFront distribution ID for staging
+
+  ProdCloudFrontDistributionId:
+    Type: String
+    Default: E1ZHK1GBOO9V4T
+    Description: CloudFront distribution ID for prod
+
+  EcrRepositoryArn:
+    Type: String
+    Default: arn:aws:ecr:eu-west-3:700672899544:repository/red-handed-api
+    Description: ARN of the ECR repo the CD workflows push to
+
+  CreateOidcProvider:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+    Description: >
+      Set to "false" if the account already has the
+      token.actions.githubusercontent.com OIDC provider (AWS only allows one
+      per account). Setting "true" will create it.
+
+Conditions:
+  ShouldCreateOidcProvider: !Equals [!Ref CreateOidcProvider, 'true']
+
+Resources:
+  # ─────────────────────────────────────────────────────────────
+  # OIDC identity provider for GitHub Actions
+  # AWS verifies GitHub's OIDC tokens against this provider.
+  # Only one such provider can exist per AWS account; if one already
+  # exists, deploy this stack with CreateOidcProvider=false.
+  # ─────────────────────────────────────────────────────────────
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      # Thumbprints are no longer validated for the GitHub provider as of
+      # 2023-07, but the field is still required. These are the published
+      # GitHub Actions intermediate certificate thumbprints.
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  # ─────────────────────────────────────────────────────────────
+  # IAM role assumed by the CD workflows via OIDC
+  # ─────────────────────────────────────────────────────────────
+  GitHubActionsDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      Description: >
+        Assumed by GitHub Actions (shakayz/guess-who) via OIDC to deploy
+        the Red Handed web + API (S3, CloudFront, ECR).
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                # Allow:
+                #  * any branch push (cd-staging.yml)
+                #  * the "production" environment (cd-prod.yml)
+                #  * manual workflow_dispatch runs
+                # from shakayz/guess-who only.
+                token.actions.githubusercontent.com:sub:
+                  - !Sub repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/*
+                  - !Sub repo:${GitHubOrg}/${GitHubRepo}:environment:production
+                  - !Sub repo:${GitHubOrg}/${GitHubRepo}:environment:staging
+                  - !Sub repo:${GitHubOrg}/${GitHubRepo}:pull_request
+      Policies:
+        - PolicyName: WebDeployS3
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${WebStagingBucket}
+                  - !Sub arn:${AWS::Partition}:s3:::${WebProdBucket}
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${WebStagingBucket}/*
+                  - !Sub arn:${AWS::Partition}:s3:::${WebProdBucket}/*
+        - PolicyName: CloudFrontInvalidate
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                  - cloudfront:GetDistribution
+                Resource:
+                  - !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${StagingCloudFrontDistributionId}
+                  - !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${ProdCloudFrontDistributionId}
+        - PolicyName: EcrPushPull
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:DescribeImages
+                  - ecr:DescribeRepositories
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:GetLifecyclePolicy
+                  - ecr:GetRepositoryPolicy
+                  - ecr:InitiateLayerUpload
+                  - ecr:ListImages
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource:
+                  - !Ref EcrRepositoryArn
+
+Outputs:
+  DeployRoleArn:
+    Description: ARN of the IAM role the CD workflows assume (ROLE_ARN in the workflows)
+    Value: !GetAtt GitHubActionsDeployRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-DeployRoleArn
+
+  OidcProviderArn:
+    Description: ARN of the GitHub OIDC identity provider
+    Condition: ShouldCreateOidcProvider
+    Value: !Ref GitHubOidcProvider
+    Export:
+      Name: !Sub ${AWS::StackName}-OidcProviderArn

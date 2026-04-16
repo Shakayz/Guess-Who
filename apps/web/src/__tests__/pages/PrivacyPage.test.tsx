@@ -51,8 +51,8 @@ describe('PrivacyPage', () => {
 
   it('exposes a mailto contact link', () => {
     renderPage()
-    const link = screen.getByText(/privacy@imposter\.game/)
-    expect(link.closest('a')?.getAttribute('href')).toBe('mailto:privacy@imposter.game')
+    const link = screen.getByText(/privacy@redhanded\.game/)
+    expect(link.closest('a')?.getAttribute('href')).toBe('mailto:privacy@redhanded.game')
   })
 
   it('renders NavBar', () => {

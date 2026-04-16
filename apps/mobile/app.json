@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Imposter Game",
-    "slug": "imposter-game",
+    "name": "Red Handed",
+    "slug": "red-handed",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
-    "scheme": "imposter",
+    "scheme": "redhanded",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash.png",
@@ -15,7 +15,7 @@
     "ios": {
       "usesAppleSignIn": true,
       "supportsTablet": true,
-      "bundleIdentifier": "com.imposter.game",
+      "bundleIdentifier": "com.redhanded.game",
       "requireFullScreen": false,
       "associatedDomains": [
         "applinks:aghazzaf.com",
@@ -32,13 +32,13 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#09090b"
       },
-      "package": "com.imposter.game",
+      "package": "com.redhanded.game",
       "intentFilters": [
         {
           "action": "VIEW",
           "data": [
             {
-              "scheme": "imposter"
+              "scheme": "redhanded"
             }
           ],
           "category": [
@@ -67,8 +67,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Imposter Game to access your photos for profile pictures",
-          "cameraPermission": "Allow Imposter Game to use the camera for profile pictures"
+          "photosPermission": "Allow Red Handed to access your photos for profile pictures",
+          "cameraPermission": "Allow Red Handed to use the camera for profile pictures"
         }
       ],
       "expo-apple-authentication",

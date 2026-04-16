@@ -17,7 +17,7 @@ export const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'de', 'it', 'pt', 'zh'
 export const DEFAULT_ROOM_SETTINGS = {
   maxPlayers: 10,
   minPlayers: 3,
-  imposterCount: 2,
+  redHandedCount: 2,
   speakingTimeSeconds: 30,
   votingTimeSeconds: 30,
   wordPackId: 'default',
@@ -35,9 +35,9 @@ export const VOCAL_SPEAKING_TIME_STEP    = 5
 
 export const COIN_REWARDS = {
   WIN_VILLAGER: 50,
-  WIN_IMPOSTER: 80,
+  WIN_RED_HANDED: 80,
   CORRECT_VOTE: 20,
-  PERFECT_IMPOSTER: 100,
+  PERFECT_RED_HANDED: 100,
   DAILY_LOGIN: 10,
 } as const
 
@@ -85,11 +85,11 @@ export const LP_REWARDS = {
   // ── Villager team ────────────────────────────────────────────────────────────
   VILLAGER_WIN:            18,
   VILLAGER_LOSS:          -15,
-  // ── Imposter team ────────────────────────────────────────────────────────────
-  IMPOSTER_WIN:            25,  // rôle plus dur → récompense plus haute
-  IMPOSTER_LOSS:           -8,  // pénalité réduite pour compenser la difficulté
-  // ── Survival win (imposters survivent tous les rounds) ───────────────────────
-  SURVIVAL_IMPOSTER_WIN:   20,
+  // ── RedHanded team ────────────────────────────────────────────────────────────
+  RED_HANDED_WIN:            25,  // rôle plus dur → récompense plus haute
+  RED_HANDED_LOSS:           -8,  // pénalité réduite pour compenser la difficulté
+  // ── Survival win (redHanded survivent tous les rounds) ───────────────────────
+  SURVIVAL_RED_HANDED_WIN:   20,
   SURVIVAL_VILLAGER_LOSS: -12,
 } as const
 

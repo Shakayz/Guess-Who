@@ -29,12 +29,12 @@ vi.mock('../../lib/api', () => ({
   },
 }))
 
-vi.mock('@imposter/ui', () => ({
+vi.mock('@red-handed/ui', () => ({
   Avatar: ({ username }: { username: string }) => <div data-testid="avatar">{username}</div>,
   Badge: ({ tier }: { tier: string }) => <div data-testid="badge">{tier}</div>,
 }))
 
-vi.mock('@imposter/shared', () => ({
+vi.mock('@red-handed/shared', () => ({
   RANK_CONFIG: {
     gold: { label: 'Gold', icon: '🥇', minPoints: 1000 },
     silver: { label: 'Silver', icon: '🥈', minPoints: 500 },

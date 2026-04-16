@@ -14,7 +14,7 @@
  *
  * - **stdout** — pretty-printed in dev (`NODE_ENV=development`), structured
  *   JSON in production. Visible in the terminal running `pnpm --filter
- *   @imposter/api dev` or `docker compose logs -f api`.
+ *   @red-handed/api dev` or `docker compose logs -f api`.
  *
  * - **file** — when `LOG_TO_FILE=1` (or in production by default), logs are
  *   also written to `apps/api/logs/api.log`. The directory is created lazily
@@ -69,7 +69,7 @@ function buildRootLogger(): Logger {
   const level = process.env.LOG_LEVEL ?? (process.env.NODE_ENV === 'test' ? 'silent' : 'info')
 
   const base = {
-    service: 'imposter-api',
+    service: 'red-handed-api',
     env: process.env.NODE_ENV ?? 'development',
     pid: process.pid,
   }

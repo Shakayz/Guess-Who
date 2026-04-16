@@ -45,16 +45,16 @@ const fullGameData = {
   myRole: 'villager' as const,
   participations: [
     { userId: 'u1', username: 'testuser', avatarUrl: null, role: 'villager', survived: true, starCoinsEarned: 5 },
-    { userId: 'u2', username: 'imposter1', avatarUrl: null, role: 'imposter', survived: false, starCoinsEarned: 2 },
+    { userId: 'u2', username: 'redHanded1', avatarUrl: null, role: 'red_handed', survived: false, starCoinsEarned: 2 },
   ],
   rounds: [
     {
       id: 'r1',
       roundNumber: 1,
       villagerWord: 'pizza',
-      imposterWord: 'pasta',
+      redHandedWord: 'pasta',
       eliminatedId: 'u2',
-      eliminatedRole: 'imposter',
+      eliminatedRole: 'red_handed',
       clues: [
         { playerId: 'u1', text: 'It is round', createdAt: new Date().toISOString() },
         { playerId: 'u2', text: 'It is delicious', createdAt: new Date().toISOString() },
@@ -68,7 +68,7 @@ const fullGameData = {
       id: 'r2',
       roundNumber: 2,
       villagerWord: 'cat',
-      imposterWord: 'dog',
+      redHandedWord: 'dog',
       eliminatedId: null,
       eliminatedRole: null,
       clues: [],
@@ -184,11 +184,11 @@ describe('GameDetailPage', () => {
     })
   })
 
-  it('renders imposter as winner scenario', async () => {
+  it('renders redHanded as winner scenario', async () => {
     mockApiGet.mockResolvedValueOnce({
       ...fullGameData,
-      winnerTeam: 'imposters',
-      myRole: 'imposter',
+      winnerTeam: 'red_handed',
+      myRole: 'red_handed',
     })
     await act(async () => {
       render(<GameDetailPage />)

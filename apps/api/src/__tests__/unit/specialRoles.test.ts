@@ -2,10 +2,10 @@
  * specialRoles.test.ts
  *
  * Robust end-to-end coverage for every "special mode" role added on top of
- * the classic villager/imposter pair:
+ * the classic villager/redHanded pair:
  *
  *   Villager-side: mayor, judge, revenant, twin_villager
- *   Imposter-side: infiltrator, kamikaze, corruptor, inverter, twin_imposter
+ *   RedHanded-side: infiltrator, kamikaze, corruptor, inverter, twin_red_handed
  *   Neutral     : jester
  *
  * Each describe block exercises the full game-loop flow end-to-end (using
@@ -98,10 +98,10 @@ function installPrismaDefaults() {
   mockPrisma.room.findUnique.mockResolvedValue({
     id: 'room-1', code: 'ABCD', hostId: 'u1', status: 'in_progress',
     speakingTimeSeconds: 30, votingTimeSeconds: 30,
-    maxPlayers: 8, imposterCount: 1,
+    maxPlayers: 8, redHandedCount: 1,
   })
   mockPrisma.room.update.mockResolvedValue({})
-  mockPrisma.round.findUnique.mockResolvedValue({ id: 'round-1', villagerWord: 'Apple', imposterWord: 'Pear' })
+  mockPrisma.round.findUnique.mockResolvedValue({ id: 'round-1', villagerWord: 'Apple', redHandedWord: 'Pear' })
   mockPrisma.round.create.mockResolvedValue({ id: 'round-2', roundNumber: 2 })
   mockPrisma.round.update.mockResolvedValue({})
   mockPrisma.roundVote.createMany.mockResolvedValue({})
@@ -153,10 +153,10 @@ describe('jester', () => {
         { userId: 'u1', username: 'Alice',  role: 'villager', status: 'alive' },
         { userId: 'u2', username: 'Bob',    role: 'villager', status: 'alive' },
         { userId: 'u3', username: 'Carol',  role: 'jester',   status: 'alive' },
-        { userId: 'u4', username: 'Dave',   role: 'imposter', status: 'alive' },
+        { userId: 'u4', username: 'Dave',   role: 'red_handed', status: 'alive' },
       ],
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       rounds: [{
         id: 'round-1', roundNumber: 1,
         votes: [
@@ -206,10 +206,10 @@ describe('jester', () => {
         { userId: 'u1', username: 'Alice',  role: 'villager', status: 'alive' },
         { userId: 'u2', username: 'Bob',    role: 'villager', status: 'alive' },
         { userId: 'u3', username: 'Carol',  role: 'jester',   status: 'eliminated' },  // just said the word
-        { userId: 'u4', username: 'Dave',   role: 'imposter', status: 'alive' },
+        { userId: 'u4', username: 'Dave',   role: 'red_handed', status: 'alive' },
       ],
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       rounds: [{
         id: 'round-1', roundNumber: 1,
         votes: [], clues: [
@@ -226,7 +226,7 @@ describe('jester', () => {
     await eliminatePlayerForWord(io, 'room-1', 30, 30)
     await vi.advanceTimersByTimeAsync(4000)
 
-    // Standard win condition: 2 villagers vs 1 imposter → game continues.
+    // Standard win condition: 2 villagers vs 1 redHanded → game continues.
     // No game:finished should be emitted with jester winner.
     const finishedPayload = lastPayloadFor(io, 'game:finished')
     if (finishedPayload) {
@@ -246,7 +246,7 @@ describe('mayor double-vote', () => {
     vi.useFakeTimers()
     const io = makeIo()
 
-    // Without the mayor's boost: u4 (imposter) and u1 (mayor) tie 2-2.
+    // Without the mayor's boost: u4 (redHanded) and u1 (mayor) tie 2-2.
     // With mayorDoubleActive: mayor's vote for u4 counts double → u4 eliminated → villagers win.
     const state = {
       status: 'voting',
@@ -257,17 +257,17 @@ describe('mayor double-vote', () => {
         { userId: 'u1', username: 'Mayor',   role: 'mayor',    status: 'alive', mayorDoubleVoteUsed: true, mayorDoubleActive: true },
         { userId: 'u2', username: 'Bob',     role: 'villager', status: 'alive' },
         { userId: 'u3', username: 'Carol',   role: 'villager', status: 'alive' },
-        { userId: 'u4', username: 'Dave',    role: 'imposter', status: 'alive' },
+        { userId: 'u4', username: 'Dave',    role: 'red_handed', status: 'alive' },
       ],
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       rounds: [{
         id: 'round-1', roundNumber: 1,
         votes: [
-          { voterId: 'u1', targetId: 'u4' },  // mayor → imposter (weight 2)
-          { voterId: 'u2', targetId: 'u4' },  // villager → imposter
+          { voterId: 'u1', targetId: 'u4' },  // mayor → redHanded (weight 2)
+          { voterId: 'u2', targetId: 'u4' },  // villager → redHanded
           { voterId: 'u3', targetId: 'u1' },  // villager → mayor
-          { voterId: 'u4', targetId: 'u1' },  // imposter → mayor
+          { voterId: 'u4', targetId: 'u1' },  // redHanded → mayor
         ],
         clues: [],
         speakingOrder: ['u1', 'u2', 'u3', 'u4'],
@@ -278,7 +278,7 @@ describe('mayor double-vote', () => {
     await tryEarlyResolve(io, 'room-1')
     await vi.advanceTimersByTimeAsync(8000)
 
-    // u4 (imposter) eliminated → villagers win
+    // u4 (redHanded) eliminated → villagers win
     const finishedPayload = lastPayloadFor(io, 'game:finished')
     expect(finishedPayload).toBeDefined()
     expect(finishedPayload.winner).toBe('villagers')
@@ -322,7 +322,7 @@ describe('corruptor vote drop', () => {
         { userId: 'u4', username: 'Dave',  role: 'corruptor', status: 'alive', corruptorTargetUserId: 'u3' },
       ],
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       rounds: [{
         id: 'round-1', roundNumber: 1,
         votes: [
@@ -359,7 +359,7 @@ describe('inverter flip', () => {
     vi.useFakeTimers()
     const io = makeIo()
 
-    // Without inversion: u4 (inverter, imposter-side) would be voted out 3-1
+    // Without inversion: u4 (inverter, red-handed-side) would be voted out 3-1
     // With inversion: the LEAST voted player (u1) is eliminated instead.
     const state = {
       status: 'voting',
@@ -373,7 +373,7 @@ describe('inverter flip', () => {
         { userId: 'u4', username: 'Dave',    role: 'inverter', status: 'alive', inverterUsed: true, inverterActive: true },
       ],
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       rounds: [{
         id: 'round-1', roundNumber: 1,
         votes: [
@@ -392,8 +392,8 @@ describe('inverter flip', () => {
     await vi.advanceTimersByTimeAsync(8000)
 
     // The least-voted target was u2 (1 vote) → u2 (villager) eliminated
-    // Remaining: u1, u3 villagers, u4 inverter (imposter-side). 2 villagers vs
-    // 1 imposter → game continues, no winner yet. A round:ended should fire
+    // Remaining: u1, u3 villagers, u4 inverter (red-handed-side). 2 villagers vs
+    // 1 redHanded → game continues, no winner yet. A round:ended should fire
     // but not game:finished.
     const events = emittedEvents(io)
     expect(events).toContain('round:ended')
@@ -434,7 +434,7 @@ describe('kamikaze flow', () => {
         { userId: 'u4', username: 'Dave',  role: 'kamikaze', status: 'alive' },
       ],
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       rounds: [{
         id: 'round-1', roundNumber: 1,
         votes: [
@@ -490,7 +490,7 @@ describe('kamikaze flow', () => {
         { userId: 'u4', username: 'Dave',  role: 'kamikaze', status: 'eliminated' }, // already out
       ],
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       rounds: [{
         id: 'round-1', roundNumber: 1,
         votes: [], clues: [],
@@ -549,7 +549,7 @@ describe('judge tiebreaker decision', () => {
     vi.useFakeTimers()
     const io = makeIo()
 
-    // Tied: u3 (villager) and u4 (imposter). Judge (u2) picks u4.
+    // Tied: u3 (villager) and u4 (redHanded). Judge (u2) picks u4.
     const state = {
       status: 'in_progress',
       gameMode: 'special',
@@ -563,10 +563,10 @@ describe('judge tiebreaker decision', () => {
         { userId: 'u1', username: 'Alice', role: 'villager', status: 'alive' },
         { userId: 'u2', username: 'Bob',   role: 'judge',    status: 'alive' },
         { userId: 'u3', username: 'Carol', role: 'villager', status: 'alive' },
-        { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'alive' },
+        { userId: 'u4', username: 'Dave',  role: 'red_handed', status: 'alive' },
       ],
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       rounds: [{
         id: 'round-1', roundNumber: 1,
         votes: [], clues: [],
@@ -586,7 +586,7 @@ describe('judge tiebreaker decision', () => {
       targetUserId: 'u4',
     })
 
-    // Imposter eliminated → villagers win
+    // RedHanded eliminated → villagers win
     const finishedPayload = lastPayloadFor(io, 'game:finished')
     expect(finishedPayload).toBeDefined()
     expect(finishedPayload.winner).toBe('villagers')
@@ -609,7 +609,7 @@ describe('judge tiebreaker decision', () => {
       players: [
         { userId: 'u2', username: 'Bob',   role: 'judge',    status: 'alive' },
         { userId: 'u3', username: 'Carol', role: 'villager', status: 'alive' },
-        { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'alive' },
+        { userId: 'u4', username: 'Dave',  role: 'red_handed', status: 'alive' },
       ],
       rounds: [{ id: 'round-1', roundNumber: 1, votes: [], clues: [], speakingOrder: [] }],
     }
@@ -637,7 +637,7 @@ describe('judge tiebreaker decision', () => {
         { userId: 'u1', username: 'Alice', role: 'villager', status: 'alive' },
         { userId: 'u2', username: 'Bob',   role: 'judge',    status: 'alive' },
         { userId: 'u3', username: 'Carol', role: 'villager', status: 'alive' },
-        { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'alive' },
+        { userId: 'u4', username: 'Dave',  role: 'red_handed', status: 'alive' },
       ],
       rounds: [{ id: 'round-1', roundNumber: 1, votes: [], clues: [], speakingOrder: [] }],
     }
@@ -661,8 +661,8 @@ describe('evil twins', () => {
     const io = makeIo()
 
     // 3 players: lone villager + paired twins. Voting u1 out leaves twin_villager
-    // and twin_imposter 1v1 → standard rule would declare 'imposters' (tie goes
-    // to imposters) but the evil_twins override hijacks it.
+    // and twin_red_handed 1v1 → standard rule would declare 'red_handed' (tie goes
+    // to redHanded) but the evil_twins override hijacks it.
     const state = {
       status: 'voting',
       gameMode: 'special',
@@ -671,10 +671,10 @@ describe('evil twins', () => {
       players: [
         { userId: 'u1', username: 'Alice', role: 'villager',     status: 'alive' },
         { userId: 'u2', username: 'Bob',   role: 'twin_villager', status: 'alive', twinPartnerUserId: 'u3' },
-        { userId: 'u3', username: 'Carol', role: 'twin_imposter', status: 'alive', twinPartnerUserId: 'u2' },
+        { userId: 'u3', username: 'Carol', role: 'twin_red_handed', status: 'alive', twinPartnerUserId: 'u2' },
       ],
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       rounds: [{
         id: 'round-1', roundNumber: 1,
         votes: [
@@ -691,8 +691,8 @@ describe('evil twins', () => {
     await tryEarlyResolve(io, 'room-1')
     await vi.advanceTimersByTimeAsync(8000)
 
-    // After eliminating u1: villagers=1 (twin_villager), imposters=1 (twin_imposter)
-    // → baseWinner='imposters' → evil_twins override fires.
+    // After eliminating u1: villagers=1 (twin_villager), redHanded=1 (twin_red_handed)
+    // → baseWinner='red_handed' → evil_twins override fires.
     const finishedPayload = lastPayloadFor(io, 'game:finished')
     expect(finishedPayload).toBeDefined()
     expect(finishedPayload.winner).toBe('evil_twins')
@@ -716,11 +716,11 @@ describe('evil twins', () => {
       players: [
         { userId: 'u1', username: 'Alice', role: 'villager',     status: 'alive' },
         { userId: 'u2', username: 'Bob',   role: 'twin_villager', status: 'alive', twinPartnerUserId: 'u3' },
-        { userId: 'u3', username: 'Carol', role: 'twin_imposter', status: 'eliminated', twinPartnerUserId: 'u2' },
-        { userId: 'u4', username: 'Dave',  role: 'imposter',     status: 'alive' },
+        { userId: 'u3', username: 'Carol', role: 'twin_red_handed', status: 'eliminated', twinPartnerUserId: 'u2' },
+        { userId: 'u4', username: 'Dave',  role: 'red_handed',     status: 'alive' },
       ],
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       rounds: [{
         id: 'round-1', roundNumber: 1,
         votes: [
@@ -739,7 +739,7 @@ describe('evil twins', () => {
 
     const finishedPayload = lastPayloadFor(io, 'game:finished')
     expect(finishedPayload).toBeDefined()
-    // Standard rule applies: imposters = 0 → villagers win (no override)
+    // Standard rule applies: redHanded = 0 → villagers win (no override)
     expect(finishedPayload.winner).toBe('villagers')
 
     vi.useRealTimers()
@@ -766,10 +766,10 @@ describe('revenant post-mortem votes', () => {
         { userId: 'u1', username: 'Alice', role: 'villager', status: 'alive' },
         { userId: 'u2', username: 'Bob',   role: 'villager', status: 'alive' },
         { userId: 'u3', username: 'Carol', role: 'revenant', status: 'eliminated', revenantVotesRemaining: 2 },
-        { userId: 'u4', username: 'Dave',  role: 'imposter', status: 'alive' },
+        { userId: 'u4', username: 'Dave',  role: 'red_handed', status: 'alive' },
       ],
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       rounds: [{
         id: 'round-1', roundNumber: 1,
         votes: [
@@ -803,15 +803,15 @@ describe('revenant post-mortem votes', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// INFILTRATOR — counted as imposter for win condition
+// INFILTRATOR — counted as redHanded for win condition
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('infiltrator', () => {
-  it('counts as imposter-side in win condition (tied → imposters win with an infiltrator alive)', async () => {
+  it('counts as red-handed-side in win condition (tied → redHanded win with an infiltrator alive)', async () => {
     vi.useFakeTimers()
     const io = makeIo()
 
-    // u3 (villager) voted out → 2 villagers remain vs 1 infiltrator → imposters
+    // u3 (villager) voted out → 2 villagers remain vs 1 infiltrator → redHanded
     // haven't outnumbered villagers yet, so the round ends and the game goes on.
     // Critical: all 4 alive players must vote for tryEarlyResolve to trigger.
     const state = {
@@ -826,7 +826,7 @@ describe('infiltrator', () => {
         { userId: 'u4', username: 'Dave',  role: 'infiltrator', status: 'alive' },
       ],
       villagerWord: 'Apple',
-      imposterWord: 'Pear',
+      redHandedWord: 'Pear',
       rounds: [{
         id: 'round-1', roundNumber: 1,
         votes: [

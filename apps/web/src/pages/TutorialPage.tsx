@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { TUTORIAL_COMPLETION_REWARD } from '@imposter/shared'
+import { TUTORIAL_COMPLETION_REWARD } from '@red-handed/shared'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { createLogger } from '../lib/logger'
@@ -647,10 +647,10 @@ function RevealStep({ onNext }: { onNext: () => void }) {
         <div className="text-5xl">👩</div>
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-red-500">
-            {t('offline.imposter', 'Imposter')}
+            {t('offline.redHanded', 'Red-Handed')}
           </p>
-          <p className="text-lg font-extrabold text-red-400">{t('tutorial.revealImposterCard')}</p>
-          <p className="text-sm text-neutral-300 mt-2">{t('tutorial.revealImposterWord')}</p>
+          <p className="text-lg font-extrabold text-red-400">{t('tutorial.revealRedHandedCard')}</p>
+          <p className="text-sm text-neutral-300 mt-2">{t('tutorial.revealRedHandedWord')}</p>
         </div>
       </div>
 

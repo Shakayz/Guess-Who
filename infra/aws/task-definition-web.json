@@ -1,5 +1,5 @@
 {
-  "family": "imposter-web",
+  "family": "red-handed-web",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
@@ -23,7 +23,7 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/${ENVIRONMENT}/imposter-web",
+          "awslogs-group": "/ecs/${ENVIRONMENT}/red-handed-web",
           "awslogs-region": "${AWS_REGION}",
           "awslogs-stream-prefix": "web"
         }

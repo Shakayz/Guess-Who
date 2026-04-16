@@ -286,7 +286,7 @@ export default function AuthPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-600 mb-5 shadow-xl shadow-brand-600/30">
             <span className="text-3xl">🎭</span>
           </div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">Imposter Game</h1>
+          <h1 className="text-3xl font-extrabold text-white tracking-tight">Red Handed</h1>
           <p className="text-neutral-500 text-sm mt-1.5">{t('home.subtitle')}</p>
         </div>
 

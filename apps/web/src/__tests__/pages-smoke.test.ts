@@ -85,7 +85,7 @@ vi.mock('socket.io-client', () => ({
   io: vi.fn(() => ({ on: vi.fn(), off: vi.fn(), emit: vi.fn(), connect: vi.fn(), disconnect: vi.fn(), connected: false })),
 }))
 
-vi.mock('@imposter/shared', () => ({}))
+vi.mock('@red-handed/shared', () => ({}))
 
 // ---------------------------------------------------------------------------
 // Helpers
