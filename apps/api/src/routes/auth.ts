@@ -346,6 +346,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           honorPoints: true, locale: true, createdAt: true,
           level: true, xp: true, hasPlayedRanked: true,
           emailVerified: true,
+          dailyStreakCount: true, lastPlayedAt: true,
         },
       }),
       prisma.honor.groupBy({

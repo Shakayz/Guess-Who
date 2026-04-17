@@ -23,6 +23,7 @@ export default {
     signOut: '退出登录',
     profile: '个人资料',
     settings: '设置',
+    streak: '连续 {{count}} 天',
   },
   auth: {
     signIn: '登录',

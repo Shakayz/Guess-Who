@@ -23,6 +23,7 @@ export default {
     signOut: 'साइन आउट',
     profile: 'प्रोफ़ाइल',
     settings: 'सेटिंग्स',
+    streak: '{{count}} दिन की लकीर',
   },
   auth: {
     signIn: 'साइन इन',

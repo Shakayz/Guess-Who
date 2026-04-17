@@ -23,6 +23,7 @@ export default {
     signOut: 'Abmelden',
     profile: 'Profil',
     settings: 'Einstellungen',
+    streak: '{{count}}-Tage-Serie',
   },
   auth: {
     signIn: 'Anmelden',
