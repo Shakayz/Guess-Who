@@ -8,7 +8,7 @@ const log = createLogger('socket')
 let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null
 
 // Resolve the socket.io endpoint:
-//   - Production:  VITE_SOCKET_URL is set (e.g. https://api.aghazzaf.com)
+//   - Production:  VITE_SOCKET_URL is set (e.g. https://api.redhanded-game.com)
 //   - Development: VITE_SOCKET_URL is empty → '/' (Vite proxies '/socket.io' → API)
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '/'
 

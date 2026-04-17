@@ -1,5 +1,10 @@
 {
-	email admin@aghazzaf.com
+	email admin@redhanded-game.com
+}
+
+{$WEB_DOMAIN} {
+	encode gzip zstd
+	reverse_proxy web:80
 }
 
 {$API_DOMAIN} {

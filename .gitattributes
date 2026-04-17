@@ -1,0 +1,8 @@
+# Force LF line endings for shell scripts and other Linux-executed files,
+# regardless of the contributor's OS. Prevents "bad interpreter ^M" errors
+# when files edited on Windows are run on a Linux host.
+*.sh        text eol=lf
+Caddyfile   text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf

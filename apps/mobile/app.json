@@ -18,8 +18,8 @@
       "bundleIdentifier": "com.redhanded.game",
       "requireFullScreen": false,
       "associatedDomains": [
-        "applinks:aghazzaf.com",
-        "applinks:staging.aghazzaf.com"
+        "applinks:redhanded-game.com",
+        "applinks:staging.redhanded-game.com"
       ],
       "infoPlist": {
         "NSCameraUsageDescription": "Take a photo for your profile picture",

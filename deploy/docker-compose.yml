@@ -50,6 +50,12 @@ services:
     expose:
       - "3001"
 
+  web:
+    image: ${WEB_IMAGE}
+    restart: always
+    expose:
+      - "80"
+
   caddy:
     image: caddy:2-alpine
     restart: always
@@ -58,12 +64,14 @@ services:
       - "443:443"
     environment:
       API_DOMAIN: ${API_DOMAIN}
+      WEB_DOMAIN: ${WEB_DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - api
+      - web
 
 volumes:
   postgres_data:

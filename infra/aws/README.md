@@ -96,7 +96,7 @@ The script will:
 
 The CD workflows (`.github/workflows/cd-staging.yml`, `cd-prod.yml`) authenticate
 to AWS via **OIDC** (no long-lived access keys). They assume the role
-`arn:aws:iam::700672899544:role/GitHubActionsRedHandedDeploy`.
+`arn:aws:iam::210884642211:role/GitHubActionsRedHandedDeploy`.
 
 ### One-time setup
 

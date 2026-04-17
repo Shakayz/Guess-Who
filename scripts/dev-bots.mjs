@@ -37,7 +37,7 @@
  *   node dev-bots.mjs ranked --bots=9
  *
  * Options:
- *   --server=URL      base URL of the staging server  (default: $SERVER or https://staging.aghazzaf.com)
+ *   --server=URL      base URL of the staging server  (default: $SERVER or https://staging.redhanded-game.com)
  *   --socket=URL      separate socket.io host if API and socket live on different domains
  *   --locale=CODE     locale for bot accounts. MUST match the room/host locale
  *                     (default: $LOCALE or 'en')
@@ -77,7 +77,7 @@ function parseArgs(argv) {
   const [mode, ...rest] = argv
   const opts = {
     mode: /** @type {Mode} */ (mode),
-    server: process.env.SERVER || 'https://staging.aghazzaf.com',
+    server: process.env.SERVER || 'https://staging.redhanded-game.com',
     socketUrl: null,
     locale: process.env.LOCALE || 'en',
     bots: 2,

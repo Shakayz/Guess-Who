@@ -68,3 +68,8 @@ scripts/.bots.json
 # Redis
 dump.rdb
 appendonlydir/
+
+# SSH keys / AWS credentials — never commit
+*.pem
+credentials.csv
+

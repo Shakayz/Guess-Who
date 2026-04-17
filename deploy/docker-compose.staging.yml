@@ -72,6 +72,16 @@ services:
     expose:
       - "3001"
 
+  web:
+    image: ${WEB_IMAGE}
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 48M
+    expose:
+      - "80"
+
   caddy:
     image: caddy:2-alpine
     restart: always
@@ -80,6 +90,7 @@ services:
       - "443:443"
     environment:
       API_DOMAIN: ${API_DOMAIN}
+      WEB_DOMAIN: ${WEB_DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -90,6 +101,7 @@ services:
           memory: 48M
     depends_on:
       - api
+      - web
 
 volumes:
   postgres_data:

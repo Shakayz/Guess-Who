@@ -17,11 +17,13 @@ permissions:
 
 env:
   AWS_REGION: eu-west-3
-  ECR_REPO: 700672899544.dkr.ecr.eu-west-3.amazonaws.com/red-handed-api
-  S3_BUCKET: aghazzaf-web-prod
-  CF_DIST_ID: E1ZHK1GBOO9V4T
-  VM_HOST: 35.181.142.208
-  ROLE_ARN: arn:aws:iam::700672899544:role/GitHubActionsRedHandedDeploy
+  AWS_ACCOUNT_ID: "210884642211"
+  ECR_REGISTRY: 210884642211.dkr.ecr.eu-west-3.amazonaws.com
+  ECR_API_REPO: red-handed-api
+  ECR_WEB_REPO: red-handed-web
+  ROLE_ARN: arn:aws:iam::210884642211:role/GitHubActionsRedHandedDeploy
+  WEB_DOMAIN: redhanded-game.com
+  API_DOMAIN: api.redhanded-game.com
 
 jobs:
   deploy:
@@ -34,52 +36,18 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - uses: pnpm/action-setup@v5
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build shared packages
-        run: |
-          pnpm --filter @red-handed/shared build
-          pnpm --filter @red-handed/ui build
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ---------- WEB ----------
-      - name: Build web
-        env:
-          VITE_API_URL: https://api.aghazzaf.com
-          VITE_SOCKET_URL: https://api.aghazzaf.com
-          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
-        run: pnpm --filter @red-handed/web build
-
-      - name: Sync web to S3
-        run: |
-          aws s3 sync apps/web/dist s3://${{ env.S3_BUCKET }}/ --delete \
-            --cache-control "public,max-age=31536000,immutable" \
-            --exclude "index.html"
-          aws s3 cp apps/web/dist/index.html s3://${{ env.S3_BUCKET }}/index.html \
-            --cache-control "public,max-age=0,must-revalidate"
-
-      - name: Invalidate CloudFront
-        run: aws cloudfront create-invalidation --distribution-id ${{ env.CF_DIST_ID }} --paths "/*"
-
-      # ---------- API ----------
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
       - uses: docker/setup-buildx-action@v4
 
+      # ---------- API ----------
       - name: Build & push API image
         uses: docker/build-push-action@v7
         with:
@@ -88,42 +56,70 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ${{ env.ECR_REPO }}:latest
-            ${{ env.ECR_REPO }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_API_REPO }}:latest
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_API_REPO }}:${{ github.sha }}
+          cache-from: type=gha,scope=api-prod
+          cache-to: type=gha,mode=max,scope=api-prod
 
+      # ---------- WEB ----------
+      - name: Build & push Web image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            VITE_GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+            VITE_API_URL=https://${{ env.API_DOMAIN }}
+            VITE_SOCKET_URL=https://${{ env.API_DOMAIN }}
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_WEB_REPO }}:latest
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_WEB_REPO }}:${{ github.sha }}
+          cache-from: type=gha,scope=web-prod
+          cache-to: type=gha,mode=max,scope=web-prod
+
+      # ---------- Deploy to Lightsail ----------
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/deploy
           chmod 600 ~/.ssh/deploy
-          ssh-keyscan -H ${{ env.VM_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.LIGHTSAIL_PROD_HOST }} >> ~/.ssh/known_hosts
 
       - name: Sync compose file & Caddyfile to VM
         run: |
-          scp -i ~/.ssh/deploy deploy/docker-compose.yml ubuntu@${{ env.VM_HOST }}:/tmp/docker-compose.yml
-          scp -i ~/.ssh/deploy deploy/Caddyfile ubuntu@${{ env.VM_HOST }}:/tmp/Caddyfile
-          ssh -i ~/.ssh/deploy ubuntu@${{ env.VM_HOST }} \
+          scp -i ~/.ssh/deploy deploy/docker-compose.yml ubuntu@${{ secrets.LIGHTSAIL_PROD_HOST }}:/tmp/docker-compose.yml
+          scp -i ~/.ssh/deploy deploy/Caddyfile ubuntu@${{ secrets.LIGHTSAIL_PROD_HOST }}:/tmp/Caddyfile
+          ssh -i ~/.ssh/deploy ubuntu@${{ secrets.LIGHTSAIL_PROD_HOST }} \
             "sudo mkdir -p /opt/red-handed \
              && sudo mv /tmp/docker-compose.yml /opt/red-handed/docker-compose.yml \
              && sudo mv /tmp/Caddyfile /opt/red-handed/Caddyfile"
 
       - name: Get ECR password
         id: ecr
-        run: echo "pw=$(aws ecr get-login-password --region eu-west-3)" >> $GITHUB_OUTPUT
+        run: echo "pw=$(aws ecr get-login-password --region ${{ env.AWS_REGION }})" >> $GITHUB_OUTPUT
 
       - name: Deploy to VM
         env:
+          API_IMAGE: ${{ env.ECR_REGISTRY }}/${{ env.ECR_API_REPO }}:${{ github.sha }}
+          WEB_IMAGE: ${{ env.ECR_REGISTRY }}/${{ env.ECR_WEB_REPO }}:${{ github.sha }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          ALLOWED_ORIGINS: https://app.aghazzaf.com
+          ALLOWED_ORIGINS: https://${{ env.WEB_DOMAIN }}
           ECR_PW: ${{ steps.ecr.outputs.pw }}
         run: |
-          ssh -i ~/.ssh/deploy ubuntu@${{ env.VM_HOST }} \
+          ssh -i ~/.ssh/deploy ubuntu@${{ secrets.LIGHTSAIL_PROD_HOST }} \
             "cd /opt/red-handed \
              && sudo touch .env && sudo chmod 600 .env \
-             && for kv in 'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}' 'GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}' 'ALLOWED_ORIGINS=${ALLOWED_ORIGINS}'; do \
+             && for kv in \
+                  'API_IMAGE=${API_IMAGE}' \
+                  'WEB_IMAGE=${WEB_IMAGE}' \
+                  'API_DOMAIN=${{ env.API_DOMAIN }}' \
+                  'WEB_DOMAIN=${{ env.WEB_DOMAIN }}' \
+                  'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}' \
+                  'GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}' \
+                  'ALLOWED_ORIGINS=${ALLOWED_ORIGINS}'; do \
                   key=\${kv%%=*}; \
                   if sudo grep -q \"^\${key}=\" .env; then \
                     sudo sed -i \"s|^\${key}=.*|\${kv}|\" .env; \
@@ -131,15 +127,25 @@ jobs:
                     echo \"\${kv}\" | sudo tee -a .env >/dev/null; \
                   fi; \
                 done \
-             && echo '${ECR_PW}' | sudo docker login --username AWS --password-stdin 700672899544.dkr.ecr.eu-west-3.amazonaws.com \
-             && sudo docker compose pull api \
-             && sudo docker compose up -d --no-deps api \
+             && echo '${ECR_PW}' | sudo docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }} \
+             && sudo docker compose pull api web \
+             && sudo docker compose up -d --no-deps api web caddy \
              && sudo docker image prune -f"
 
       - name: Smoke test API
         run: |
           for i in 1 2 3 4 5 6; do
-            code=$(curl -sS -o /dev/null -w "%{http_code}" https://api.aghazzaf.com/ || true)
+            code=$(curl -sS -o /dev/null -w "%{http_code}" https://${{ env.API_DOMAIN }}/ || true)
+            echo "attempt $i: $code"
+            [ "$code" != "000" ] && exit 0
+            sleep 5
+          done
+          exit 1
+
+      - name: Smoke test Web
+        run: |
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" https://${{ env.WEB_DOMAIN }}/ || true)
             echo "attempt $i: $code"
             [ "$code" != "000" ] && exit 0
             sleep 5

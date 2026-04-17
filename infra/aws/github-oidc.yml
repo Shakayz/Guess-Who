@@ -1,8 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   GitHub Actions OIDC provider + IAM deploy role for Red Handed (Guess-Who).
-  Lets GitHub Actions from shakayz/guess-who assume GitHubActionsRedHandedDeploy
+  Lets GitHub Actions from Shakayz/Guess-Who assume GitHubActionsRedHandedDeploy
   via sts:AssumeRoleWithWebIdentity without long-lived AWS credentials.
+
+  Simplified for the Lightsail-only architecture: the role only needs ECR
+  push/pull permissions. Web is served from a container on Lightsail (no S3,
+  no CloudFront).
 
 Parameters:
   GitHubOrg:
@@ -24,30 +28,15 @@ Parameters:
     Default: GitHubActionsRedHandedDeploy
     Description: Name of the IAM role that the CD workflows assume
 
-  WebStagingBucket:
+  ApiEcrRepositoryArn:
     Type: String
-    Default: aghazzaf-web-staging
-    Description: S3 bucket that hosts the staging web build
+    Default: arn:aws:ecr:eu-west-3:210884642211:repository/red-handed-api
+    Description: ARN of the ECR repo for the API image
 
-  WebProdBucket:
+  WebEcrRepositoryArn:
     Type: String
-    Default: aghazzaf-web-prod
-    Description: S3 bucket that hosts the production web build
-
-  StagingCloudFrontDistributionId:
-    Type: String
-    Default: E1ZIQ7E8U04EBD
-    Description: CloudFront distribution ID for staging
-
-  ProdCloudFrontDistributionId:
-    Type: String
-    Default: E1ZHK1GBOO9V4T
-    Description: CloudFront distribution ID for prod
-
-  EcrRepositoryArn:
-    Type: String
-    Default: arn:aws:ecr:eu-west-3:700672899544:repository/red-handed-api
-    Description: ARN of the ECR repo the CD workflows push to
+    Default: arn:aws:ecr:eu-west-3:210884642211:repository/red-handed-web
+    Description: ARN of the ECR repo for the Web image
 
   CreateOidcProvider:
     Type: String
@@ -64,9 +53,6 @@ Conditions:
 Resources:
   # ─────────────────────────────────────────────────────────────
   # OIDC identity provider for GitHub Actions
-  # AWS verifies GitHub's OIDC tokens against this provider.
-  # Only one such provider can exist per AWS account; if one already
-  # exists, deploy this stack with CreateOidcProvider=false.
   # ─────────────────────────────────────────────────────────────
   GitHubOidcProvider:
     Type: AWS::IAM::OIDCProvider
@@ -75,9 +61,6 @@ Resources:
       Url: https://token.actions.githubusercontent.com
       ClientIdList:
         - sts.amazonaws.com
-      # Thumbprints are no longer validated for the GitHub provider as of
-      # 2023-07, but the field is still required. These are the published
-      # GitHub Actions intermediate certificate thumbprints.
       ThumbprintList:
         - 6938fd4d98bab03faadb97b34396831e3780aea1
         - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
@@ -90,8 +73,8 @@ Resources:
     Properties:
       RoleName: !Ref RoleName
       Description: >
-        Assumed by GitHub Actions (shakayz/guess-who) via OIDC to deploy
-        the Red Handed web + API (S3, CloudFront, ECR).
+        Assumed by GitHub Actions (Shakayz/Guess-Who) via OIDC to push
+        Red Handed API/Web images to ECR.
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -104,52 +87,12 @@ Resources:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
-                # Allow, from ${GitHubOrg}/${GitHubRepo} only:
-                #  * any branch push (cd-staging.yml)
-                #  * the "production" / "staging" environments (cd-prod.yml)
-                #  * manual workflow_dispatch runs
-                #  * pull_request runs
-                # Case matters: GitHub OIDC "sub" claims preserve the exact
-                # case of the owner/repo, and AWS IAM StringLike is case-
-                # sensitive. The GitHubOrg / GitHubRepo parameters must
-                # therefore be the canonical case shown on GitHub.
                 token.actions.githubusercontent.com:sub:
                   - !Sub repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/*
                   - !Sub repo:${GitHubOrg}/${GitHubRepo}:environment:production
                   - !Sub repo:${GitHubOrg}/${GitHubRepo}:environment:staging
                   - !Sub repo:${GitHubOrg}/${GitHubRepo}:pull_request
       Policies:
-        - PolicyName: WebDeployS3
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:ListBucket
-                  - s3:GetBucketLocation
-                Resource:
-                  - !Sub arn:${AWS::Partition}:s3:::${WebStagingBucket}
-                  - !Sub arn:${AWS::Partition}:s3:::${WebProdBucket}
-              - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:GetObject
-                  - s3:DeleteObject
-                Resource:
-                  - !Sub arn:${AWS::Partition}:s3:::${WebStagingBucket}/*
-                  - !Sub arn:${AWS::Partition}:s3:::${WebProdBucket}/*
-        - PolicyName: CloudFrontInvalidate
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - cloudfront:CreateInvalidation
-                  - cloudfront:GetInvalidation
-                  - cloudfront:GetDistribution
-                Resource:
-                  - !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${StagingCloudFrontDistributionId}
-                  - !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${ProdCloudFrontDistributionId}
         - PolicyName: EcrPushPull
           PolicyDocument:
             Version: '2012-10-17'
@@ -173,7 +116,8 @@ Resources:
                   - ecr:PutImage
                   - ecr:UploadLayerPart
                 Resource:
-                  - !Ref EcrRepositoryArn
+                  - !Ref ApiEcrRepositoryArn
+                  - !Ref WebEcrRepositoryArn
 
 Outputs:
   DeployRoleArn:

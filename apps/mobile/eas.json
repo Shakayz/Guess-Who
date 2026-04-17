@@ -16,16 +16,16 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://staging.aghazzaf.com/api",
-        "EXPO_PUBLIC_SOCKET_URL": "https://staging.aghazzaf.com",
+        "EXPO_PUBLIC_API_URL": "https://api-staging.redhanded-game.com/api",
+        "EXPO_PUBLIC_SOCKET_URL": "https://api-staging.redhanded-game.com",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID": ""
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://aghazzaf.com/api",
-        "EXPO_PUBLIC_SOCKET_URL": "https://aghazzaf.com",
+        "EXPO_PUBLIC_API_URL": "https://api.redhanded-game.com/api",
+        "EXPO_PUBLIC_SOCKET_URL": "https://api.redhanded-game.com",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID": ""
       }
     }

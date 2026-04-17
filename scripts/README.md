@@ -5,7 +5,7 @@ manages its own dependencies via the local `package.json` in this folder.
 
 ## dev-bots.mjs — spin up fake players to test multiplayer modes
 
-When you're working on `staging.aghazzaf.com` (or any other environment) and
+When you're working on `staging.redhanded-game.com` (or any other environment) and
 have nobody to play with, `dev-bots.mjs` creates N fake accounts on the server
 and connects them as real socket.io clients so you can reach the 3-player /
 10-player minimums the game enforces.
@@ -51,20 +51,20 @@ node dev-bots.mjs ranked --bots=9
 
 ```bash
 # via env
-SERVER=https://staging.aghazzaf.com LOCALE=fr node dev-bots.mjs lobby --code=ABC12 --bots=2
+SERVER=https://staging.redhanded-game.com LOCALE=fr node dev-bots.mjs lobby --code=ABC12 --bots=2
 
 # via flag
-node dev-bots.mjs unranked --server=https://staging.aghazzaf.com --locale=fr --bots=2
+node dev-bots.mjs unranked --server=https://staging.redhanded-game.com --locale=fr --bots=2
 
-# if API and socket live on different domains (e.g. api.aghazzaf.com vs aghazzaf.com)
-node dev-bots.mjs unranked --server=https://api.aghazzaf.com --socket=https://aghazzaf.com --bots=2
+# if API and socket live on different domains (e.g. api.redhanded-game.com vs redhanded-game.com)
+node dev-bots.mjs unranked --server=https://api.redhanded-game.com --socket=https://redhanded-game.com --bots=2
 ```
 
 ### All options
 
 | Flag | Default | Description |
 |---|---|---|
-| `--server=URL` | `$SERVER` or `https://staging.aghazzaf.com` | Base URL, routes are hit at `${server}/api/...` |
+| `--server=URL` | `$SERVER` or `https://staging.redhanded-game.com` | Base URL, routes are hit at `${server}/api/...` |
 | `--socket=URL` | same as `--server` | Override if socket.io is on a different host |
 | `--locale=XX` | `$LOCALE` or `en` | **Must match the room/host locale** |
 | `--bots=N` | `2` | Number of bot accounts to spawn |

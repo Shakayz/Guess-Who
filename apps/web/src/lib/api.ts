@@ -3,7 +3,7 @@ import { createLogger } from './logger'
 
 const log = createLogger('api')
 // Resolve the API base URL:
-//   - Production:  VITE_API_URL is set (e.g. https://api.aghazzaf.com) → '<host>/api'
+//   - Production:  VITE_API_URL is set (e.g. https://api.redhanded-game.com) → '<host>/api'
 //   - Development: VITE_API_URL is empty → '/api', proxied by Vite to the local API
 const API_HOST = import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? ''
 const BASE_URL = API_HOST ? `${API_HOST}/api` : '/api'
