@@ -13,10 +13,17 @@ vi.mock('bcryptjs', () => ({
   },
 }))
 
-// Mock the shared package's generateRoomCode
-vi.mock('@red-handed/shared', () => ({
-  generateRoomCode: vi.fn().mockReturnValue('XYZABC'),
-}))
+// Mock the shared package's generateRoomCode while preserving the rest of the
+// real exports (e.g. xpProgressInLevel, which /me calls).
+vi.mock('@red-handed/shared', async () => {
+  const actual = await vi.importActual<typeof import('@red-handed/shared')>(
+    '@red-handed/shared',
+  )
+  return {
+    ...actual,
+    generateRoomCode: vi.fn().mockReturnValue('XYZABC'),
+  }
+})
 
 import { authRoutes } from '../../routes/auth'
 import { roomRoutes } from '../../routes/rooms'
@@ -187,6 +194,9 @@ describe('E2E User Journey', () => {
       honorPoints: 0,
       locale: 'en',
       createdAt: new Date('2025-01-01'),
+      level: 1,
+      xp: 0,
+      hasPlayedRanked: true,
     })
     mockHonor.groupBy.mockResolvedValue([])
 
