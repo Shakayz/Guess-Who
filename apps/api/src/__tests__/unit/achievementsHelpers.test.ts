@@ -57,7 +57,7 @@ describe('TIERS_*', () => {
     const tiers = TIERS_3([1, 5, 10])
     expect(tiers.map((t) => t.n)).toEqual([1, 5, 10])
     expect(tiers.map((t) => t.difficulty)).toEqual(['bronze', 'silver', 'gold'])
-    expect(tiers[0].stars).toBe(15)
+    expect(tiers[0].stars).toBe(5)
     expect(tiers[2].stars).toBe(100)
   })
 
@@ -74,7 +74,7 @@ describe('TIERS_*', () => {
   it('TIERS_6 includes mythic', () => {
     const tiers = TIERS_6([1, 5, 10, 25, 50, 100])
     expect(tiers.at(-1)?.difficulty).toBe('mythic')
-    expect(tiers.at(-1)?.stars).toBe(2000)
+    expect(tiers.at(-1)?.stars).toBe(3500)
   })
 
   it('tier thresholds flow through to every def.n', () => {
@@ -129,9 +129,9 @@ describe('progression', () => {
       getCount: (s) => s.totalWins,
       tiers: TIERS_3([1, 10, 100]),
     })
-    expect(defs[0]).toMatchObject({ difficulty: 'bronze', xpReward: 10, coinReward: 15 })
-    expect(defs[1]).toMatchObject({ difficulty: 'silver', xpReward: 25, coinReward: 40 })
-    expect(defs[2]).toMatchObject({ difficulty: 'gold', xpReward: 50, coinReward: 100 })
+    expect(defs[0]).toMatchObject({ difficulty: 'bronze', xpReward: 5,  coinReward: 5 })
+    expect(defs[1]).toMatchObject({ difficulty: 'silver', xpReward: 20, coinReward: 25 })
+    expect(defs[2]).toMatchObject({ difficulty: 'gold',   xpReward: 55, coinReward: 100 })
   })
 
   it('evaluators return true once the threshold is met', async () => {
