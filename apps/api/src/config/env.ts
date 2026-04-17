@@ -21,9 +21,16 @@ const envSchema = z.object({
   SMTP_USER:          z.string().optional(),
   SMTP_PASS:          z.string().optional(),
   SMTP_FROM:          z.string().default('Red Handed ! <contact@redhanded-game.com>'),
-  // TODO: re-enable when premium/monetization is ready
-  // STRIPE_SECRET_KEY:  z.string().optional(),
-  // STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_SECRET_KEY:      z.string().optional(),
+  STRIPE_WEBHOOK_SECRET:  z.string().optional(),
+  STRIPE_SUCCESS_URL:     z.string().default('http://localhost:5173/shop?checkout=success'),
+  STRIPE_CANCEL_URL:      z.string().default('http://localhost:5173/shop?checkout=canceled'),
+  // Per-environment Stripe Price IDs (test mode in staging, live mode in prod).
+  // Left optional so the API still boots without payments configured; the shop
+  // routes return a clear error if a pack's price ID is missing at checkout time.
+  STRIPE_PRICE_ID_PACK_500:  z.string().optional(),
+  STRIPE_PRICE_ID_PACK_1500: z.string().optional(),
+  STRIPE_PRICE_ID_PACK_5000: z.string().optional(),
 })
 
 export const env = envSchema.parse(process.env)

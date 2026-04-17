@@ -61,12 +61,12 @@ importers:
       '@fastify/swagger-ui':
         specifier: ^3.0.0
         version: 3.1.0
-      '@red-handed/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@prisma/client':
         specifier: ^5.0.0
         version: 5.22.0(prisma@5.22.0)
+      '@red-handed/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@types/nodemailer':
         specifier: ^7.0.11
         version: 7.0.11
@@ -82,6 +82,9 @@ importers:
       fastify:
         specifier: ^4.0.0
         version: 4.29.1
+      fastify-raw-body:
+        specifier: ^4
+        version: 4.3.0
       google-auth-library:
         specifier: ^10.6.2
         version: 10.6.2
@@ -146,12 +149,12 @@ importers:
       '@expo/vector-icons':
         specifier: ^15.1.1
         version: 15.1.1(expo-font@14.0.11(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@react-native-community/cli@13.6.9)(@react-native/metro-config@0.85.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@react-native-community/cli@13.6.9)(@react-native/metro-config@0.85.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@19.1.0))(react@19.1.0)
-      '@red-handed/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@react-native-async-storage/async-storage':
         specifier: ^2.2.0
         version: 2.2.0(react-native@0.81.5(@babel/core@7.29.0)(@react-native-community/cli@13.6.9)(@react-native/metro-config@0.85.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@19.1.0))
+      '@red-handed/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       expo:
         specifier: ~54.0.33
         version: 54.0.33(@babel/core@7.29.0)(@expo/dom-webview@55.0.5)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native@0.81.5(@babel/core@7.29.0)(@react-native-community/cli@13.6.9)(@react-native/metro-config@0.85.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
@@ -3731,6 +3734,10 @@ packages:
   fastify-plugin@5.1.0:
     resolution: {integrity: sha512-FAIDA8eovSt5qcDgcBvDuX/v0Cjz0ohGhENZ/wpc3y+oZCY2afZ9Baqql3g/lC+OHRnciQol4ww7tuthOb9idw==}
 
+  fastify-raw-body@4.3.0:
+    resolution: {integrity: sha512-F4o8ZIMVx4YoxGfwrZys6wyjl40gF3Yv6AWWRy62ozFAyZBSS831/uyyCAqKYw3tR73g180ryG98yih6To1PUQ==}
+    engines: {node: '>= 10'}
+
   fastify@4.29.1:
     resolution: {integrity: sha512-m2kMNHIG92tSNWv+Z3UeTR9AWLLuo7KctC7mlFPtMEVrfjIhmQhkQnT9v15qA/BfVq3vvj134Y0jl9SBje3jXQ==}
 
@@ -4057,6 +4064,10 @@ packages:
 
   i18next@23.16.8:
     resolution: {integrity: sha512-06r/TitrM88Mg5FdUXAKL96dJMzgqLE5dv3ryBAra4KCwD9mJ4ndOTS95ZuymIGoE+2hzfdaMak2X11/es7ZWg==}
+
+  iconv-lite@0.4.24:
+    resolution: {integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==}
+    engines: {node: '>=0.10.0'}
 
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
@@ -5541,6 +5552,10 @@ packages:
   range-parser@1.2.1:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
     engines: {node: '>= 0.6'}
+
+  raw-body@2.5.3:
+    resolution: {integrity: sha512-s4VSOf6yN0rvbRZGxs8Om5CWj6seneMwK3oDb4lWDH0UPhWcxwOWw5+qk24bxq87szX1ydrwylIOp2uG1ojUpA==}
+    engines: {node: '>= 0.8'}
 
   rc@1.2.8:
     resolution: {integrity: sha512-y3bGgqKj3QBdxLbLkomlohkvsA8gdAiUQlSBJnBhfn+BPxg4bc62d8TcBW15wavDfgexCgccckhcZvywyQYPOw==}
@@ -10771,6 +10786,12 @@ snapshots:
 
   fastify-plugin@5.1.0: {}
 
+  fastify-raw-body@4.3.0:
+    dependencies:
+      fastify-plugin: 4.5.1
+      raw-body: 2.5.3
+      secure-json-parse: 2.7.0
+
   fastify@4.29.1:
     dependencies:
       '@fastify/ajv-compiler': 3.6.0
@@ -11137,6 +11158,10 @@ snapshots:
   i18next@23.16.8:
     dependencies:
       '@babel/runtime': 7.29.2
+
+  iconv-lite@0.4.24:
+    dependencies:
+      safer-buffer: 2.1.2
 
   ieee754@1.2.1: {}
 
@@ -12975,6 +13000,13 @@ snapshots:
   quick-format-unescaped@4.0.4: {}
 
   range-parser@1.2.1: {}
+
+  raw-body@2.5.3:
+    dependencies:
+      bytes: 3.1.2
+      http-errors: 2.0.1
+      iconv-lite: 0.4.24
+      unpipe: 1.0.0
 
   rc@1.2.8:
     dependencies:
