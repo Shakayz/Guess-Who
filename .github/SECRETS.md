@@ -22,12 +22,11 @@ GitHub → Settings → Environments → New environment
 
 | Secret | Description |
 |---|---|
-| `GOOGLE_CLIENT_ID` | OAuth Google (même valeur pour tous les envs) |
+| `GOOGLE_CLIENT_ID` | OAuth Google server-side (même valeur pour tous les envs) |
 | `GOOGLE_CLIENT_SECRET` | OAuth Google secret |
-| `APPLE_CLIENT_ID` | Apple Sign In bundle ID |
-| `APPLE_TEAM_ID` | Apple Developer Team ID |
-| `APPLE_KEY_ID` | Apple Sign In Key ID |
-| `APPLE_PRIVATE_KEY` | Apple Sign In private key (contenu complet du .p8) |
+| `VITE_GOOGLE_CLIENT_ID` | OAuth Google client-side (baked into web bundle at build time) |
+| `APPLE_CLIENT_ID` | Apple Sign In Services ID (ex: `com.redhanded.game.signin`) — used server-side for JWT audience check |
+| `VITE_APPLE_CLIENT_ID` | Apple Sign In Services ID — baked into web bundle at build time (usually the same value as `APPLE_CLIENT_ID`) |
 
 ---
 

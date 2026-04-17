@@ -1,6 +1,6 @@
 import React from 'react'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // ---- Mocks ----
 const mockNavigate = vi.fn()
@@ -40,12 +40,21 @@ describe('AuthPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     Object.defineProperty(window, 'location', {
-      value: { ...window.location, replace: vi.fn() },
+      value: { ...window.location, replace: vi.fn(), origin: 'https://test.example.com' },
       writable: true,
       configurable: true,
     })
+    // Default: Apple Services ID configured so handleApple reaches the SDK check.
+    // Individual tests override with '' to exercise the "not configured" guard.
+    // vi.stubEnv propagates to all modules (unlike mutating import.meta.env directly,
+    // which only affects the test module's binding).
+    vi.stubEnv('VITE_APPLE_CLIENT_ID', 'com.test.services')
     delete (window as any).google
     delete (window as any).AppleID
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('renders without crashing', () => {
@@ -99,20 +108,21 @@ describe('AuthPage', () => {
 
   it('shows Google and Apple OAuth buttons', () => {
     render(<AuthPage />)
-    expect(screen.getByText('auth.continueWithGoogle')).toBeInTheDocument()
+    expect(screen.getByText('Continue with Google')).toBeInTheDocument()
     expect(screen.getByText('Continue with Apple')).toBeInTheDocument()
   })
 
   it('shows error when Google sign-in is not configured', () => {
     render(<AuthPage />)
-    fireEvent.click(screen.getByText('auth.continueWithGoogle'))
+    fireEvent.click(screen.getByText('Continue with Google'))
     expect(screen.getByText('Google sign-in is not available yet. Please use email & password.')).toBeInTheDocument()
   })
 
-  it('shows error when Apple Sign-In is unavailable', () => {
+  it('shows error when Apple Sign-In client ID is not configured', () => {
+    vi.stubEnv('VITE_APPLE_CLIENT_ID', '')
     render(<AuthPage />)
     fireEvent.click(screen.getByText('Continue with Apple'))
-    expect(screen.getByText('Apple Sign-In is not available in this browser')).toBeInTheDocument()
+    expect(screen.getByText('Apple sign-in is not available yet. Please use email & password.')).toBeInTheDocument()
   })
 
   it('switches sign-in mode back when sign in tab is clicked after sign-up', () => {
@@ -185,9 +195,9 @@ describe('AuthPage', () => {
       },
     }
     // Set VITE_GOOGLE_CLIENT_ID so the flow can proceed
-    ;(import.meta as any).env = { ...(import.meta as any).env, VITE_GOOGLE_CLIENT_ID: 'fake-client-id' }
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'fake-client-id')
     render(<AuthPage />)
-    fireEvent.click(screen.getByText('auth.continueWithGoogle'))
+    fireEvent.click(screen.getByText('Continue with Google'))
     // The spinner SVG should appear (oauthLoading === 'google')
     expect(document.body).toBeInTheDocument()
     delete (window as any).google
@@ -196,6 +206,7 @@ describe('AuthPage', () => {
   it('shows Apple loading spinner when oauthLoading is apple', async () => {
     ;(window as any).AppleID = {
       auth: {
+        init: vi.fn(),
         signIn: vi.fn().mockResolvedValue({
           authorization: { id_token: 'tok' },
           user: null,
@@ -213,6 +224,7 @@ describe('AuthPage', () => {
   it('handles OAuth response with needsUsername true — shows username setup screen', async () => {
     ;(window as any).AppleID = {
       auth: {
+        init: vi.fn(),
         signIn: vi.fn().mockResolvedValue({
           authorization: { id_token: 'tok' },
           user: null,
@@ -235,6 +247,7 @@ describe('AuthPage', () => {
   it('submits username setup form successfully', async () => {
     ;(window as any).AppleID = {
       auth: {
+        init: vi.fn(),
         signIn: vi.fn().mockResolvedValue({
           authorization: { id_token: 'tok' },
           user: null,
@@ -258,6 +271,7 @@ describe('AuthPage', () => {
   it('shows error on username setup failure', async () => {
     ;(window as any).AppleID = {
       auth: {
+        init: vi.fn(),
         signIn: vi.fn().mockResolvedValue({
           authorization: { id_token: 'tok' },
           user: null,
@@ -297,6 +311,7 @@ describe('AuthPage', () => {
   it('Apple sign-in with user name field covered', async () => {
     ;(window as any).AppleID = {
       auth: {
+        init: vi.fn(),
         signIn: vi.fn().mockResolvedValue({
           authorization: { id_token: 'tok' },
           user: { name: { firstName: 'John', lastName: 'Doe' } },
@@ -317,22 +332,12 @@ describe('AuthPage', () => {
   it('Google OAuth triggers polling when window.google not yet loaded', async () => {
     // window.google is deleted in beforeEach
     // Set VITE_GOOGLE_CLIENT_ID so it proceeds past the no-clientId guard
-    const originalEnv = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID
-    Object.defineProperty(import.meta, 'env', {
-      value: { ...(import.meta as any).env, VITE_GOOGLE_CLIENT_ID: 'client-id' },
-      writable: true,
-      configurable: true,
-    })
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'client-id')
     render(<AuthPage />)
     // Click Google button - no window.google so it enters the polling else branch
-    fireEvent.click(screen.getByText('auth.continueWithGoogle'))
+    fireEvent.click(screen.getByText('Continue with Google'))
     // The polling interval is set up; the Google loader spinner should be shown
     expect(document.body).toBeInTheDocument()
-    // Clean up
-    Object.defineProperty(import.meta, 'env', {
-      value: { ...(import.meta as any).env, VITE_GOOGLE_CLIENT_ID: originalEnv },
-      writable: true,
-      configurable: true,
-    })
+    // afterEach calls vi.unstubAllEnvs() for cleanup
   })
 })

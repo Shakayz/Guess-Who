@@ -8,6 +8,8 @@ WORKDIR /app
 # Build-time env vars for Vite (baked into the JS bundle at build time)
 ARG VITE_GOOGLE_CLIENT_ID
 ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+ARG VITE_APPLE_CLIENT_ID
+ENV VITE_APPLE_CLIENT_ID=$VITE_APPLE_CLIENT_ID
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json ./
 COPY apps/web/package.json ./apps/web/

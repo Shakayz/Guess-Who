@@ -4,6 +4,7 @@ interface AppleIDAuth {
     scope: string
     redirectURI: string
     usePopup?: boolean
+    state?: string
   }): void
   signIn(): Promise<{
     authorization: { id_token: string; code: string }
@@ -12,6 +13,12 @@ interface AppleIDAuth {
       name?: { firstName?: string; lastName?: string }
     }
   }>
+}
+
+/** Error surfaced when Apple sign-in fails (e.g. popup closed, invalid_client). */
+interface AppleIDSignInError {
+  error?: string
+  details?: string
 }
 
 interface Window {

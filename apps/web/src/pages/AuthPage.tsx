@@ -158,20 +158,69 @@ export default function AuthPage() {
 
   // ── Apple ──
   const handleApple = () => {
-    if (!window.AppleID) { setError('Apple Sign-In is not available in this browser'); return }
+    const clientId = import.meta.env.VITE_APPLE_CLIENT_ID
+    if (!clientId) {
+      setError('Apple sign-in is not available yet. Please use email & password.')
+      return
+    }
     log.info('apple oauth attempt')
+    setError(null)
     setOauthLoading('apple')
-    window.AppleID.auth.signIn()
-      .then(async (res: any) => {
-        const identityToken = res.authorization?.id_token
-        const name = res.user?.name
-          ? `${res.user.name.firstName ?? ''} ${res.user.name.lastName ?? ''}`.trim()
-          : undefined
-        const data = await api.post<any>('/auth/apple/verify', { identityToken, name })
-        handleOAuthResponse(data)
-      })
-      .catch(() => setError('Apple sign-in was cancelled or failed'))
-      .finally(() => setOauthLoading(null))
+
+    const triggerAppleFlow = () => {
+      try {
+        // Configure at runtime so the redirect URI tracks the current origin
+        // (prod vs staging vs preview) instead of being hardcoded in the HTML.
+        window.AppleID!.auth.init({
+          clientId,
+          scope: 'name email',
+          redirectURI: `${window.location.origin}/api/auth/apple/callback`,
+          usePopup: true,
+        })
+      } catch (err) {
+        log.error('apple init failed', { err: err instanceof Error ? err.message : String(err) })
+      }
+
+      window.AppleID!.auth.signIn()
+        .then(async (res) => {
+          const identityToken = res.authorization?.id_token
+          const name = res.user?.name
+            ? `${res.user.name.firstName ?? ''} ${res.user.name.lastName ?? ''}`.trim()
+            : undefined
+          const data = await api.post<any>('/auth/apple/verify', { identityToken, name })
+          handleOAuthResponse(data)
+        })
+        .catch((err: AppleIDSignInError | Error | undefined) => {
+          const errMsg = err instanceof Error ? err.message : (err as AppleIDSignInError | undefined)?.error
+          log.error('apple sign-in failed', { err: errMsg ?? 'unknown' })
+          const reason = (err as AppleIDSignInError | undefined)?.error
+          // 'popup_closed_by_user' is the normal cancel path — don't shout at the user
+          if (reason && reason !== 'popup_closed_by_user') {
+            setError(`Apple sign-in failed: ${reason}`)
+          } else {
+            setError('Apple sign-in was cancelled or failed')
+          }
+        })
+        .finally(() => setOauthLoading(null))
+    }
+
+    // Apple's SDK script is async — if the user clicks before it loads, poll briefly.
+    if (window.AppleID) {
+      triggerAppleFlow()
+    } else {
+      let attempts = 0
+      const interval = setInterval(() => {
+        attempts++
+        if (window.AppleID) {
+          clearInterval(interval)
+          triggerAppleFlow()
+        } else if (attempts >= 50) {
+          clearInterval(interval)
+          setError('Apple Sign-In could not load. Please refresh the page and try again.')
+          setOauthLoading(null)
+        }
+      }, 100)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -587,10 +587,7 @@ pnpm --filter @red-handed/api test -- --coverage
 | `APP_URL` | Yes | — | Base URL for emails/links |
 | `GOOGLE_CLIENT_ID` | No | — | Google OAuth |
 | `GOOGLE_CLIENT_SECRET` | No | — | Google OAuth |
-| `APPLE_CLIENT_ID` | No | — | Apple Sign-In |
-| `APPLE_TEAM_ID` | No | — | Apple Sign-In |
-| `APPLE_KEY_ID` | No | — | Apple Sign-In |
-| `APPLE_PRIVATE_KEY` | No | — | Apple Sign-In |
+| `APPLE_CLIENT_ID` | No | — | Apple Sign-In Services ID (JWT audience check) |
 | `STRIPE_SECRET_KEY` | No | — | Stripe payments |
 | `STRIPE_WEBHOOK_SECRET` | No | — | Stripe webhooks |
 
@@ -612,9 +609,8 @@ pnpm --filter @red-handed/api test -- --coverage
 - `AWS_REGION`
 
 ### Shared
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `VITE_GOOGLE_CLIENT_ID`
+- `APPLE_CLIENT_ID` (server-side) and `VITE_APPLE_CLIENT_ID` (build-time for web bundle) — both are the Services ID from Apple Developer
 - `PROD_STRIPE_SECRET_KEY`, `PROD_STRIPE_WEBHOOK_SECRET`
 
 ---

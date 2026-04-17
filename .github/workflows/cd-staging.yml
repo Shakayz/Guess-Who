@@ -65,6 +65,7 @@ jobs:
           platforms: linux/amd64
           build-args: |
             VITE_GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+            VITE_APPLE_CLIENT_ID=${{ secrets.VITE_APPLE_CLIENT_ID }}
             VITE_API_URL=https://${{ env.API_DOMAIN }}
             VITE_SOCKET_URL=https://${{ env.API_DOMAIN }}
           tags: |

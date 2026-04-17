@@ -28,9 +28,6 @@
         { "name": "GOOGLE_CLIENT_ID", "value": "${GOOGLE_CLIENT_ID}" },
         { "name": "GOOGLE_CLIENT_SECRET", "value": "${GOOGLE_CLIENT_SECRET}" },
         { "name": "APPLE_CLIENT_ID", "value": "${APPLE_CLIENT_ID}" },
-        { "name": "APPLE_TEAM_ID", "value": "${APPLE_TEAM_ID}" },
-        { "name": "APPLE_KEY_ID", "value": "${APPLE_KEY_ID}" },
-        { "name": "APPLE_PRIVATE_KEY", "value": "${APPLE_PRIVATE_KEY}" },
         { "name": "STRIPE_SECRET_KEY", "value": "${STRIPE_SECRET_KEY}" },
         { "name": "STRIPE_WEBHOOK_SECRET", "value": "${STRIPE_WEBHOOK_SECRET}" }
       ],
