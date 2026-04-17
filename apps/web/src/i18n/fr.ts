@@ -727,7 +727,9 @@ export default {
   },
   leaderboard: {
     title: 'Classement',
-    subtitle: 'Meilleurs joueurs cette saison',
+    rankingsFor: 'Meilleurs joueurs en {{language}}',
+    language: 'Langue',
+    languagePickerLabel: 'Changer la langue du classement',
     searchPlaceholder: 'Rechercher un joueur...',
     noPlayerFound: 'Aucun joueur trouvé',
     noPlayersYet: 'Aucun joueur classé',

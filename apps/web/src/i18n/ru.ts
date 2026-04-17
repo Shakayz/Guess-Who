@@ -702,7 +702,9 @@ export default {
   },
   leaderboard: {
     title: 'Таблица лидеров',
-    subtitle: 'Лучшие игроки сезона',
+    rankingsFor: 'Лучшие игроки на языке: {{language}}',
+    language: 'Язык',
+    languagePickerLabel: 'Изменить язык таблицы лидеров',
     searchPlaceholder: 'Поиск игрока...',
     noPlayerFound: 'Игрок не найден',
     noPlayersYet: 'Нет игроков в рейтинге',

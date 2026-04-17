@@ -746,7 +746,9 @@ export default {
   },
   leaderboard: {
     title: 'Leaderboard',
-    subtitle: 'Top players this season',
+    rankingsFor: 'Top players in {{language}}',
+    language: 'Language',
+    languagePickerLabel: 'Change leaderboard language',
     searchPlaceholder: 'Search player...',
     noPlayerFound: 'No player found',
     noPlayersYet: 'No players ranked yet',

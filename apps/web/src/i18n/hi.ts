@@ -712,7 +712,9 @@ export default {
   },
   leaderboard: {
     title: 'लीडरबोर्ड',
-    subtitle: 'इस सीज़न के शीर्ष खिलाड़ी',
+    rankingsFor: '{{language}} में शीर्ष खिलाड़ी',
+    language: 'भाषा',
+    languagePickerLabel: 'लीडरबोर्ड भाषा बदलें',
     searchPlaceholder: 'खिलाड़ी खोजें...',
     noPlayerFound: 'कोई खिलाड़ी नहीं मिला',
     noPlayersYet: 'अभी तक कोई खिलाड़ी रैंक नहीं',
