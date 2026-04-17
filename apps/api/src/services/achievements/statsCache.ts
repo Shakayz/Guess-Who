@@ -72,14 +72,22 @@ export async function buildUserStats(userId: string): Promise<UserStats> {
           dailyStreakCount: true,
         },
       }),
-      // One scan of game_participations joined with games — we compute all
-      // per-role and per-winner aggregates in JS to avoid 6 separate queries.
+      // One scan of game_participations joined with games+rooms — we compute
+      // all per-role and per-winner aggregates in JS to avoid 6 separate
+      // queries. `room.{language, wordPackId}` powers the language and
+      // word-pack diversity achievements.
       prisma.gameParticipation.findMany({
         where: { userId },
         select: {
           role: true,
           survived: true,
-          game: { select: { winnerTeam: true, gameMode: true } },
+          game: {
+            select: {
+              winnerTeam: true,
+              gameMode: true,
+              room: { select: { language: true, wordPackId: true } },
+            },
+          },
         },
       }),
       prisma.friendship.count({
@@ -113,11 +121,17 @@ export async function buildUserStats(userId: string): Promise<UserStats> {
       stats.dailyStreakCount = userRow.dailyStreakCount
     }
 
+    const languages = new Set<string>()
+    const wordPacks = new Set<string>()
     for (const p of gameParticipations) {
       stats.totalGames++
       stats.gamesByRole[p.role] = (stats.gamesByRole[p.role] ?? 0) + 1
       const mode = p.game.gameMode
       if (mode === 'ranked') stats.rankedGames++
+
+      const room = p.game.room
+      if (room?.language) languages.add(room.language)
+      if (room?.wordPackId) wordPacks.add(room.wordPackId)
 
       const team = p.game.winnerTeam
       if (!team) continue
@@ -154,6 +168,8 @@ export async function buildUserStats(userId: string): Promise<UserStats> {
     stats.achievementsUnlockedCount = achievementsRows.length
     stats.achievementsClaimedCount = achievementsRows.filter((a) => a.claimedAt !== null).length
     stats.wordPacksCreated = wordPackRows
+    stats.languagesPlayed = languages.size
+    stats.distinctWordPacks = wordPacks.size
 
     return Object.freeze(stats)
   } catch {

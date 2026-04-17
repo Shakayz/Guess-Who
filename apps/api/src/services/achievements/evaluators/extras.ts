@@ -300,14 +300,9 @@ const secretExtras = merge(
         ctx.stats.totalRedHandedWins / redHandedGames >= 0.7
     },
   ),
-  single(
-    { key: 'night_owl', name: 'Night Owl', description: 'Finish 25 games between 00:00 and 05:00 UTC', icon: '🦉', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
-    'game_end',
-    (ctx) => {
-      const h = ctx.now.getUTCHours()
-      return ctx.stats.totalGames >= 50 && h >= 0 && h < 5
-    },
-  ),
+  // `night_owl` is defined in gameEnd.ts (silver, 2-5 AM UTC, 25 games); a
+  // second gold variant here collided on the same key and was silently dropped
+  // by registry deduplication, so it has been removed.
 )
 
 // ─── Social one-offs ────────────────────────────────────────────────────────

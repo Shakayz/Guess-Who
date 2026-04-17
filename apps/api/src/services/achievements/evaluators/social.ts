@@ -74,7 +74,7 @@ const giftsReceived = progression({
   keyPrefix: 'gifts_received',
   category: 'social',
   icon: '📦',
-  name: (n) => n === 5 ? 'Appreciated' : `${n} Gifts Received`,
+  name: (n) => n === 5 ? 'Spoiled' : `${n} Gifts Received`,
   description: (n) => n === 5 ? 'Receive 5 gifts' : `Receive ${n} gifts from other players`,
   event: 'gift_received',
   getCount: (s) => s.giftReceivedCount,
@@ -105,9 +105,11 @@ const socialOneOffs = merge(
     (ctx) => ctx.stats.distinctHonorGivers >= 1000,
   ),
   single(
-    { key: 'gift_tipper', name: 'Big Tipper', description: 'Send 25 gifts', icon: '💸', category: 'social', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
+    // Sits between the silver `gifts_sent_25` and platinum `gifts_sent_100`
+    // tiers so it isn't a free double-reward at the 25-gift milestone.
+    { key: 'gift_tipper', name: 'Big Tipper', description: 'Send 50 gifts', icon: '💸', category: 'social', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
     'gift_sent',
-    (ctx) => ctx.stats.giftSentCount >= 25,
+    (ctx) => ctx.stats.giftSentCount >= 50,
   ),
   single(
     { key: 'dm_ping_pong', name: 'Chatty', description: 'Send 150 direct messages', icon: '💬', category: 'social', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
