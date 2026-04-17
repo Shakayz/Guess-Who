@@ -246,14 +246,15 @@ export default function HomePage() {
         <div className="w-full max-w-lg md:max-w-2xl lg:max-w-4xl animate-slide-up space-y-5">
 
           {/* Heading */}
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-600/30 bg-brand-600/10 text-brand-400 text-xs font-semibold mb-4">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse-slow" />
-              {t('home.tagline')}
+          <div className="text-center mb-6 flex flex-col items-center">
+            <div className="w-64 md:w-80 aspect-[863/348] overflow-hidden mb-2">
+              <img
+                src="/wordmark.png"
+                alt="Red Handed !"
+                className="w-full h-full object-cover select-none pointer-events-none"
+                style={{ objectPosition: 'center 51.8%' }}
+              />
             </div>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white leading-tight tracking-tight mb-2">
-              {t('home.heroTitle1')} <span className="text-brand-500">{t('home.heroTitle2')}</span> {t('home.heroTitle3')}
-            </h1>
             <p className="text-neutral-400 text-base md:text-lg">{t('home.subtitle')}</p>
           </div>
 
