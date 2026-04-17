@@ -69,12 +69,27 @@ export const EMAIL_VERIFICATION_REWARD = 20
 /** Minutes the 6-digit email verification code stays valid. */
 export const EMAIL_VERIFICATION_CODE_TTL_MINUTES = 15
 
-// TODO: re-enable when premium/monetization is ready
-// export const GOLD_COIN_PACKS = [
-//   { id: 'pack_100',  amount: 100,  price: 0.99,  bonus: 0 },
-//   { id: 'pack_550',  amount: 550,  price: 4.99,  bonus: 50 },
-//   { id: 'pack_1200', amount: 1200, price: 9.99,  bonus: 200 },
-// ] as const
+/**
+ * Gold-coin packs listed in the Shop. `priceCents` is the authoritative price
+ * used to stamp the Purchase row and drive analytics; `stripePriceId` is the
+ * per-environment Stripe Price the checkout session is created against and is
+ * read from env vars (STRIPE_PRICE_ID_PACK_*) so test/live modes can carry
+ * different IDs without a rebuild. `bonus` is additive — a purchase credits
+ * `amount + bonus` gold coins.
+ */
+export type GoldCoinPack = {
+  id: string
+  amount: number
+  priceCents: number
+  currency: string
+  bonus: number
+}
+
+export const GOLD_COIN_PACKS: readonly GoldCoinPack[] = [
+  { id: 'pack_500',  amount: 500,  priceCents: 199,  currency: 'eur', bonus: 0 },
+  { id: 'pack_1500', amount: 1500, priceCents: 499,  currency: 'eur', bonus: 150 },
+  { id: 'pack_5000', amount: 5000, priceCents: 1499, currency: 'eur', bonus: 750 },
+] as const
 
 export const LP_DECAY = {
   /** Days of inactivity before decay begins */

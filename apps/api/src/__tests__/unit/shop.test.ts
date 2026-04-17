@@ -3,10 +3,12 @@ import type { FastifyInstance } from 'fastify'
 import Fastify from 'fastify'
 import jwt from '@fastify/jwt'
 import { shopRoutes } from '../../routes/shop'
+import { GOLD_COIN_PACKS } from '@red-handed/shared'
 
-// Cosmetics were removed from the game design — the active /cosmetics
-// catalog and purchase endpoints are gone. Only the disabled premium
-// stubs remain on the shop router, and the cosmetics path should now 404.
+// Shop now wires real Stripe Checkout. These tests exercise the routes that
+// don't require Stripe credentials — the pack catalogue (public) and the 503
+// fallback that guards the checkout path when STRIPE_SECRET_KEY is unset, which
+// is the safe default for test/CI environments.
 
 describe('Shop Routes', () => {
   let app: FastifyInstance
@@ -29,27 +31,56 @@ describe('Shop Routes', () => {
     await app.close()
   })
 
-  describe('Disabled premium routes', () => {
-    it('GET /api/shop/packs returns 503', async () => {
+  describe('GET /api/shop/packs', () => {
+    it('returns the full pack catalogue (public, no auth required)', async () => {
       const res = await app.inject({ method: 'GET', url: '/api/shop/packs' })
-      expect(res.statusCode).toBe(503)
+      expect(res.statusCode).toBe(200)
+      const body = res.json()
+      expect(body.packs).toHaveLength(GOLD_COIN_PACKS.length)
+      // The response intentionally strips Stripe price IDs — clients only need
+      // display data, not billing identifiers.
+      for (const pack of body.packs) {
+        expect(pack).not.toHaveProperty('stripePriceId')
+        expect(pack).toEqual(expect.objectContaining({
+          id: expect.any(String),
+          amount: expect.any(Number),
+          priceCents: expect.any(Number),
+          currency: expect.any(String),
+          bonus: expect.any(Number),
+        }))
+      }
+    })
+  })
+
+  describe('POST /api/shop/packs/:id/checkout', () => {
+    it('requires authentication', async () => {
+      const res = await app.inject({ method: 'POST', url: '/api/shop/packs/pack_500/checkout' })
+      expect(res.statusCode).toBe(401)
     })
 
-    it('POST /api/shop/packs/:id/checkout returns 503', async () => {
-      const res = await app.inject({ method: 'POST', url: '/api/shop/packs/some-pack/checkout' })
+    it('returns 503 when Stripe is not configured', async () => {
+      const token = app.jwt.sign({ sub: 'user-123' })
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/shop/packs/pack_500/checkout',
+        headers: { authorization: `Bearer ${token}` },
+      })
       expect(res.statusCode).toBe(503)
+      expect(res.json().error).toMatch(/not configured/i)
     })
+  })
 
-    it('POST /api/shop/webhook returns 503', async () => {
+  describe('POST /api/shop/webhook', () => {
+    it('returns 503 when Stripe is not configured', async () => {
       const res = await app.inject({ method: 'POST', url: '/api/shop/webhook' })
       expect(res.statusCode).toBe(503)
-      expect(res.json().error).toMatch(/temporarily disabled/i)
     })
+  })
 
-    it('GET /api/shop/purchases returns 503', async () => {
+  describe('GET /api/shop/purchases', () => {
+    it('requires authentication', async () => {
       const res = await app.inject({ method: 'GET', url: '/api/shop/purchases' })
-      expect(res.statusCode).toBe(503)
-      expect(res.json().error).toMatch(/temporarily unavailable/i)
+      expect(res.statusCode).toBe(401)
     })
   })
 
