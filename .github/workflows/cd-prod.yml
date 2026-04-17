@@ -104,14 +104,14 @@ jobs:
         env:
           API_IMAGE: ${{ env.ECR_REGISTRY }}/${{ env.ECR_API_REPO }}:${{ github.sha }}
           WEB_IMAGE: ${{ env.ECR_REGISTRY }}/${{ env.ECR_WEB_REPO }}:${{ github.sha }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          ALLOWED_ORIGINS: https://${{ env.WEB_DOMAIN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REDIRECT_URI: https://${{ env.API_DOMAIN }}/api/auth/google/callback
+          ALLOWED_ORIGINS: https://${{ env.WEB_DOMAIN }}
           ECR_PW: ${{ steps.ecr.outputs.pw }}
         run: |
           ssh -i ~/.ssh/deploy ubuntu@${{ secrets.LIGHTSAIL_PROD_HOST }} \
@@ -144,11 +144,11 @@ jobs:
 
       - name: Smoke test API
         run: |
-          for i in 1 2 3 4 5 6; do
+          for i in 1 2 3 4 5 6 7 8 9 10; do
             code=$(curl -sS -o /dev/null -w "%{http_code}" https://${{ env.API_DOMAIN }}/ || true)
             echo "attempt $i: $code"
-            [ "$code" != "000" ] && exit 0
-            sleep 5
+            [ "$code" = "200" ] && exit 0
+            sleep 10
           done
           exit 1
 
@@ -157,7 +157,7 @@ jobs:
           for i in 1 2 3 4 5 6; do
             code=$(curl -sS -o /dev/null -w "%{http_code}" https://${{ env.WEB_DOMAIN }}/ || true)
             echo "attempt $i: $code"
-            [ "$code" != "000" ] && exit 0
+            [ "$code" = "200" ] && exit 0
             sleep 5
           done
           exit 1

@@ -96,9 +96,17 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 | `LIGHTSAIL_PROD_HOST`    | `<PROD_IP>` from Phase 1 |
 | `LIGHTSAIL_STAGING_HOST` | `<STAGING_IP>` from Phase 1 |
 | `LIGHTSAIL_SSH_KEY`      | Paste the entire contents of `redhanded-deploy-key.pem` |
+| `POSTGRES_USER`          | e.g. `redhandedapp` |
+| `POSTGRES_PASSWORD`      | Strong random password |
+| `POSTGRES_DB`            | e.g. `redhanded` |
+| `JWT_SECRET`             | Strong random secret (e.g. `openssl rand -hex 64`) |
 | `GOOGLE_CLIENT_ID`       | See Phase 4 |
 | `GOOGLE_CLIENT_SECRET`   | See Phase 4 |
 | `VITE_GOOGLE_CLIENT_ID`  | Same value as `GOOGLE_CLIENT_ID` |
+
+> `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, and `JWT_SECRET` are
+> written to the server's `.env` on every deploy. They must be set before the
+> first deploy or the API container will fail to start.
 
 > The `LIGHTSAIL_SSH_KEY` value must include the `-----BEGIN ... PRIVATE KEY-----`
 > and `-----END ... PRIVATE KEY-----` lines.
