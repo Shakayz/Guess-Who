@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { Avatar, Badge } from '@red-handed/ui'
 import { RANK_CONFIG } from '@red-handed/shared'
 import type { RankTier } from '@red-handed/shared'
+import { LANGUAGES, findLanguage } from '../i18n/languages'
 
 interface LeaderboardUser {
   id: string
@@ -30,10 +31,122 @@ function SkeletonRow() {
   )
 }
 
+interface LanguagePickerProps {
+  value: string
+  onChange: (code: string) => void
+  label: string
+}
+
+function LanguagePicker({ value, onChange, label }: LanguagePickerProps) {
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+  const selected = findLanguage(value)
+
+  React.useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={[
+          'group flex items-center gap-2.5 pl-3 pr-2.5 py-2 rounded-xl',
+          'bg-neutral-900 border text-sm font-medium transition-all',
+          open
+            ? 'border-brand-600/60 ring-2 ring-brand-600/20 text-white'
+            : 'border-neutral-800 text-neutral-200 hover:border-neutral-700 hover:bg-neutral-900/80',
+        ].join(' ')}
+      >
+        <img
+          src={`https://flagcdn.com/w40/${selected.country}.png`}
+          alt=""
+          className="w-6 h-4 object-cover rounded-[3px] shadow-sm"
+        />
+        <span className="hidden sm:inline">{selected.label}</span>
+        <span
+          className={[
+            'text-[10px] text-neutral-500 transition-transform',
+            open ? 'rotate-180 text-neutral-300' : '',
+          ].join(' ')}
+          aria-hidden="true"
+        >
+          ▾
+        </span>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label={label}
+          className={[
+            'absolute right-0 mt-2 w-56 z-50',
+            'bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl',
+            'overflow-hidden origin-top-right',
+            'animate-in fade-in slide-in-from-top-1 duration-150',
+          ].join(' ')}
+        >
+          <div className="max-h-80 overflow-y-auto py-1">
+            {LANGUAGES.map((lang) => {
+              const isSelected = lang.code === selected.code
+              return (
+                <button
+                  key={lang.code}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  onClick={() => {
+                    onChange(lang.code)
+                    setOpen(false)
+                  }}
+                  className={[
+                    'w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors',
+                    isSelected
+                      ? 'bg-brand-600/10 text-white'
+                      : 'text-neutral-300 hover:bg-neutral-800 hover:text-white',
+                  ].join(' ')}
+                >
+                  <img
+                    src={`https://flagcdn.com/w40/${lang.country}.png`}
+                    alt=""
+                    className="w-6 h-4 object-cover rounded-[3px] shadow-sm flex-shrink-0"
+                  />
+                  <span className="flex-1 font-medium">{lang.label}</span>
+                  {isSelected && (
+                    <span className="text-brand-400 text-xs" aria-hidden="true">✓</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function LeaderboardPage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const locale = i18n.language?.split('-')[0] ?? 'en'
+  const [locale, setLocale] = React.useState<string>(
+    () => findLanguage(i18n.language).code,
+  )
   const [search, setSearch] = React.useState('')
   const { data: users = [], isLoading } = useQuery<LeaderboardUser[]>({
     queryKey: ['leaderboard', locale],
@@ -45,16 +158,34 @@ export default function LeaderboardPage() {
     ? users.filter((u) => u.username.toLowerCase().includes(search.toLowerCase()))
     : users
 
+  const currentLang = findLanguage(locale)
+
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
       <main className="flex-1 p-6">
         <div className="max-w-xl md:max-w-2xl lg:max-w-4xl mx-auto">
 
-          {/* Header */}
-          <div className="mb-6">
-            <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">{t('leaderboard.title')}</h1>
-            <p className="text-neutral-500 text-sm md:text-base mt-1">{t('leaderboard.subtitle')}</p>
+          {/* Header — title, subtitle, and language picker in a responsive row */}
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
+                {t('leaderboard.title')}
+              </h1>
+              <p className="text-neutral-500 text-sm md:text-base mt-1">
+                {t('leaderboard.rankingsFor', { language: currentLang.label })}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="hidden md:inline text-xs uppercase tracking-wider text-neutral-600 font-semibold">
+                {t('leaderboard.language')}
+              </span>
+              <LanguagePicker
+                value={locale}
+                onChange={setLocale}
+                label={t('leaderboard.languagePickerLabel')}
+              />
+            </div>
           </div>
 
           {/* Search */}

@@ -6,21 +6,9 @@ import { useSocialStore } from '../store/social'
 import { DmChatPanel } from './DmChatPanel'
 import { api } from '../lib/api'
 import { getSocket } from '../lib/socket'
+import { LANGUAGES, findLanguage } from '../i18n/languages'
 
 const NAV_PATHS = ['/', '/leaderboard', '/history', '/friends'] as const
-
-const LANGUAGES = [
-  { code: 'en', label: 'English', country: 'gb' },
-  { code: 'fr', label: 'Français', country: 'fr' },
-  { code: 'ar', label: 'العربية', country: 'sa' },
-  { code: 'es', label: 'Español', country: 'es' },
-  { code: 'it', label: 'Italiano', country: 'it' },
-  { code: 'pt', label: 'Português', country: 'br' },
-  { code: 'zh', label: '中文', country: 'cn' },
-  { code: 'de', label: 'Deutsch', country: 'de' },
-  { code: 'ru', label: 'Русский', country: 'ru' },
-  { code: 'hi', label: 'हिन्दी', country: 'in' },
-]
 
 export function NavBar() {
   const navigate = useNavigate()
@@ -112,7 +100,7 @@ export function NavBar() {
   })()
 
   const baseLang = i18n.language?.split('-')[0] ?? 'en'
-  const currentLang = LANGUAGES.find((l) => l.code === baseLang) ?? LANGUAGES[0]
+  const currentLang = findLanguage(i18n.language)
 
   const handleLangChange = (code: string) => {
     i18n.changeLanguage(code)

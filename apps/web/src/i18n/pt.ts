@@ -706,7 +706,9 @@ export default {
   },
   leaderboard: {
     title: 'Classificação',
-    subtitle: 'Melhores jogadores esta temporada',
+    rankingsFor: 'Melhores jogadores em {{language}}',
+    language: 'Idioma',
+    languagePickerLabel: 'Alterar idioma da classificação',
     searchPlaceholder: 'Buscar jogador...',
     noPlayerFound: 'Nenhum jogador encontrado',
     noPlayersYet: 'Nenhum jogador classificado ainda',
