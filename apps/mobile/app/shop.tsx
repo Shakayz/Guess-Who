@@ -12,9 +12,9 @@ const log = createLogger('shop')
 
 // Mobile mirror of the web ShopPage. Cosmetics were removed from the game
 // design (no avatar to attach them to), so the shop now only carries coin
-// packs (placeholder — payments disabled server-side) and the season pass.
+// packs (placeholder — payments disabled server-side) and the Premium tier.
 
-type Tab = 'coins' | 'season'
+type Tab = 'coins' | 'premium'
 
 /**
  * Placeholder packs shown in the Coins tab. When payments are re-enabled
@@ -64,9 +64,12 @@ export default function ShopScreen() {
   const params = useLocalSearchParams<{ tab?: string }>()
 
   // Initial tab is driven by the `?tab=` URL param so the
-  // InsufficientCoinsModal can deep-link to /shop?tab=coins.
+  // InsufficientCoinsModal can deep-link to /shop?tab=coins. `?tab=season` is
+  // kept as an alias for the legacy links that still point at the old name.
   const initial: Tab =
-    params.tab === 'season' || params.tab === 'coins' ? (params.tab as Tab) : 'coins'
+    params.tab === 'coins' ? 'coins'
+    : params.tab === 'premium' || params.tab === 'season' ? 'premium'
+    : 'coins'
   const [tab, setTab] = useState<Tab>(initial)
 
   const switchTab = (next: Tab) => {
@@ -137,9 +140,9 @@ export default function ShopScreen() {
             fontScale={fontScale}
           />
           <TabButton
-            active={tab === 'season'}
-            onPress={() => switchTab('season')}
-            label={t('shop.tabSeason', { defaultValue: '👑 Season' })}
+            active={tab === 'premium'}
+            onPress={() => switchTab('premium')}
+            label={t('shop.tabPremium', { defaultValue: '👑 Premium' })}
             fontScale={fontScale}
           />
         </View>
@@ -153,12 +156,51 @@ export default function ShopScreen() {
             }}
           />
         )}
-        {tab === 'season' && (
-          <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 items-center">
-            <Text style={{ fontSize: 36 }}>👑</Text>
-            <Text className="text-white font-semibold mt-2" style={{ fontSize: 14 * fontScale }}>
-              {t('shop.seasonComingSoon', { defaultValue: 'Season Pass coming soon.' })}
-            </Text>
+        {tab === 'premium' && (
+          <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6" style={{ gap: 16 }}>
+            <View className="items-center">
+              <Text style={{ fontSize: 40 }}>👑</Text>
+              <Text className="text-white font-extrabold mt-2" style={{ fontSize: 20 * fontScale }}>
+                {t('shop.premiumTitle', { defaultValue: 'Premium' })}
+              </Text>
+              <Text className="text-neutral-400 mt-1" style={{ fontSize: 12 * fontScale }}>
+                {t('shop.premiumSubtitle', { defaultValue: 'Play more, play your way.' })}
+              </Text>
+            </View>
+            {[
+              {
+                icon: '🚫',
+                title: t('shop.premiumFeatureNoAdsTitle', { defaultValue: 'No ads' }),
+                desc: t('shop.premiumFeatureNoAdsDesc',   { defaultValue: 'A completely ad-free experience on every screen.' }),
+              },
+              {
+                icon: '🃏',
+                title: t('shop.premiumFeatureDecksTitle', { defaultValue: 'Create your own decks' }),
+                desc: t('shop.premiumFeatureDecksDesc',   { defaultValue: 'Build custom word packs with your own themes.' }),
+              },
+              {
+                icon: '♾️',
+                title: t('shop.premiumFeatureUnlimitedTitle', { defaultValue: 'Unlimited games' }),
+                desc: t('shop.premiumFeatureUnlimitedDesc',   { defaultValue: 'No star-coin entry cost — play as many games as you want.' }),
+              },
+            ].map((f) => (
+              <View
+                key={f.title}
+                className="flex-row p-3 rounded-xl bg-neutral-950 border border-neutral-800"
+                style={{ gap: 10 }}
+              >
+                <Text style={{ fontSize: 22 }}>{f.icon}</Text>
+                <View className="flex-1">
+                  <Text className="text-white font-semibold" style={{ fontSize: 13 * fontScale }}>{f.title}</Text>
+                  <Text className="text-neutral-400 mt-0.5" style={{ fontSize: 11 * fontScale }}>{f.desc}</Text>
+                </View>
+              </View>
+            ))}
+            <View className="px-3 py-2.5 rounded-xl bg-amber-950/40 border border-amber-900/60">
+              <Text className="text-amber-300 text-center" style={{ fontSize: 11 * fontScale }}>
+                ⏳ {t('shop.premiumComingSoon', { defaultValue: 'Premium is coming soon.' })}
+              </Text>
+            </View>
           </View>
         )}
       </ScrollView>

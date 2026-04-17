@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 
-type Tab = 'coins' | 'season'
+type Tab = 'coins' | 'premium'
 
 type Pack = {
   id: string
@@ -52,10 +52,14 @@ export default function ShopPage() {
 
   // Initial tab is driven by the `?tab=` URL param so the
   // InsufficientCoinsModal can link directly to /shop?tab=coins.
-  const initial = (params.get('tab') as Tab) || 'coins'
-  const [tab, setTabState] = useState<Tab>(
-    initial === 'coins' || initial === 'season' ? initial : 'coins',
-  )
+  // Accepts the legacy `?tab=season` query value so existing links (emails,
+  // modals, bookmarks) keep landing on what is now the Premium tab.
+  const rawInitial = params.get('tab')
+  const initial: Tab =
+    rawInitial === 'coins' ? 'coins'
+    : rawInitial === 'premium' || rawInitial === 'season' ? 'premium'
+    : 'coins'
+  const [tab, setTabState] = useState<Tab>(initial)
   const setTab = (next: Tab) => {
     setTabState(next)
     setParams({ tab: next }, { replace: true })
@@ -96,10 +100,10 @@ export default function ShopPage() {
           </div>
 
           {/* Tabs — cosmetics tab was removed from the game design, so the
-              shop now carries only coins + season pass. */}
+              shop now carries only coins + premium. */}
           <div className="flex gap-2 mb-6 overflow-x-auto">
-            <TabButton active={tab === 'coins'}  onClick={() => setTab('coins')}>{t('shop.tabCoins')}</TabButton>
-            <TabButton active={tab === 'season'} onClick={() => setTab('season')}>{t('shop.tabSeason')}</TabButton>
+            <TabButton active={tab === 'coins'}   onClick={() => setTab('coins')}>{t('shop.tabCoins')}</TabButton>
+            <TabButton active={tab === 'premium'} onClick={() => setTab('premium')}>{t('shop.tabPremium')}</TabButton>
           </div>
 
           {/* Post-checkout banner. Stripe redirects back with ?checkout=success
@@ -107,7 +111,7 @@ export default function ShopPage() {
           <CheckoutBanner />
 
           {tab === 'coins' && <CoinsTab onPlayClick={() => navigate('/')} />}
-          {tab === 'season' && <SeasonTab />}
+          {tab === 'premium' && <PremiumTab />}
         </div>
       </main>
     </div>
@@ -270,14 +274,42 @@ function CheckoutBanner() {
   )
 }
 
-// ─── Season pass tab (disabled placeholder) ───────────────────────────────────
+// ─── Premium tab (coming soon — feature preview) ──────────────────────────────
+// Subscription plumbing (Prisma model, entitlements middleware, ad system,
+// deck creator, coin-free play) is follow-up work. This card exists so the
+// shop advertises what Premium will deliver the moment the backend lands.
 
-function SeasonTab() {
+function PremiumTab() {
   const { t } = useTranslation()
+  const features: Array<{ icon: string; title: string; desc: string }> = [
+    { icon: '🚫', title: t('shop.premiumFeatureNoAdsTitle'),     desc: t('shop.premiumFeatureNoAdsDesc') },
+    { icon: '🃏', title: t('shop.premiumFeatureDecksTitle'),     desc: t('shop.premiumFeatureDecksDesc') },
+    { icon: '♾️', title: t('shop.premiumFeatureUnlimitedTitle'), desc: t('shop.premiumFeatureUnlimitedDesc') },
+  ]
   return (
-    <div className="card text-center py-10">
-      <p className="text-4xl mb-3">👑</p>
-      <p className="text-white font-semibold">{t('shop.seasonComingSoon')}</p>
+    <div className="card py-8 px-6">
+      <div className="text-center mb-6">
+        <p className="text-5xl mb-2">👑</p>
+        <h2 className="text-2xl font-extrabold text-white">{t('shop.premiumTitle')}</h2>
+        <p className="text-neutral-400 text-sm mt-1">{t('shop.premiumSubtitle')}</p>
+      </div>
+      <ul className="space-y-3 mb-6">
+        {features.map((f) => (
+          <li
+            key={f.title}
+            className="flex items-start gap-3 p-3 rounded-xl bg-neutral-900 border border-neutral-800"
+          >
+            <span className="text-2xl shrink-0" aria-hidden>{f.icon}</span>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-white">{f.title}</p>
+              <p className="text-xs text-neutral-400 mt-0.5">{f.desc}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="px-3 py-2.5 rounded-xl bg-amber-950/30 border border-amber-900/50 text-amber-300 text-xs text-center">
+        ⏳ {t('shop.premiumComingSoon')}
+      </div>
     </div>
   )
 }
