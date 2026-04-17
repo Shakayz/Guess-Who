@@ -6,8 +6,11 @@ import { useTranslation } from 'react-i18next'
  * breakdown rows only for the bonuses that were actually earned.
  */
 export interface CoinsRevealCardProps {
-  /** Base coins earned for this game (role + winner aware) */
-  baseEarned: number
+  /**
+   * Coins credited for level-ups triggered by this game (level × 10 per
+   * level gained). Zero if the player didn't cross a level threshold.
+   */
+  levelUpEarned: number
   /** +DAILY_BONUS when the server awarded first-of-day */
   dailyBonus?: number
   /** +STREAK_BONUS when the new streak hits a multiple of STREAK_INTERVAL */
@@ -50,14 +53,14 @@ function useCountUp(target: number, duration = 1100, delay = 400): number {
  * - 7-day streak pips light up with the current streak day
  */
 export function CoinsRevealCard({
-  baseEarned,
+  levelUpEarned,
   dailyBonus = 0,
   streakBonus = 0,
   gameCost = 0,
   newStreakCount = 0,
 }: CoinsRevealCardProps) {
   const { t } = useTranslation()
-  const total = Math.max(0, baseEarned) + dailyBonus + streakBonus
+  const total = Math.max(0, levelUpEarned) + dailyBonus + streakBonus
   const animatedTotal = useCountUp(total)
 
   // Coin-rain: 14 coins with pseudo-random horizontal offsets + delays.
@@ -134,12 +137,15 @@ export function CoinsRevealCard({
 
           {/* Breakdown chips */}
           <div className="flex flex-wrap justify-center gap-1.5 mb-1">
-            <BreakdownChip
-              label={t('results.baseReward', { defaultValue: 'Match' })}
-              value={baseEarned}
-              tone="base"
-              delay="0.45s"
-            />
+            {levelUpEarned > 0 && (
+              <BreakdownChip
+                label={t('results.levelUpReward', { defaultValue: 'Level up' })}
+                value={levelUpEarned}
+                tone="base"
+                icon="⚡"
+                delay="0.45s"
+              />
+            )}
             {dailyBonus > 0 && (
               <BreakdownChip
                 label={t('results.dailyBonus')}

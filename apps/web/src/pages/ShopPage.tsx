@@ -154,7 +154,8 @@ function CoinsTab({ onPlayClick }: { onPlayClick: () => void }) {
         <div className="space-y-2">
           <EarnRow icon="🎁" text={t('shop.earnDailyBonus')} />
           <EarnRow icon="🔥" text={t('shop.earnStreak')} />
-          <EarnRow icon="🎮" text={t('shop.earnGameReward')} />
+          <EarnRow icon="⚡" text={t('shop.earnLevelUp')} />
+          <EarnRow icon="🏆" text={t('shop.earnAchievements')} />
         </div>
         <button
           onClick={onPlayClick}

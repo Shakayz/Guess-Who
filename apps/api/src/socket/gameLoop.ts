@@ -49,16 +49,12 @@ function didPlayerWin(player: any, winner: Winner, allPlayers: any[]): boolean {
   )
 }
 
-/** Role/winner-aware base star reward. Losers get a small consolation. */
-function starCoinsForPlayer(winner: Winner, didWin: boolean): number {
-  if (winner === 'draw') return 20
-  if (!didWin) return 10
-  if (winner === 'villagers')  return 50
-  if (winner === 'red_handed')  return 80
-  if (winner === 'jester')     return 60
-  if (winner === 'evil_twins') return 90
-  return 10
-}
+/**
+ * Per-game base star reward is now always 0. Coins come from daily/streak
+ * bonuses (see dailyRewards), level-up rewards (see applyXpAndLevel), and
+ * claimable achievements — never from finishing a single match.
+ */
+const PER_GAME_BASE_STAR_COINS = 0
 import type { RankTier } from '@red-handed/shared'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
@@ -329,14 +325,27 @@ async function applyRankedLP(
  *   - survival bonus
  *   - forfeited players get nothing
  */
+/**
+ * Star coins credited when a player crosses from `oldLevel` to `newLevel`.
+ * Each level gained pays `level × 10` so multi-level jumps aren't punished.
+ * Example: 4 → 6 → 5*10 + 6*10 = 110 ⭐.
+ */
+function levelUpCoins(oldLevel: number, newLevel: number): number {
+  if (newLevel <= oldLevel) return 0
+  let total = 0
+  for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) total += lvl * 10
+  return total
+}
+
 async function applyXpAndLevel(
   io: IO,
   players: any[],
   winner: Winner,
   isRanked: boolean,
-): Promise<void> {
+): Promise<Map<string, number>> {
+  const levelUpRewards = new Map<string, number>()
   const userIds: string[] = players.map((p: any) => p.userId).filter(Boolean)
-  if (userIds.length === 0) return
+  if (userIds.length === 0) return levelUpRewards
 
   const users = await prisma.user.findMany({
     where:  { id: { in: userIds } },
@@ -380,15 +389,21 @@ async function applyXpAndLevel(
       const newXp = user.xp + xpGain
       const newLevel = Math.min(LEVEL_CAP, levelFromXp(newXp))
       const promoted = newLevel > oldLevel
+      const coinsFromLevelUp = levelUpCoins(oldLevel, newLevel)
 
       const dataToUpdate: Record<string, unknown> = { xp: newXp }
       if (promoted) dataToUpdate.level = newLevel
+      if (coinsFromLevelUp > 0) dataToUpdate.starCoins = { increment: coinsFromLevelUp }
       if (isRanked && !user.hasPlayedRanked) dataToUpdate.hasPlayedRanked = true
 
       await prisma.user.update({
         where: { id: user.id },
         data: dataToUpdate,
       })
+
+      if (coinsFromLevelUp > 0) {
+        levelUpRewards.set(user.id, coinsFromLevelUp)
+      }
 
       // Notify the player about their XP gain + level progression
       const socketId = onlineUsers.get(user.id)
@@ -403,6 +418,7 @@ async function applyXpAndLevel(
           leveledUp:   promoted,
           oldLevel,
           newLevel,
+          coinsEarned: coinsFromLevelUp,
         })
       }
 
@@ -413,6 +429,8 @@ async function applyXpAndLevel(
       }
     })
   )
+
+  return levelUpRewards
 }
 
 // ─── Consolidated end-of-game path (used by every winner branch) ───────────
@@ -519,8 +537,8 @@ async function finishGameWithWinner(
       return override !== null ? override : baseDelta
     })
   }
-  // Award lifetime XP + recompute level
-  await applyXpAndLevel(io, state.players, winner, isRanked)
+  // Award lifetime XP + recompute level (also credits level-up star coins)
+  const levelUpRewards = await applyXpAndLevel(io, state.players, winner, isRanked)
 
   // Representative delta for broadcast RewardSummary (villager perspective)
   const lpChange = isRanked
@@ -539,9 +557,7 @@ async function finishGameWithWinner(
     { base: number; daily: number; streak: number; newStreakCount: number }
   >()
   for (const p of state.players) {
-    const didWin = didPlayerWin(p, winner, state.players)
-    const base = starCoinsForPlayer(winner, didWin)
-    const applied = await applyGameEndRewards(p.userId, base)
+    const applied = await applyGameEndRewards(p.userId, PER_GAME_BASE_STAR_COINS)
     perPlayerRewards.set(p.userId, {
       base: applied.baseStarCoinsEarned,
       daily: applied.dailyBonusEarned,
@@ -584,6 +600,7 @@ async function finishGameWithWinner(
         achievements: [] as any[],
         dailyBonusEarned: r?.daily ?? 0,
         streakBonusEarned: r?.streak ?? 0,
+        levelUpCoinsEarned: levelUpRewards.get(p.userId) ?? 0,
         newStreakCount: r?.newStreakCount ?? 0,
         gameCostPaid: costForPlayer(p.userId),
       }
@@ -608,6 +625,7 @@ async function finishGameWithWinner(
         achievements: [] as any[],
         dailyBonusEarned: r?.daily ?? 0,
         streakBonusEarned: r?.streak ?? 0,
+        levelUpCoinsEarned: firstPlayer ? (levelUpRewards.get(firstPlayer.userId) ?? 0) : 0,
         newStreakCount: r?.newStreakCount ?? 0,
         gameCostPaid: firstPlayer ? costForPlayer(firstPlayer.userId) : 0,
       }
@@ -1167,11 +1185,35 @@ async function _resolveRound(io: IO, roomId: string) {
       if (isRankedSurvival) {
         await applyRankedLP(io, roomId, state.players, (player) => getSurvivalLpDelta(player.role ?? ''))
       }
-      await applyXpAndLevel(io, state.players, 'red_handed', isRankedSurvival)
+      const survivalLevelUpRewards = await applyXpAndLevel(io, state.players, 'red_handed', isRankedSurvival)
       const survivalLpChange = isRankedSurvival ? LP_REWARDS.SURVIVAL_VILLAGER_LOSS : 0
-      const rewards = { starCoinsEarned: 80, xpEarned: 120, lpChange: survivalLpChange, achievements: [] }
       setTimeout(async () => { try {
-        io.to(`room:${roomId}`).emit('game:finished', { winner: 'red_handed', finalRound: roundPayload as any, rewards })
+        // Broadcast per-socket so each surviving redHanded sees their own
+        // level-up coin total (level × 10 per level gained).
+        let emitted = false
+        for (const p of state.players as any[]) {
+          const sid = onlineUsers.get(p.userId)
+          if (!sid) continue
+          emitted = true
+          io.to(sid).emit('game:finished', {
+            winner: 'red_handed',
+            finalRound: roundPayload as any,
+            rewards: {
+              starCoinsEarned: 0,
+              xpEarned: 120,
+              lpChange: survivalLpChange,
+              achievements: [],
+              levelUpCoinsEarned: survivalLevelUpRewards.get(p.userId) ?? 0,
+            },
+          })
+        }
+        if (!emitted) {
+          io.to(`room:${roomId}`).emit('game:finished', {
+            winner: 'red_handed',
+            finalRound: roundPayload as any,
+            rewards: { starCoinsEarned: 0, xpEarned: 120, lpChange: survivalLpChange, achievements: [], levelUpCoinsEarned: 0 },
+          })
+        }
         await resetRoomAfterGame(roomId, state)
       } catch (err) { logger.error({ err }, '[survival:game:finished] emit error') } }, 3000)
       return

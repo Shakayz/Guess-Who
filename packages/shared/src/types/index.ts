@@ -319,6 +319,11 @@ export interface RewardSummary {
   dailyBonusEarned?: number
   /** +100 star bonus given every 7 consecutive days played. */
   streakBonusEarned?: number
+  /**
+   * Star coins credited for each level gained this game (sum of `level × 10`
+   * for every level crossed). Zero if the player didn't level up.
+   */
+  levelUpCoinsEarned?: number
   /** Rolling consecutive-day counter used for the "Day N/7" chip. */
   newStreakCount?: number
   /**
