@@ -7,22 +7,22 @@ const streakProgression = progression({
   keyPrefix: 'daily_streak',
   category: 'milestones',
   icon: '🔥',
-  name: (n) => n === 3 ? 'Warming Up' : `${n}-Day Streak`,
-  description: (n) => n === 3 ? 'Play at least one game every day for 3 days in a row' : `Play at least one game every day for ${n} days in a row`,
+  name: (n) => n === 5 ? 'Warming Up' : `${n}-Day Streak`,
+  description: (n) => n === 5 ? 'Play at least one game every day for 5 days in a row' : `Play at least one game every day for ${n} days in a row`,
   event: 'daily_login',
   getCount: (s) => s.dailyStreakCount,
-  tiers: TIERS_6([3, 7, 30, 90, 180, 365]),
+  tiers: TIERS_6([5, 14, 45, 120, 240, 365]),
 })
 
 const wordPackProgression = progression({
   keyPrefix: 'word_packs_created',
   category: 'milestones',
   icon: '📝',
-  name: (n) => n === 3 ? 'Creator' : `${n} Word Packs Created`,
-  description: (n) => n === 3 ? 'Create 3 custom word packs' : `Create ${n} custom word packs`,
+  name: (n) => n === 5 ? 'Creator' : `${n} Word Packs Created`,
+  description: (n) => n === 5 ? 'Create 5 custom word packs' : `Create ${n} custom word packs`,
   event: 'word_pack_created',
   getCount: (s) => s.wordPacksCreated,
-  tiers: TIERS_4([3, 10, 30, 100]),
+  tiers: TIERS_4([5, 20, 60, 150]),
 })
 
 const milestoneOneOffs = merge(

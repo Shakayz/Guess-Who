@@ -57,8 +57,8 @@ describe('TIERS_*', () => {
     const tiers = TIERS_3([1, 5, 10])
     expect(tiers.map((t) => t.n)).toEqual([1, 5, 10])
     expect(tiers.map((t) => t.difficulty)).toEqual(['bronze', 'silver', 'gold'])
-    expect(tiers[0].stars).toBe(5)
-    expect(tiers[2].stars).toBe(100)
+    expect(tiers[0].stars).toBe(3)
+    expect(tiers[2].stars).toBe(50)
   })
 
   it('TIERS_4 includes platinum', () => {
@@ -71,10 +71,22 @@ describe('TIERS_*', () => {
     expect(tiers.at(-1)?.difficulty).toBe('diamond')
   })
 
-  it('TIERS_6 includes mythic', () => {
+  it('TIERS_6 includes mythic and caps at 1000 stars', () => {
     const tiers = TIERS_6([1, 5, 10, 25, 50, 100])
     expect(tiers.at(-1)?.difficulty).toBe('mythic')
-    expect(tiers.at(-1)?.stars).toBe(3500)
+    expect(tiers.at(-1)?.stars).toBe(1000)
+  })
+
+  it('no tier template pays more than 1000 stars', () => {
+    const all = [
+      ...TIERS_3([1, 2, 3]),
+      ...TIERS_4([1, 2, 3, 4]),
+      ...TIERS_5([1, 2, 3, 4, 5]),
+      ...TIERS_6([1, 2, 3, 4, 5, 6]),
+    ]
+    for (const t of all) {
+      expect(t.stars).toBeLessThanOrEqual(1000)
+    }
   })
 
   it('tier thresholds flow through to every def.n', () => {
@@ -97,6 +109,12 @@ describe('REWARD', () => {
     for (let i = 1; i < order.length; i++) {
       expect(REWARD[order[i]].stars).toBeGreaterThan(REWARD[order[i - 1]].stars)
       expect(REWARD[order[i]].xp).toBeGreaterThan(REWARD[order[i - 1]].xp)
+    }
+  })
+
+  it('no single one-off achievement pays more than 1000 coins', () => {
+    for (const reward of Object.values(REWARD)) {
+      expect(reward.stars).toBeLessThanOrEqual(1000)
     }
   })
 })
@@ -129,9 +147,9 @@ describe('progression', () => {
       getCount: (s) => s.totalWins,
       tiers: TIERS_3([1, 10, 100]),
     })
-    expect(defs[0]).toMatchObject({ difficulty: 'bronze', xpReward: 5,  coinReward: 5 })
-    expect(defs[1]).toMatchObject({ difficulty: 'silver', xpReward: 20, coinReward: 25 })
-    expect(defs[2]).toMatchObject({ difficulty: 'gold',   xpReward: 55, coinReward: 100 })
+    expect(defs[0]).toMatchObject({ difficulty: 'bronze', xpReward: 5, coinReward: 3 })
+    expect(defs[1]).toMatchObject({ difficulty: 'silver', xpReward: 20, coinReward: 15 })
+    expect(defs[2]).toMatchObject({ difficulty: 'gold', xpReward: 55, coinReward: 50 })
   })
 
   it('evaluators return true once the threshold is met', async () => {

@@ -17,72 +17,72 @@ const gameplayProgression = merge(
     keyPrefix: 'games_played',
     category: 'gameplay',
     icon: '🎮',
-    name: (n) => n === 5 ? 'Warming Up' : `${n} Games Played`,
-    description: (n) => n === 5 ? 'Play 5 games to prove this isn\'t a fluke' : `Play ${n} games`,
+    name: (n) => n === 10 ? 'Warming Up' : `${n} Games Played`,
+    description: (n) => n === 10 ? 'Play 10 games to prove this isn\'t a fluke' : `Play ${n} games`,
     event: 'game_end',
     getCount: (s) => s.totalGames,
-    tiers: TIERS_6([5, 25, 100, 500, 2000, 10000]),
+    tiers: TIERS_6([10, 50, 200, 750, 3000, 15000]),
   }),
   progression({
     keyPrefix: 'wins',
     category: 'gameplay',
     icon: '🏆',
-    name: (n) => n === 3 ? 'Getting Consistent' : `${n} Wins`,
-    description: (n) => n === 3 ? 'Win 3 games' : `Win ${n} games total`,
+    name: (n) => n === 5 ? 'Getting Consistent' : `${n} Wins`,
+    description: (n) => n === 5 ? 'Win 5 games' : `Win ${n} games total`,
     event: 'game_end',
     getCount: (s) => s.totalWins,
-    tiers: TIERS_6([3, 15, 50, 150, 750, 3500]),
+    tiers: TIERS_6([5, 25, 80, 250, 1000, 5000]),
   }),
   progression({
     keyPrefix: 'survived',
     category: 'gameplay',
     icon: '🛡️',
-    name: (n) => n === 3 ? 'Survivor' : `Survived ${n} Games`,
+    name: (n) => n === 5 ? 'Survivor' : `Survived ${n} Games`,
     description: (n) =>
-      n === 3
-        ? 'Survive all rounds and win 3 games'
+      n === 5
+        ? 'Survive all rounds and win 5 games'
         : `Survive all rounds and win in ${n} different games`,
     event: 'game_end',
     getCount: (s) => s.survivedWins,
-    tiers: TIERS_6([3, 15, 50, 150, 500, 2000]),
+    tiers: TIERS_6([5, 25, 80, 250, 750, 3000]),
   }),
 )
 
 const gameplayOneOffs = merge(
   // Participation "rookie" stamp — replaces the too-easy first_vote / first_clue.
   single(
-    { key: 'rookie', name: 'Rookie', description: 'Complete 5 games', icon: '🎓', category: 'gameplay', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
+    { key: 'rookie', name: 'Rookie', description: 'Complete 10 games', icon: '🎓', category: 'gameplay', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
     'game_end',
-    (ctx) => ctx.stats.totalGames >= 5,
+    (ctx) => ctx.stats.totalGames >= 10,
   ),
   single(
-    { key: 'correct_voter', name: 'Good Eye', description: 'Win 5 games on the villagers\' side', icon: '👁️', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'correct_voter', name: 'Good Eye', description: 'Win 10 games on the villagers\' side', icon: '👁️', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isRedHanded && ctx.stats.totalVillagerWins >= 5,
+    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isRedHanded && ctx.stats.totalVillagerWins >= 10,
   ),
   single(
     { key: 'clean_sweep', name: 'Clean Sweep', description: 'Win a villagers game where no villager was eliminated (you must survive too)', icon: '🧹', category: 'gameplay', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
     'game_end',
     // Approximation: require winning+surviving as villager side AND a minimum
     // body of wins, so it can't fire trivially on the first game.
-    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isRedHanded && ctx.survived && ctx.winner === 'villagers' && ctx.stats.totalVillagerWins >= 10,
+    (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isRedHanded && ctx.survived && ctx.winner === 'villagers' && ctx.stats.totalVillagerWins >= 20,
   ),
   single(
-    { key: 'full_lobby', name: 'Full House', description: 'Play a game with 10+ players (once you\'ve played at least 10 games)', icon: '🏠', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'full_lobby', name: 'Full House', description: 'Play a game with 10+ players (once you\'ve played at least 25 games)', icon: '🏠', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.playerCount >= 10 && ctx.stats.totalGames >= 10,
+    (ctx) => isGameEnd(ctx) && ctx.playerCount >= 10 && ctx.stats.totalGames >= 25,
   ),
   single(
-    { key: 'tiny_lobby', name: 'Intimate', description: 'Win a game with exactly 4 players', icon: '👥', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'tiny_lobby', name: 'Intimate', description: 'Win a game with exactly 4 players after 25+ games', icon: '👥', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
-    (ctx) => isGameEnd(ctx) && ctx.playerCount === 4 && ctx.isWinner && ctx.stats.totalGames >= 10,
+    (ctx) => isGameEnd(ctx) && ctx.playerCount === 4 && ctx.isWinner && ctx.stats.totalGames >= 25,
   ),
   single(
-    { key: 'special_mode_win', name: 'Specialist', description: 'Win 5 Special mode games', icon: '✨', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'special_mode_win', name: 'Specialist', description: 'Win 10 Special mode games', icon: '✨', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
     // Approximation: require enough wins that it can't fire on the very first
     // Special-mode game. We don't track specialWins directly.
-    (ctx) => isGameEnd(ctx) && ctx.isWinner && ctx.gameMode === 'special' && ctx.stats.totalWins >= 5,
+    (ctx) => isGameEnd(ctx) && ctx.isWinner && ctx.gameMode === 'special' && ctx.stats.totalWins >= 10,
   ),
   single(
     { key: 'all_roles_10', name: 'Jack of All Trades', description: 'Play 10 different roles', icon: '🎭', category: 'gameplay', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
@@ -142,11 +142,11 @@ const redHandedProgression = progression({
   keyPrefix: 'red_handed_wins',
   category: 'red_handed',
   icon: '🎭',
-  name: (n) => n === 3 ? 'First Disguise' : `${n} Imposter Wins`,
-  description: (n) => n === 3 ? 'Win 3 games as the imposter' : `Win ${n} games as the imposter`,
+  name: (n) => n === 5 ? 'First Disguise' : `${n} Imposter Wins`,
+  description: (n) => n === 5 ? 'Win 5 games as the imposter' : `Win ${n} games as the imposter`,
   event: 'game_end',
   getCount: (s) => s.totalRedHandedWins,
-  tiers: TIERS_6([3, 15, 50, 200, 1000, 3500]),
+  tiers: TIERS_6([5, 25, 80, 300, 1200, 5000]),
 })
 
 const redHandedOneOffs = merge(
@@ -213,11 +213,11 @@ const detectiveProgression = progression({
   keyPrefix: 'detective_wins',
   category: 'detective',
   icon: '🕵️',
-  name: (n) => n === 3 ? 'First Investigation' : `${n} Detective Wins`,
-  description: (n) => n === 3 ? 'Win 3 games as detective' : `Win ${n} games as detective`,
+  name: (n) => n === 5 ? 'First Investigation' : `${n} Detective Wins`,
+  description: (n) => n === 5 ? 'Win 5 games as detective' : `Win ${n} games as detective`,
   event: 'game_end',
   getCount: (s) => s.winsByRole['detective'] ?? 0,
-  tiers: TIERS_6([3, 10, 35, 100, 300, 1000]),
+  tiers: TIERS_6([5, 20, 60, 175, 500, 1500]),
 })
 
 const detectiveOneOffs = merge(
@@ -281,11 +281,11 @@ for (const { role, icon, display } of SPECIAL_ROLES) {
   // "first win" is legitimate (you actually had to be that role AND win), but
   // the later tiers are raised significantly so they don't unlock casually.
   const entries: Array<{ key: string; n: number; wins: boolean; difficulty: any; name: string; description: string }> = [
-    { key: `role_${role}_first`, n: 1, wins: true, difficulty: 'bronze', name: `${display} Debut`, description: `Win your first game as ${display}` },
-    { key: `role_${role}_play20`, n: 20, wins: false, difficulty: 'silver', name: `${display} Regular`, description: `Play 20 games as ${display}` },
-    { key: `role_${role}_win10`, n: 10, wins: true, difficulty: 'gold', name: `${display} Veteran`, description: `Win 10 games as ${display}` },
-    { key: `role_${role}_win50`, n: 50, wins: true, difficulty: 'platinum', name: `${display} Expert`, description: `Win 50 games as ${display}` },
-    { key: `role_${role}_win200`, n: 200, wins: true, difficulty: 'diamond', name: `${display} Master`, description: `Win 200 games as ${display}` },
+    { key: `role_${role}_first`, n: 2, wins: true, difficulty: 'bronze', name: `${display} Debut`, description: `Win 2 games as ${display}` },
+    { key: `role_${role}_play20`, n: 30, wins: false, difficulty: 'silver', name: `${display} Regular`, description: `Play 30 games as ${display}` },
+    { key: `role_${role}_win10`, n: 15, wins: true, difficulty: 'gold', name: `${display} Veteran`, description: `Win 15 games as ${display}` },
+    { key: `role_${role}_win50`, n: 75, wins: true, difficulty: 'platinum', name: `${display} Expert`, description: `Win 75 games as ${display}` },
+    { key: `role_${role}_win200`, n: 300, wins: true, difficulty: 'diamond', name: `${display} Master`, description: `Win 300 games as ${display}` },
   ]
   for (const e of entries) {
     const reward = REWARD[e.difficulty as keyof typeof REWARD]

@@ -11,11 +11,11 @@ const friendProgression = progression({
   keyPrefix: 'friends',
   category: 'social',
   icon: '🤝',
-  name: (n) => n === 3 ? 'Making Friends' : `${n} Friends`,
-  description: (n) => n === 3 ? 'Add 3 friends' : `Make ${n} friends`,
+  name: (n) => n === 5 ? 'Making Friends' : `${n} Friends`,
+  description: (n) => n === 5 ? 'Add 5 friends' : `Make ${n} friends`,
   event: 'friend_added',
   getCount: (s) => s.friendCount,
-  tiers: TIERS_6([3, 15, 40, 100, 300, 750]),
+  tiers: TIERS_6([5, 20, 60, 150, 400, 1000]),
 })
 
 // ─── HONORS (given) ─────────────────────────────────────────────────────────
@@ -24,11 +24,11 @@ const honorGivenProgression = progression({
   keyPrefix: 'honor_given',
   category: 'social',
   icon: '💝',
-  name: (n) => n === 5 ? 'Kind Soul' : `${n} Honors Given`,
-  description: (n) => n === 5 ? 'Give 5 honors' : `Give ${n} honors to other players`,
+  name: (n) => n === 10 ? 'Kind Soul' : `${n} Honors Given`,
+  description: (n) => n === 10 ? 'Give 10 honors' : `Give ${n} honors to other players`,
   event: 'honor_given',
   getCount: (s) => s.honorGivenCount,
-  tiers: TIERS_5([5, 25, 100, 400, 2000]),
+  tiers: TIERS_5([10, 50, 175, 600, 2500]),
 })
 
 // ─── HONORS (received) ──────────────────────────────────────────────────────
@@ -37,11 +37,11 @@ const honorReceivedProgression = progression({
   keyPrefix: 'honor_received',
   category: 'social',
   icon: '💖',
-  name: (n) => n === 5 ? 'Appreciated' : `${n} Honors Received`,
-  description: (n) => n === 5 ? 'Receive 5 honors' : `Receive ${n} honors from other players`,
+  name: (n) => n === 10 ? 'Appreciated' : `${n} Honors Received`,
+  description: (n) => n === 10 ? 'Receive 10 honors' : `Receive ${n} honors from other players`,
   event: 'honor_received',
   getCount: (s) => s.honorReceivedCount,
-  tiers: TIERS_6([5, 25, 100, 400, 2000, 10000]),
+  tiers: TIERS_6([10, 50, 175, 600, 2500, 12000]),
 })
 
 // ─── DMs ────────────────────────────────────────────────────────────────────
@@ -50,11 +50,11 @@ const dmProgression = progression({
   keyPrefix: 'dms_sent',
   category: 'social',
   icon: '✉️',
-  name: (n) => n === 10 ? 'Saying Hello' : `${n} Messages Sent`,
-  description: (n) => n === 10 ? 'Send 10 direct messages' : `Send ${n} direct messages`,
+  name: (n) => n === 25 ? 'Saying Hello' : `${n} Messages Sent`,
+  description: (n) => n === 25 ? 'Send 25 direct messages' : `Send ${n} direct messages`,
   event: 'dm_sent',
   getCount: (s) => s.dmSentCount,
-  tiers: TIERS_4([10, 50, 200, 1000]),
+  tiers: TIERS_4([25, 100, 400, 1500]),
 })
 
 // ─── GIFTS ──────────────────────────────────────────────────────────────────
@@ -63,22 +63,22 @@ const giftsGiven = progression({
   keyPrefix: 'gifts_sent',
   category: 'social',
   icon: '🎁',
-  name: (n) => n === 3 ? 'Generous' : `${n} Gifts Sent`,
-  description: (n) => n === 3 ? 'Send 3 gifts' : `Send ${n} gifts to other players`,
+  name: (n) => n === 5 ? 'Generous' : `${n} Gifts Sent`,
+  description: (n) => n === 5 ? 'Send 5 gifts' : `Send ${n} gifts to other players`,
   event: 'gift_sent',
   getCount: (s) => s.giftSentCount,
-  tiers: TIERS_4([3, 15, 60, 250]),
+  tiers: TIERS_4([5, 25, 100, 400]),
 })
 
 const giftsReceived = progression({
   keyPrefix: 'gifts_received',
   category: 'social',
   icon: '📦',
-  name: (n) => n === 3 ? 'Appreciated' : `${n} Gifts Received`,
-  description: (n) => n === 3 ? 'Receive 3 gifts' : `Receive ${n} gifts from other players`,
+  name: (n) => n === 5 ? 'Appreciated' : `${n} Gifts Received`,
+  description: (n) => n === 5 ? 'Receive 5 gifts' : `Receive ${n} gifts from other players`,
   event: 'gift_received',
   getCount: (s) => s.giftReceivedCount,
-  tiers: TIERS_4([3, 15, 60, 250]),
+  tiers: TIERS_4([5, 25, 100, 400]),
 })
 
 // ─── One-offs ───────────────────────────────────────────────────────────────
