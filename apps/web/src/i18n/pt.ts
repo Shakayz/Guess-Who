@@ -23,6 +23,7 @@ export default {
     signOut: 'Sair',
     profile: 'Perfil',
     settings: 'Configurações',
+    streak: 'Sequência de {{count}} dias',
   },
   auth: {
     signIn: 'Entrar',

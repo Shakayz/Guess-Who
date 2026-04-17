@@ -23,6 +23,7 @@ export default {
     signOut: 'Cerrar sesión',
     profile: 'Perfil',
     settings: 'Ajustes',
+    streak: 'Racha de {{count}} días',
   },
   auth: {
     signIn: 'Iniciar sesión',

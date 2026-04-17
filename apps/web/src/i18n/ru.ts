@@ -23,6 +23,7 @@ export default {
     signOut: 'Выйти',
     profile: 'Профиль',
     settings: 'Настройки',
+    streak: 'Серия {{count}} дней',
   },
   auth: {
     signIn: 'Войти',

@@ -23,6 +23,7 @@ export default {
     signOut: 'تسجيل الخروج',
     profile: 'الملف الشخصي',
     settings: 'الإعدادات',
+    streak: 'سلسلة {{count}} يوم',
   },
   auth: {
     signIn: 'تسجيل الدخول',

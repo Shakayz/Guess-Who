@@ -24,6 +24,7 @@ export default {
     signOut: 'Se déconnecter',
     profile: 'Profil',
     settings: 'Paramètres',
+    streak: 'Série de {{count}} jours',
   },
   auth: {
     signIn: 'Se connecter',
