@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
 import { useSocialStore } from '../store/social'
 import { DmChatPanel } from './DmChatPanel'
-import { Wordmark } from './Wordmark'
 import { api } from '../lib/api'
 import { getSocket } from '../lib/socket'
 
@@ -104,11 +103,8 @@ export function NavBar() {
     <>
     <header className="flex items-center justify-between px-6 py-4 border-b border-neutral-800/60 backdrop-blur-sm sticky top-0 z-40 bg-neutral-950/80">
       <div className="flex items-center gap-5">
-        <button onClick={() => navigate('/')} className="flex items-center gap-2.5" aria-label="Red Handed home">
-          <div className="w-9 h-9 rounded-lg bg-neutral-50 flex items-center justify-center shadow-sm shadow-black/30 ring-1 ring-white/10">
-            <img src="/logo-masks.svg" alt="" className="w-7 h-7 select-none" draggable={false} />
-          </div>
-          <Wordmark layout="inline" size={22} />
+        <button onClick={() => navigate('/')} className="flex items-center" aria-label="Red Handed home">
+          <img src="/masks.png" alt="Red Handed" className="h-10 w-auto select-none" draggable={false} />
         </button>
         <nav role="navigation" aria-label="Main navigation" className="hidden md:flex items-center gap-1 lg:gap-2">
           {NAV_PATHS.map((path) => {
