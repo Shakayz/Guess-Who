@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
 import { createLogger } from '../lib/logger'
-import { Wordmark } from '../components/Wordmark'
 
 const log = createLogger('auth-page')
 
@@ -332,11 +331,21 @@ export default function AuthPage() {
         </div>
 
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-neutral-50 mb-5 shadow-xl shadow-black/40 ring-1 ring-white/10">
-            <img src="/logo-masks.svg" alt="" className="w-14 h-14 select-none" draggable={false} />
+        <div className="text-center mb-8 flex flex-col items-center">
+          <img
+            src="/masks.png"
+            alt=""
+            aria-hidden="true"
+            className="w-28 h-28 md:w-32 md:h-32 object-contain select-none pointer-events-none mb-3"
+          />
+          <div className="w-56 md:w-64 aspect-[863/348] overflow-hidden">
+            <img
+              src="/wordmark.png"
+              alt="Red Handed !"
+              className="w-full h-full object-cover select-none pointer-events-none"
+              style={{ objectPosition: 'center 51.8%' }}
+            />
           </div>
-          <Wordmark layout="stacked" size={56} className="mx-auto mb-2" />
           <p className="text-neutral-500 text-sm mt-2">{t('home.subtitle')}</p>
         </div>
 
