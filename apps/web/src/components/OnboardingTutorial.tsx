@@ -214,13 +214,13 @@ function StepWelcome() {
   return (
     <div className="flex flex-col items-center text-center gap-4">
       <div
-        className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-brand-500/30 via-brand-700/20 to-brand-900/40 border border-brand-600/40 flex items-center justify-center text-6xl animate-float-soft"
+        className="relative w-24 h-24 rounded-3xl bg-neutral-50 border border-white/10 flex items-center justify-center animate-float-soft"
         style={{
           animation: 'tut-icon-bounce 0.7s cubic-bezier(0.34,1.56,0.64,1) both, floatSoft 3.5s ease-in-out 0.8s infinite',
-          boxShadow: '0 0 40px rgba(139,92,246,0.35), inset 0 2px 0 rgba(255,255,255,0.1)',
+          boxShadow: '0 0 40px rgba(34,211,238,0.25), 0 0 40px rgba(251,191,36,0.2), inset 0 2px 0 rgba(255,255,255,0.6)',
         }}
       >
-        <span style={{ filter: 'drop-shadow(0 4px 16px rgba(139,92,246,0.6))' }}>🎭</span>
+        <img src="/logo-masks.svg" alt="" className="w-16 h-16 select-none" draggable={false} />
       </div>
       <div>
         <h2 className="text-2xl font-extrabold text-white mb-2">
