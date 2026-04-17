@@ -160,7 +160,7 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
       if (byEmail) {
         user = await prisma.user.update({ where: { id: byEmail.id }, data: { appleId } })
       } else {
-        const tempUsername = `pending_${Date.now()}`
+        const tempUsername = `pending_${Date.now()}`.slice(0, 20)
         const safeEmail = email ?? `${appleId}@apple.oauth`
         user = await prisma.user.create({
           data: {
