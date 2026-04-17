@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 120" fill="none">
+  <defs>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="3.5" />
+    </filter>
+    <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7dd3fc" />
+      <stop offset="55%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <linearGradient id="yellowGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fde68a" />
+      <stop offset="55%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+    <linearGradient id="blueHighlight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55" />
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="yellowHighlight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5" />
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <!-- Yellow / tragedy glow -->
+  <path d="M 82 16 C 106 16, 116 36, 114 64 C 112 90, 100 104, 88 106 C 76 104, 68 90, 68 64 C 68 36, 74 16, 82 16 Z"
+        fill="#fbbf24" opacity="0.55" filter="url(#softGlow)" />
+  <!-- Blue / comedy glow -->
+  <path d="M 46 16 C 70 16, 78 36, 76 64 C 74 90, 62 104, 50 106 C 38 104, 30 90, 30 64 C 30 36, 36 16, 46 16 Z"
+        fill="#22d3ee" opacity="0.6" filter="url(#softGlow)" />
+
+  <!-- Tragedy (yellow) mask, behind right -->
+  <g>
+    <path d="M 82 16 C 106 16, 116 36, 114 64 C 112 90, 100 104, 88 106 C 76 104, 68 90, 68 64 C 68 36, 74 16, 82 16 Z"
+          fill="url(#yellowGrad)" />
+    <path d="M 82 16 C 98 16, 108 30, 110 50 C 100 38, 88 34, 76 38 C 74 28, 76 16, 82 16 Z"
+          fill="url(#yellowHighlight)" />
+    <!-- sad droopy eyes -->
+    <path d="M 78 50 Q 82 58, 87 50" stroke="#7c2d12" stroke-width="2.2" fill="#fffbeb" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 95 50 Q 99 58, 104 50" stroke="#7c2d12" stroke-width="2.2" fill="#fffbeb" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- tear -->
+    <circle cx="80" cy="62" r="1.6" fill="#fef3c7" opacity="0.9" />
+    <!-- frown -->
+    <path d="M 82 86 Q 91 78, 100 86" stroke="#7c2d12" stroke-width="2.6" fill="none" stroke-linecap="round" />
+  </g>
+
+  <!-- Comedy (blue) mask, in front -->
+  <g>
+    <path d="M 46 16 C 70 16, 78 36, 76 64 C 74 90, 62 104, 50 106 C 38 104, 30 90, 30 64 C 30 36, 36 16, 46 16 Z"
+          fill="url(#blueGrad)" />
+    <path d="M 46 16 C 62 16, 72 30, 74 50 C 64 38, 52 34, 40 38 C 38 28, 40 16, 46 16 Z"
+          fill="url(#blueHighlight)" />
+    <!-- happy squinty eyes -->
+    <path d="M 40 50 Q 44 44, 48 50" stroke="#0c4a6e" stroke-width="2.2" fill="none" stroke-linecap="round" />
+    <path d="M 56 50 Q 60 44, 64 50" stroke="#0c4a6e" stroke-width="2.2" fill="none" stroke-linecap="round" />
+    <!-- big smile -->
+    <path d="M 38 72 Q 52 92, 66 72 Q 52 82, 38 72 Z" fill="#0c4a6e" stroke="#0c4a6e" stroke-width="1.5" stroke-linejoin="round" />
+  </g>
+</svg>
