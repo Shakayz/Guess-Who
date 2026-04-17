@@ -80,11 +80,14 @@ describe('ShopPage', () => {
 
   it('lists the free earning mechanics so players without coins see alternatives', () => {
     renderShop()
-    // The three earn rows — daily bonus / streak / game reward — are the
-    // actual earning channels the server implements in dailyRewards.ts.
+    // Earn rows: daily bonus + streak come from dailyRewards.ts; level-up and
+    // achievement coins come from gameLoop.applyXpAndLevel + claimable
+    // achievement rewards. Per-game base reward was removed by design.
     expect(screen.getByText('shop.earnDailyBonus')).toBeInTheDocument()
     expect(screen.getByText('shop.earnStreak')).toBeInTheDocument()
-    expect(screen.getByText('shop.earnGameReward')).toBeInTheDocument()
+    expect(screen.getByText('shop.earnLevelUp')).toBeInTheDocument()
+    expect(screen.getByText('shop.earnAchievements')).toBeInTheDocument()
+    expect(screen.queryByText('shop.earnGameReward')).not.toBeInTheDocument()
   })
 
   it('does not expose a cosmetics tab (removed from game design)', () => {

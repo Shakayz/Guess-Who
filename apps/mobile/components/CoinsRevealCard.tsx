@@ -3,8 +3,11 @@ import { View, Text, Animated, Easing, Dimensions } from 'react-native'
 import { useTranslation } from 'react-i18next'
 
 export interface CoinsRevealCardProps {
-  /** Base coins earned for this game (role + winner aware) */
-  baseEarned: number
+  /**
+   * Coins credited for level-ups triggered by this game (level × 10 per
+   * level gained). Zero if the player didn't cross a level threshold.
+   */
+  levelUpEarned: number
   /** +DAILY_BONUS when the server awarded first-of-day */
   dailyBonus?: number
   /** +STREAK_BONUS when the new streak hits a multiple of STREAK_INTERVAL */
@@ -172,14 +175,14 @@ function useCountUp(target: number, duration = 1100, delay = 320) {
  * - 7-day streak pips light up with the current streak day
  */
 export function CoinsRevealCard({
-  baseEarned,
+  levelUpEarned,
   dailyBonus = 0,
   streakBonus = 0,
   gameCost = 0,
   newStreakCount = 0,
 }: CoinsRevealCardProps) {
   const { t } = useTranslation()
-  const total = Math.max(0, baseEarned) + dailyBonus + streakBonus
+  const total = Math.max(0, levelUpEarned) + dailyBonus + streakBonus
   const animatedTotal = useCountUp(total)
   const streakDay = newStreakCount > 0 ? ((newStreakCount - 1) % 7) + 1 : 0
   const hitStreakBonus = streakBonus > 0
@@ -342,12 +345,15 @@ export function CoinsRevealCard({
 
         {/* Breakdown chips */}
         <View className="flex-row flex-wrap justify-center gap-1.5 mb-1">
-          <BreakdownChip
-            label={t('results.baseReward', { defaultValue: 'Match' })}
-            value={baseEarned}
-            tone="base"
-            delay={450}
-          />
+          {levelUpEarned > 0 && (
+            <BreakdownChip
+              label={t('results.levelUpReward', { defaultValue: 'Level up' })}
+              value={levelUpEarned}
+              tone="base"
+              icon="⚡"
+              delay={450}
+            />
+          )}
           {dailyBonus > 0 && (
             <BreakdownChip
               label={t('results.dailyBonus', { defaultValue: 'Daily bonus' })}

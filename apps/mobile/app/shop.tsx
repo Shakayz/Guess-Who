@@ -237,8 +237,13 @@ function CoinsTab({ fontScale, onPlayPress }: { fontScale: number; onPlayPress: 
           fontScale={fontScale}
         />
         <EarnRow
-          icon="🎮"
-          text={t('shop.earnGameReward', { defaultValue: 'Play a game: +10 to +90 ⭐ depending on role & result.' })}
+          icon="⚡"
+          text={t('shop.earnLevelUp', { defaultValue: 'Level up: +10 ⭐ × new level every time you level up (e.g. level 5 → +50 ⭐).' })}
+          fontScale={fontScale}
+        />
+        <EarnRow
+          icon="🏆"
+          text={t('shop.earnAchievements', { defaultValue: 'Unlock achievements: claim ⭐ rewards from the Achievements page.' })}
           fontScale={fontScale}
         />
         <TouchableOpacity

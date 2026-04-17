@@ -649,7 +649,7 @@ export default function ResultsPage() {
 
             {/* Hero: modern "coins won" reveal card */}
             <CoinsRevealCard
-              baseEarned={rewards?.starCoinsEarned ?? 0}
+              levelUpEarned={rewards?.levelUpCoinsEarned ?? 0}
               dailyBonus={rewards?.dailyBonusEarned ?? 0}
               streakBonus={rewards?.streakBonusEarned ?? 0}
               gameCost={rewards?.gameCostPaid ?? 0}

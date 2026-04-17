@@ -43,7 +43,7 @@ export default function ResultsScreen() {
   const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
   const winner = result?.winner ?? 'villagers'
-  const rewards = result?.rewards ?? { starCoinsEarned: 25, xpEarned: 120, lpChange: 18, achievements: [] }
+  const rewards = result?.rewards ?? { starCoinsEarned: 0, xpEarned: 120, lpChange: 18, achievements: [], levelUpCoinsEarned: 0 }
   const players = room?.players?.length ? room.players : MOCK_PLAYERS
   const isRedHanded = myRole === 'red_handed' || myRole === 'double_agent'
   const didWin = (winner === 'villagers' && !isRedHanded) || (winner === 'red_handed' && isRedHanded)
@@ -154,7 +154,7 @@ export default function ResultsScreen() {
 
           {/* Hero: modern "coins won" reveal card */}
           <CoinsRevealCard
-            baseEarned={rewards.starCoinsEarned}
+            levelUpEarned={rewards.levelUpCoinsEarned ?? 0}
             dailyBonus={rewards.dailyBonusEarned ?? 0}
             streakBonus={rewards.streakBonusEarned ?? 0}
             gameCost={rewards.gameCostPaid ?? 0}
