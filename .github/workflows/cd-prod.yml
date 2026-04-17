@@ -111,6 +111,7 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REDIRECT_URI: https://${{ env.API_DOMAIN }}/api/auth/google/callback
+          APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
           ALLOWED_ORIGINS: https://${{ env.WEB_DOMAIN }}
           ECR_PW: ${{ steps.ecr.outputs.pw }}
         run: |
@@ -129,6 +130,7 @@ jobs:
                   'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}' \
                   'GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}' \
                   'GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}' \
+                  'APPLE_CLIENT_ID=${APPLE_CLIENT_ID}' \
                   'ALLOWED_ORIGINS=${ALLOWED_ORIGINS}'; do \
                   key=\${kv%%=*}; \
                   if sudo grep -q \"^\${key}=\" .env; then \
