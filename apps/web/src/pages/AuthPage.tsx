@@ -1,9 +1,13 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
 import { createLogger } from '../lib/logger'
+import {
+  REFERRAL_INVITER_REWARD,
+  REFERRAL_INVITEE_REWARD,
+} from '@red-handed/shared'
 
 const log = createLogger('auth-page')
 
@@ -55,7 +59,7 @@ export default function AuthPage() {
   const navigate = useNavigate()
   const setAuth = useAuthStore((s) => s.setAuth)
   const [mode, setMode] = useState<Mode>('signin')
-  const [form, setForm] = useState({ identifier: '', email: '', password: '', username: '' })
+  const [form, setForm] = useState({ identifier: '', email: '', password: '', username: '', referralCode: '' })
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null)
@@ -63,6 +67,19 @@ export default function AuthPage() {
   const [chosenUsername, setChosenUsername] = useState('')
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const [usernameLoading, setUsernameLoading] = useState(false)
+
+  // Pre-fill the referral code from `?invite=CODE` in the URL so share links
+  // work without the new user having to type anything. Also switch to the
+  // signup tab — an invitee landing here wants to create an account, not
+  // sign into one they don't have yet.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const invite = params.get('invite')?.trim().toUpperCase() ?? ''
+    if (invite) {
+      setForm((f) => ({ ...f, referralCode: invite }))
+      setMode('signup')
+    }
+  }, [])
 
   const update = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }))
@@ -92,10 +109,14 @@ export default function AuthPage() {
     setUsernameError(null)
     setUsernameLoading(true)
     try {
-      const data = await api.post<{ token: string; user: any }>('/auth/setup-username', {
+      const setupBody: Record<string, unknown> = {
         setupToken: usernameSetup.setupToken,
         username: chosenUsername,
-      })
+      }
+      const trimmedCode = form.referralCode.trim().toUpperCase()
+      if (trimmedCode) setupBody.referralCode = trimmedCode
+
+      const data = await api.post<{ token: string; user: any }>('/auth/setup-username', setupBody)
       setAuth(data.token, data.user)
       window.location.replace('/')
     } catch (err: any) {
@@ -233,10 +254,19 @@ export default function AuthPage() {
     setLoading(true)
     log.info('auth attempt', { mode, identifier: mode === 'signin' ? form.identifier : form.username })
     try {
+      const signupBody: Record<string, unknown> = {
+        username: form.username,
+        email: form.email,
+        password: form.password,
+        locale: i18n.language,
+      }
+      const trimmedCode = form.referralCode.trim().toUpperCase()
+      if (trimmedCode) signupBody.referralCode = trimmedCode
+
       const data = await api.post<{ token: string; user: any }>(
         mode === 'signin' ? '/auth/signin' : '/auth/signup',
         mode === 'signup'
-          ? { username: form.username, email: form.email, password: form.password, locale: i18n.language }
+          ? signupBody
           : { identifier: form.identifier, password: form.password },
       )
       log.info('auth success', { userId: data.user?.id, mode })
@@ -281,6 +311,34 @@ export default function AuthPage() {
                 />
               </div>
               <p className="text-neutral-600 text-xs">3-20 characters — letters, numbers, underscores only</p>
+
+              {/* Optional referral code — pre-filled from ?invite=CODE. The
+                  OAuth signup itself already happened, so we pass the code
+                  here to the setup-username step where both sides get
+                  credited. */}
+              <div className="space-y-1">
+                <input
+                  className="input-field uppercase tracking-[0.2em]"
+                  type="text"
+                  placeholder={t('auth.referralCodePlaceholder', {
+                    defaultValue: 'Invite code (optional)',
+                  })}
+                  aria-label="Invite code"
+                  value={form.referralCode}
+                  onChange={(e) => setForm((f) => ({ ...f, referralCode: e.target.value.toUpperCase().slice(0, 12) }))}
+                  maxLength={12}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                />
+                <p className="text-[11px] text-neutral-500">
+                  {t('auth.referralCodeHelp', {
+                    inviter: REFERRAL_INVITER_REWARD,
+                    invitee: REFERRAL_INVITEE_REWARD,
+                    defaultValue:
+                      'Got a friend\'s code? You get +{{invitee}} ⭐, they get +{{inviter}} ⭐.',
+                  })}
+                </p>
+              </div>
 
               {usernameError && (
                 <div role="alert" aria-live="assertive" className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-950/60 border border-red-800/50 text-red-400 text-sm">
@@ -403,7 +461,20 @@ export default function AuthPage() {
               <button
                 key={m}
                 type="button"
-                onClick={() => { setMode(m); setError(null); setForm({ identifier: '', email: '', password: '', username: '' }) }}
+                onClick={() => {
+                  setMode(m)
+                  setError(null)
+                  // Keep the referral code across tab switches so invitees
+                  // who hit /signup from a share link don't lose it if they
+                  // accidentally click the sign-in tab.
+                  setForm((f) => ({
+                    identifier: '',
+                    email: '',
+                    password: '',
+                    username: '',
+                    referralCode: f.referralCode,
+                  }))
+                }}
                 className={[
                   'flex-1 py-1.5 text-sm font-semibold rounded-lg transition-all duration-150',
                   mode === m
@@ -469,6 +540,32 @@ export default function AuthPage() {
               autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
             />
 
+            {mode === 'signup' && (
+              <div className="space-y-1">
+                <input
+                  className="input-field uppercase tracking-[0.2em]"
+                  type="text"
+                  placeholder={t('auth.referralCodePlaceholder', {
+                    defaultValue: 'Invite code (optional)',
+                  })}
+                  aria-label="Invite code"
+                  value={form.referralCode}
+                  onChange={(e) => setForm((f) => ({ ...f, referralCode: e.target.value.toUpperCase().slice(0, 12) }))}
+                  maxLength={12}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                />
+                <p className="text-[11px] text-neutral-500">
+                  {t('auth.referralCodeHelp', {
+                    inviter: REFERRAL_INVITER_REWARD,
+                    invitee: REFERRAL_INVITEE_REWARD,
+                    defaultValue:
+                      'Got a friend\'s code? You get +{{invitee}} ⭐, they get +{{inviter}} ⭐.',
+                  })}
+                </p>
+              </div>
+            )}
+
             {mode === 'signin' && (
               <div className="text-right -mt-1">
                 <Link
@@ -512,7 +609,10 @@ export default function AuthPage() {
           {mode === 'signin' ? t('auth.noAccount') : t('auth.alreadyHaveAccount')}{' '}
           <button
             type="button"
-            onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null) }}
+            onClick={() => {
+              setMode(mode === 'signin' ? 'signup' : 'signin')
+              setError(null)
+            }}
             className="text-brand-500 hover:text-brand-400 transition-colors font-medium"
           >
             {mode === 'signin' ? t('auth.signUp') : t('auth.signIn')}

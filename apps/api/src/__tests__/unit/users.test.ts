@@ -64,11 +64,17 @@ describe('User Routes', () => {
 
   describe('PATCH /api/users/me', () => {
     it('updates user profile fields', async () => {
+      // Username change hits the rename-cost path: the route first reads the
+      // current username/balance, atomically debits USERNAME_CHANGE_COST ⭐,
+      // then commits the profile update.
+      mockUser.findUnique.mockResolvedValue({ username: 'oldname', starCoins: 1000 })
+      mockUser.updateMany.mockResolvedValue({ count: 1 })
       mockUser.update.mockResolvedValue({
         id: 'user-1',
         username: 'newname',
         avatarUrl: 'https://example.com/avatar.png',
         locale: 'fr',
+        starCoins: 500,
       })
 
       const res = await app.inject({
@@ -82,6 +88,40 @@ describe('User Routes', () => {
       const body = res.json()
       expect(body.username).toBe('newname')
       expect(body.locale).toBe('fr')
+      expect(body.charged).toBe(500)
+    })
+
+    it('charges nothing when the username patch is a no-op', async () => {
+      mockUser.findUnique.mockResolvedValue({ username: 'testuser', starCoins: 100 })
+      mockUser.update.mockResolvedValue({
+        id: 'user-1', username: 'testuser', avatarUrl: null, locale: 'fr', starCoins: 100,
+      })
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/api/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { username: 'testuser', locale: 'fr' },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json().charged).toBe(0)
+      expect(mockUser.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('rejects username change when balance is below cost', async () => {
+      mockUser.findUnique.mockResolvedValue({ username: 'oldname', starCoins: 100 })
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/api/users/me',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { username: 'newname' },
+      })
+
+      expect(res.statusCode).toBe(402)
+      expect(res.json().error).toBe('not_enough_coins')
+      expect(mockUser.updateMany).not.toHaveBeenCalled()
     })
 
     it('returns 401 without token', async () => {

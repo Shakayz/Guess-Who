@@ -62,12 +62,31 @@ export const INITIAL_STAR_COINS = 20
  * One-time star-coin reward granted the first time a player confirms their
  * email address via the 6-digit code flow. Paired with INITIAL_STAR_COINS —
  * a verified account ends up at INITIAL_STAR_COINS + EMAIL_VERIFICATION_REWARD
- * star coins (20 + 20 = 40 today).
+ * star coins (20 + 40 = 60 today).
  */
-export const EMAIL_VERIFICATION_REWARD = 20
+export const EMAIL_VERIFICATION_REWARD = 40
 
 /** Minutes the 6-digit email verification code stays valid. */
 export const EMAIL_VERIFICATION_CODE_TTL_MINUTES = 15
+
+/**
+ * Star-coin cost charged when a player renames themselves via PATCH /api/users/me.
+ * The cost is only debited when the new username actually differs from the
+ * current one (a no-op patch with the same value stays free so clients can
+ * re-submit without penalty). Kept in /shared so the API, the web rename
+ * prompt, and tests stay aligned on the price tag.
+ */
+export const USERNAME_CHANGE_COST = 500
+
+/**
+ * Referral rewards granted once per invitee on their first successful signup
+ * that references an inviter's code. The inviter gets the larger share because
+ * they are the one doing the acquisition work; the invitee gets a smaller
+ * welcome bonus on top of INITIAL_STAR_COINS. Both are credited atomically
+ * when the referral is confirmed so concurrent signups can't double-credit.
+ */
+export const REFERRAL_INVITER_REWARD = 50
+export const REFERRAL_INVITEE_REWARD = 20
 
 /**
  * Gold-coin packs listed in the Shop. `priceCents` is the authoritative price

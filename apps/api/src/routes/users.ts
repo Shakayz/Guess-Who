@@ -2,8 +2,9 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
-import { xpProgressInLevel } from '@red-handed/shared'
+import { xpProgressInLevel, USERNAME_CHANGE_COST } from '@red-handed/shared'
 import { evaluateEvent } from '../services/achievements'
+import { ensureReferralCode } from '../services/referral'
 import bcrypt from 'bcryptjs'
 
 const patchMeSchema = z.object({
@@ -20,16 +21,81 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     const userId = (req.user as { sub: string }).sub
     const body = patchMeSchema.parse(req.body)
     req.log.info({ userId, fields: Object.keys(body) }, 'profile update')
-    const updated = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(body.avatarUrl !== undefined ? { avatarUrl: body.avatarUrl } : {}),
-        ...(body.locale !== undefined ? { locale: body.locale } : {}),
-        ...(body.username !== undefined ? { username: body.username } : {}),
-      },
-      select: { id: true, username: true, avatarUrl: true, locale: true },
-    })
-    return reply.send(updated)
+
+    // Username changes are gated behind USERNAME_CHANGE_COST ⭐. A patch that
+    // re-submits the CURRENT username is treated as a no-op and stays free so
+    // clients can safely include the field in a mixed update.
+    let chargedCoins = false
+    let newStarCoins: number | undefined
+    if (body.username !== undefined) {
+      const current = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { username: true, starCoins: true },
+      })
+      if (!current) return reply.status(404).send({ error: 'User not found' })
+
+      if (body.username !== current.username) {
+        if (current.starCoins < USERNAME_CHANGE_COST) {
+          req.log.info(
+            { userId, balance: current.starCoins, cost: USERNAME_CHANGE_COST },
+            'username change blocked: insufficient stars',
+          )
+          return reply.status(402).send({
+            error: 'not_enough_coins',
+            cost: USERNAME_CHANGE_COST,
+            starCoins: current.starCoins,
+          })
+        }
+
+        // Atomic guarded debit: the `starCoins >= cost` predicate prevents a
+        // race where two concurrent patches could both see enough balance.
+        const debit = await prisma.user.updateMany({
+          where: { id: userId, starCoins: { gte: USERNAME_CHANGE_COST } },
+          data: { starCoins: { decrement: USERNAME_CHANGE_COST } },
+        })
+        if (debit.count !== 1) {
+          return reply.status(402).send({
+            error: 'not_enough_coins',
+            cost: USERNAME_CHANGE_COST,
+            starCoins: current.starCoins,
+          })
+        }
+        chargedCoins = true
+      }
+    }
+
+    try {
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...(body.avatarUrl !== undefined ? { avatarUrl: body.avatarUrl } : {}),
+          ...(body.locale !== undefined ? { locale: body.locale } : {}),
+          ...(body.username !== undefined ? { username: body.username } : {}),
+        },
+        select: { id: true, username: true, avatarUrl: true, locale: true, starCoins: true },
+      })
+      newStarCoins = updated.starCoins
+      req.log.info(
+        { userId, chargedCoins, cost: chargedCoins ? USERNAME_CHANGE_COST : 0 },
+        'profile update committed',
+      )
+      return reply.send({ ...updated, charged: chargedCoins ? USERNAME_CHANGE_COST : 0 })
+    } catch (err: any) {
+      // Prisma P2002 on the username unique index → refund the debit so the
+      // player isn't charged for a name that turned out to be taken.
+      if (chargedCoins) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { starCoins: { increment: USERNAME_CHANGE_COST } },
+        }).catch((refundErr) => {
+          req.log.error({ userId, refundErr }, 'failed to refund username change cost')
+        })
+      }
+      if (err?.code === 'P2002') {
+        return reply.status(409).send({ error: 'Username already taken' })
+      }
+      throw err
+    }
   })
 
   // POST /api/users/me/avatar — upload profile picture as base64 data URL
@@ -81,6 +147,16 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     })
 
     return reply.send(updated)
+  })
+
+  // GET /api/users/me/referral — fetch (and lazily generate) the caller's
+  // shareable referral code plus a live count of accepted invites. The count
+  // is cheap (indexed foreign key) and avoids a second round-trip from the UI.
+  fastify.get('/me/referral', async (req, reply) => {
+    const userId = (req.user as { sub: string }).sub
+    const code = await ensureReferralCode(userId)
+    const invitedCount = await prisma.user.count({ where: { referredByUserId: userId } })
+    return reply.send({ code, invitedCount })
   })
 
   // POST /api/users/me/push-token — register device push token (mobile)

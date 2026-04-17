@@ -4,6 +4,7 @@ import * as jwt from 'jsonwebtoken'
 import { prisma } from '../config/prisma'
 import { env } from '../config/env'
 import { INITIAL_STAR_COINS, EMAIL_VERIFICATION_REWARD } from '@red-handed/shared'
+import { allocateReferralCode, creditReferral, resolveInviter } from '../services/referral'
 
 // Google/Apple have already attested the email, so these users skip the
 // 6-digit verification flow AND get the same total balance an email-signup
@@ -99,6 +100,7 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
           user = await prisma.user.update({ where: { id: byEmail.id }, data: { googleId, avatarUrl: byEmail.avatarUrl ?? avatarUrl } })
         } else {
           const tempUsername = `pending_${Date.now()}`.slice(0, 20)
+          const referralCode = await allocateReferralCode()
           user = await prisma.user.create({
             data: {
               googleId,
@@ -107,6 +109,7 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
               avatarUrl,
               emailVerified: true,
               starCoins: OAUTH_INITIAL_STAR_COINS,
+              referralCode,
             },
           })
           isNewUser = true
@@ -162,6 +165,7 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
       } else {
         const tempUsername = `pending_${Date.now()}`
         const safeEmail = email ?? `${appleId}@apple.oauth`
+        const referralCode = await allocateReferralCode()
         user = await prisma.user.create({
           data: {
             appleId,
@@ -169,6 +173,7 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
             username: tempUsername,
             emailVerified: true,
             starCoins: OAUTH_INITIAL_STAR_COINS,
+            referralCode,
           },
         })
         isNewUser = true
@@ -189,7 +194,11 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
 
   // POST /api/auth/setup-username — finalize new OAuth user with chosen username
   fastify.post('/setup-username', async (req, reply) => {
-    const { setupToken, username } = req.body as { setupToken?: string; username?: string }
+    const { setupToken, username, referralCode } = req.body as {
+      setupToken?: string
+      username?: string
+      referralCode?: string
+    }
     if (!setupToken || !username) return reply.status(400).send({ error: 'Missing setupToken or username' })
 
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
@@ -218,6 +227,24 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id: payload.sub },
       data: { username },
     })
+
+    // Apply referral credit after the OAuth account is finalized. Matches the
+    // plain signup flow — an invalid code is silently ignored rather than
+    // blocking the account setup.
+    if (referralCode) {
+      const inviter = await resolveInviter(referralCode, user.id)
+      if (inviter) {
+        const credit = await creditReferral(inviter.id, user.id)
+        if (credit) {
+          req.log.info(
+            { userId: user.id, inviterId: inviter.id, ...credit },
+            'setup-username: referral credited',
+          )
+        }
+      } else {
+        req.log.info({ referralCode }, 'setup-username: unknown referral code, ignoring')
+      }
+    }
 
     req.log.info({ userId: user.id, username: user.username }, 'setup-username successful')
     const token = issueToken(fastify, user)
