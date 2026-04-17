@@ -48,7 +48,7 @@ describe('ShopPage', () => {
     vi.clearAllMocks()
     mockGet.mockImplementation((url: string) => {
       if (url === '/auth/me') {
-        return Promise.resolve({ starCoins: 125, goldCoins: 3 })
+        return Promise.resolve({ starCoins: 125 })
       }
       return Promise.resolve(null)
     })
@@ -64,13 +64,12 @@ describe('ShopPage', () => {
     expect(screen.getByTestId('navbar')).toBeInTheDocument()
   })
 
-  it('shows the live star-coin and gold-coin balance in the header chips', async () => {
+  it('shows the live star-coin balance in the header chip', async () => {
     renderShop()
     // Comes from the /auth/me mock, formatted via toLocaleString (just "125" here).
     await waitFor(() => {
       expect(screen.getByText('125')).toBeInTheDocument()
     })
-    expect(screen.getByText('3')).toBeInTheDocument()
   })
 
   it('shows the coin-packs "coming soon" notice on the Coins tab (default)', async () => {

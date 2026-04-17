@@ -66,13 +66,12 @@ export default function ShopPage() {
   }
 
   // Live balance — re-uses the cached ['me'] key other screens seed.
-  const { data: me } = useQuery<{ starCoins?: number; goldCoins?: number }>({
+  const { data: me } = useQuery<{ starCoins?: number }>({
     queryKey: ['me'],
     queryFn: () => api.get('/auth/me'),
     retry: false,
   })
   const starCoins = me?.starCoins ?? 0
-  const goldCoins = me?.goldCoins ?? 0
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -91,10 +90,6 @@ export default function ShopPage() {
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700">
                 <span className="text-sm">⭐</span>
                 <span className="text-sm font-semibold text-white">{starCoins.toLocaleString()}</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-950/60 border border-amber-800/50">
-                <span className="text-sm">💰</span>
-                <span className="text-sm font-semibold text-amber-400">{goldCoins.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -175,7 +170,7 @@ function CoinsTab({ onPlayClick }: { onPlayClick: () => void }) {
                       POPULAR
                     </span>
                   )}
-                  <p className="text-3xl mb-2">💰</p>
+                  <p className="text-3xl mb-2">⭐</p>
                   <p className="text-2xl font-extrabold text-white">{pack.amount.toLocaleString()}</p>
                   {pack.bonus > 0 && (
                     <p className="text-xs text-emerald-400 font-semibold mt-0.5">+{pack.bonus} bonus</p>
@@ -264,7 +259,7 @@ function CheckoutBanner() {
     >
       <span>
         {status === 'success'
-          ? '✅ Payment successful — your gold coins will appear in a few seconds.'
+          ? '✅ Payment successful — your star coins will appear in a few seconds.'
           : 'Checkout canceled. No charge was made.'}
       </span>
       <button onClick={dismiss} className="text-xs text-neutral-400 hover:text-white">
