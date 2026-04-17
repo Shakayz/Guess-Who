@@ -100,7 +100,12 @@ jobs:
           WEB_IMAGE: ${{ env.ECR_REGISTRY }}/${{ env.ECR_WEB_REPO }}:staging-${{ github.sha }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
           ALLOWED_ORIGINS: https://${{ env.WEB_DOMAIN }}
+          GOOGLE_REDIRECT_URI: https://${{ env.API_DOMAIN }}/api/auth/google/callback
           ECR_PW: ${{ steps.ecr.outputs.pw }}
         run: |
           ssh -i ~/.ssh/deploy ubuntu@${{ secrets.LIGHTSAIL_STAGING_HOST }} \
@@ -111,8 +116,13 @@ jobs:
                   'WEB_IMAGE=${WEB_IMAGE}' \
                   'API_DOMAIN=${{ env.API_DOMAIN }}' \
                   'WEB_DOMAIN=${{ env.WEB_DOMAIN }}' \
+                  'POSTGRES_USER=${POSTGRES_USER}' \
+                  'POSTGRES_PASSWORD=${POSTGRES_PASSWORD}' \
+                  'POSTGRES_DB=${POSTGRES_DB}' \
+                  'JWT_SECRET=${JWT_SECRET}' \
                   'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}' \
                   'GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}' \
+                  'GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}' \
                   'ALLOWED_ORIGINS=${ALLOWED_ORIGINS}'; do \
                   key=\${kv%%=*}; \
                   if sudo grep -q \"^\${key}=\" .env; then \
@@ -122,8 +132,8 @@ jobs:
                   fi; \
                 done \
              && echo '${ECR_PW}' | sudo docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }} \
-             && sudo docker compose -f docker-compose.staging.yml pull api web \
-             && sudo docker compose -f docker-compose.staging.yml up -d --no-deps api web caddy \
+             && sudo docker compose -f docker-compose.staging.yml pull \
+             && sudo docker compose -f docker-compose.staging.yml up -d \
              && sudo docker image prune -f"
 
       - name: Smoke test API
