@@ -524,9 +524,9 @@ export default {
     premium: 'Premium',
     free: 'Free',
     // Shop page — new keys for the coin store
-    subtitle: 'Buy coins & unlock the season pass',
+    subtitle: 'Buy coins & unlock Premium',
     tabCoins: '⭐ Star Coins',
-    tabSeason: '👑 Season Pass',
+    tabPremium: '👑 Premium',
     packsTitle: 'Star Coin Packs',
     packsUnavailable: 'Coin packs are coming soon — payments are temporarily disabled.',
     earnTitle: 'Earn coins for free',
@@ -535,7 +535,17 @@ export default {
     earnLevelUp: 'Level up: +10 ⭐ × new level every time you level up (e.g. level 5 → +50 ⭐).',
     earnAchievements: 'Unlock achievements: claim ⭐ rewards from the Achievements page.',
     earnPlayNow: 'Play a game',
-    seasonComingSoon: 'Season Pass coming soon.',
+    // Premium tab — feature preview card. Subscription plumbing is follow-up
+    // work; these strings describe what Premium will unlock once it ships.
+    premiumTitle: 'Premium',
+    premiumSubtitle: 'Play more, play your way.',
+    premiumFeatureNoAdsTitle: 'No ads',
+    premiumFeatureNoAdsDesc: 'A completely ad-free experience on every screen.',
+    premiumFeatureDecksTitle: 'Create your own decks',
+    premiumFeatureDecksDesc: 'Build custom word packs with your own themes and share them with friends.',
+    premiumFeatureUnlimitedTitle: 'Unlimited games',
+    premiumFeatureUnlimitedDesc: 'Play as many games as you want — no star-coin entry cost, ever.',
+    premiumComingSoon: 'Premium is coming soon.',
   },
   insufficientCoins: {
     title: "You don't have enough coins",

@@ -36,7 +36,7 @@ describe('OnboardingTutorial', () => {
 
   it('renders the welcome step first', () => {
     render(<OnboardingTutorial onClose={onClose} />)
-    expect(screen.getByText(/Welcome to RedHanded/i)).toBeInTheDocument()
+    expect(screen.getByText(/Welcome to Red Handed/i)).toBeInTheDocument()
   })
 
   it('advances to the next step on Next', () => {
@@ -49,7 +49,7 @@ describe('OnboardingTutorial', () => {
     render(<OnboardingTutorial onClose={onClose} />)
     fireEvent.click(screen.getByText('common.next'))
     fireEvent.click(screen.getByText('common.back'))
-    expect(screen.getByText(/Welcome to RedHanded/i)).toBeInTheDocument()
+    expect(screen.getByText(/Welcome to Red Handed/i)).toBeInTheDocument()
   })
 
   it('skip button marks tutorial completed and closes', () => {
@@ -90,7 +90,7 @@ describe('OnboardingTutorial', () => {
     render(<OnboardingTutorial onClose={onClose} />)
     fireEvent.keyDown(window, { key: 'ArrowRight' })
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
-    expect(screen.getByText(/Welcome to RedHanded/i)).toBeInTheDocument()
+    expect(screen.getByText(/Welcome to Red Handed/i)).toBeInTheDocument()
   })
 
   it('supports Escape key to skip', () => {
@@ -101,11 +101,12 @@ describe('OnboardingTutorial', () => {
   })
 
   it('jumping to a step via a dot navigates directly to it', () => {
-    const { container } = render(<OnboardingTutorial onClose={onClose} />)
-    // Dots are w-2 h-2 rounded-full buttons without text — pick the 3rd one (step index 2)
-    const dotButtons = Array.from(
-      container.querySelectorAll('button'),
-    ).filter((b) => b.className.includes('w-2') && b.className.includes('h-2'))
+    render(<OnboardingTutorial onClose={onClose} />)
+    // Dots are buttons with aria-label "Go to step N" — the active one gets
+    // w-7 styling instead of w-2, so filter by label, not class name.
+    const dotButtons = Array.from({ length: 5 }).map((_, i) =>
+      screen.getByLabelText(`Go to step ${i + 1}`),
+    )
     expect(dotButtons.length).toBe(5)
     fireEvent.click(dotButtons[2])
     expect(screen.getByText(/Three Phases Per Round/i)).toBeInTheDocument()

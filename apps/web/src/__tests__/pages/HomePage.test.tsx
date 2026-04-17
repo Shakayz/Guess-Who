@@ -57,7 +57,11 @@ vi.mock('../../lib/socket', () => ({
 
 vi.mock('../../components/NavBar', () => ({ NavBar: () => <div data-testid="navbar" /> }))
 
-vi.mock('@red-handed/shared', () => ({
+// Override WORD_CATEGORIES + MATCHMAKING_CONFIG but let every other shared
+// constant (TUTORIAL_COMPLETION_REWARD, EMAIL_VERIFICATION_REWARD, …) fall
+// through to the real package so HomePage doesn't crash on `undefined`.
+vi.mock('@red-handed/shared', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   WORD_CATEGORIES: [
     { key: 'food', label: 'Food', icon: '🍕' },
     { key: 'animals', label: 'Animals', icon: '🐶' },
@@ -79,7 +83,9 @@ describe('HomePage', () => {
 
   it('renders without crashing and shows heading', () => {
     render(<HomePage />)
-    expect(screen.getByText(/RedHanded/i)).toBeInTheDocument()
+    // i18n mock returns the raw key — heroTitle2 is the branded span inside
+    // the page's h1 heading.
+    expect(screen.getByText('home.heroTitle2')).toBeInTheDocument()
   })
 
   it('renders the NavBar', () => {

@@ -45,7 +45,12 @@ vi.mock('../store/social', () => ({
 
 // ---- Mock api ----
 vi.mock('../lib/api', () => ({
-  api: { patch: vi.fn().mockResolvedValue({}) },
+  // NavBar fetches GET /auth/me for the star-coin chip on mount; without a
+  // stub here, api.get is undefined and every NavBar test crashes on render.
+  api: {
+    patch: vi.fn().mockResolvedValue({}),
+    get: vi.fn().mockResolvedValue({ starCoins: 0 }),
+  },
 }))
 
 // ---- Mock DmChatPanel (used by NavBar) ----
@@ -138,9 +143,10 @@ describe('NavBar', () => {
     mockLocation.pathname = '/'
   })
 
-  it('renders the app brand name', () => {
+  it('renders the app brand logo', () => {
     render(<NavBar />)
-    expect(screen.getByText('Red Handed !')).toBeInTheDocument()
+    // Logo is an <img alt="Red Handed"> now — no text node to match.
+    expect(screen.getByAltText('Red Handed')).toBeInTheDocument()
   })
 
   it('renders the current user username', () => {
@@ -170,15 +176,15 @@ describe('NavBar', () => {
 
   it('navigates home when logo button is clicked', () => {
     render(<NavBar />)
-    fireEvent.click(screen.getByText('Red Handed !'))
+    fireEvent.click(screen.getByLabelText('Red Handed home'))
     expect(mockNavigate).toHaveBeenCalledWith('/')
   })
 
   it('opens the language dropdown on flag button click', () => {
     render(<NavBar />)
-    // The language switcher button contains the flag image
+    // The language switcher is the only button whose image is a flagcdn flag.
     const langButton = screen.getAllByRole('button').find(
-      (btn) => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
+      (btn) => btn.querySelector('img[src*="flagcdn"]') !== null,
     )
     expect(langButton).toBeDefined()
     fireEvent.click(langButton!)
@@ -192,7 +198,7 @@ describe('NavBar', () => {
     render(<NavBar />)
     // Open dropdown
     const langButton = screen.getAllByRole('button').find(
-      (btn) => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
+      (btn) => btn.querySelector('img[src*="flagcdn"]') !== null,
     )
     fireEvent.click(langButton!)
     // Click French option

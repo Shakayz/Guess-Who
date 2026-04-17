@@ -59,7 +59,8 @@ describe('AuthPage', () => {
 
   it('renders without crashing', () => {
     render(<AuthPage />)
-    expect(screen.getByText('Red Handed !')).toBeInTheDocument()
+    // The brand lockup is now an <img alt="Red Handed !"> rather than a text node.
+    expect(screen.getByAltText('Red Handed !')).toBeInTheDocument()
   })
 
   it('shows sign-in form by default', () => {

@@ -34,7 +34,8 @@ vi.mock('@red-handed/ui', () => ({
   Badge: ({ tier }: { tier: string }) => <div data-testid="badge">{tier}</div>,
 }))
 
-vi.mock('@red-handed/shared', () => ({
+vi.mock('@red-handed/shared', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   RANK_CONFIG: {
     gold: { label: 'Gold', icon: '🥇', minPoints: 1000 },
     silver: { label: 'Silver', icon: '🥈', minPoints: 500 },

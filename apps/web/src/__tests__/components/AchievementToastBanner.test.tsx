@@ -84,7 +84,9 @@ describe('AchievementToastBanner', () => {
       ],
     })
     const { container } = render(<AchievementToastBanner />)
-    // className contains "ring-amber-700" only for bronze fallback
-    expect((container.querySelector('button') as HTMLElement).className).toMatch(/ring-amber-700/)
+    // The bronze ring is applied to the card's FRONT face (nested inside the
+    // button), not to the button itself — so we assert on the subtree.
+    const button = container.querySelector('button') as HTMLElement
+    expect(button.innerHTML).toMatch(/ring-amber-700/)
   })
 })

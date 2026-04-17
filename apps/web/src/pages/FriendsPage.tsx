@@ -154,7 +154,7 @@ export default function FriendsPage() {
     setLoadingFriends(true)
     api
       .get<{ friends: FriendEntry[] }>('/friends')
-      .then((res) => setFriends(res.friends))
+      .then((res) => setFriends(res?.friends ?? []))
       .catch(() => {})
       .finally(() => setLoadingFriends(false))
   }, [])
@@ -163,7 +163,7 @@ export default function FriendsPage() {
     setLoadingRequests(true)
     api
       .get<{ requests: FriendRequest[] }>('/friends/requests')
-      .then((res) => setRequests(res.requests))
+      .then((res) => setRequests(res?.requests ?? []))
       .catch(() => {})
       .finally(() => setLoadingRequests(false))
   }, [])
@@ -171,7 +171,7 @@ export default function FriendsPage() {
   const fetchOutgoing = useCallback(() => {
     api
       .get<{ requests: OutgoingRequest[] }>('/friends/requests/outgoing')
-      .then((res) => setOutgoing(res.requests))
+      .then((res) => setOutgoing(res?.requests ?? []))
       .catch(() => {})
   }, [])
 

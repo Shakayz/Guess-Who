@@ -82,7 +82,9 @@ vi.mock('@red-handed/ui', () => ({
   Avatar: ({ username }: { username: string }) => <div data-testid="avatar">{username}</div>,
 }))
 
-vi.mock('@red-handed/shared', () => ({}))
+vi.mock('@red-handed/shared', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+}))
 
 import GamePage from '../../pages/GamePage'
 

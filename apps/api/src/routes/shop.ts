@@ -79,30 +79,49 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(503).send({ error: 'Pack is temporarily unavailable' })
       }
 
-      const session = await stripe.checkout.sessions.create({
-        mode: 'payment',
-        line_items: [{ price: priceId, quantity: 1 }],
-        success_url: env.STRIPE_SUCCESS_URL,
-        cancel_url: env.STRIPE_CANCEL_URL,
-        client_reference_id: userId,
-        metadata: { userId, packId },
-        // Stripe will send the account's default billing email on the receipt;
-        // we don't pass customer_email so returning users can reuse saved cards.
-      })
+      // Stripe + Prisma can both throw here (invalid price id, wrong-mode key,
+      // DB constraint). Without this catch, Fastify returns a generic 500
+      // "Internal Server Error" and the shop page shows that raw to the user —
+      // we want the real reason in the server log and a safer message on screen.
+      let session: Stripe.Checkout.Session
+      try {
+        session = await stripe.checkout.sessions.create({
+          mode: 'payment',
+          line_items: [{ price: priceId, quantity: 1 }],
+          success_url: env.STRIPE_SUCCESS_URL,
+          cancel_url: env.STRIPE_CANCEL_URL,
+          client_reference_id: userId,
+          metadata: { userId, packId },
+          // Stripe will send the account's default billing email on the receipt;
+          // we don't pass customer_email so returning users can reuse saved cards.
+        })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        req.log.error(
+          { err, userId, packId, priceId, successUrl: env.STRIPE_SUCCESS_URL, cancelUrl: env.STRIPE_CANCEL_URL },
+          'stripe.checkout.sessions.create failed',
+        )
+        return reply.status(502).send({ error: `Checkout unavailable: ${message}` })
+      }
 
       // Stamp the pending row *before* returning so the webhook has something
       // to flip to `completed` even if the client never hits the success URL.
-      await prisma.purchase.create({
-        data: {
-          userId,
-          packId,
-          goldCoins: pack.amount + pack.bonus,
-          priceCents: pack.priceCents,
-          currency: pack.currency,
-          stripeSessionId: session.id,
-          status: 'pending',
-        },
-      })
+      try {
+        await prisma.purchase.create({
+          data: {
+            userId,
+            packId,
+            goldCoins: pack.amount + pack.bonus,
+            priceCents: pack.priceCents,
+            currency: pack.currency,
+            stripeSessionId: session.id,
+            status: 'pending',
+          },
+        })
+      } catch (err) {
+        req.log.error({ err, userId, packId, sessionId: session.id }, 'purchase row create failed')
+        return reply.status(500).send({ error: 'Could not record purchase — please retry.' })
+      }
 
       req.log.info({ userId, packId, sessionId: session.id }, 'checkout session created')
       return { url: session.url, sessionId: session.id }

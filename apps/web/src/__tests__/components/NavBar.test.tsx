@@ -29,8 +29,14 @@ vi.mock('../../store/social', () => ({
     selector({ activeDm: null, setActiveDm: vi.fn(), unreadCounts: {} }),
 }))
 
+// NavBar now hydrates the star-coin chip via GET /auth/me, so the api mock
+// needs a `get` stub too — without it, `api.get(...).then(...)` throws
+// TypeError inside NavBar's mount effect and every test fails to render.
 vi.mock('../../lib/api', () => ({
-  api: { patch: vi.fn().mockResolvedValue({}) },
+  api: {
+    patch: vi.fn().mockResolvedValue({}),
+    get: vi.fn().mockResolvedValue({ starCoins: 0 }),
+  },
 }))
 
 vi.mock('../../components/DmChatPanel', () => ({
@@ -57,9 +63,10 @@ describe('NavBar', () => {
     expect(document.body).toBeInTheDocument()
   })
 
-  it('shows the Red Handed brand name', () => {
+  it('shows the Red Handed brand logo', () => {
     render(<NavBar />)
-    expect(screen.getByText('Red Handed !')).toBeInTheDocument()
+    // Logo is now the masks.png image — alt text is the brand name.
+    expect(screen.getByAltText('Red Handed')).toBeInTheDocument()
   })
 
   it('shows the current user username', () => {
@@ -81,14 +88,17 @@ describe('NavBar', () => {
 
   it('navigates to home when logo is clicked', () => {
     render(<NavBar />)
-    fireEvent.click(screen.getByText('Red Handed !'))
+    fireEvent.click(screen.getByLabelText('Red Handed home'))
     expect(mockNavigate).toHaveBeenCalledWith('/')
   })
 
   it('opens language dropdown on flag button click', () => {
     render(<NavBar />)
+    // The language button is the one whose <img> src points at flagcdn.
+    // This filter used to exclude the logo by its text content; the logo is
+    // now an image too, so we select the language button by its flag image.
     const langButton = screen.getAllByRole('button').find(
-      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
+      btn => btn.querySelector('img[src*="flagcdn"]') !== null,
     )
     expect(langButton).toBeDefined()
     fireEvent.click(langButton!)
@@ -99,7 +109,7 @@ describe('NavBar', () => {
     const { api } = await import('../../lib/api')
     render(<NavBar />)
     const langButton = screen.getAllByRole('button').find(
-      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
+      btn => btn.querySelector('img[src*="flagcdn"]') !== null,
     )
     fireEvent.click(langButton!)
     fireEvent.click(screen.getByText('Français'))
@@ -110,7 +120,7 @@ describe('NavBar', () => {
   it('closes language dropdown when clicking outside', () => {
     render(<NavBar />)
     const langButton = screen.getAllByRole('button').find(
-      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
+      btn => btn.querySelector('img[src*="flagcdn"]') !== null,
     )
     fireEvent.click(langButton!)
     expect(screen.getByText('English')).toBeInTheDocument()
@@ -122,7 +132,7 @@ describe('NavBar', () => {
   it('does not close dropdown when clicking inside the dropdown ref', () => {
     render(<NavBar />)
     const langButton = screen.getAllByRole('button').find(
-      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
+      btn => btn.querySelector('img[src*="flagcdn"]') !== null,
     )!
     fireEvent.click(langButton)
     expect(screen.getByText('English')).toBeInTheDocument()
@@ -139,7 +149,7 @@ describe('NavBar', () => {
   it('shows checkmark for current language in dropdown', () => {
     render(<NavBar />)
     const langButton = screen.getAllByRole('button').find(
-      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
+      btn => btn.querySelector('img[src*="flagcdn"]') !== null,
     )!
     fireEvent.click(langButton)
     // The current language (en) should have a checkmark
