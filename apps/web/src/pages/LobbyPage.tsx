@@ -341,7 +341,7 @@ function SettingsPanel({
             {/* ── RedHanded side ─────────────────────────────────────────── */}
             <div className="space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
-                🔴 {t('lobby.teamRedHanded', { defaultValue: 'Red-Handed' })}
+                🔴 {t('lobby.teamRedHanded', { defaultValue: 'Imposter' })}
               </p>
               <RoleStepper
                 icon="🕵️"

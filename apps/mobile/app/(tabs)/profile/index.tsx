@@ -583,7 +583,7 @@ export default function ProfileScreen() {
                 { label: t('profile.winRate', 'Win %'), value: `${activeStats.winRate}%`, icon: '🏆' },
                 { label: t('profile.wins', 'Wins'), value: activeStats.wins, icon: '✅' },
                 { label: t('profile.asVillager', 'Villager'), value: activeStats.asVillager, icon: '🏘️' },
-                { label: t('profile.asRedHanded', 'Red-Handed'), value: activeStats.asRedHanded, icon: '🎭' },
+                { label: t('profile.asRedHanded', 'Imposter'), value: activeStats.asRedHanded, icon: '🎭' },
                 { label: t('profile.survived', 'Survived'), value: activeStats.survived, icon: '💪' },
               ].map((stat) => (
                 <View

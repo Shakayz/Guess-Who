@@ -11,7 +11,7 @@ interface EliminationOverlayProps {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  red_handed: 'Red-Handed',
+  red_handed: 'Imposter',
   double_agent: 'Double Agent',
   villager: 'Villager',
   detective: 'Detective',

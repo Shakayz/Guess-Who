@@ -112,7 +112,7 @@ export default function HowToPlayPage() {
               {/* 🔴 RedHanded */}
               <div className="space-y-1">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
-                  🔴 {t('offline.teamRedHanded', 'Red-Handed')}
+                  🔴 {t('offline.teamRedHanded', 'Imposter')}
                 </p>
                 <div className="ml-1 space-y-1">
                   <div className="flex items-start gap-2 text-xs">
@@ -123,7 +123,7 @@ export default function HowToPlayPage() {
                   <div className="flex items-start gap-2 text-xs">
                     <span className="shrink-0">🥷</span>
                     <span className="text-fuchsia-400 font-semibold shrink-0">{t('offline.infiltrator', 'Infiltrator')}</span>
-                    <span className="text-neutral-500">— {t('offline.htpInfiltratorDesc', 'Knows the villager word, but plays for the redHanded. Appears as villager to the detective.')}</span>
+                    <span className="text-neutral-500">— {t('offline.htpInfiltratorDesc', 'Knows the villager word, but plays for the imposters. Appears as villager to the detective.')}</span>
                   </div>
                   <div className="flex items-start gap-2 text-xs">
                     <span className="shrink-0">💥</span>
@@ -152,7 +152,7 @@ export default function HowToPlayPage() {
                   <div className="flex items-start gap-2 text-xs">
                     <span className="shrink-0">👯</span>
                     <span className="text-purple-300 font-semibold shrink-0">{t('offline.evilTwins', 'Evil Twins')}</span>
-                    <span className="text-neutral-500">— {t('offline.htpEvilTwinsDesc', 'A linked pair (one villager, one redHanded) who win together if both survive — but lose individually if separated.')}</span>
+                    <span className="text-neutral-500">— {t('offline.htpEvilTwinsDesc', 'A linked pair (one villager, one imposter) who win together if both survive — but lose individually if separated.')}</span>
                   </div>
                 </div>
               </div>

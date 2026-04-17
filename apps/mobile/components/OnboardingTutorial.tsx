@@ -203,12 +203,12 @@ function StepWelcome({ t }: { t: TFn }) {
       </View>
       <View>
         <Text className="text-2xl font-extrabold text-white text-center mb-2">
-          {t('tutorial.welcomeTitle', 'Welcome to Red-Handed!')}
+          {t('tutorial.welcomeTitle', 'Welcome to Red Handed !')}
         </Text>
         <Text className="text-neutral-400 text-sm text-center leading-5">
           {t(
             'tutorial.welcomeDesc',
-            'A social deduction game where words are your weapon. Blend in or find the redHanded — the choice is yours.',
+            'A social deduction game where words are your weapon. Blend in or find the imposter — the choice is yours.',
           )}
         </Text>
       </View>
@@ -220,7 +220,7 @@ function StepWelcome({ t }: { t: TFn }) {
               {t('tutorial.welcomeVillagers', 'Villagers')}
             </Text>
             <Text className="text-xs text-neutral-500">
-              {t('tutorial.welcomeVillagersDesc', 'Know the secret word and must find the redHanded')}
+              {t('tutorial.welcomeVillagersDesc', 'Know the secret word and must find the imposter')}
             </Text>
           </View>
         </View>
@@ -228,7 +228,7 @@ function StepWelcome({ t }: { t: TFn }) {
           <Text style={{ fontSize: 22 }}>🔪</Text>
           <View className="flex-1">
             <Text className="text-sm font-semibold text-red-400">
-              {t('tutorial.welcomeRedHanded', 'Red-Handed')}
+              {t('tutorial.welcomeRedHanded', 'Imposter')}
             </Text>
             <Text className="text-xs text-neutral-500">
               {t('tutorial.welcomeRedHandedDesc', 'Have a different word and must blend in undetected')}
@@ -262,7 +262,7 @@ function StepRoles({ t }: { t: TFn }) {
         <Text className="text-neutral-600 font-bold text-xs">vs</Text>
         <View className="flex-1 items-center px-3 py-3 rounded-xl bg-red-950/40 border border-red-800/40">
           <Text className="text-[10px] font-bold uppercase tracking-widest text-red-600 mb-1">
-            {t('tutorial.redHandedWord', 'Red-Handed Word')}
+            {t('tutorial.redHandedWord', 'Imposter Word')}
           </Text>
           <Text className="text-base font-bold text-red-400">🍔 Burger</Text>
         </View>
@@ -306,7 +306,7 @@ function StepPhases({ t }: { t: TFn }) {
       title: t('tutorial.phaseVotingTitle', 'Voting'),
       desc: t(
         'tutorial.phaseVotingDesc',
-        'Vote for who you think is the redHanded. The player with the most votes is eliminated.',
+        'Vote for who you think is the imposter. The player with the most votes is eliminated.',
       ),
       bg: 'bg-amber-950/40',
       border: 'border-amber-700/40',
@@ -440,7 +440,7 @@ function StepTips({ t }: { t: TFn }) {
     },
     {
       icon: '🤫',
-      text: t('tutorial.tipRedHanded', 'As red-handed, listen carefully to villager clues to figure out their word.'),
+      text: t('tutorial.tipRedHanded', 'As an imposter, listen carefully to villager clues to figure out their word.'),
     },
     {
       icon: '🗳️',
@@ -478,7 +478,7 @@ function StepTips({ t }: { t: TFn }) {
         <View className="flex-row items-center gap-2 px-4 py-2 rounded-full bg-emerald-950/40 border border-emerald-800/40">
           <Text className="text-emerald-400 text-sm">✓</Text>
           <Text className="text-emerald-400 text-xs font-semibold">
-            {t('tutorial.readyMessage', "You're all set! Time to find the redHanded.")}
+            {t('tutorial.readyMessage', "You're all set! Time to find the imposter.")}
           </Text>
         </View>
       </View>

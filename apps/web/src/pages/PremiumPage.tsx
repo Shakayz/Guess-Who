@@ -22,7 +22,7 @@ export default function PremiumPage() {
               <span className="text-3xl">👑</span>
             </div>
             <h1 className="text-3xl font-extrabold text-white tracking-tight">Go Premium</h1>
-            <p className="text-neutral-400 text-sm mt-1.5">The best way to play Red Handed</p>
+            <p className="text-neutral-400 text-sm mt-1.5">The best way to play Red Handed !</p>
           </div>
 
           {/* Card */}

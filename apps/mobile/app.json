@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Red Handed",
+    "name": "Red Handed !",
     "slug": "red-handed",
     "version": "1.0.0",
     "orientation": "default",
@@ -67,8 +67,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Red Handed to access your photos for profile pictures",
-          "cameraPermission": "Allow Red Handed to use the camera for profile pictures"
+          "photosPermission": "Allow Red Handed ! to access your photos for profile pictures",
+          "cameraPermission": "Allow Red Handed ! to use the camera for profile pictures"
         }
       ],
       "expo-apple-authentication",

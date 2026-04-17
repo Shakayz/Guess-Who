@@ -117,8 +117,8 @@ const redHandedProgression = progression({
   keyPrefix: 'red_handed_wins',
   category: 'red_handed',
   icon: '🎭',
-  name: (n) => n === 1 ? 'First Disguise' : `${n} Red-Handed Wins`,
-  description: (n) => n === 1 ? 'Win a game as the red-handed' : `Win ${n} games as the red-handed`,
+  name: (n) => n === 1 ? 'First Disguise' : `${n} Imposter Wins`,
+  description: (n) => n === 1 ? 'Win a game as the imposter' : `Win ${n} games as the imposter`,
   event: 'game_end',
   getCount: (s) => s.totalRedHandedWins,
   tiers: TIERS_6([1, 5, 25, 100, 500, 2000]),
@@ -126,17 +126,17 @@ const redHandedProgression = progression({
 
 const redHandedOneOffs = merge(
   single(
-    { key: 'perfect_red_handed', name: 'Untouchable', description: 'Win as red-handed without being eliminated', icon: '👻', category: 'red_handed', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'perfect_red_handed', name: 'Untouchable', description: 'Win as imposter without being eliminated', icon: '👻', category: 'red_handed', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
     (ctx) => isGameEnd(ctx) && ctx.isRedHanded && ctx.isWinner && ctx.survived,
   ),
   single(
-    { key: 'fooled_detective', name: 'Fooled the Detective', description: 'Win as red-handed in a game with a detective', icon: '🕶️', category: 'red_handed', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
+    { key: 'fooled_detective', name: 'Fooled the Detective', description: 'Win as imposter in a game with a detective', icon: '🕶️', category: 'red_handed', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
     'game_end',
     (ctx) => isGameEnd(ctx) && ctx.isRedHanded && ctx.isWinner,
   ),
   single(
-    { key: 'big_lobby_red_handed', name: 'Wolf in the Flock', description: 'Win as red-handed in a 10+ player game', icon: '🐺', category: 'red_handed', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
+    { key: 'big_lobby_red_handed', name: 'Wolf in the Flock', description: 'Win as imposter in a 10+ player game', icon: '🐺', category: 'red_handed', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
     'game_end',
     (ctx) => isGameEnd(ctx) && ctx.isRedHanded && ctx.isWinner && ctx.playerCount >= 10,
   ),
@@ -223,7 +223,7 @@ const SPECIAL_ROLES: Array<{ role: string; icon: string; display: string }> = [
   { role: 'judge',          icon: '⚖️',  display: 'Judge' },
   { role: 'revenant',       icon: '💀',  display: 'Revenant' },
   { role: 'twin_villager',  icon: '👯',  display: 'Twin Villager' },
-  { role: 'red_handed',       icon: '🎭',  display: 'Red-Handed' },
+  { role: 'red_handed',       icon: '🎭',  display: 'Imposter' },
   { role: 'double_agent',   icon: '🎰',  display: 'Double Agent' },
   { role: 'infiltrator',    icon: '🥷',  display: 'Infiltrator' },
   { role: 'kamikaze',       icon: '💣',  display: 'Kamikaze' },
@@ -355,7 +355,7 @@ const secretGameEnd = merge(
     (ctx) => isGameEnd(ctx) && ctx.isWinner && !ctx.isRedHanded && ctx.survived && ctx.winner === 'villagers' && ctx.playerCount >= 6,
   ),
   single(
-    { key: 'comeback_king', name: 'Comeback King', description: 'Win a game as red-handed after being targeted', icon: '👊', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
+    { key: 'comeback_king', name: 'Comeback King', description: 'Win a game as imposter after being targeted', icon: '👊', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
     'game_end',
     (ctx) => isGameEnd(ctx) && ctx.isRedHanded && ctx.isWinner && ctx.survived,
   ),
@@ -385,7 +385,7 @@ const secretGameEnd = merge(
     (ctx) => isGameEnd(ctx) && ctx.isWinner && ctx.now.getUTCMonth() === 11 && ctx.now.getUTCDate() === 25,
   ),
   single(
-    { key: 'halloween_red_handed', name: 'Costume Party', description: 'Win as red-handed on October 31st', icon: '🎃', category: 'secret', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars, isSecret: true },
+    { key: 'halloween_red_handed', name: 'Costume Party', description: 'Win as imposter on October 31st', icon: '🎃', category: 'secret', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars, isSecret: true },
     'game_end',
     (ctx) => isGameEnd(ctx) && ctx.isRedHanded && ctx.isWinner && ctx.now.getUTCMonth() === 9 && ctx.now.getUTCDate() === 31,
   ),

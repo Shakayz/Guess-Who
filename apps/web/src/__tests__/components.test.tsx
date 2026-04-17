@@ -140,7 +140,7 @@ describe('NavBar', () => {
 
   it('renders the app brand name', () => {
     render(<NavBar />)
-    expect(screen.getByText('Red Handed')).toBeInTheDocument()
+    expect(screen.getByText('Red Handed !')).toBeInTheDocument()
   })
 
   it('renders the current user username', () => {
@@ -170,7 +170,7 @@ describe('NavBar', () => {
 
   it('navigates home when logo button is clicked', () => {
     render(<NavBar />)
-    fireEvent.click(screen.getByText('Red Handed'))
+    fireEvent.click(screen.getByText('Red Handed !'))
     expect(mockNavigate).toHaveBeenCalledWith('/')
   })
 
@@ -178,7 +178,7 @@ describe('NavBar', () => {
     render(<NavBar />)
     // The language switcher button contains the flag image
     const langButton = screen.getAllByRole('button').find(
-      (btn) => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed'),
+      (btn) => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
     )
     expect(langButton).toBeDefined()
     fireEvent.click(langButton!)
@@ -192,7 +192,7 @@ describe('NavBar', () => {
     render(<NavBar />)
     // Open dropdown
     const langButton = screen.getAllByRole('button').find(
-      (btn) => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed'),
+      (btn) => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
     )
     fireEvent.click(langButton!)
     // Click French option

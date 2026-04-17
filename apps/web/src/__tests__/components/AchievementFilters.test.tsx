@@ -22,7 +22,7 @@ describe('AchievementFilters', () => {
     for (const label of [
       'All',
       'Gameplay',
-      'Red-Handed',
+      'Imposter',
       'Detective',
       'Special',
       'Social',

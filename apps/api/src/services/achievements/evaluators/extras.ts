@@ -171,7 +171,7 @@ const redHandedExtras = merge(
     (ctx) => ctx.stats.totalRedHandedWins >= 25,
   ),
   single(
-    { key: 'red_handed_small_lobby', name: 'Tight Spot', description: 'Win as red-handed in a 4-5 player game', icon: '🎯', category: 'red_handed', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'red_handed_small_lobby', name: 'Tight Spot', description: 'Win as imposter in a 4-5 player game', icon: '🎯', category: 'red_handed', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
     (ctx) => ctx.type === 'game_end' && ctx.isRedHanded && ctx.isWinner && ctx.playerCount <= 5,
   ),
@@ -181,7 +181,7 @@ const redHandedExtras = merge(
     (ctx) => ctx.type === 'game_end' && ctx.isRedHanded && ctx.survived && ctx.playerCount >= 6,
   ),
   single(
-    { key: 'red_handed_all_modes', name: 'Omni Red-Handed', description: 'Win as red-handed in normal, special, and ranked modes', icon: '🎨', category: 'red_handed', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
+    { key: 'red_handed_all_modes', name: 'Omni Imposter', description: 'Win as imposter in normal, special, and ranked modes', icon: '🎨', category: 'red_handed', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
     'game_end',
     (ctx) => ctx.stats.totalRedHandedWins >= 30 && ctx.stats.rankedWins >= 5,
   ),
@@ -191,7 +191,7 @@ const redHandedExtras = merge(
     (ctx) => ctx.stats.totalRedHandedWins >= 3,
   ),
   single(
-    { key: 'tricked_one', name: 'Trickster', description: 'Win as red-handed after being suspected', icon: '🃏', category: 'red_handed', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
+    { key: 'tricked_one', name: 'Trickster', description: 'Win as imposter after being suspected', icon: '🃏', category: 'red_handed', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
     'game_end',
     (ctx) => ctx.type === 'game_end' && ctx.isRedHanded && ctx.isWinner,
   ),

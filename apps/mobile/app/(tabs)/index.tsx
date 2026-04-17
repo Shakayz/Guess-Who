@@ -24,10 +24,10 @@ import InsufficientCoinsModal from '../../components/InsufficientCoinsModal'
 type GameMode = 'normal' | 'ranked' | 'lobby'
 
 const HOW_TO_PLAY = [
-  { icon: '🎭', title: 'Get your role', desc: 'Villager or Red-Handed — each gets a different word.' },
+  { icon: '🎭', title: 'Get your role', desc: 'Villager or Imposter — each gets a different word.' },
   { icon: '💬', title: 'Give clues', desc: "One sentence per round. Don't say the word!" },
-  { icon: '🗳️', title: 'Vote', desc: 'Discuss and vote out who you think is the redHanded.' },
-  { icon: '🏆', title: 'Win', desc: 'Villagers win if all redHanded are eliminated.' },
+  { icon: '🗳️', title: 'Vote', desc: 'Discuss and vote out who you think is the imposter.' },
+  { icon: '🏆', title: 'Win', desc: 'Villagers win if all imposters are eliminated.' },
 ]
 
 const MODES: { id: GameMode; icon: string; label: string; desc: string }[] = [
@@ -208,7 +208,7 @@ export default function HomeScreen() {
               <View className="w-8 h-8 rounded-xl bg-violet-700/80 items-center justify-center">
                 <Text style={{ fontSize: 16 * fontScale }}>🎭</Text>
               </View>
-              <Text className="text-white font-extrabold tracking-tight" style={{ fontSize: 18 * fontScale }}>RedHanded</Text>
+              <Text className="text-white font-extrabold tracking-tight" style={{ fontSize: 18 * fontScale }}>Red Handed !</Text>
             </View>
             {user && (
               <View className="flex-row items-center gap-2">
@@ -241,7 +241,7 @@ export default function HomeScreen() {
             </View>
             <Text className="font-extrabold text-white text-center leading-tight tracking-tight mb-2" style={{ fontSize: (isTablet ? 44 : 36) }}>
               Play the{'\n'}
-              <Text className="text-violet-500">RedHanded</Text> Game
+              <Text className="text-violet-500">Red Handed !</Text> Game
             </Text>
             <Text className="text-neutral-400 mt-2 text-center" style={{ fontSize: 16 * fontScale }}>Deceive. Detect. Dominate.</Text>
           </View>

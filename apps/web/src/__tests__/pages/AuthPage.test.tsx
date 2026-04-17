@@ -50,7 +50,7 @@ describe('AuthPage', () => {
 
   it('renders without crashing', () => {
     render(<AuthPage />)
-    expect(screen.getByText('Red Handed')).toBeInTheDocument()
+    expect(screen.getByText('Red Handed !')).toBeInTheDocument()
   })
 
   it('shows sign-in form by default', () => {

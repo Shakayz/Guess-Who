@@ -32,7 +32,7 @@ interface HistoryResponse {
 
 const ROLE_CONFIG: Record<string, { emoji: string; label: string }> = {
   villager: { emoji: '🏘️', label: 'Villager' },
-  red_handed: { emoji: '🎭', label: 'Red-Handed' },
+  red_handed: { emoji: '🎭', label: 'Imposter' },
   detective: { emoji: '🔍', label: 'Detective' },
   double_agent: { emoji: '🕵️', label: 'Double Agent' },
 }

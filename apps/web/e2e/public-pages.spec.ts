@@ -26,13 +26,13 @@ test('how-to-play page renders role descriptions', async ({ page }) => {
   await expect(page).toHaveURL(/\/how-to-play$/)
   // The page lists all roles; at least one role name from the registry
   // should be visible. "Villagers" is a top-level team heading.
-  await expect(page.getByText(/Villagers|RedHanded/).first()).toBeVisible()
+  await expect(page.getByText(/Villagers|Imposter/).first()).toBeVisible()
 })
 
 test('offline (Pass & Play) page loads its setup form', async ({ page }) => {
   await page.goto('/offline')
   await expect(page).toHaveURL(/\/offline$/)
   // The offline screen's defaults mirror the mobile app — "Players" and
-  // "Red-Handed" labels from the game-setup section.
+  // "Imposter" labels from the game-setup section.
   await expect(page.getByText(/Players/i).first()).toBeVisible()
 })

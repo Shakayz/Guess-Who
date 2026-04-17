@@ -592,7 +592,7 @@ function SettingsPanel({
           }}
         />
         <NumStepper
-          label="Red-Handed"
+          label="Imposter"
           value={settings.redHandedCount}
           min={1}
           max={maxRedHandedFor(settings.maxPlayers)}
@@ -1257,7 +1257,7 @@ export default function LobbyScreen() {
             <Text className="text-neutral-700">·</Text>
             <Text className="text-xs text-neutral-500">{settings.maxPlayers} max</Text>
             <Text className="text-neutral-700">·</Text>
-            <Text className="text-xs text-neutral-500">{settings.redHandedCount} redHanded</Text>
+            <Text className="text-xs text-neutral-500">{settings.redHandedCount} imposters</Text>
             {settings.maxRounds > 0 && (
               <>
                 <Text className="text-neutral-700">·</Text>
