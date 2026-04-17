@@ -6,9 +6,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../store/auth'
 import { NavBar } from '../components/NavBar'
 import { Avatar, Badge } from '@red-handed/ui'
-import { RANK_CONFIG, LEVEL_CAP } from '@red-handed/shared'
+import { RANK_CONFIG, LEVEL_CAP, USERNAME_CHANGE_COST, EMAIL_VERIFICATION_REWARD } from '@red-handed/shared'
 import type { RankTier } from '@red-handed/shared'
 import { api } from '../lib/api'
+import { ReferralCard } from '../components/ReferralCard'
 
 const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/gif,image/webp'
 
@@ -16,6 +17,7 @@ interface MeResponse {
   id: string
   username: string
   email: string
+  emailVerified?: boolean
   avatarUrl: string | null
   rankTier: RankTier | 'unranked'
   rankPoints: number
@@ -87,6 +89,7 @@ export default function ProfilePage() {
   const [editingUsername, setEditingUsername] = useState(false)
   const [usernameInput, setUsernameInput] = useState('')
   const [usernameError, setUsernameError] = useState<string | null>(null)
+  const [confirmUsernameCost, setConfirmUsernameCost] = useState<string | null>(null)
   const [statsTab, setStatsTab] = useState<'unranked' | 'ranked'>('unranked')
   const navigate = useNavigate()
 
@@ -143,11 +146,44 @@ export default function ProfilePage() {
       setEditingUsername(false)
       setUsernameInput('')
       setUsernameError(null)
+      setConfirmUsernameCost(null)
     },
-    onError: () => {
+    onError: (err: any) => {
+      setConfirmUsernameCost(null)
+      // The API returns HTTP 402 + { error: 'not_enough_coins', cost, starCoins }
+      // when the player doesn't have USERNAME_CHANGE_COST ⭐. Show that
+      // precisely so the user knows to grind/buy before retrying, instead of
+      // the generic "name taken" message.
+      const code = err?.data?.error
+      if (code === 'not_enough_coins') {
+        setUsernameError(t('profile.notEnoughCoinsForRename', {
+          cost: USERNAME_CHANGE_COST,
+          defaultValue: 'You need {{cost}} ⭐ to change your username.',
+        }))
+        return
+      }
       setUsernameError(t('profile.usernameTaken'))
     },
   })
+
+  // Present the cost BEFORE we charge so a misclicked ✏️ can't drain 500 ⭐.
+  // The confirmation step also doubles as client-side validation for the
+  // "same as current username" no-op case: we skip the modal entirely and
+  // just submit, since the server treats same-name patches as free.
+  function submitUsernameChange() {
+    const next = usernameInput.trim()
+    if (next.length < 2) {
+      setUsernameError(t('profile.minChars'))
+      return
+    }
+    if (next === me?.username) {
+      setEditingUsername(false)
+      setUsernameInput('')
+      return
+    }
+    setUsernameError(null)
+    setConfirmUsernameCost(next)
+  }
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -180,6 +216,31 @@ export default function ProfilePage() {
       <NavBar />
       <main className="flex-1 p-6 pb-24 md:pb-6">
         <div className="max-w-xl md:max-w-2xl lg:max-w-4xl mx-auto space-y-4 md:space-y-6 animate-slide-up">
+
+          {/* Email verification banner — shown whenever the account is still
+              unverified. Links to /settings where the 6-digit flow lives. */}
+          {me && me.emailVerified === false && (
+            <Link
+              to="/settings"
+              className="block card bg-gradient-to-br from-amber-950/70 to-amber-900/30 border-amber-700/60 hover:border-amber-500/70 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl shrink-0">✉️</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-amber-200">
+                    {t('profile.verifyEmailCtaTitle', { defaultValue: 'Verify your email' })}
+                  </p>
+                  <p className="text-xs text-amber-200/80 mt-0.5">
+                    {t('profile.verifyEmailCtaBody', {
+                      reward: EMAIL_VERIFICATION_REWARD,
+                      defaultValue: 'Confirm your address to earn +{{reward}} ⭐.',
+                    })}
+                  </p>
+                </div>
+                <span className="text-amber-400 shrink-0">→</span>
+              </div>
+            </Link>
+          )}
 
           {/* Profile card */}
           <div className="card relative overflow-hidden">
@@ -233,10 +294,7 @@ export default function ProfilePage() {
                             className="flex-1 min-w-0 px-2 py-1 rounded-lg bg-neutral-800 border border-neutral-600 text-white text-lg font-bold focus:outline-none focus:border-brand-600 transition-colors"
                           />
                           <button
-                            onClick={() => {
-                              if (usernameInput.trim().length >= 2) usernameMutation.mutate(usernameInput.trim())
-                              else setUsernameError(t('profile.minChars'))
-                            }}
+                            onClick={submitUsernameChange}
                             disabled={usernameMutation.isPending}
                             className="px-2 py-1 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold transition-colors disabled:opacity-40"
                           >
@@ -525,6 +583,9 @@ export default function ProfilePage() {
             )
           })()}
 
+          {/* Referral / invite-a-friend card */}
+          <ReferralCard />
+
           {/* Achievements — compact summary chip; full grid lives on /achievements */}
           <AchievementSummaryChip onOpen={() => navigate('/achievements')} />
 
@@ -565,6 +626,67 @@ export default function ProfilePage() {
 
         </div>
       </main>
+
+      {/* Username-change confirmation. Rendered outside <main> so it overlays
+          the whole viewport on mobile — a full-screen modal reads more
+          clearly than an inline warning for a 500-⭐ commitment. */}
+      {confirmUsernameCost !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">⭐</span>
+              <h2 className="text-lg font-extrabold text-white">
+                {t('profile.renameConfirmTitle', { defaultValue: 'Change username?' })}
+              </h2>
+            </div>
+            <p className="text-sm text-neutral-300">
+              {t('profile.renameConfirmBody', {
+                cost: USERNAME_CHANGE_COST,
+                next: confirmUsernameCost,
+                defaultValue: 'Renaming to {{next}} costs {{cost}} ⭐ and cannot be undone.',
+              })}
+            </p>
+            <div className="flex items-center justify-between text-xs text-neutral-400 px-3 py-2 rounded-xl bg-neutral-800/70 border border-neutral-700/60">
+              <span>{t('profile.balance', { defaultValue: 'Your balance' })}</span>
+              <span className="font-mono text-amber-300">
+                {(me?.starCoins ?? 0).toLocaleString()} ⭐
+              </span>
+            </div>
+            {(me?.starCoins ?? 0) < USERNAME_CHANGE_COST && (
+              <p className="text-xs text-red-400">
+                {t('profile.notEnoughCoinsForRename', {
+                  cost: USERNAME_CHANGE_COST,
+                  defaultValue: 'You need {{cost}} ⭐ to change your username.',
+                })}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmUsernameCost(null)}
+                disabled={usernameMutation.isPending}
+                className="flex-1 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-sm font-semibold transition-colors disabled:opacity-40"
+              >
+                {t('profile.cancel')}
+              </button>
+              <button
+                onClick={() => usernameMutation.mutate(confirmUsernameCost)}
+                disabled={
+                  usernameMutation.isPending
+                  || (me?.starCoins ?? 0) < USERNAME_CHANGE_COST
+                }
+                className="flex-1 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
+              >
+                {usernameMutation.isPending
+                  ? t('common.loading')
+                  : t('profile.renameConfirmCta', {
+                      cost: USERNAME_CHANGE_COST,
+                      defaultValue: 'Pay {{cost}} ⭐',
+                    })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

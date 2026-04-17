@@ -9,6 +9,7 @@ import {
   EMAIL_VERIFICATION_REWARD,
   EMAIL_VERIFICATION_CODE_TTL_MINUTES,
 } from '@red-handed/shared'
+import { allocateReferralCode, creditReferral, resolveInviter } from '../services/referral'
 import bcrypt from 'bcryptjs'
 
 const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de'] as const
@@ -18,6 +19,11 @@ const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   locale: z.string().transform((v) => v.split('-')[0].toLowerCase()).pipe(z.enum(SUPPORTED_LOCALES)).default('en'),
+  // Optional invite code — when present and valid, both the inviter and the
+  // new user are credited via services/referral.creditReferral() right after
+  // the account is created. Invalid codes are logged and ignored so a busted
+  // share link never blocks a legitimate signup.
+  referralCode: z.string().trim().min(1).max(12).optional(),
 })
 
 const signInSchema = z.object({
@@ -60,11 +66,27 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const hashed = await bcrypt.hash(body.password, 12)
+      // Resolve the inviter up-front (if a code was passed) so we can fail
+      // fast on invalid ones without leaving an uncredited account lying
+      // around. An unknown code is treated as "no referral" and logged — the
+      // UX choice here is to never block a real signup on a typo'd share
+      // link.
+      let inviterId: string | null = null
+      if (body.referralCode) {
+        const inviter = await resolveInviter(body.referralCode)
+        if (inviter) {
+          inviterId = inviter.id
+        } else {
+          req.log.info({ referralCode: body.referralCode }, 'signup: unknown referral code, ignoring')
+        }
+      }
+
       // New accounts start unverified — they keep the default INITIAL_STAR_COINS
       // balance (20 ⭐) until they confirm their email through the
       // /api/auth/email/verify-code flow, at which point EMAIL_VERIFICATION_REWARD
       // is granted. OAuth signups (Google/Apple) skip this step because the
       // provider already attests the address.
+      const referralCode = await allocateReferralCode()
       const user = await prisma.user.create({
         data: {
           username: body.username,
@@ -72,8 +94,19 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           passwordHash: hashed,
           locale: body.locale,
           emailVerified: false,
+          referralCode,
         },
       })
+
+      if (inviterId) {
+        const credit = await creditReferral(inviterId, user.id)
+        if (credit) {
+          req.log.info(
+            { userId: user.id, inviterId, ...credit },
+            'signup: referral credited',
+          )
+        }
+      }
 
       req.log.info({ userId: user.id, username: user.username }, 'signup successful')
       const token = fastify.jwt.sign({ sub: user.id, username: user.username }, { expiresIn: '30d' })

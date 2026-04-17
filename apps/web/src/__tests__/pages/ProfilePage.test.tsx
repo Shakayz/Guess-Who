@@ -60,6 +60,10 @@ vi.mock('@red-handed/shared', async (importOriginal) => ({
   },
   LEVEL_CAP: 50,
   XP_PER_LEVEL: 1000,
+  USERNAME_CHANGE_COST: 500,
+  EMAIL_VERIFICATION_REWARD: 40,
+  REFERRAL_INVITER_REWARD: 50,
+  REFERRAL_INVITEE_REWARD: 20,
 }))
 
 const meResponse = {
@@ -374,6 +378,12 @@ describe('ProfilePage', () => {
   })
 
   it('saves username when save is clicked with valid username', async () => {
+    mockApiGet.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.resolve({ ...meResponse, starCoins: 1000 })
+      if (path === '/achievements') return Promise.resolve(achievementsResponse)
+      if (path.includes('/profile')) return Promise.resolve(profileStatsResponse)
+      return Promise.resolve({})
+    })
     await act(async () => {
       render(<ProfilePage />, { wrapper })
     })
@@ -382,7 +392,9 @@ describe('ProfilePage', () => {
     await waitFor(() => expect(document.querySelector('input[placeholder="testuser"]')).toBeInTheDocument())
     const usernameInput = document.querySelector('input[placeholder="testuser"]') as HTMLInputElement
     fireEvent.change(usernameInput, { target: { value: 'newusername' } })
-    fireEvent.click(screen.getByText('profile.save'))
+    await act(async () => { fireEvent.click(screen.getByText('profile.save')) })
+    await waitFor(() => expect(screen.getByText('profile.renameConfirmCta')).toBeInTheDocument())
+    await act(async () => { fireEvent.click(screen.getByText('profile.renameConfirmCta')) })
     await waitFor(() => {
       expect(mockApiPatch).toHaveBeenCalledWith('/users/me', { username: 'newusername' })
     })
@@ -464,6 +476,12 @@ describe('ProfilePage', () => {
   })
 
   it('shows usernameTaken error when username mutation fails', async () => {
+    mockApiGet.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.resolve({ ...meResponse, starCoins: 1000 })
+      if (path === '/achievements') return Promise.resolve(achievementsResponse)
+      if (path.includes('/profile')) return Promise.resolve(profileStatsResponse)
+      return Promise.resolve({})
+    })
     mockApiPatch.mockRejectedValueOnce(new Error('conflict'))
     await act(async () => {
       render(<ProfilePage />, { wrapper })
@@ -474,6 +492,8 @@ describe('ProfilePage', () => {
     const usernameInput = document.querySelector('input[placeholder="testuser"]') as HTMLInputElement
     fireEvent.change(usernameInput, { target: { value: 'newusername' } })
     await act(async () => { fireEvent.click(screen.getByText('profile.save')) })
+    await waitFor(() => expect(screen.getByText('profile.renameConfirmCta')).toBeInTheDocument())
+    await act(async () => { fireEvent.click(screen.getByText('profile.renameConfirmCta')) })
     await waitFor(() => {
       expect(screen.getByText('profile.usernameTaken')).toBeInTheDocument()
     })

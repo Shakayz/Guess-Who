@@ -30,6 +30,15 @@ model User {
   emailVerified            Boolean   @default(false)
   emailVerificationCode    String?   @db.VarChar(6)
   emailVerificationExpires DateTime?
+  // Referral / invite system. Every account is issued its own immutable
+  // `referralCode` that they can share; `referredByUserId` is set at signup
+  // time when the new user submits someone else's code. The rewards
+  // (REFERRAL_INVITER_REWARD / REFERRAL_INVITEE_REWARD) are credited
+  // atomically during /auth/signup and never re-run afterwards.
+  referralCode     String? @unique @db.VarChar(12)
+  referredByUserId String?
+  referredBy       User?   @relation("Referrals", fields: [referredByUserId], references: [id])
+  referred         User[]  @relation("Referrals")
   pushToken     String?
   lastPlayedAt     DateTime?
   dailyStreakCount Int       @default(0)
