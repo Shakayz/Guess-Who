@@ -78,7 +78,7 @@ const gameplayOneOffs = merge(
     (ctx) => isGameEnd(ctx) && ctx.playerCount === 4 && ctx.isWinner && ctx.stats.totalGames >= 25,
   ),
   single(
-    { key: 'special_mode_win', name: 'Specialist', description: 'Win 10 Special mode games', icon: '✨', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'special_mode_win', name: 'Special Ops', description: 'Win 10 Special mode games', icon: '✨', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
     // Approximation: require enough wins that it can't fire on the very first
     // Special-mode game. We don't track specialWins directly.
@@ -354,11 +354,10 @@ const secretGameEnd = merge(
       return h >= 5 && h < 7 && ctx.stats.totalGames >= 25
     },
   ),
-  single(
-    { key: 'witching_hour', name: 'Witching Hour', description: 'Finish a game in the 00:00 UTC hour (after 25+ games)', icon: '🌙', category: 'secret', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars, isSecret: true },
-    'game_end',
-    (ctx) => ctx.now.getUTCHours() === 0 && ctx.stats.totalGames >= 25,
-  ),
+  // `witching_hour` removed — it fired on the same 00:00 UTC condition as the
+  // `hour_00` bronze from the 24-hour calendar set in extras.ts, just at a
+  // lower game-count gate. Users who already unlocked it will have their
+  // progress cleaned up by the orphan-sweep in routes/achievements.ts.
   single(
     { key: 'full_moon', name: 'Full Moon', description: 'Finish 50 games between 10 PM and 2 AM (UTC)', icon: '🌕', category: 'secret', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars, isSecret: true },
     'game_end',
