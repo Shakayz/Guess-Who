@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
-import { xpProgressInLevel, USERNAME_CHANGE_COST } from '@red-handed/shared'
+import { xpProgressInLevel, USERNAME_CHANGE_COST, SOCIAL_SHARE_REWARD } from '@red-handed/shared'
 import { evaluateEvent } from '../services/achievements'
 import { ensureReferralCode } from '../services/referral'
 import bcrypt from 'bcryptjs'
@@ -152,11 +152,56 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/users/me/referral — fetch (and lazily generate) the caller's
   // shareable referral code plus a live count of accepted invites. The count
   // is cheap (indexed foreign key) and avoids a second round-trip from the UI.
+  // `shareRewardClaimed` lets the ReferralCard hide the one-time +50⭐ CTA
+  // once the user has taken it, without a second request.
   fastify.get('/me/referral', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
     const code = await ensureReferralCode(userId)
-    const invitedCount = await prisma.user.count({ where: { referredByUserId: userId } })
-    return reply.send({ code, invitedCount })
+    const [invitedCount, user] = await Promise.all([
+      prisma.user.count({ where: { referredByUserId: userId } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { sharedAppAt: true } }),
+    ])
+    return reply.send({
+      code,
+      invitedCount,
+      shareRewardClaimed: !!user?.sharedAppAt,
+    })
+  })
+
+  // POST /api/users/me/claim-share-reward — one-time star-coin reward for
+  // tapping the in-app "share on social media" button. We can't verify that
+  // an external share actually happened (no platform exposes a reliable
+  // "did user X post URL Y" check), so the reward is trust-on-click —
+  // capped at once per account via the `sharedAppAt` column. The updateMany
+  // guard (WHERE sharedAppAt IS NULL) makes concurrent claims safe: exactly
+  // one row will match, the second gets a 409.
+  fastify.post('/me/claim-share-reward', async (req, reply) => {
+    const userId = (req.user as { sub: string }).sub
+    const { platform } = (req.body ?? {}) as { platform?: string }
+
+    const flip = await prisma.user.updateMany({
+      where: { id: userId, sharedAppAt: null },
+      data:  { sharedAppAt: new Date() },
+    })
+    if (flip.count !== 1) {
+      req.log.info({ userId, platform }, 'share reward claim blocked: already claimed')
+      return reply.status(409).send({ error: 'already_claimed' })
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data:  { starCoins: { increment: SOCIAL_SHARE_REWARD } },
+      select: { starCoins: true },
+    })
+
+    req.log.info(
+      { userId, platform, reward: SOCIAL_SHARE_REWARD },
+      'share reward claimed',
+    )
+    return reply.send({
+      starsGranted: SOCIAL_SHARE_REWARD,
+      newBalance: updated.starCoins,
+    })
   })
 
   // POST /api/users/me/push-token — register device push token (mobile)
