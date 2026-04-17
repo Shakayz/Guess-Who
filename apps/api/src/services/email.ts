@@ -27,7 +27,7 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Red Handed ! <onboarding@resend.dev>',
+        from: 'Red Handed ! <contact@redhanded-game.com>',
         to,
         subject: 'Your Red Handed ! verification code',
         html: EMAIL_HTML(code),
@@ -91,7 +91,7 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Red Handed ! <onboarding@resend.dev>',
+        from: 'Red Handed ! <contact@redhanded-game.com>',
         to,
         subject: 'Reset your Red Handed ! password',
         html: RESET_EMAIL_HTML(resetLink),

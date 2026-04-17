@@ -3,6 +3,12 @@ import { OAuth2Client } from 'google-auth-library'
 import * as jwt from 'jsonwebtoken'
 import { prisma } from '../config/prisma'
 import { env } from '../config/env'
+import { INITIAL_STAR_COINS, EMAIL_VERIFICATION_REWARD } from '@red-handed/shared'
+
+// Google/Apple have already attested the email, so these users skip the
+// 6-digit verification flow AND get the same total balance an email-signup
+// user would end up with after verifying (initial + verification reward).
+const OAUTH_INITIAL_STAR_COINS = INITIAL_STAR_COINS + EMAIL_VERIFICATION_REWARD
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -94,7 +100,14 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
         } else {
           const tempUsername = `pending_${Date.now()}`.slice(0, 20)
           user = await prisma.user.create({
-            data: { googleId, email: email ?? `${googleId}@google.oauth`, username: tempUsername, avatarUrl },
+            data: {
+              googleId,
+              email: email ?? `${googleId}@google.oauth`,
+              username: tempUsername,
+              avatarUrl,
+              emailVerified: true,
+              starCoins: OAUTH_INITIAL_STAR_COINS,
+            },
           })
           isNewUser = true
         }
@@ -150,7 +163,13 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
         const tempUsername = `pending_${Date.now()}`
         const safeEmail = email ?? `${appleId}@apple.oauth`
         user = await prisma.user.create({
-          data: { appleId, email: safeEmail, username: tempUsername },
+          data: {
+            appleId,
+            email: safeEmail,
+            username: tempUsername,
+            emailVerified: true,
+            starCoins: OAUTH_INITIAL_STAR_COINS,
+          },
         })
         isNewUser = true
       }

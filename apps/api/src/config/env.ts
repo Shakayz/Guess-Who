@@ -20,7 +20,7 @@ const envSchema = z.object({
   SMTP_PORT:          z.coerce.number().default(587),
   SMTP_USER:          z.string().optional(),
   SMTP_PASS:          z.string().optional(),
-  SMTP_FROM:          z.string().default('noreply@redhanded.game'),
+  SMTP_FROM:          z.string().default('Red Handed ! <contact@redhanded-game.com>'),
   // TODO: re-enable when premium/monetization is ready
   // STRIPE_SECRET_KEY:  z.string().optional(),
   // STRIPE_WEBHOOK_SECRET: z.string().optional(),
