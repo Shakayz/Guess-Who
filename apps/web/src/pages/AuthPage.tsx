@@ -190,14 +190,19 @@ export default function AuthPage() {
           handleOAuthResponse(data)
         })
         .catch((err: AppleIDSignInError | Error | undefined) => {
-          const errMsg = err instanceof Error ? err.message : (err as AppleIDSignInError | undefined)?.error
-          log.error('apple sign-in failed', { err: errMsg ?? 'unknown' })
-          const reason = (err as AppleIDSignInError | undefined)?.error
-          // 'popup_closed_by_user' is the normal cancel path — don't shout at the user
-          if (reason && reason !== 'popup_closed_by_user') {
-            setError(`Apple sign-in failed: ${reason}`)
+          const appleErr = !(err instanceof Error) ? (err as AppleIDSignInError | undefined) : undefined
+          const reason = appleErr?.error
+          const details = appleErr?.details
+          const message = err instanceof Error ? err.message : undefined
+          log.error('apple sign-in failed', { reason, details, message })
+          if (reason === 'popup_closed_by_user') {
+            setError('Apple sign-in was cancelled.')
+          } else if (reason) {
+            setError(`Apple sign-in failed: ${reason}${details ? ` (${details})` : ''}`)
+          } else if (message) {
+            setError(`Apple sign-in failed: ${message}`)
           } else {
-            setError('Apple sign-in was cancelled or failed')
+            setError('Apple sign-in failed. Check the browser console for details.')
           }
         })
         .finally(() => setOauthLoading(null))
