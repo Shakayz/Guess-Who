@@ -27,7 +27,7 @@ for (const day of WEEKDAYS) {
   weekdayAchievements.push({
     key,
     name: `${day.name} Player`,
-    description: `Play a game on a ${day.name} after 15+ games total`,
+    description: `Play a game on a ${day.name} after 30+ games total`,
     icon: day.icon,
     category: 'secret',
     difficulty: 'bronze',
@@ -38,7 +38,7 @@ for (const day of WEEKDAYS) {
   weekdayEvals.push({
     key,
     event: 'game_end',
-    check: (ctx) => ctx.now.getUTCDay() === day.idx && ctx.stats.totalGames >= 15,
+    check: (ctx) => ctx.now.getUTCDay() === day.idx && ctx.stats.totalGames >= 30,
   })
 }
 
@@ -67,7 +67,7 @@ for (const m of MONTHS) {
   monthAchievements.push({
     key,
     name: `${m.name} Player`,
-    description: `Play a game in ${m.name} after 20+ games total`,
+    description: `Play a game in ${m.name} after 50+ games total`,
     icon: m.icon,
     category: 'secret',
     difficulty: 'bronze',
@@ -78,7 +78,7 @@ for (const m of MONTHS) {
   monthEvals.push({
     key,
     event: 'game_end',
-    check: (ctx) => ctx.now.getUTCMonth() === m.idx && ctx.stats.totalGames >= 20,
+    check: (ctx) => ctx.now.getUTCMonth() === m.idx && ctx.stats.totalGames >= 50,
   })
 }
 
@@ -93,7 +93,7 @@ for (let h = 0; h < 24; h++) {
   hourlyAchievements.push({
     key,
     name: `Hour ${h.toString().padStart(2, '0')}:00`,
-    description: `Finish a game in the ${h.toString().padStart(2, '0')}:00 UTC hour after 30+ games`,
+    description: `Finish a game in the ${h.toString().padStart(2, '0')}:00 UTC hour after 75+ games`,
     icon: '⏰',
     category: 'secret',
     difficulty: 'bronze',
@@ -104,7 +104,7 @@ for (let h = 0; h < 24; h++) {
   hourlyEvals.push({
     key,
     event: 'game_end',
-    check: (ctx) => ctx.now.getUTCHours() === h && ctx.stats.totalGames >= 30,
+    check: (ctx) => ctx.now.getUTCHours() === h && ctx.stats.totalGames >= 75,
   })
 }
 

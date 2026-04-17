@@ -8,22 +8,22 @@ const rankedGamesProgression = progression({
   keyPrefix: 'ranked_games',
   category: 'ranked',
   icon: '⚔️',
-  name: (n) => n === 5 ? 'Ranked Debut' : `${n} Ranked Games`,
-  description: (n) => n === 5 ? 'Play 5 ranked games' : `Play ${n} ranked games`,
+  name: (n) => n === 10 ? 'Ranked Debut' : `${n} Ranked Games`,
+  description: (n) => n === 10 ? 'Play 10 ranked games' : `Play ${n} ranked games`,
   event: 'game_end',
   getCount: (s) => s.rankedGames,
-  tiers: TIERS_6([5, 25, 100, 400, 2000, 10000]),
+  tiers: TIERS_6([10, 50, 175, 600, 2500, 12000]),
 })
 
 const rankedWinsProgression = progression({
   keyPrefix: 'ranked_wins',
   category: 'ranked',
   icon: '🗡️',
-  name: (n) => n === 3 ? 'Ranked Victor' : `${n} Ranked Wins`,
-  description: (n) => n === 3 ? 'Win 3 ranked games' : `Win ${n} ranked games`,
+  name: (n) => n === 5 ? 'Ranked Victor' : `${n} Ranked Wins`,
+  description: (n) => n === 5 ? 'Win 5 ranked games' : `Win ${n} ranked games`,
   event: 'game_end',
   getCount: (s) => s.rankedWins,
-  tiers: TIERS_6([3, 15, 50, 200, 1000, 5000]),
+  tiers: TIERS_6([5, 25, 80, 300, 1500, 6000]),
 })
 
 // Tier promotions are separate one-offs because they fire on rank_changed.
