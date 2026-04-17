@@ -39,6 +39,13 @@ model User {
   referredByUserId String?
   referredBy       User?   @relation("Referrals", fields: [referredByUserId], references: [id])
   referred         User[]  @relation("Referrals")
+  // One-time "share the app on social media" reward. SOCIAL_SHARE_REWARD stars
+  // are credited the first time the user taps the Share & Earn button in
+  // ReferralCard. The claim endpoint flips this column from NULL to the claim
+  // timestamp via an atomic updateMany guard (WHERE sharedAppAt IS NULL) so
+  // concurrent calls can't double-credit. External shares can't be verified,
+  // so it's trust-on-click — capped at once per account.
+  sharedAppAt      DateTime?
   pushToken     String?
   lastPlayedAt     DateTime?
   dailyStreakCount Int       @default(0)
