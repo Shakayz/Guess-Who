@@ -139,7 +139,7 @@ export default {
     skip: '跳过',
     letsPlay: '开始游戏！',
     step: '步骤',
-    welcomeTitle: '欢迎来到 Red-Handed！',
+    welcomeTitle: '欢迎来到 Red Handed ！',
     welcomeDesc: '一款以词语为武器的社交推理游戏。是融入人群，还是揪出卧底——由你决定。',
     welcomeVillagers: '村民',
     welcomeVillagersDesc: '知道秘密词语，需要找出卧底',

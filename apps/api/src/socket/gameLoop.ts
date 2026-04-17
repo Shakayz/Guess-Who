@@ -461,7 +461,7 @@ async function finishGameWithWinner(
     if (tokenMap.size > 0) {
       const winnerLabel =
         winner === 'villagers'  ? 'Villagers' :
-        winner === 'red_handed'  ? 'Red-Handed' :
+        winner === 'red_handed'  ? 'Imposters' :
         winner === 'jester'     ? 'The Jester' :
         winner === 'evil_twins' ? 'The Evil Twins' :
         'Draw'

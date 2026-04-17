@@ -167,7 +167,7 @@ const PlayerClueHistoryModal = memo(({
 
   const ROLE_CONFIG: Record<string, { icon: string; color: string; label: string }> = {
     villager:      { icon: '🏘️', color: 'text-emerald-400', label: t('game.roleVillager', 'Villager') },
-    red_handed:    { icon: '🔪', color: 'text-red-400',     label: t('game.roleRedHanded', 'Red-Handed') },
+    red_handed:    { icon: '🔪', color: 'text-red-400',     label: t('game.roleRedHanded', 'Imposter') },
     detective:     { icon: '🔍', color: 'text-blue-400',    label: t('game.roleDetective', 'Detective') },
     double_agent:  { icon: '🎭', color: 'text-orange-400',  label: t('game.roleDoubleAgent', 'Double Agent') },
     guardian:      { icon: '🛡️', color: 'text-yellow-400',  label: t('game.roleGuardian', 'Guardian') },
@@ -180,7 +180,7 @@ const PlayerClueHistoryModal = memo(({
     corruptor:     { icon: '🕷️', color: 'text-orange-300',  label: t('game.roleCorruptor', 'Corruptor') },
     inverter:      { icon: '🔄', color: 'text-rose-300',    label: t('game.roleInverter', 'Inverter') },
     twin_villager: { icon: '👯', color: 'text-purple-300',  label: t('game.roleTwinVillager', 'Evil Twin (Villager)') },
-    twin_red_handed: { icon: '👯', color: 'text-purple-400',  label: t('game.roleTwinRedHanded', 'Evil Twin (Red-Handed)') },
+    twin_red_handed: { icon: '👯', color: 'text-purple-400',  label: t('game.roleTwinRedHanded', 'Evil Twin (Imposter)') },
   }
   const roleInfo = player.role ? ROLE_CONFIG[player.role] : null
 
@@ -970,7 +970,7 @@ export default function GamePage() {
 
   const ROLE_CONFIG: Record<string, { icon: string; label: string; color: string; bg: string }> = {
     villager:      { icon: '🏘️', label: t('game.roleVillager', 'Villager'),               color: 'text-emerald-400', bg: 'from-emerald-900/40' },
-    red_handed:    { icon: '🔪', label: t('game.roleRedHanded', 'Red-Handed'),               color: 'text-red-400',     bg: 'from-red-900/40' },
+    red_handed:    { icon: '🔪', label: t('game.roleRedHanded', 'Imposter'),               color: 'text-red-400',     bg: 'from-red-900/40' },
     detective:     { icon: '🔍', label: t('game.roleDetective', 'Detective'),             color: 'text-blue-400',    bg: 'from-blue-900/40' },
     double_agent:  { icon: '🎭', label: t('game.roleDoubleAgent', 'Double Agent'),        color: 'text-orange-400',  bg: 'from-orange-900/40' },
     guardian:      { icon: '🛡️', label: t('game.roleGuardian', 'Guardian'),               color: 'text-yellow-400',  bg: 'from-yellow-900/40' },
@@ -983,7 +983,7 @@ export default function GamePage() {
     corruptor:     { icon: '🕷️', label: t('game.roleCorruptor', 'Corruptor'),              color: 'text-orange-300',  bg: 'from-orange-900/40' },
     inverter:      { icon: '🔄', label: t('game.roleInverter', 'Inverter'),               color: 'text-rose-300',    bg: 'from-rose-900/40' },
     twin_villager: { icon: '👯', label: t('game.roleTwinVillager', 'Evil Twin (Villager)'), color: 'text-purple-300',  bg: 'from-purple-900/40' },
-    twin_red_handed: { icon: '👯', label: t('game.roleTwinRedHanded', 'Evil Twin (Red-Handed)'), color: 'text-purple-400',  bg: 'from-purple-900/40' },
+    twin_red_handed: { icon: '👯', label: t('game.roleTwinRedHanded', 'Evil Twin (Imposter)'), color: 'text-purple-400',  bg: 'from-purple-900/40' },
   }
   const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
 
@@ -1287,7 +1287,7 @@ export default function GamePage() {
               )}
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-lg font-extrabold tracking-tight text-white">RedHanded</span>
+                  <span className="text-lg font-extrabold tracking-tight text-white">Red Handed !</span>
                   {code && (
                     <span className="text-xs font-mono text-neutral-500 border border-neutral-800 rounded px-2 py-0.5">
                       {code}

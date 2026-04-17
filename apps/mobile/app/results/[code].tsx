@@ -130,8 +130,8 @@ export default function ResultsScreen() {
             style={{ fontSize: 13 * fontScale }}
           >
             {winner === 'villagers'
-              ? 'Villagers found the redHanded'
-              : 'Red-Handed escaped detection'}
+              ? 'Villagers found the imposter'
+              : 'Imposters escaped detection'}
           </Text>
 
           {/* Role indicator */}
@@ -140,7 +140,7 @@ export default function ResultsScreen() {
               {isRedHanded ? '🎭' : '🏘️'}
             </Text>
             <Text className="text-neutral-400 text-xs font-semibold">
-              You played as {isRedHanded ? 'Red-Handed' : 'Villager'}
+              You played as {isRedHanded ? 'Imposter' : 'Villager'}
             </Text>
           </View>
         </View>
@@ -279,7 +279,7 @@ export default function ResultsScreen() {
                             isRedHandedRole ? 'text-red-400' : role === 'detective' ? 'text-sky-400' : 'text-violet-400',
                           ].join(' ')}
                         >
-                          {role === 'red_handed' ? 'Red-Handed' : role === 'double_agent' ? 'Double Agent' : role === 'detective' ? 'Detective' : 'Villager'}
+                          {role === 'red_handed' ? 'Imposter' : role === 'double_agent' ? 'Double Agent' : role === 'detective' ? 'Detective' : 'Villager'}
                         </Text>
                       </View>
                       {/* Survived status */}

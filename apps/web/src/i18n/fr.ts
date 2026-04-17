@@ -135,7 +135,7 @@ export default {
     skip: 'Passer',
     letsPlay: 'Jouons !',
     step: 'Étape',
-    welcomeTitle: 'Bienvenue dans Red-Handed !',
+    welcomeTitle: 'Bienvenue dans Red Handed !',
     welcomeDesc: "Un jeu de déduction sociale où les mots sont votre arme. Fondez-vous dans la masse ou démasquez l'imposteur — à vous de choisir.",
     welcomeVillagers: 'Villageois',
     welcomeVillagersDesc: "Connaissent le mot secret et doivent démasquer l'imposteur",

@@ -30,7 +30,7 @@ export default function PrivacyPage() {
             </div>
 
             <Section title="1. Data We Collect">
-              <p>When you use Red Handed, we collect the following information:</p>
+              <p>When you use Red Handed !, we collect the following information:</p>
               <ul className="list-disc list-inside space-y-1 pl-2">
                 <li>
                   <strong className="text-white">Account information:</strong> username, email address, and hashed

@@ -33,7 +33,7 @@ appId: ${APP_ID:-com.redhanded.game}
 # Setup phase UI: the defaults ship with 3 player slots and 1 redHanded.
 - assertVisible: "Normal"
 - assertVisible: "Players"
-- assertVisible: "Red-Handed"
+- assertVisible: "Imposter"
 
 # offline.tsx renders the start CTA with defaultValue "Start Game" when
 # enough players are set up. Offline keys aren't in en.ts, so we rely on

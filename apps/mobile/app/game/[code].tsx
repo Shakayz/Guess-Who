@@ -810,7 +810,7 @@ export default function GameScreen() {
                 ].join(' ')}
               >
                 {revealedPlayer.role === 'red_handed'
-                  ? 'Red-Handed'
+                  ? 'Imposter'
                   : revealedPlayer.role === 'double_agent'
                   ? 'Double Agent'
                   : revealedPlayer.role === 'detective'
@@ -837,7 +837,7 @@ export default function GameScreen() {
           <View className="gap-2">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-2">
-                <Text className="text-lg font-extrabold text-white tracking-tight">RedHanded</Text>
+                <Text className="text-lg font-extrabold text-white tracking-tight">Red Handed !</Text>
                 {code && (
                   <View className="border border-neutral-800 rounded px-2 py-0.5">
                     <Text className="text-xs font-mono text-neutral-500">{code}</Text>
@@ -886,7 +886,7 @@ export default function GameScreen() {
                 </View>
                 <View className="flex-1 rounded-xl bg-orange-950/50 border border-orange-700/50 p-3">
                   <Text className="text-[10px] font-bold uppercase tracking-widest text-orange-500 mb-1.5">
-                    RedHanded Word
+                    Imposter Word
                   </Text>
                   <Text className="text-xl font-extrabold text-orange-200">{myWord}</Text>
                 </View>
@@ -931,7 +931,7 @@ export default function GameScreen() {
                 <View className="flex-1">
                   <Text className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 mb-1">
                     {isRedHanded
-                      ? 'You are the Red-Handed'
+                      ? 'You are the Imposter'
                       : myRole === 'detective'
                       ? 'You are the Detective'
                       : 'You are a Villager'}
@@ -949,7 +949,7 @@ export default function GameScreen() {
                     {isRedHanded
                       ? "Blend in — don't reveal you have a different word"
                       : myRole === 'detective'
-                      ? 'Investigate players to find the redHanded'
+                      ? 'Investigate players to find the imposter'
                       : 'Give a clue without saying the word directly'}
                   </Text>
                 </View>
@@ -1287,7 +1287,7 @@ export default function GameScreen() {
                   >
                     They were a{' '}
                     {eliminated.role === 'red_handed'
-                      ? 'Red-Handed'
+                      ? 'Imposter'
                       : eliminated.role === 'double_agent'
                       ? 'Double Agent'
                       : eliminated.role === 'detective'
@@ -1311,7 +1311,7 @@ export default function GameScreen() {
                     <Text className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</Text>
                   </View>
                   <View className="flex-1 rounded-xl bg-amber-950/50 border border-amber-700/50 p-3 items-center">
-                    <Text className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-1">RedHanded Word</Text>
+                    <Text className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-1">Imposter Word</Text>
                     <Text className="text-amber-300 font-extrabold text-xl">
                       {wordReveal.redHandedWord}
                     </Text>

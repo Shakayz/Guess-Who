@@ -6,7 +6,7 @@ const logger = childLogger('email-service')
 const EMAIL_HTML = (code: string) => `
 <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
   <h1 style="font-size:28px;font-weight:800;color:#fff;background:#7c3aed;padding:16px 24px;border-radius:12px;text-align:center;margin:0 0 24px">
-    🎭 Red Handed
+    🎭 Red Handed !
   </h1>
   <p style="font-size:16px;color:#374151">Your verification code:</p>
   <div style="font-size:36px;font-weight:800;letter-spacing:8px;color:#7c3aed;text-align:center;padding:20px;background:#f5f3ff;border-radius:12px;margin:16px 0">
@@ -27,9 +27,9 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Red Handed <onboarding@resend.dev>',
+        from: 'Red Handed ! <onboarding@resend.dev>',
         to,
-        subject: 'Your Red Handed verification code',
+        subject: 'Your Red Handed ! verification code',
         html: EMAIL_HTML(code),
       }),
     })
@@ -53,7 +53,7 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
     await transport.sendMail({
       from: env.SMTP_FROM,
       to,
-      subject: 'Your Red Handed verification code',
+      subject: 'Your Red Handed ! verification code',
       html: EMAIL_HTML(code),
     })
     return
@@ -66,7 +66,7 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
 const RESET_EMAIL_HTML = (resetLink: string) => `
 <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
   <h1 style="font-size:28px;font-weight:800;color:#fff;background:#7c3aed;padding:16px 24px;border-radius:12px;text-align:center;margin:0 0 24px">
-    🎭 Red Handed
+    🎭 Red Handed !
   </h1>
   <p style="font-size:16px;color:#374151">You requested a password reset. Click the link below to set a new password:</p>
   <div style="text-align:center;margin:24px 0">
@@ -91,9 +91,9 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Red Handed <onboarding@resend.dev>',
+        from: 'Red Handed ! <onboarding@resend.dev>',
         to,
-        subject: 'Reset your Red Handed password',
+        subject: 'Reset your Red Handed ! password',
         html: RESET_EMAIL_HTML(resetLink),
       }),
     })
@@ -117,7 +117,7 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
     await transport.sendMail({
       from: env.SMTP_FROM,
       to,
-      subject: 'Reset your Red Handed password',
+      subject: 'Reset your Red Handed ! password',
       html: RESET_EMAIL_HTML(resetLink),
     })
     return

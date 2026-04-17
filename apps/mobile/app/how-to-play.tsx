@@ -180,7 +180,7 @@ export default function HowToPlayScreen() {
             <Text className="text-neutral-400" style={{ fontSize: 12 * fontScale, lineHeight: 16 * fontScale }}>
               {t('offline.htpNormalDesc', {
                 defaultValue:
-                  'Each player gets a secret word. Red-Handed get a similar but different word and must blend in.',
+                  'Each player gets a secret word. Imposters get a similar but different word and must blend in.',
               })}
             </Text>
             <View className="gap-2">
@@ -222,7 +222,7 @@ export default function HowToPlayScreen() {
             />
 
             <TeamSection
-              title={t('offline.teamRedHanded', { defaultValue: 'Red-Handed' })}
+              title={t('offline.teamRedHanded', { defaultValue: 'Imposter' })}
               emoji="🔴"
               accent="text-red-400"
               roles={RED_HANDED_OFFLINE_ROLES}

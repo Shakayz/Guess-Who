@@ -138,7 +138,7 @@ export default {
     skip: 'छोड़ें',
     letsPlay: 'चलो खेलें!',
     step: 'चरण',
-    welcomeTitle: 'इम्पोस्टर में आपका स्वागत है!',
+    welcomeTitle: 'Red Handed ! में आपका स्वागत है!',
     welcomeDesc: 'एक सामाजिक अनुमान खेल जहाँ शब्द आपके हथियार हैं। मिश्रित हो जाएँ या इम्पोस्टर खोजें — चुनाव आपका है।',
     welcomeVillagers: 'ग्रामीण',
     welcomeVillagersDesc: 'गुप्त शब्द जानते हैं और उन्हें इम्पोस्टर ढूँढना है',

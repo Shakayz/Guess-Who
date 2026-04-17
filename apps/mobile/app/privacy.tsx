@@ -93,7 +93,7 @@ export default function PrivacyScreen() {
         </View>
 
         <Section title="1. Data We Collect" fontScale={fontScale}>
-          <P fontScale={fontScale}>When you use Red Handed, we collect the following information:</P>
+          <P fontScale={fontScale}>When you use Red Handed !, we collect the following information:</P>
           <Bullet fontScale={fontScale}>
             <Text className="text-white font-semibold">Account information:</Text> username, email address, and hashed password
           </Bullet>

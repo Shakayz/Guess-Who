@@ -139,7 +139,7 @@ export default {
     skip: 'Saltar',
     letsPlay: '¡A jugar!',
     step: 'Paso',
-    welcomeTitle: '¡Bienvenido a Red-Handed!',
+    welcomeTitle: '¡Bienvenido a Red Handed !',
     welcomeDesc: 'Un juego de deducción social donde las palabras son tu arma. Camúflate o descubre al impostor — tú decides.',
     welcomeVillagers: 'Aldeanos',
     welcomeVillagersDesc: 'Saben la palabra secreta y deben encontrar al impostor',

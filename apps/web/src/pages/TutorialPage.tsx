@@ -647,7 +647,7 @@ function RevealStep({ onNext }: { onNext: () => void }) {
         <div className="text-5xl">👩</div>
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-red-500">
-            {t('offline.redHanded', 'Red-Handed')}
+            {t('offline.redHanded', 'Imposter')}
           </p>
           <p className="text-lg font-extrabold text-red-400">{t('tutorial.revealRedHandedCard')}</p>
           <p className="text-sm text-neutral-300 mt-2">{t('tutorial.revealRedHandedWord')}</p>

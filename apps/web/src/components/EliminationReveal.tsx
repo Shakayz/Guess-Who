@@ -24,7 +24,7 @@ export interface EliminationRevealProps {
 
 /** Role → pretty display. Kept in sync with GamePage/ResultsPage. */
 const ROLE_META: Record<string, { icon: string; labelKey: string; defaultLabel: string; isEvil: boolean; color: string; glow: string }> = {
-  red_handed:    { icon: '🔪', labelKey: 'game.roleRedHanded',     defaultLabel: 'Red-Handed',             isEvil: true,  color: '#f87171', glow: 'rgba(248,113,113,0.65)' },
+  red_handed:    { icon: '🔪', labelKey: 'game.roleRedHanded',     defaultLabel: 'Imposter',             isEvil: true,  color: '#f87171', glow: 'rgba(248,113,113,0.65)' },
   double_agent:  { icon: '🎭', labelKey: 'game.roleDoubleAgent',  defaultLabel: 'Double Agent',         isEvil: true,  color: '#fb923c', glow: 'rgba(251,146,60,0.65)' },
   detective:     { icon: '🔍', labelKey: 'game.roleDetective',    defaultLabel: 'Detective',            isEvil: false, color: '#60a5fa', glow: 'rgba(96,165,250,0.6)' },
   guardian:      { icon: '🛡️', labelKey: 'game.roleGuardian',     defaultLabel: 'Guardian',             isEvil: false, color: '#facc15', glow: 'rgba(250,204,21,0.6)' },
@@ -37,7 +37,7 @@ const ROLE_META: Record<string, { icon: string; labelKey: string; defaultLabel: 
   corruptor:     { icon: '🕷️', labelKey: 'game.roleCorruptor',    defaultLabel: 'Corruptor',            isEvil: true,  color: '#fdba74', glow: 'rgba(253,186,116,0.6)' },
   inverter:      { icon: '🔄', labelKey: 'game.roleInverter',     defaultLabel: 'Inverter',             isEvil: true,  color: '#fda4af', glow: 'rgba(253,164,175,0.6)' },
   twin_villager: { icon: '👯', labelKey: 'game.roleTwinVillager', defaultLabel: 'Evil Twin (Villager)', isEvil: true,  color: '#d8b4fe', glow: 'rgba(216,180,254,0.6)' },
-  twin_red_handed: { icon: '👯', labelKey: 'game.roleTwinRedHanded', defaultLabel: 'Evil Twin (Red-Handed)', isEvil: true,  color: '#c4b5fd', glow: 'rgba(196,181,253,0.6)' },
+  twin_red_handed: { icon: '👯', labelKey: 'game.roleTwinRedHanded', defaultLabel: 'Evil Twin (Imposter)', isEvil: true,  color: '#c4b5fd', glow: 'rgba(196,181,253,0.6)' },
   villager:      { icon: '🏘️', labelKey: 'game.roleVillager',     defaultLabel: 'Villager',             isEvil: false, color: '#6ee7b7', glow: 'rgba(110,231,183,0.6)' },
 }
 

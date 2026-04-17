@@ -63,8 +63,8 @@ function ShareCard() {
     if (canShare) {
       try {
         await navigator.share({
-          title: 'Red Handed',
-          text: 'Join me in Red Handed — the real-time social deduction game! Deceive. Detect. Dominate.',
+          title: 'Red Handed !',
+          text: 'Join me in Red Handed ! — the real-time social deduction game! Deceive. Detect. Dominate.',
           url: appUrl,
         })
       } catch {

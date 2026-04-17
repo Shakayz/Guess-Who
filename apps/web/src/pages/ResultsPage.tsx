@@ -274,7 +274,7 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
                 💀 <span className="font-semibold text-white">{eliminated.username}</span>
                 {' '}
                 <span className="text-neutral-500 text-xs">
-                  ({round.eliminatedRole === 'red_handed' ? `🎭 ${t('game.roleRedHanded', 'Red-Handed')}` : round.eliminatedRole === 'double_agent' ? `🕵️ ${t('game.roleDoubleAgent', 'Double Agent')}` : round.eliminatedRole === 'detective' ? `🔍 ${t('game.roleDetective', 'Detective')}` : `👤 ${t('game.roleVillager', 'Villager')}`})
+                  ({round.eliminatedRole === 'red_handed' ? `🎭 ${t('game.roleRedHanded', 'Imposter')}` : round.eliminatedRole === 'double_agent' ? `🕵️ ${t('game.roleDoubleAgent', 'Double Agent')}` : round.eliminatedRole === 'detective' ? `🔍 ${t('game.roleDetective', 'Detective')}` : `👤 ${t('game.roleVillager', 'Villager')}`})
                 </span>
               </span>
             ) : (
@@ -302,7 +302,7 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
                 <p className="text-white font-bold">{round.wordReveal.villagerWord}</p>
               </div>
               <div className="rounded-lg bg-amber-950/40 border border-amber-800/40 p-2 text-center">
-                <p className="text-[10px] text-neutral-500 mb-0.5">RedHanded Word</p>
+                <p className="text-[10px] text-neutral-500 mb-0.5">Imposter Word</p>
                 <p className="text-amber-300 font-bold">{round.wordReveal.redHandedWord}</p>
               </div>
             </div>
@@ -637,7 +637,7 @@ export default function ResultsPage() {
                 <p className="text-xl font-extrabold text-white">{result.finalRound.wordReveal.villagerWord}</p>
               </div>
               <div className="card text-center py-4 border-amber-800/30">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">{t('game.redHandedWord', 'Red-Handed Word')}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">{t('game.redHandedWord', 'Imposter Word')}</p>
                 <p className="text-xl font-extrabold text-amber-400">{result.finalRound.wordReveal.redHandedWord}</p>
               </div>
             </div>

@@ -581,7 +581,7 @@ function SetupPhase({
               className="font-semibold uppercase tracking-widest text-neutral-500"
               style={{ fontSize: 11 * fontScale }}
             >
-              {t('offline.redHandedCount', { defaultValue: 'Red-Handed' })}
+              {t('offline.redHandedCount', { defaultValue: 'Imposter' })}
             </Text>
             <Text className="text-neutral-600" style={{ fontSize: 10 * fontScale }}>
               {t('offline.suggested', { defaultValue: 'auto' })}: {getDefaultRedHandedCount(filledCount)}
@@ -654,7 +654,7 @@ function SetupPhase({
             {/* RedHanded side */}
             <View className="gap-2">
               <Text className="text-red-400 font-semibold uppercase tracking-widest" style={{ fontSize: 10 * fontScale }}>
-                🔴 {t('offline.teamRedHanded', { defaultValue: 'Red-Handed' })}
+                🔴 {t('offline.teamRedHanded', { defaultValue: 'Imposter' })}
               </Text>
               {RED_HANDED_OFFLINE_ROLES.map((r) => {
                 const def = OFFLINE_ROLE_REGISTRY[r]
@@ -858,7 +858,7 @@ function SetupPhase({
             {/* RedHanded roles */}
             <View className="gap-2">
               <Text className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
-                🔴 {t('offline.teamRedHanded', { defaultValue: 'Red-Handed' })}
+                🔴 {t('offline.teamRedHanded', { defaultValue: 'Imposter' })}
               </Text>
               {RED_HANDED_OFFLINE_ROLES.map((r) => {
                 const def = OFFLINE_ROLE_REGISTRY[r]
@@ -883,7 +883,7 @@ function SetupPhase({
                 <Text style={{ fontSize: 16, marginTop: 1 }}>👯</Text>
                 <View className="flex-1">
                   <Text className="text-xs font-bold text-amber-300">{t('offline.evilTwins', { defaultValue: 'Evil Twins' })}</Text>
-                  <Text className="text-[11px] text-neutral-500 mt-0.5 leading-[15px]">{t('offline.htpEvilTwinsDesc', { defaultValue: 'A linked pair (one villager, one redHanded) who win together if both survive.' })}</Text>
+                  <Text className="text-[11px] text-neutral-500 mt-0.5 leading-[15px]">{t('offline.htpEvilTwinsDesc', { defaultValue: 'A linked pair (one villager, one imposter) who win together if both survive.' })}</Text>
                 </View>
               </View>
             </View>
@@ -1069,7 +1069,7 @@ function RoleRevealCard({
                 className="text-red-500 font-semibold uppercase tracking-widest"
                 style={{ fontSize: 10 * fontScale }}
               >
-                {t('offline.redHandedWord', { defaultValue: 'Red-Handed Word' })}
+                {t('offline.redHandedWord', { defaultValue: 'Imposter Word' })}
               </Text>
               <Text
                 className="text-red-300 font-extrabold mt-1"
@@ -1669,7 +1669,7 @@ function VotePhase({
               >
                 {t('offline.whoIsRedHanded', {
                   name: voter.name,
-                  defaultValue: `Who do you think is the redHanded, ${voter.name}?`,
+                  defaultValue: `Who do you think is the imposter, ${voter.name}?`,
                 })}
               </Text>
               {otherPlayers.map((p) => {
@@ -2598,7 +2598,7 @@ function ResultsPhase({
                 : jesterWin
                   ? `🃏 ${t('offline.jesterWins', { defaultValue: 'Jester wins!' })}`
                   : redHandedWon
-                    ? `🔴 ${t('offline.redHandedWin', { defaultValue: 'Red-Handed win!' })}`
+                    ? `🔴 ${t('offline.redHandedWin', { defaultValue: 'Imposters win!' })}`
                     : `🟢 ${t('offline.villagersWin', { defaultValue: 'Villagers win!' })}`}
             </Text>
           </View>
@@ -2624,7 +2624,7 @@ function ResultsPhase({
             </View>
             <View className="flex-1 p-3 rounded-xl bg-red-950/40 border border-red-800/30">
               <Text className="text-red-600 font-bold uppercase tracking-widest" style={{ fontSize: 9 * fontScale }}>
-                {t('offline.redHandedWord', { defaultValue: 'Red-Handed Word' })}
+                {t('offline.redHandedWord', { defaultValue: 'Imposter Word' })}
               </Text>
               <Text className="text-red-300 font-extrabold mt-1" style={{ fontSize: 16 * fontScale }}>
                 {wordPair.redHandedWord}

@@ -27,7 +27,7 @@ interface Props {
 const CATEGORIES: { value: CategoryFilter; label: string; icon: string }[] = [
   { value: 'all',          label: 'All',         icon: '🌐' },
   { value: 'gameplay',     label: 'Gameplay',    icon: '🎮' },
-  { value: 'red_handed',     label: 'Red-Handed',    icon: '🎭' },
+  { value: 'red_handed',     label: 'Imposter',    icon: '🎭' },
   { value: 'detective',    label: 'Detective',   icon: '🕵️' },
   { value: 'special_role', label: 'Special',     icon: '⚡' },
   { value: 'social',       label: 'Social',      icon: '🤝' },

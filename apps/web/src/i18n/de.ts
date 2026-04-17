@@ -131,22 +131,22 @@ export default {
     skip: 'Überspringen',
     letsPlay: 'Los geht\'s!',
     step: 'Schritt',
-    welcomeTitle: 'Willkommen bei Red-Handed!',
-    welcomeDesc: 'Ein soziales Deduktionsspiel, in dem Wörter deine Waffe sind. Tauche unter oder enttarne den Red-Handed — deine Wahl.',
+    welcomeTitle: 'Willkommen bei Red Handed !',
+    welcomeDesc: 'Ein soziales Deduktionsspiel, in dem Wörter deine Waffe sind. Tauche unter oder enttarne den Impostor — deine Wahl.',
     welcomeVillagers: 'Dorfbewohner',
-    welcomeVillagersDesc: 'Kennen das geheime Wort und müssen den Red-Handed finden',
-    welcomeRedHanded: 'Red-Handed',
+    welcomeVillagersDesc: 'Kennen das geheime Wort und müssen die Impostoren finden',
+    welcomeRedHanded: 'Impostor',
     welcomeRedHandedDesc: 'Haben ein anderes Wort und müssen sich unauffällig einfügen',
     rolesTitle: 'Geheime Wörter & Rollen',
     villagerWord: 'Dorfbewohner-Wort',
-    redHandedWord: 'Red-Handed-Wort',
-    rolesExplain1: 'Alle bekommen dieselbe Kategorie, aber die Red-Handed ein anderes Wort. Die Wörter sind ähnlich — das macht es kniffelig!',
-    rolesExplain2: 'Gib Hinweise zu deinem Wort, ohne es direkt zu nennen. Wenn der Red-Handed das Dorfwort errät, kann er sich perfekt einfügen!',
+    redHandedWord: 'Impostor-Wort',
+    rolesExplain1: 'Alle bekommen dieselbe Kategorie, aber die Impostoren ein anderes Wort. Die Wörter sind ähnlich — das macht es kniffelig!',
+    rolesExplain2: 'Gib Hinweise zu deinem Wort, ohne es direkt zu nennen. Wenn der Impostor das Dorfwort errät, kann er sich perfekt einfügen!',
     phasesTitle: 'Drei Phasen pro Runde',
     phaseSpeakingTitle: 'Sprechen',
     phaseSpeakingDesc: 'Jeder gibt einen Ein-Satz-Hinweis zu seinem Wort. Sei clever — zu vage ist verdächtig, zu konkret ist riskant.',
     phaseVotingTitle: 'Abstimmung',
-    phaseVotingDesc: 'Stimme dafür, wer deiner Meinung nach der Red-Handed ist. Der Spieler mit den meisten Stimmen scheidet aus.',
+    phaseVotingDesc: 'Stimme dafür, wer deiner Meinung nach der Impostor ist. Der Spieler mit den meisten Stimmen scheidet aus.',
     phaseRevealTitle: 'Enthüllung',
     phaseRevealDesc: 'Rolle und Wort des ausgeschiedenen Spielers werden aufgedeckt. Das Spiel läuft, bis ein Team gewinnt.',
     modesTitle: 'Wähle deinen Spielmodus',
@@ -163,9 +163,9 @@ export default {
     tipsSubtitle: 'Behalte diese für dein erstes Spiel im Hinterkopf',
     tipClues: 'Vage Hinweise sind sicher, aber verdächtig. Konkrete Hinweise überzeugen, sind aber riskant. Finde die Balance.',
     tipWatch: 'Achte darauf, wer zögert oder Hinweise gibt, die nicht ganz zur Kategorie passen.',
-    tipRedHanded: 'Als Red-Handed höre den Dorfbewohnern genau zu, um ihr Wort zu erraten.',
+    tipRedHanded: 'Als Impostor höre den Dorfbewohnern genau zu, um ihr Wort zu erraten.',
     tipVoting: 'Folge beim Abstimmen nicht immer der Mehrheit. Vertraue deinen eigenen Beobachtungen.',
-    readyMessage: 'Alles bereit! Zeit, den Red-Handed zu finden.',
+    readyMessage: 'Alles bereit! Zeit, den Impostor zu finden.',
 
     // ── Interaktives Erstspiel-Tutorial (/tutorial-Route) ──
     walkthroughTitle: 'Dein erstes Spiel',
@@ -180,7 +180,7 @@ export default {
     // Schritt: Intro
     introTitle: 'Der Aufbau',
     introBody: 'Du spielst eine Übungsrunde gegen 3 angeleitete Bots: Maya, Leo und Nora. Kein Zeitlimit, kein Einsatz — ich begleite dich durch jede Entscheidung.',
-    introPoint1: 'Ein Spieler ist der Red-Handed mit einem anderen Wort',
+    introPoint1: 'Ein Spieler ist der Impostor mit einem anderen Wort',
     introPoint2: 'Jeder gibt einen Ein-Satz-Hinweis, ohne sein Wort zu nennen',
     introPoint3: 'Alle stimmen ab — der Meistgewählte scheidet aus',
     letsBegin: 'Los geht\'s',
@@ -196,7 +196,7 @@ export default {
 
     // Schritt: Hinweis-Phase
     cluesTitle: 'Hinweis-Phase',
-    cluesBody: 'Jeder gibt einen Hinweis zu seinem Wort. Höre genau hin — der Red-Handed hat ein *anderes*, aber ähnliches Wort, sein Hinweis kann also leicht daneben klingen.',
+    cluesBody: 'Jeder gibt einen Hinweis zu seinem Wort. Höre genau hin — der Impostor hat ein *anderes*, aber ähnliches Wort, sein Hinweis kann also leicht daneben klingen.',
     mayaClue: 'Maya sagt: "Es schmilzt, wenn es heiß ist."',
     leoClue: 'Leo sagt: "Man isst es meistens mit Käse obendrauf."',
     noraClue: 'Nora sagt: "Kinder lieben es auf Geburtstagen."',
@@ -205,9 +205,9 @@ export default {
     clueOptionGood: 'Es hat eine Kruste und ist meistens rund.',
     clueOptionRisky: 'Ich hatte gestern eine mit Peperoni.',
     clueOptionVague: 'Ich esse es gern.',
-    clueFeedbackGood: 'Stark! Konkret, aber nicht das Wort selbst. Dorfbewohner erkennen es, Red-Handed bekommen keine Gratis-Hilfe.',
-    clueFeedbackRisky: 'Das ist ein sicheres Indiz — ein echter Red-Handed wüsste nichts von Peperoni. Super zum Bluff-Erkennen, aber riskant, wenn jemand dich nachmacht.',
-    clueFeedbackVague: 'Zu vage. Teamkollegen können dich nicht von einem ahnungslosen Red-Handed unterscheiden.',
+    clueFeedbackGood: 'Stark! Konkret, aber nicht das Wort selbst. Dorfbewohner erkennen es, Impostoren bekommen keine Gratis-Hilfe.',
+    clueFeedbackRisky: 'Das ist ein sicheres Indiz — ein echter Impostor wüsste nichts von Peperoni. Super zum Bluff-Erkennen, aber riskant, wenn jemand dich nachmacht.',
+    clueFeedbackVague: 'Zu vage. Teamkollegen können dich nicht von einem ahnungslosen Impostor unterscheiden.',
 
     // Schritt: Verdacht
     suspicionTitle: 'Lies den Tisch',
@@ -219,7 +219,7 @@ export default {
     npcMaya: 'Maya',
     npcLeo: 'Leo',
     npcNora: 'Nora',
-    suspicionFeedbackMaya: 'Gutes Gespür — vage Hinweise, die auf zwei Wörter passen, sind ein klassisches Red-Handed-Indiz.',
+    suspicionFeedbackMaya: 'Gutes Gespür — vage Hinweise, die auf zwei Wörter passen, sind ein klassisches Impostor-Indiz.',
     suspicionFeedbackLeo: 'Leos Hinweis war tatsächlich das stärkste Dorfbewohner-Signal. Lies die Hinweise nochmal durch.',
     suspicionFeedbackNora: 'Allgemeine Hinweise sind verdächtig, aber nicht entscheidend. Mayas Hinweis passte auf zwei Wörter — ein stärkeres Indiz.',
 
@@ -233,8 +233,8 @@ export default {
 
     // Schritt: Enthüllung
     revealTitle: 'Die Enthüllung',
-    revealBody: 'Mayas Rolle wird gezeigt. Ihr Wort war 🥧 Kuchen, nicht 🍕 Pizza. Sie war die RedHandedin!',
-    revealRedHandedCard: 'Maya war die RedHandedin',
+    revealBody: 'Mayas Rolle wird gezeigt. Ihr Wort war 🥧 Kuchen, nicht 🍕 Pizza. Sie war die Impostorin!',
+    revealRedHandedCard: 'Maya war die Impostorin',
     revealRedHandedWord: 'Ihr Wort: 🥧 Kuchen',
     revealOutcome: 'Die Dorfbewohner gewinnen!',
     revealContinue: 'Belohnung abholen',
@@ -242,7 +242,7 @@ export default {
     // Schritt: Tipps-Rückblick
     recapTitle: 'Die wichtigsten Lektionen',
     recapTip1: 'Gib Hinweise konkret genug, um zu beweisen, dass du das Wort kennst — ohne es zu verraten.',
-    recapTip2: 'Achte auf Hinweise, die zu *zwei* Wörtern passen. Das sind Red-Handed-Indizien.',
+    recapTip2: 'Achte auf Hinweise, die zu *zwei* Wörtern passen. Das sind Impostor-Indizien.',
     recapTip3: 'Stimme nicht blind ab — diskutiere, wer verdächtig klang, bevor du dich entscheidest.',
 
     // Schritt: Abschluss

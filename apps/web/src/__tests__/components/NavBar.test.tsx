@@ -59,7 +59,7 @@ describe('NavBar', () => {
 
   it('shows the Red Handed brand name', () => {
     render(<NavBar />)
-    expect(screen.getByText('Red Handed')).toBeInTheDocument()
+    expect(screen.getByText('Red Handed !')).toBeInTheDocument()
   })
 
   it('shows the current user username', () => {
@@ -81,14 +81,14 @@ describe('NavBar', () => {
 
   it('navigates to home when logo is clicked', () => {
     render(<NavBar />)
-    fireEvent.click(screen.getByText('Red Handed'))
+    fireEvent.click(screen.getByText('Red Handed !'))
     expect(mockNavigate).toHaveBeenCalledWith('/')
   })
 
   it('opens language dropdown on flag button click', () => {
     render(<NavBar />)
     const langButton = screen.getAllByRole('button').find(
-      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed'),
+      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
     )
     expect(langButton).toBeDefined()
     fireEvent.click(langButton!)
@@ -99,7 +99,7 @@ describe('NavBar', () => {
     const { api } = await import('../../lib/api')
     render(<NavBar />)
     const langButton = screen.getAllByRole('button').find(
-      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed'),
+      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
     )
     fireEvent.click(langButton!)
     fireEvent.click(screen.getByText('Français'))
@@ -110,7 +110,7 @@ describe('NavBar', () => {
   it('closes language dropdown when clicking outside', () => {
     render(<NavBar />)
     const langButton = screen.getAllByRole('button').find(
-      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed'),
+      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
     )
     fireEvent.click(langButton!)
     expect(screen.getByText('English')).toBeInTheDocument()
@@ -122,7 +122,7 @@ describe('NavBar', () => {
   it('does not close dropdown when clicking inside the dropdown ref', () => {
     render(<NavBar />)
     const langButton = screen.getAllByRole('button').find(
-      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed'),
+      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
     )!
     fireEvent.click(langButton)
     expect(screen.getByText('English')).toBeInTheDocument()
@@ -139,7 +139,7 @@ describe('NavBar', () => {
   it('shows checkmark for current language in dropdown', () => {
     render(<NavBar />)
     const langButton = screen.getAllByRole('button').find(
-      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed'),
+      btn => btn.querySelector('img') !== null && !btn.textContent?.includes('Red Handed !'),
     )!
     fireEvent.click(langButton)
     // The current language (en) should have a checkmark

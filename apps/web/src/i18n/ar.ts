@@ -141,7 +141,7 @@ export default {
     skip: 'تخطي',
     letsPlay: 'هيا نلعب!',
     step: 'الخطوة',
-    welcomeTitle: 'أهلاً بك في Red-Handed!',
+    welcomeTitle: 'أهلاً بك في Red Handed !',
     welcomeDesc: 'لعبة استنتاج اجتماعي، كلماتك هي سلاحك. اندمج أو اكشف الدخيل — القرار لك.',
     welcomeVillagers: 'القرويون',
     welcomeVillagersDesc: 'يعرفون الكلمة السرية وعليهم كشف الدخيل',

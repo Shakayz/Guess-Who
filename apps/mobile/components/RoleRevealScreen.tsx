@@ -12,7 +12,7 @@ interface RoleRevealScreenProps {
 const ROLE_CONFIG: Record<string, { emoji: string; label: string; color: string; bg: string; border: string; accent: string; glow: string }> = {
   red_handed: {
     emoji: '🎭',
-    label: 'Red-Handed',
+    label: 'Imposter',
     color: 'text-red-400',
     bg: 'bg-red-950/30',
     border: 'border-red-800',
@@ -316,7 +316,7 @@ export default function RoleRevealScreen({
                   <View className="w-full gap-3">
                     <View className="bg-neutral-900/60 rounded-2xl px-4 py-3 items-center">
                       <Text className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500 mb-1">
-                        RedHanded Word
+                        Imposter Word
                       </Text>
                       <Text className="text-xl font-extrabold text-red-400">{word}</Text>
                     </View>
@@ -342,7 +342,7 @@ export default function RoleRevealScreen({
                     : role === 'double_agent'
                     ? 'You know both words -- use this to your advantage'
                     : role === 'detective'
-                    ? 'Investigate players to find the redHanded'
+                    ? 'Investigate players to find the imposter'
                     : 'Give clues without saying the word directly'}
                 </Text>
               </View>

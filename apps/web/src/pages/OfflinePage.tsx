@@ -101,7 +101,7 @@ function getRoleConfig(t: any): Record<PlayerRoleType, { label: string; icon: st
     corruptor:    { label: t('offline.corruptor',    'Corruptor'),        icon: '🕷️', color: 'orange',  bgClass: 'bg-orange-950/70',  borderClass: 'border-orange-700/60',  textClass: 'text-orange-300', badgeClass: 'text-orange-500' },
     inverter:     { label: t('offline.inverter',     'Inverter'),         icon: '🔄', color: 'rose',    bgClass: 'bg-rose-950/70',    borderClass: 'border-rose-700/60',    textClass: 'text-rose-300',    badgeClass: 'text-rose-500' },
     twinVillager: { label: t('offline.twinVillager', 'Villager Twin'),    icon: '👯', color: 'purple',  bgClass: 'bg-purple-950/70',  borderClass: 'border-purple-700/60',  textClass: 'text-purple-300', badgeClass: 'text-purple-500' },
-    twinRedHanded: { label: t('offline.twinRedHanded', 'Red-Handed Twin'),    icon: '👯', color: 'purple',  bgClass: 'bg-purple-950/70',  borderClass: 'border-purple-700/60',  textClass: 'text-purple-300', badgeClass: 'text-purple-500' },
+    twinRedHanded: { label: t('offline.twinRedHanded', 'Imposter Twin'),    icon: '👯', color: 'purple',  bgClass: 'bg-purple-950/70',  borderClass: 'border-purple-700/60',  textClass: 'text-purple-300', badgeClass: 'text-purple-500' },
   }
 }
 
@@ -671,12 +671,12 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
           {/* RedHanded side */}
           <div className="space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
-              🔴 {t('offline.teamRedHanded', 'Red-Handed')}
+              🔴 {t('offline.teamRedHanded', 'Imposter')}
             </p>
             <RoleStepper
               icon="🕵️"
               label={t('offline.doubleAgent')}
-              description={t('offline.htpDoubleAgentDesc', 'Knows the redHanded word and plays for them, but looks like a villager.')}
+              description={t('offline.htpDoubleAgentDesc', 'Knows the imposter word and plays for them, but looks like a villager.')}
               value={doubleAgentCount}
               max={maxDoubleAgents}
               onChange={setDoubleAgentCount}
@@ -896,7 +896,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
           {/* 🔴 RedHanded */}
           <div className="space-y-1">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400">
-              🔴 {t('offline.teamRedHanded', 'Red-Handed')}
+              🔴 {t('offline.teamRedHanded', 'Imposter')}
             </p>
             <div className="ml-1 space-y-1">
               <div className="flex items-start gap-2 text-xs">
@@ -907,7 +907,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
               <div className="flex items-start gap-2 text-xs">
                 <span className="shrink-0">🥷</span>
                 <span className="text-fuchsia-400 font-semibold shrink-0">{t('offline.infiltrator', 'Infiltrator')}</span>
-                <span className="text-neutral-500">— {t('offline.htpInfiltratorDesc', 'Knows the villager word, but plays for the redHanded. Appears as villager to the detective.')}</span>
+                <span className="text-neutral-500">— {t('offline.htpInfiltratorDesc', 'Knows the villager word, but plays for the imposters. Appears as villager to the detective.')}</span>
               </div>
               <div className="flex items-start gap-2 text-xs">
                 <span className="shrink-0">💥</span>
@@ -936,7 +936,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
               <div className="flex items-start gap-2 text-xs">
                 <span className="shrink-0">👯</span>
                 <span className="text-purple-300 font-semibold shrink-0">{t('offline.evilTwins', 'Evil Twins')}</span>
-                <span className="text-neutral-500">— {t('offline.htpEvilTwinsDesc', 'A linked pair (one villager, one redHanded) who win together if both survive — but lose individually if separated.')}</span>
+                <span className="text-neutral-500">— {t('offline.htpEvilTwinsDesc', 'A linked pair (one villager, one imposter) who win together if both survive — but lose individually if separated.')}</span>
               </div>
             </div>
           </div>
