@@ -86,45 +86,49 @@ export function merge(
 }
 
 // Standard tier templates so reward amounts stay consistent across categories.
-// Per the plan: bronze 10-25, silver 30-60, gold 75-150, platinum 200-350,
-// diamond 500-800, mythic 1500-3000.
+// Rewards scale steeply with difficulty: bronze is intentionally tiny (a
+// participation trophy), silver is modest, and the real payouts start at gold.
+// This keeps players from farming 400+ stars from passive "play at hour XX"
+// secrets while preserving meaningful payouts for genuinely hard achievements.
 
 export const TIERS_6 = (thresholds: [number, number, number, number, number, number]): Tier[] => [
-  { n: thresholds[0], difficulty: 'bronze',   stars: 15,   xp: 10 },
-  { n: thresholds[1], difficulty: 'silver',   stars: 40,   xp: 25 },
-  { n: thresholds[2], difficulty: 'gold',     stars: 100,  xp: 50 },
-  { n: thresholds[3], difficulty: 'platinum', stars: 250,  xp: 120 },
-  { n: thresholds[4], difficulty: 'diamond',  stars: 600,  xp: 250 },
-  { n: thresholds[5], difficulty: 'mythic',   stars: 2000, xp: 500 },
+  { n: thresholds[0], difficulty: 'bronze',   stars: 5,    xp: 5 },
+  { n: thresholds[1], difficulty: 'silver',   stars: 25,   xp: 20 },
+  { n: thresholds[2], difficulty: 'gold',     stars: 100,  xp: 55 },
+  { n: thresholds[3], difficulty: 'platinum', stars: 300,  xp: 140 },
+  { n: thresholds[4], difficulty: 'diamond',  stars: 800,  xp: 300 },
+  { n: thresholds[5], difficulty: 'mythic',   stars: 3500, xp: 700 },
 ]
 
 export const TIERS_5 = (thresholds: [number, number, number, number, number]): Tier[] => [
-  { n: thresholds[0], difficulty: 'bronze',   stars: 15,   xp: 10 },
-  { n: thresholds[1], difficulty: 'silver',   stars: 40,   xp: 25 },
-  { n: thresholds[2], difficulty: 'gold',     stars: 100,  xp: 50 },
-  { n: thresholds[3], difficulty: 'platinum', stars: 250,  xp: 120 },
-  { n: thresholds[4], difficulty: 'diamond',  stars: 600,  xp: 250 },
+  { n: thresholds[0], difficulty: 'bronze',   stars: 5,    xp: 5 },
+  { n: thresholds[1], difficulty: 'silver',   stars: 25,   xp: 20 },
+  { n: thresholds[2], difficulty: 'gold',     stars: 100,  xp: 55 },
+  { n: thresholds[3], difficulty: 'platinum', stars: 300,  xp: 140 },
+  { n: thresholds[4], difficulty: 'diamond',  stars: 800,  xp: 300 },
 ]
 
 export const TIERS_4 = (thresholds: [number, number, number, number]): Tier[] => [
-  { n: thresholds[0], difficulty: 'bronze', stars: 15,  xp: 10 },
-  { n: thresholds[1], difficulty: 'silver', stars: 40,  xp: 25 },
-  { n: thresholds[2], difficulty: 'gold',   stars: 100, xp: 50 },
-  { n: thresholds[3], difficulty: 'platinum', stars: 250, xp: 120 },
+  { n: thresholds[0], difficulty: 'bronze',   stars: 5,    xp: 5 },
+  { n: thresholds[1], difficulty: 'silver',   stars: 25,   xp: 20 },
+  { n: thresholds[2], difficulty: 'gold',     stars: 100,  xp: 55 },
+  { n: thresholds[3], difficulty: 'platinum', stars: 300,  xp: 140 },
 ]
 
 export const TIERS_3 = (thresholds: [number, number, number]): Tier[] => [
-  { n: thresholds[0], difficulty: 'bronze', stars: 15, xp: 10 },
-  { n: thresholds[1], difficulty: 'silver', stars: 40, xp: 25 },
-  { n: thresholds[2], difficulty: 'gold',   stars: 100, xp: 50 },
+  { n: thresholds[0], difficulty: 'bronze', stars: 5,   xp: 5 },
+  { n: thresholds[1], difficulty: 'silver', stars: 25,  xp: 20 },
+  { n: thresholds[2], difficulty: 'gold',   stars: 100, xp: 55 },
 ]
 
 // Flat per-difficulty reward helper for one-off achievements.
+// Bronze is tiny on purpose: it's a participation stamp, not a meaningful
+// payout. Mythic is a massive jackpot reserved for "once in a lifetime" gates.
 export const REWARD: Record<Difficulty, { stars: number; xp: number }> = {
-  bronze:   { stars: 15,   xp: 10 },
-  silver:   { stars: 45,   xp: 30 },
-  gold:     { stars: 120,  xp: 60 },
-  platinum: { stars: 280,  xp: 140 },
-  diamond:  { stars: 650,  xp: 260 },
-  mythic:   { stars: 2500, xp: 550 },
+  bronze:   { stars: 5,    xp: 5 },
+  silver:   { stars: 30,   xp: 25 },
+  gold:     { stars: 120,  xp: 70 },
+  platinum: { stars: 350,  xp: 160 },
+  diamond:  { stars: 900,  xp: 320 },
+  mythic:   { stars: 4000, xp: 750 },
 }

@@ -7,29 +7,35 @@ const streakProgression = progression({
   keyPrefix: 'daily_streak',
   category: 'milestones',
   icon: '🔥',
-  name: (n) => n === 1 ? 'First Day' : `${n}-Day Streak`,
-  description: (n) => n === 1 ? 'Play on a single day' : `Play at least one game every day for ${n} days in a row`,
+  name: (n) => n === 3 ? 'Warming Up' : `${n}-Day Streak`,
+  description: (n) => n === 3 ? 'Play at least one game every day for 3 days in a row' : `Play at least one game every day for ${n} days in a row`,
   event: 'daily_login',
   getCount: (s) => s.dailyStreakCount,
-  tiers: TIERS_6([1, 7, 30, 90, 180, 365]),
+  tiers: TIERS_6([3, 7, 30, 90, 180, 365]),
 })
 
 const wordPackProgression = progression({
   keyPrefix: 'word_packs_created',
   category: 'milestones',
   icon: '📝',
-  name: (n) => n === 1 ? 'Creator' : `${n} Word Packs Created`,
-  description: (n) => n === 1 ? 'Create your first custom word pack' : `Create ${n} custom word packs`,
+  name: (n) => n === 3 ? 'Creator' : `${n} Word Packs Created`,
+  description: (n) => n === 3 ? 'Create 3 custom word packs' : `Create ${n} custom word packs`,
   event: 'word_pack_created',
   getCount: (s) => s.wordPacksCreated,
-  tiers: TIERS_4([1, 5, 15, 50]),
+  tiers: TIERS_4([3, 10, 30, 100]),
 })
 
 const milestoneOneOffs = merge(
   single(
+    // Bronze participation stamp — tiny reward so it's not a free farm.
     { key: 'avatar_changed_first', name: 'Customizer', description: 'Change your profile picture for the first time', icon: '📸', category: 'milestones', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
     'avatar_changed',
     () => true,
+  ),
+  single(
+    { key: 'perfect_week', name: 'Perfect Week', description: 'Hold a 7-day streak while having won at least 7 games', icon: '🌟', category: 'milestones', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
+    'daily_login',
+    (ctx) => ctx.stats.dailyStreakCount >= 7 && ctx.stats.totalWins >= 7,
   ),
   single(
     { key: 'level_5', name: 'Level 5', description: 'Reach level 5', icon: '🎓', category: 'milestones', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },

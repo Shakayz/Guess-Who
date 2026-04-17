@@ -1,11 +1,14 @@
-// Extra achievements to reach the 400 target. Organized by theme: calendar
-// moments, hourly play, redHanded/detective specific combos, role-specific
-// clever ones. All fire on game_end so they're lightweight to add.
+// Extra achievements. Organized by theme: calendar moments, hourly play,
+// redHanded/detective combos, role/time-based clever ones. Most fire on
+// game_end. This file is for ONE-OFFS that aren't part of a tier progression
+// — progression-style counters live next to the other category files.
 
 import type { AchievementDef, Evaluator } from '../types'
 import { REWARD, merge, single } from './_helpers'
 
 // ─── Calendar — played on a specific weekday (7 bronze secrets) ─────────────
+// Gated on totalGames >= 15 so a single new-user game doesn't instantly unlock
+// a weekday achievement.
 
 const WEEKDAYS: Array<{ idx: number; name: string; icon: string }> = [
   { idx: 0, name: 'Sunday', icon: '☀️' },
@@ -24,7 +27,7 @@ for (const day of WEEKDAYS) {
   weekdayAchievements.push({
     key,
     name: `${day.name} Player`,
-    description: `Play a game on a ${day.name}`,
+    description: `Play a game on a ${day.name} after 15+ games total`,
     icon: day.icon,
     category: 'secret',
     difficulty: 'bronze',
@@ -35,11 +38,12 @@ for (const day of WEEKDAYS) {
   weekdayEvals.push({
     key,
     event: 'game_end',
-    check: (ctx) => ctx.now.getUTCDay() === day.idx,
+    check: (ctx) => ctx.now.getUTCDay() === day.idx && ctx.stats.totalGames >= 15,
   })
 }
 
 // ─── Calendar — played in a specific month (12 bronze secrets) ──────────────
+// Gated on totalGames >= 20.
 
 const MONTHS = [
   { idx: 0,  name: 'January',   icon: '❄️' },
@@ -63,7 +67,7 @@ for (const m of MONTHS) {
   monthAchievements.push({
     key,
     name: `${m.name} Player`,
-    description: `Play a game in ${m.name}`,
+    description: `Play a game in ${m.name} after 20+ games total`,
     icon: m.icon,
     category: 'secret',
     difficulty: 'bronze',
@@ -74,11 +78,13 @@ for (const m of MONTHS) {
   monthEvals.push({
     key,
     event: 'game_end',
-    check: (ctx) => ctx.now.getUTCMonth() === m.idx,
+    check: (ctx) => ctx.now.getUTCMonth() === m.idx && ctx.stats.totalGames >= 20,
   })
 }
 
 // ─── Hourly — played during each UTC hour (24 bronze secrets) ───────────────
+// Gated on totalGames >= 30 so a new user can't pop ~24 bronzes from random
+// hours over a handful of sessions.
 
 const hourlyAchievements: AchievementDef[] = []
 const hourlyEvals: Evaluator[] = []
@@ -87,7 +93,7 @@ for (let h = 0; h < 24; h++) {
   hourlyAchievements.push({
     key,
     name: `Hour ${h.toString().padStart(2, '0')}:00`,
-    description: `Finish a game during the ${h.toString().padStart(2, '0')}:00 UTC hour`,
+    description: `Finish a game in the ${h.toString().padStart(2, '0')}:00 UTC hour after 30+ games`,
     icon: '⏰',
     category: 'secret',
     difficulty: 'bronze',
@@ -98,17 +104,18 @@ for (let h = 0; h < 24; h++) {
   hourlyEvals.push({
     key,
     event: 'game_end',
-    check: (ctx) => ctx.now.getUTCHours() === h,
+    check: (ctx) => ctx.now.getUTCHours() === h && ctx.stats.totalGames >= 30,
   })
 }
 
-// ─── Detective combo (10 one-offs) ──────────────────────────────────────────
+// ─── Detective one-offs ─────────────────────────────────────────────────────
+// These are in addition to the detective_wins progression in gameEnd.ts.
 
 const detectiveExtras = merge(
   single(
-    { key: 'detective_swift', name: 'Swift Justice', description: 'Win as detective surviving all rounds', icon: '⚡', category: 'detective', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'detective_swift', name: 'Swift Justice', description: 'Win as detective surviving all rounds in a 6+ player game', icon: '⚡', category: 'detective', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.role === 'detective' && ctx.isWinner && ctx.survived,
+    (ctx) => ctx.type === 'game_end' && ctx.role === 'detective' && ctx.isWinner && ctx.survived && ctx.playerCount >= 6,
   ),
   single(
     { key: 'detective_martyr', name: 'Martyr', description: 'Win as detective despite being eliminated', icon: '🕯️', category: 'detective', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
@@ -116,14 +123,9 @@ const detectiveExtras = merge(
     (ctx) => ctx.type === 'game_end' && ctx.role === 'detective' && ctx.isWinner && !ctx.survived,
   ),
   single(
-    { key: 'detective_big_lobby', name: 'Big-Stakes Detective', description: 'Win as detective with 8+ players', icon: '🎲', category: 'detective', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'detective_big_lobby', name: 'Big-Stakes Detective', description: 'Win as detective with 8+ players', icon: '🎲', category: 'detective', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
     'game_end',
     (ctx) => ctx.type === 'game_end' && ctx.role === 'detective' && ctx.isWinner && ctx.playerCount >= 8,
-  ),
-  single(
-    { key: 'detective_5_games', name: 'Rookie Investigator', description: 'Play 5 games as detective', icon: '📔', category: 'detective', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
-    'game_end',
-    (ctx) => (ctx.stats.gamesByRole['detective'] ?? 0) >= 5,
   ),
   single(
     { key: 'detective_10_games', name: 'Seasoned Investigator', description: 'Play 10 games as detective', icon: '🔦', category: 'detective', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
@@ -141,35 +143,15 @@ const detectiveExtras = merge(
     (ctx) => (ctx.stats.gamesByRole['detective'] ?? 0) >= 100,
   ),
   single(
-    { key: 'double_agent_buster', name: 'Double-Cross', description: 'Win as detective in a game with a double agent', icon: '🎭', category: 'detective', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
-    'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.role === 'detective' && ctx.isWinner,
-  ),
-  single(
-    { key: 'detective_flawless', name: 'Flawless Investigator', description: 'Reach 25 detective wins while surviving all of them', icon: '🌟', category: 'detective', difficulty: 'diamond', xpReward: REWARD.diamond.xp, coinReward: REWARD.diamond.stars },
+    { key: 'detective_flawless', name: 'Flawless Investigator', description: 'Reach 25 detective wins', icon: '🌟', category: 'detective', difficulty: 'diamond', xpReward: REWARD.diamond.xp, coinReward: REWARD.diamond.stars },
     'game_end',
     (ctx) => (ctx.stats.winsByRole['detective'] ?? 0) >= 25,
   ),
-  single(
-    { key: 'reveal_redHanded', name: 'Exposed!', description: 'Win a game where you were the detective', icon: '📸', category: 'detective', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
-    'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.role === 'detective' && ctx.isWinner,
-  ),
 )
 
-// ─── RedHanded extras (8) ────────────────────────────────────────────────────
+// ─── RedHanded one-offs ─────────────────────────────────────────────────────
 
 const redHandedExtras = merge(
-  single(
-    { key: 'red_handed_5', name: 'Con Artist', description: '5 redHanded wins', icon: '🎪', category: 'red_handed', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
-    'game_end',
-    (ctx) => ctx.stats.totalRedHandedWins >= 5,
-  ),
-  single(
-    { key: 'red_handed_25', name: 'Master of Deception', description: '25 redHanded wins', icon: '🕵️', category: 'red_handed', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
-    'game_end',
-    (ctx) => ctx.stats.totalRedHandedWins >= 25,
-  ),
   single(
     { key: 'red_handed_small_lobby', name: 'Tight Spot', description: 'Win as imposter in a 4-5 player game', icon: '🎯', category: 'red_handed', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
@@ -181,19 +163,9 @@ const redHandedExtras = merge(
     (ctx) => ctx.type === 'game_end' && ctx.isRedHanded && ctx.survived && ctx.playerCount >= 6,
   ),
   single(
-    { key: 'red_handed_all_modes', name: 'Omni Imposter', description: 'Win as imposter in normal, special, and ranked modes', icon: '🎨', category: 'red_handed', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
+    { key: 'red_handed_all_modes', name: 'Omni Imposter', description: 'Win 30+ imposter games with 5+ of them ranked', icon: '🎨', category: 'red_handed', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
     'game_end',
     (ctx) => ctx.stats.totalRedHandedWins >= 30 && ctx.stats.rankedWins >= 5,
-  ),
-  single(
-    { key: 'red_handed_streak_3', name: 'Triple Agent', description: 'Reach 3 redHanded wins', icon: '🔱', category: 'red_handed', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
-    'game_end',
-    (ctx) => ctx.stats.totalRedHandedWins >= 3,
-  ),
-  single(
-    { key: 'tricked_one', name: 'Trickster', description: 'Win as imposter after being suspected', icon: '🃏', category: 'red_handed', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
-    'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.isRedHanded && ctx.isWinner,
   ),
   single(
     { key: 'shadow_master', name: 'Shadow Master', description: 'Reach 75 redHanded wins', icon: '🌑', category: 'red_handed', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
@@ -202,34 +174,13 @@ const redHandedExtras = merge(
   ),
 )
 
-// ─── Gameplay extras (20) ───────────────────────────────────────────────────
+// ─── Gameplay one-offs ──────────────────────────────────────────────────────
+// Removed: `ten_streak`/`twenty_streak` (names said "streak", logic was total
+// wins), `centurion`/`veteran_100` (duplicated games_played progression
+// tiers), `weekly_player`/`monthly_player`/`yearly_player` (duplicated
+// daily_streak progression tiers).
 
 const gameplayExtras = merge(
-  single(
-    { key: 'vote_streak_3', name: 'Sherlock', description: 'Win 3 games while voting correctly', icon: '🔍', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
-    'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.isWinner && !ctx.isRedHanded && ctx.stats.totalWins >= 3,
-  ),
-  single(
-    { key: 'five_streak', name: 'On Fire', description: 'Reach 5 total wins', icon: '🔥', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
-    'game_end',
-    (ctx) => ctx.stats.totalWins >= 5,
-  ),
-  single(
-    { key: 'ten_streak', name: 'Unstoppable', description: 'Reach 25 total wins', icon: '⚡', category: 'gameplay', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
-    'game_end',
-    (ctx) => ctx.stats.totalWins >= 25,
-  ),
-  single(
-    { key: 'twenty_streak', name: 'Godlike', description: 'Reach 250 total wins', icon: '🌌', category: 'gameplay', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
-    'game_end',
-    (ctx) => ctx.stats.totalWins >= 250,
-  ),
-  single(
-    { key: 'obsessed', name: 'Obsessed', description: 'Play 500 games', icon: '💎', category: 'gameplay', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
-    'game_end',
-    (ctx) => ctx.stats.totalGames >= 500,
-  ),
   single(
     { key: 'hard_to_kill', name: 'Hard to Kill', description: 'Survive 10 won games', icon: '🛡️', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
@@ -244,6 +195,11 @@ const gameplayExtras = merge(
     { key: 'immortal', name: 'Immortal', description: 'Survive 500 won games', icon: '♾️', category: 'gameplay', difficulty: 'diamond', xpReward: REWARD.diamond.xp, coinReward: REWARD.diamond.stars },
     'game_end',
     (ctx) => ctx.stats.survivedWins >= 500,
+  ),
+  single(
+    { key: 'obsessed', name: 'Obsessed', description: 'Play 500 games', icon: '💎', category: 'gameplay', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
+    'game_end',
+    (ctx) => ctx.stats.totalGames >= 500,
   ),
   single(
     { key: 'mythical_games', name: 'Mythical', description: 'Play 10,000 games', icon: '🐉', category: 'gameplay', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars },
@@ -261,82 +217,33 @@ const gameplayExtras = merge(
     (ctx) => ctx.stats.totalWins >= 5000,
   ),
   single(
-    { key: 'comeback_artist', name: 'Comeback Artist', description: 'Win a game with a non-villager role after losing 3 straight', icon: '🎨', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
+    { key: 'comeback_artist', name: 'Comeback Artist', description: 'Win a game after losing at least 3 more games than you have won', icon: '🎨', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.isWinner && ctx.stats.totalGames - ctx.stats.totalWins >= 3,
+    (ctx) => ctx.type === 'game_end' && ctx.isWinner && ctx.stats.totalGames - ctx.stats.totalWins * 2 >= 3,
   ),
   single(
-    { key: 'centurion', name: 'Centurion', description: 'Play 100 games in Normal mode', icon: '🏛️', category: 'gameplay', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
-    'game_end',
-    (ctx) => ctx.stats.totalGames >= 100,
-  ),
-  single(
-    { key: 'triathlete', name: 'Triathlete', description: 'Win in normal, special, and ranked modes', icon: '🏅', category: 'gameplay', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
+    { key: 'triathlete', name: 'Triathlete', description: 'Reach 20+ total wins with at least 1 ranked win', icon: '🏅', category: 'gameplay', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
     'game_end',
     (ctx) => ctx.stats.rankedWins >= 1 && ctx.stats.totalWins >= 20,
   ),
   single(
-    { key: 'special_mode_master', name: 'Special Mode Master', description: 'Win 25 Special mode games', icon: '✨', category: 'gameplay', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
+    { key: 'special_mode_master', name: 'Special Mode Master', description: 'Win a Special mode game', icon: '✨', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
     'game_end',
     (ctx) => ctx.type === 'game_end' && ctx.isWinner && ctx.gameMode === 'special',
   ),
-  single(
-    { key: 'early_bird_player', name: 'First to the Table', description: 'Play your 5th game', icon: '🥚', category: 'gameplay', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
-    'game_end',
-    (ctx) => ctx.stats.totalGames >= 5,
-  ),
-  single(
-    { key: 'veteran_100', name: 'Hundred Club', description: 'Play your 100th game', icon: '💯', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
-    'game_end',
-    (ctx) => ctx.stats.totalGames >= 100,
-  ),
-  single(
-    { key: 'weekly_player', name: 'Weekly Player', description: 'Reach a 7-day play streak', icon: '📅', category: 'gameplay', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
-    'daily_login',
-    (ctx) => ctx.stats.dailyStreakCount >= 7,
-  ),
-  single(
-    { key: 'monthly_player', name: 'Monthly Player', description: 'Reach a 30-day play streak', icon: '🗓️', category: 'gameplay', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
-    'daily_login',
-    (ctx) => ctx.stats.dailyStreakCount >= 30,
-  ),
-  single(
-    { key: 'yearly_player', name: 'Yearly Player', description: 'Reach a 100-day play streak', icon: '🏅', category: 'gameplay', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
-    'daily_login',
-    (ctx) => ctx.stats.dailyStreakCount >= 100,
-  ),
 )
 
-// ─── Secret extras (15) ─────────────────────────────────────────────────────
+// ─── Secret one-offs ────────────────────────────────────────────────────────
+// Removed: unanimous_vote / last_second_vote (misleading — both were just
+// "any villager/6+ player win"), weekend_warrior (duplicate of the Saturday
+// + Sunday calendar bronzes), first_dm (duplicate of dms_sent progression's
+// first tier).
 
 const secretExtras = merge(
-  single(
-    { key: 'unanimous_vote', name: 'Consensus', description: 'Win a game as a villager', icon: '🤝', category: 'secret', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars, isSecret: true },
-    'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.isWinner && ctx.role === 'villager',
-  ),
-  single(
-    { key: 'last_second_vote', name: 'Clutch', description: 'Win a close game', icon: '⏱️', category: 'secret', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars, isSecret: true },
-    'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.isWinner && ctx.playerCount >= 6,
-  ),
   single(
     { key: 'one_hp', name: 'One HP', description: 'Win as a surviving villager in a 6+ player game', icon: '❤️', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
     'game_end',
     (ctx) => ctx.type === 'game_end' && ctx.isWinner && ctx.survived && !ctx.isRedHanded && ctx.playerCount >= 6,
-  ),
-  single(
-    { key: 'weekend_warrior', name: 'Weekend Warrior', description: 'Play a game on a Saturday or Sunday', icon: '🌴', category: 'secret', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars, isSecret: true },
-    'game_end',
-    (ctx) => {
-      const d = ctx.now.getUTCDay()
-      return d === 0 || d === 6
-    },
-  ),
-  single(
-    { key: 'all_weekdays', name: 'Full Week', description: 'Play games across all 7 weekdays at least once (time-gated)', icon: '🗓️', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
-    'game_end',
-    (ctx) => ctx.stats.totalGames >= 7 && ctx.stats.dailyStreakCount >= 7,
   ),
   single(
     { key: 'solo_queue', name: 'Solo Queue', description: 'Play 50 games without adding any friends', icon: '🚶', category: 'secret', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars, isSecret: true },
@@ -354,14 +261,9 @@ const secretExtras = merge(
     (ctx) => ctx.stats.friendCount >= 100,
   ),
   single(
-    { key: 'balanced_diet', name: 'Balanced Diet', description: 'Win equal redHanded and villager games (10 each)', icon: '⚖️', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
+    { key: 'balanced_diet', name: 'Balanced Diet', description: 'Win at least 10 redHanded and 10 villager games', icon: '⚖️', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
     'game_end',
     (ctx) => ctx.stats.totalRedHandedWins >= 10 && ctx.stats.totalVillagerWins >= 10,
-  ),
-  single(
-    { key: 'first_dm', name: 'Hello!', description: 'Send your first direct message', icon: '✉️', category: 'secret', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars, isSecret: true },
-    'dm_sent',
-    (ctx) => ctx.stats.dmSentCount >= 1,
   ),
   single(
     { key: 'all_special_roles_play', name: 'Every Role', description: 'Play every special role at least once', icon: '🎭', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
@@ -379,9 +281,9 @@ const secretExtras = merge(
     (ctx) => ctx.stats.totalGames >= 30 && (ctx.stats.gamesByRole['villager'] ?? 0) === 0,
   ),
   single(
-    { key: 'wooden_escape', name: 'Wooden Escape', description: 'Play a ranked game at Wooden tier', icon: '🪵', category: 'secret', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars, isSecret: true },
+    { key: 'wooden_escape', name: 'Wooden Escape', description: 'Win a ranked game while at Wooden tier', icon: '🪵', category: 'secret', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars, isSecret: true },
     'game_end',
-    (ctx) => ctx.type === 'game_end' && ctx.gameMode === 'ranked' && ctx.stats.rankTier === 'wooden',
+    (ctx) => ctx.type === 'game_end' && ctx.gameMode === 'ranked' && ctx.isWinner && ctx.stats.rankTier === 'wooden',
   ),
   single(
     { key: 'mythic_red_handed_ratio', name: 'Mythic Deceiver', description: 'Win 500 redHanded games with 70%+ redHanded win rate', icon: '🌌', category: 'secret', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars, isSecret: true },
@@ -398,54 +300,38 @@ const secretExtras = merge(
         ctx.stats.totalRedHandedWins / redHandedGames >= 0.7
     },
   ),
+  single(
+    { key: 'night_owl', name: 'Night Owl', description: 'Finish 25 games between 00:00 and 05:00 UTC', icon: '🦉', category: 'secret', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars, isSecret: true },
+    'game_end',
+    (ctx) => {
+      const h = ctx.now.getUTCHours()
+      return ctx.stats.totalGames >= 50 && h >= 0 && h < 5
+    },
+  ),
 )
 
-// ─── Social extras (8) ──────────────────────────────────────────────────────
+// ─── Social one-offs ────────────────────────────────────────────────────────
+// Removed: honor_type_collector (100 received dup of honor_received_100),
+// team_player (25 dup of honor_received_25), good_sport (100 given dup of
+// honor_given_100), beloved_bronze (5 dup of honor_received_5), matchmaker
+// (10 friends — not a tier but too close to friends_15), influencer (75
+// friends, too close to friends_100), gifter_bronze (3 gifts dup of
+// gifts_sent_3).
 
 const socialExtras = merge(
-  single(
-    { key: 'honor_type_collector', name: 'Honor Collector', description: 'Receive 100 honors', icon: '💎', category: 'social', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
-    'honor_received',
-    (ctx) => ctx.stats.honorReceivedCount >= 100,
-  ),
-  single(
-    { key: 'team_player', name: 'Team Player', description: 'Receive 25 team player honors', icon: '🤝', category: 'social', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
-    'honor_received',
-    (ctx) => ctx.stats.honorReceivedCount >= 25,
-  ),
   single(
     { key: 'sharp_mind', name: 'Sharp Mind', description: 'Receive 50 honors', icon: '🧠', category: 'social', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
     'honor_received',
     (ctx) => ctx.stats.honorReceivedCount >= 50,
   ),
   single(
-    { key: 'good_sport', name: 'Good Sport', description: 'Give 100 honors', icon: '🏅', category: 'social', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
-    'honor_given',
-    (ctx) => ctx.stats.honorGivenCount >= 100,
-  ),
-  single(
-    { key: 'beloved_bronze', name: 'Beloved', description: 'Receive 5 honors', icon: '💖', category: 'social', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
+    { key: 'honor_giver_balanced', name: 'Give and Take', description: 'Give and receive 50+ honors each', icon: '🔄', category: 'social', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
     'honor_received',
-    (ctx) => ctx.stats.honorReceivedCount >= 5,
-  ),
-  single(
-    { key: 'matchmaker', name: 'Matchmaker', description: 'Have 10 friends', icon: '💞', category: 'social', difficulty: 'silver', xpReward: REWARD.silver.xp, coinReward: REWARD.silver.stars },
-    'friend_added',
-    (ctx) => ctx.stats.friendCount >= 10,
-  ),
-  single(
-    { key: 'influencer', name: 'Influencer', description: 'Have 75 friends', icon: '📢', category: 'social', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
-    'friend_added',
-    (ctx) => ctx.stats.friendCount >= 75,
-  ),
-  single(
-    { key: 'gifter_bronze', name: 'Gift Giver', description: 'Send 3 gifts', icon: '🎁', category: 'social', difficulty: 'bronze', xpReward: REWARD.bronze.xp, coinReward: REWARD.bronze.stars },
-    'gift_sent',
-    (ctx) => ctx.stats.giftSentCount >= 3,
+    (ctx) => ctx.stats.honorGivenCount >= 50 && ctx.stats.honorReceivedCount >= 50,
   ),
 )
 
-// ─── Economy extras (4) ─────────────────────────────────────────────────────
+// ─── Economy one-offs ───────────────────────────────────────────────────────
 // Cosmetics were removed from the game design, so the shop / cosmetic-owned
 // achievements are gone too. Star-balance milestones are what's left.
 
@@ -472,28 +358,22 @@ const economyExtras = merge(
   ),
 )
 
-// ─── Milestones extras (4) ──────────────────────────────────────────────────
+// ─── Milestones one-offs ────────────────────────────────────────────────────
+// Removed: half_year (dup of daily_streak_180 tier), word_pack_wizard (dup
+// of word_packs_created_10 tier). Fixed all_categories — it previously said
+// "Play 15 different word packs" but checked wordPacksCreated >= 3; now
+// checks distinctWordPacks (games played across different packs).
 
 const milestonesExtras = merge(
   single(
-    { key: 'all_categories', name: 'Well Rounded', description: 'Play 15 different word packs', icon: '📚', category: 'milestones', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
+    { key: 'all_categories', name: 'Well Rounded', description: 'Play games across 15 different word packs', icon: '📚', category: 'milestones', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
     'game_end',
-    (ctx) => ctx.stats.wordPacksCreated >= 3,
+    (ctx) => ctx.stats.distinctWordPacks >= 15,
   ),
   single(
-    { key: 'half_year', name: 'Half Year', description: 'Reach a 180-day streak', icon: '🗓️', category: 'milestones', difficulty: 'diamond', xpReward: REWARD.diamond.xp, coinReward: REWARD.diamond.stars },
-    'daily_login',
-    (ctx) => ctx.stats.dailyStreakCount >= 180,
-  ),
-  single(
-    { key: 'eternal_streak', name: 'Eternal Streak', description: 'Reach a 1000-day streak (mythic)', icon: '♾️', category: 'milestones', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars },
+    { key: 'eternal_streak', name: 'Eternal Streak', description: 'Reach a 1000-day login streak', icon: '♾️', category: 'milestones', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars },
     'daily_login',
     (ctx) => ctx.stats.dailyStreakCount >= 1000,
-  ),
-  single(
-    { key: 'word_pack_wizard', name: 'Pack Wizard', description: 'Create 10 custom word packs', icon: '🧙', category: 'milestones', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
-    'word_pack_created',
-    (ctx) => ctx.stats.wordPacksCreated >= 10,
   ),
 )
 

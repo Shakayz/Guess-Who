@@ -48,6 +48,25 @@ export const achievementRoutes: FastifyPluginAsync = async (fastify) => {
       },
     }).catch(() => {})
   }
+
+  // Orphan cleanup — remove rows whose keys were retired or renamed in a
+  // registry rebalance. UserAchievement has no cascade on Achievement delete,
+  // so we delete the user rows first. Without this, stale entries from a
+  // previous registry version would keep showing up in the UI as "mystery"
+  // achievements users couldn't progress on.
+  try {
+    const validKeys = new Set(DEFAULT_ACHIEVEMENTS.map((a) => a.key))
+    const existing = await prisma.achievement.findMany({ select: { id: true, key: true } })
+    const orphanIds = existing.filter((e) => !validKeys.has(e.key)).map((e) => e.id)
+    if (orphanIds.length > 0) {
+      await prisma.userAchievement.deleteMany({ where: { achievementId: { in: orphanIds } } })
+      await prisma.achievement.deleteMany({ where: { id: { in: orphanIds } } })
+      fastify.log.info({ removed: orphanIds.length }, '[achievements] removed orphaned keys')
+    }
+  } catch (err) {
+    fastify.log.warn({ err }, '[achievements] orphan cleanup failed (non-fatal)')
+  }
+
   fastify.log.info({
     total: REGISTRY_STATS.totalAchievements,
     byCategory: REGISTRY_STATS.byCategory,
