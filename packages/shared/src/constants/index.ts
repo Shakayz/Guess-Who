@@ -47,7 +47,27 @@ export const COIN_REWARDS = {
  * truth for both the server (which grants the stars) and the web UI
  * (which renders the "earn +N ⭐" CTAs and banners).
  */
-export const TUTORIAL_COMPLETION_REWARD = 50
+export const TUTORIAL_COMPLETION_REWARD = 40
+
+/**
+ * Star-coin balance handed out when a new account is created. Accounts begin
+ * unverified and stay on this balance until the player confirms their email
+ * (POST /api/auth/email/verify-code), at which point EMAIL_VERIFICATION_REWARD
+ * is credited once. Kept in /shared so the schema default, the web signup
+ * UI, and tests stay aligned.
+ */
+export const INITIAL_STAR_COINS = 20
+
+/**
+ * One-time star-coin reward granted the first time a player confirms their
+ * email address via the 6-digit code flow. Paired with INITIAL_STAR_COINS —
+ * a verified account ends up at INITIAL_STAR_COINS + EMAIL_VERIFICATION_REWARD
+ * star coins (20 + 20 = 40 today).
+ */
+export const EMAIL_VERIFICATION_REWARD = 20
+
+/** Minutes the 6-digit email verification code stays valid. */
+export const EMAIL_VERIFICATION_CODE_TTL_MINUTES = 15
 
 // TODO: re-enable when premium/monetization is ready
 // export const GOLD_COIN_PACKS = [

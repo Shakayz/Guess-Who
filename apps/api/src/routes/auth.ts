@@ -3,8 +3,12 @@ import { z } from 'zod'
 import crypto from 'crypto'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
-import { sendPasswordResetEmail } from '../services/email'
-import { xpProgressInLevel } from '@red-handed/shared'
+import { sendPasswordResetEmail, sendVerificationEmail } from '../services/email'
+import {
+  xpProgressInLevel,
+  EMAIL_VERIFICATION_REWARD,
+  EMAIL_VERIFICATION_CODE_TTL_MINUTES,
+} from '@red-handed/shared'
 import bcrypt from 'bcryptjs'
 
 const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de'] as const
@@ -56,13 +60,18 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const hashed = await bcrypt.hash(body.password, 12)
+      // New accounts start unverified — they keep the default INITIAL_STAR_COINS
+      // balance (20 ⭐) until they confirm their email through the
+      // /api/auth/email/verify-code flow, at which point EMAIL_VERIFICATION_REWARD
+      // is granted. OAuth signups (Google/Apple) skip this step because the
+      // provider already attests the address.
       const user = await prisma.user.create({
         data: {
           username: body.username,
           email: body.email,
           passwordHash: hashed,
           locale: body.locale,
-          emailVerified: true,
+          emailVerified: false,
         },
       })
 
@@ -180,6 +189,119 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   })
 
+  // ─── Email verification (6-digit code) ──────────────────────────────────────
+  //
+  // Flow: signed-in user hits Settings → "Verify email" → POST /email/send-code
+  // → we generate a 6-digit code, store it with a 15-minute expiry, and mail
+  // it from contact@redhanded-game.com. They type it into Settings →
+  // POST /email/verify-code → we check it and, on the first successful
+  // verification, grant EMAIL_VERIFICATION_REWARD ⭐. Subsequent calls after
+  // the account is already verified are no-ops.
+  fastify.post(
+    '/email/send-code',
+    { onRequest: [fastify.authenticate] },
+    async (req, reply) => {
+      const userId = (req.user as { sub: string }).sub
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email: true, emailVerified: true },
+      })
+      if (!user) return reply.status(404).send({ error: 'User not found' })
+      if (user.emailVerified) {
+        return reply.send({ alreadyVerified: true })
+      }
+
+      // 6-digit zero-padded code. crypto.randomInt is uniform in [0, 1000000).
+      const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0')
+      const expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_CODE_TTL_MINUTES * 60_000)
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: { emailVerificationCode: code, emailVerificationExpires: expiresAt },
+      })
+
+      try {
+        await sendVerificationEmail(user.email, code)
+      } catch (err) {
+        req.log.error({ err, userId }, 'verification email send failed')
+        return reply.status(502).send({ error: 'Could not send verification email. Please try again.' })
+      }
+
+      req.log.info({ userId, ttlMinutes: EMAIL_VERIFICATION_CODE_TTL_MINUTES }, 'verification code sent')
+      return reply.send({ success: true, ttlMinutes: EMAIL_VERIFICATION_CODE_TTL_MINUTES })
+    },
+  )
+
+  fastify.post(
+    '/email/verify-code',
+    { onRequest: [fastify.authenticate] },
+    async (req, reply) => {
+      const userId = (req.user as { sub: string }).sub
+      const parsed = z
+        .object({ code: z.string().regex(/^\d{6}$/, 'Code must be 6 digits') })
+        .safeParse(req.body)
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.errors[0]?.message ?? 'Invalid code' })
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          emailVerified: true,
+          emailVerificationCode: true,
+          emailVerificationExpires: true,
+          starCoins: true,
+        },
+      })
+      if (!user) return reply.status(404).send({ error: 'User not found' })
+      if (user.emailVerified) {
+        return reply.send({ alreadyVerified: true, starCoins: user.starCoins, reward: 0 })
+      }
+
+      if (
+        !user.emailVerificationCode ||
+        !user.emailVerificationExpires ||
+        user.emailVerificationExpires.getTime() < Date.now()
+      ) {
+        return reply.status(400).send({ error: 'Code expired. Request a new one.' })
+      }
+      if (user.emailVerificationCode !== parsed.data.code) {
+        return reply.status(400).send({ error: 'Invalid code.' })
+      }
+
+      // Atomic guarded flip: only credit the reward on the first flip of
+      // emailVerified (mirrors the tutorial.ts pattern so concurrent submits
+      // can't double-credit).
+      const flip = await prisma.user.updateMany({
+        where: { id: userId, emailVerified: false },
+        data: {
+          emailVerified: true,
+          emailVerificationCode: null,
+          emailVerificationExpires: null,
+          starCoins: { increment: EMAIL_VERIFICATION_REWARD },
+        },
+      })
+      const justVerified = flip.count === 1
+
+      const updated = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { starCoins: true },
+      })
+
+      req.log.info(
+        { userId, justVerified, reward: justVerified ? EMAIL_VERIFICATION_REWARD : 0 },
+        'email verification result',
+      )
+      return reply.send({
+        success: true,
+        alreadyVerified: !justVerified,
+        reward: justVerified ? EMAIL_VERIFICATION_REWARD : 0,
+        starCoins: updated?.starCoins ?? 0,
+      })
+    },
+  )
+
   fastify.get('/me', { onRequest: [fastify.authenticate] }, async (req, reply) => {
     const payload = req.user as { sub: string }
     const [user, honors] = await Promise.all([
@@ -190,6 +312,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           starCoins: true, goldCoins: true, rankTier: true, rankPoints: true,
           honorPoints: true, locale: true, createdAt: true,
           level: true, xp: true, hasPlayedRanked: true,
+          emailVerified: true,
         },
       }),
       prisma.honor.groupBy({

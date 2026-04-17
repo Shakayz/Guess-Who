@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { EMAIL_VERIFICATION_REWARD, EMAIL_VERIFICATION_CODE_TTL_MINUTES } from '@red-handed/shared'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { useAuthStore } from '../store/auth'
@@ -49,10 +50,66 @@ function SectionHeader({ title }: { title: string }) {
   )
 }
 
+type MeResponse = { email?: string; emailVerified?: boolean; starCoins?: number }
+
 export default function SettingsPage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const clearAuth = useAuthStore((s) => s.clearAuth)
+  const queryClient = useQueryClient()
+
+  // Email verification state
+  const [codeInput, setCodeInput] = useState('')
+  const [verifyError, setVerifyError] = useState<string | null>(null)
+  const [verifyMessage, setVerifyMessage] = useState<string | null>(null)
+  const [codeRequested, setCodeRequested] = useState(false)
+
+  const meQuery = useQuery<MeResponse>({
+    queryKey: ['auth', 'me'],
+    queryFn: () => api.get<MeResponse>('/auth/me'),
+  })
+  const emailVerified = meQuery.data?.emailVerified ?? true
+
+  const sendCodeMutation = useMutation({
+    mutationFn: () => api.post<{ success?: boolean; alreadyVerified?: boolean }>('/auth/email/send-code', {}),
+    onSuccess: (res) => {
+      setVerifyError(null)
+      if (res.alreadyVerified) {
+        setVerifyMessage('Your email is already verified.')
+        queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
+        return
+      }
+      setCodeRequested(true)
+      setVerifyMessage(`Code sent. Check your inbox — it expires in ${EMAIL_VERIFICATION_CODE_TTL_MINUTES} minutes.`)
+    },
+    onError: (err: any) => {
+      setVerifyMessage(null)
+      setVerifyError(err.message ?? 'Could not send code. Please try again.')
+    },
+  })
+
+  const verifyCodeMutation = useMutation({
+    mutationFn: (code: string) =>
+      api.post<{ success?: boolean; reward?: number; alreadyVerified?: boolean; starCoins?: number }>(
+        '/auth/email/verify-code',
+        { code },
+      ),
+    onSuccess: (res) => {
+      setVerifyError(null)
+      setCodeInput('')
+      setCodeRequested(false)
+      if (res.alreadyVerified) {
+        setVerifyMessage('Email already verified.')
+      } else {
+        setVerifyMessage(`Email verified! +${res.reward ?? EMAIL_VERIFICATION_REWARD} ⭐ credited.`)
+      }
+      queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
+    },
+    onError: (err: any) => {
+      setVerifyMessage(null)
+      setVerifyError(err.message ?? 'Verification failed.')
+    },
+  })
 
   // Sound
   const [soundEnabled, setSoundEnabled] = useState(() => {
@@ -179,6 +236,105 @@ export default function SettingsPage() {
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Email verification */}
+          <div className="card space-y-3">
+            <SectionHeader title="Email" />
+            {emailVerified ? (
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    Email verified <span className="text-emerald-400">✓</span>
+                  </p>
+                  {meQuery.data?.email && (
+                    <p className="text-xs text-neutral-500 mt-0.5 break-all">{meQuery.data.email}</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Verify your email</p>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Unverified accounts start with 20 ⭐. Verify your email to earn +
+                    {EMAIL_VERIFICATION_REWARD} ⭐.
+                  </p>
+                  {meQuery.data?.email && (
+                    <p className="text-xs text-neutral-400 mt-1 break-all">{meQuery.data.email}</p>
+                  )}
+                </div>
+
+                {!codeRequested ? (
+                  <button
+                    onClick={() => sendCodeMutation.mutate()}
+                    disabled={sendCodeMutation.isPending}
+                    className="w-full py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
+                  >
+                    {sendCodeMutation.isPending ? 'Sending…' : 'Send verification code'}
+                  </button>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      setVerifyError(null)
+                      if (!/^\d{6}$/.test(codeInput)) {
+                        setVerifyError('Enter the 6-digit code from your email.')
+                        return
+                      }
+                      verifyCodeMutation.mutate(codeInput)
+                    }}
+                    className="space-y-2"
+                  >
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      autoComplete="one-time-code"
+                      placeholder="6-digit code"
+                      value={codeInput}
+                      onChange={(e) => setCodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-center text-lg font-mono tracking-[0.5em] placeholder-neutral-600 focus:outline-none focus:border-brand-600 transition-colors"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCodeRequested(false)
+                          setCodeInput('')
+                          setVerifyError(null)
+                          setVerifyMessage(null)
+                        }}
+                        className="flex-1 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-sm font-semibold transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={verifyCodeMutation.isPending || codeInput.length !== 6}
+                        className="flex-1 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
+                      >
+                        {verifyCodeMutation.isPending ? 'Verifying…' : 'Verify email'}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => sendCodeMutation.mutate()}
+                      disabled={sendCodeMutation.isPending}
+                      className="w-full text-xs text-neutral-400 hover:text-white transition-colors disabled:opacity-40"
+                    >
+                      {sendCodeMutation.isPending ? 'Sending…' : 'Resend code'}
+                    </button>
+                  </form>
+                )}
+
+                {verifyError && <p className="text-red-400 text-xs">{verifyError}</p>}
+                {verifyMessage && !verifyError && (
+                  <p className="text-emerald-400 text-xs">{verifyMessage}</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Account */}
