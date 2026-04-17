@@ -45,7 +45,10 @@ vi.mock('@red-handed/ui', () => ({
   Badge: ({ tier }: { tier: string }) => <div data-testid="badge">{tier}</div>,
 }))
 
-vi.mock('@red-handed/shared', () => ({
+// Override the rank/level tunables used directly by ProfilePage, but let
+// everything else flow through to the real package.
+vi.mock('@red-handed/shared', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   RANK_CONFIG: {
     wooden:      { label: 'Wooden',      color: '#8B6914', icon: '🪵', lpRequired: 100 },
     bronze:      { label: 'Bronze',      color: '#CD7F32', icon: '🥉', lpRequired: 200 },
@@ -82,11 +85,26 @@ const achievementsResponse: any[] = [
 ]
 
 const profileStatsResponse = {
-  stats: { totalGames: 30, wins: 18, losses: 12, winRate: 0.6, asVillager: 22, asRedHanded: 8, survived: 15 },
+  unranked: {
+    stats: { totalGames: 30, wins: 18, losses: 12, winRate: 60, asVillager: 22, asRedHanded: 8, survived: 15 },
+  },
+  ranked: {
+    stats: { totalGames: 0, wins: 0, losses: 0, winRate: 0, asVillager: 0, asRedHanded: 0, survived: 0 },
+  },
+  // Honor counts come from these, not from the honorTeamplayer/honorSharpMind
+  // fields on /auth/me — the page pulls per-tab honor tallies from here.
+  honorsUnranked: [
+    { type: 'teamplayer', count: 3 },
+    { type: 'sharp_mind', count: 1 },
+  ],
+  honorsRanked: [],
+  stats: { totalGames: 30, wins: 18, losses: 12, winRate: 60, asVillager: 22, asRedHanded: 8, survived: 15 },
   recentGames: [
     { gameId: 'g1', role: 'villager', survived: true, winnerTeam: 'villagers', didWin: true, rounds: 3, playedAt: new Date().toISOString() },
   ],
 }
+
+const summaryResponse = { total: 20, unlocked: 5, unclaimedCount: 0, unclaimedStars: 0 }
 
 import ProfilePage from '../../pages/ProfilePage'
 
@@ -100,6 +118,7 @@ describe('ProfilePage', () => {
     vi.clearAllMocks()
     mockApiGet.mockImplementation((path: string) => {
       if (path === '/auth/me') return Promise.resolve(meResponse)
+      if (path === '/achievements/summary') return Promise.resolve(summaryResponse)
       if (path === '/achievements') return Promise.resolve(achievementsResponse)
       if (path.includes('/profile')) return Promise.resolve(profileStatsResponse)
       return Promise.resolve({})
@@ -139,8 +158,8 @@ describe('ProfilePage', () => {
       render(<ProfilePage />, { wrapper })
     })
     await waitFor(() => {
-      // Honor points shown in stats
-      expect(screen.getByText('profile.honorPoints')).toBeInTheDocument()
+      // Honor section header — stats tab defaults to 'unranked'.
+      expect(screen.getByText('profile.honorReceivedUnranked')).toBeInTheDocument()
     })
   })
 
@@ -149,7 +168,8 @@ describe('ProfilePage', () => {
       render(<ProfilePage />, { wrapper })
     })
     await waitFor(() => {
-      expect(screen.getByText('profile.starCoins')).toBeInTheDocument()
+      // Star coin chip shows the value — 50 from meResponse.starCoins.
+      expect(screen.getByText('50')).toBeInTheDocument()
     })
   })
 
@@ -158,7 +178,8 @@ describe('ProfilePage', () => {
       render(<ProfilePage />, { wrapper })
     })
     await waitFor(() => {
-      expect(screen.getByText('profile.rankPoints')).toBeInTheDocument()
+      // LP display is "{lp} / {required} LP" — lp=150, bronze.lpRequired=200.
+      expect(screen.getByText(/150\s*\/\s*200/)).toBeInTheDocument()
     })
   })
 
@@ -167,7 +188,9 @@ describe('ProfilePage', () => {
       render(<ProfilePage />, { wrapper })
     })
     await waitFor(() => {
-      expect(screen.getByText('First Win')).toBeInTheDocument()
+      // Achievements are now shown via the AchievementSummaryChip, keyed on
+      // 'profile.achievements' in both the loading and loaded states.
+      expect(screen.getByText('profile.achievements')).toBeInTheDocument()
     })
   })
 
@@ -176,7 +199,8 @@ describe('ProfilePage', () => {
       render(<ProfilePage />, { wrapper })
     })
     await waitFor(() => {
-      expect(screen.getByText('Veteran')).toBeInTheDocument()
+      // Summary chip shows "{unlocked}/{total}" — 5/20 from summaryResponse.
+      expect(screen.getByText('5/20')).toBeInTheDocument()
     })
   })
 
@@ -421,9 +445,11 @@ describe('ProfilePage', () => {
     })
   })
 
-  it('shows no achievements message when achievements array is empty', async () => {
+  it('shows play-to-unlock message when no achievements are claimable', async () => {
     mockApiGet.mockImplementation((path: string) => {
       if (path === '/auth/me') return Promise.resolve(meResponse)
+      if (path === '/achievements/summary')
+        return Promise.resolve({ total: 20, unlocked: 0, unclaimedCount: 0, unclaimedStars: 0 })
       if (path === '/achievements') return Promise.resolve([])
       if (path.includes('/profile')) return Promise.resolve(profileStatsResponse)
       return Promise.resolve({})
@@ -432,7 +458,8 @@ describe('ProfilePage', () => {
       render(<ProfilePage />, { wrapper })
     })
     await waitFor(() => {
-      expect(screen.getByText('profile.noAchievements')).toBeInTheDocument()
+      // AchievementSummaryChip's fallback copy when nothing is claimable.
+      expect(screen.getByText('profile.playToUnlock')).toBeInTheDocument()
     })
   })
 

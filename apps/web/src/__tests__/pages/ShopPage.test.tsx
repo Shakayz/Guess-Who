@@ -73,9 +73,13 @@ describe('ShopPage', () => {
     expect(screen.getByText('3')).toBeInTheDocument()
   })
 
-  it('shows the coin-packs "coming soon" notice on the Coins tab (default)', () => {
+  it('shows the coin-packs "coming soon" notice on the Coins tab (default)', async () => {
     renderShop()
-    expect(screen.getByText(/shop\.packsUnavailable/)).toBeInTheDocument()
+    // The tab now renders loading skeletons first and only falls back to the
+    // "coming soon" notice after the /shop/packs query resolves (null / []).
+    await waitFor(() => {
+      expect(screen.getByText(/shop\.packsUnavailable/)).toBeInTheDocument()
+    })
   })
 
   it('lists the free earning mechanics so players without coins see alternatives', () => {
@@ -95,15 +99,15 @@ describe('ShopPage', () => {
     expect(screen.queryByText('shop.tabCosmetics')).not.toBeInTheDocument()
   })
 
-  it('switches to Season tab and shows the "coming soon" copy', () => {
+  it('switches to Premium tab and shows the "coming soon" copy', () => {
     renderShop()
-    fireEvent.click(screen.getByText('shop.tabSeason'))
-    expect(screen.getByText('shop.seasonComingSoon')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('shop.tabPremium'))
+    expect(screen.getByText(/shop\.premiumComingSoon/)).toBeInTheDocument()
   })
 
-  it('can switch back to the Coins tab from Season', async () => {
+  it('can switch back to the Coins tab from Premium', async () => {
     renderShop()
-    fireEvent.click(screen.getByText('shop.tabSeason'))
+    fireEvent.click(screen.getByText('shop.tabPremium'))
     fireEvent.click(screen.getByText('shop.tabCoins'))
     await waitFor(() => {
       expect(screen.getByText(/shop\.packsUnavailable/)).toBeInTheDocument()

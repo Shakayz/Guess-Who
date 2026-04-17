@@ -1,6 +1,7 @@
 import React from 'react'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', () => ({
@@ -28,7 +29,8 @@ vi.mock('../../lib/api', () => ({
 
 vi.mock('../../components/NavBar', () => ({ NavBar: () => <div data-testid="navbar" /> }))
 
-vi.mock('@red-handed/shared', () => ({
+vi.mock('@red-handed/shared', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   RANK_CONFIG: {
     wooden:      { label: 'Wooden',      color: '#8B6914', icon: '🪵', lpRequired: 100 },
     bronze:      { label: 'Bronze',      color: '#CD7F32', icon: '🥉', lpRequired: 200 },
@@ -61,6 +63,17 @@ const fullProfile = {
 
 import PlayerProfilePage from '../../pages/PlayerProfilePage'
 
+// PlayerProfilePage uses useQuery internally, so every render needs a
+// QueryClientProvider wrapper — otherwise useQueryClient throws.
+function renderPlayerProfile() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={qc}>
+      <PlayerProfilePage />
+    </QueryClientProvider>,
+  )
+}
+
 describe('PlayerProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -68,29 +81,29 @@ describe('PlayerProfilePage', () => {
   })
 
   it('renders without crashing', () => {
-    render(<PlayerProfilePage />)
+    renderPlayerProfile()
     expect(document.body).toBeInTheDocument()
   })
 
   it('renders navbar', () => {
-    render(<PlayerProfilePage />)
+    renderPlayerProfile()
     expect(screen.getByTestId('navbar')).toBeInTheDocument()
   })
 
   it('shows loading state while data is pending', () => {
     mockApiGet.mockReturnValueOnce(new Promise(() => {}))
-    render(<PlayerProfilePage />)
+    renderPlayerProfile()
     expect(document.body).toBeInTheDocument()
   })
 
   it('fetches profile for given userId on mount', async () => {
-    render(<PlayerProfilePage />)
+    renderPlayerProfile()
     expect(mockApiGet).toHaveBeenCalledWith('/users/u2/profile')
   })
 
   it('renders player profile data after loading', async () => {
     await act(async () => {
-      render(<PlayerProfilePage />)
+      renderPlayerProfile()
     })
     await waitFor(() => {
       expect(screen.getByText('player2')).toBeInTheDocument()
@@ -99,7 +112,7 @@ describe('PlayerProfilePage', () => {
 
   it('renders stats grid with correct values', async () => {
     await act(async () => {
-      render(<PlayerProfilePage />)
+      renderPlayerProfile()
     })
     await waitFor(() => {
       // Total games
@@ -111,27 +124,27 @@ describe('PlayerProfilePage', () => {
 
   it('renders honor badges when honors exist', async () => {
     await act(async () => {
-      render(<PlayerProfilePage />)
+      renderPlayerProfile()
     })
     await waitFor(() => {
-      expect(screen.getByText('Team Player')).toBeInTheDocument()
-      expect(screen.getByText('Sharp Mind')).toBeInTheDocument()
+      expect(screen.getByText('profile.teamPlayer')).toBeInTheDocument()
+      expect(screen.getByText('profile.sharpMind')).toBeInTheDocument()
     })
   })
 
   it('renders recent games list', async () => {
     await act(async () => {
-      render(<PlayerProfilePage />)
+      renderPlayerProfile()
     })
     await waitFor(() => {
-      expect(screen.getByText('playerProfile.recentGames')).toBeInTheDocument()
+      expect(screen.getByText('profile.recentGames')).toBeInTheDocument()
     })
   })
 
   it('shows error state when API fails', async () => {
     mockApiGet.mockRejectedValueOnce(new Error('User not found'))
     await act(async () => {
-      render(<PlayerProfilePage />)
+      renderPlayerProfile()
     })
     await waitFor(() => {
       expect(screen.getByText('playerProfile.loadError')).toBeInTheDocument()
@@ -140,7 +153,7 @@ describe('PlayerProfilePage', () => {
 
   it('navigates back when back button clicked', async () => {
     await act(async () => {
-      render(<PlayerProfilePage />)
+      renderPlayerProfile()
     })
     await waitFor(() => {
       const backBtn = screen.getAllByText('playerProfile.back')[0]
@@ -152,7 +165,7 @@ describe('PlayerProfilePage', () => {
   it('navigates back on error back button', async () => {
     mockApiGet.mockRejectedValueOnce(new Error('Error'))
     await act(async () => {
-      render(<PlayerProfilePage />)
+      renderPlayerProfile()
     })
     await waitFor(() => {
       fireEvent.click(screen.getByText('playerProfile.back'))
@@ -163,7 +176,7 @@ describe('PlayerProfilePage', () => {
   it('shows no games message when recentGames is empty', async () => {
     mockApiGet.mockResolvedValueOnce({ ...fullProfile, recentGames: [] })
     await act(async () => {
-      render(<PlayerProfilePage />)
+      renderPlayerProfile()
     })
     await waitFor(() => {
       expect(screen.getByText('playerProfile.noGames')).toBeInTheDocument()
@@ -173,7 +186,7 @@ describe('PlayerProfilePage', () => {
   it('does not show honors section when honors array is empty', async () => {
     mockApiGet.mockResolvedValueOnce({ ...fullProfile, honors: [] })
     await act(async () => {
-      render(<PlayerProfilePage />)
+      renderPlayerProfile()
     })
     await waitFor(() => {
       expect(screen.queryByText('playerProfile.honorsReceived')).not.toBeInTheDocument()

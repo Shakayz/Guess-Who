@@ -68,7 +68,8 @@ vi.mock('@red-handed/ui', () => ({
   PlayerCard: ({ player }: { player: any }) => <div data-testid="player-card">{player.username}</div>,
 }))
 
-vi.mock('@red-handed/shared', () => ({
+vi.mock('@red-handed/shared', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   WORD_CATEGORIES: [
     { key: 'food', label: 'Food', icon: '🍕' },
     { key: 'animals', label: 'Animals', icon: '🐶' },
@@ -339,8 +340,19 @@ describe('LobbyPage', () => {
     render(<LobbyPage />)
     fireEvent.click(screen.getByRole('button', { name: /lobby\.roomSettings/i }))
     fireEvent.click(screen.getByText(/lobby\.special/i))
-    fireEvent.click(screen.getByText('lobby.detective'))
-    expect(mockSocketEmit).toHaveBeenCalledWith('room:settings', expect.objectContaining({ enableDetective: true }))
+    // In special mode the detective is a numeric stepper (lobby.detectiveCount),
+    // not a boolean toggle. Walk from the label up to the row div so we only
+    // grab the stepper's own [−, +] buttons — not the buttons of neighboring
+    // role rows (guardian, revenant, etc.).
+    const detectiveLabel = screen.getByText('lobby.detectiveCount')
+    const row = detectiveLabel.parentElement!.parentElement!.parentElement as HTMLElement
+    const stepperButtons = row.querySelectorAll('button')
+    expect(stepperButtons.length).toBe(2)
+    fireEvent.click(stepperButtons[1]) // "+" bumps detectiveCount 0 → 1
+    expect(mockSocketEmit).toHaveBeenCalledWith(
+      'room:settings',
+      expect.objectContaining({ detectiveCount: 1 }),
+    )
   })
 
   it('emits start game when start button clicked', () => {

@@ -55,7 +55,10 @@ vi.mock('@red-handed/ui', () => ({
   Badge: ({ tier }: { tier: string }) => <div>{tier}</div>,
 }))
 
-vi.mock('@red-handed/shared', () => ({
+// Let non-overridden exports (TUTORIAL_COMPLETION_REWARD, …) pass through so
+// ResultsPage can keep reading unrelated shared constants.
+vi.mock('@red-handed/shared', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   RANK_CONFIG: {
     wooden:      { label: 'Wooden',      color: '#8B6914', icon: '🪵', lpRequired: 100 },
     bronze:      { label: 'Bronze',      color: '#CD7F32', icon: '🥉', lpRequired: 200 },

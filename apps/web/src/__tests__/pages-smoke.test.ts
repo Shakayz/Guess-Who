@@ -85,7 +85,12 @@ vi.mock('socket.io-client', () => ({
   io: vi.fn(() => ({ on: vi.fn(), off: vi.fn(), emit: vi.fn(), connect: vi.fn(), disconnect: vi.fn(), connected: false })),
 }))
 
-vi.mock('@red-handed/shared', () => ({}))
+// Smoke-import tests render every page; let the real shared constants flow
+// through so pages that read things like TUTORIAL_COMPLETION_REWARD or
+// EMAIL_VERIFICATION_REWARD at module scope don't crash on undefined.
+vi.mock('@red-handed/shared', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+}))
 
 // ---------------------------------------------------------------------------
 // Helpers

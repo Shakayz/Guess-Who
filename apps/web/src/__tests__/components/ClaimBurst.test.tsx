@@ -18,7 +18,7 @@ describe('ClaimBurst', () => {
     vi.useRealTimers()
   })
 
-  it('renders a radial glow, 8 star particles, and a +N⭐ label anchored to the target', () => {
+  it('renders 14 animated star particles and a +N⭐ label anchored to the target', () => {
     vi.useFakeTimers()
     // Seed a fake target in the DOM. jsdom returns zero rects by default,
     // so stub getBoundingClientRect to produce a deterministic position.
@@ -37,14 +37,16 @@ describe('ClaimBurst', () => {
     }) as DOMRect
     document.body.appendChild(target)
 
-    render(<ClaimBurst targetKey="key42" stars={25} onDone={vi.fn()} />)
+    const { container } = render(<ClaimBurst targetKey="key42" stars={25} onDone={vi.fn()} />)
     expect(screen.getByText('+25⭐')).toBeInTheDocument()
-    const particles = screen.getAllByText('⭐')
-    expect(particles.length).toBe(8)
+    // Particle emojis are a mix of ⭐/✨/💫, so assert the animated-particle
+    // count via the class that all particles share.
+    const particles = container.querySelectorAll('.animate-star-fly')
+    expect(particles.length).toBe(14)
     vi.useRealTimers()
   })
 
-  it('adds the burst animation class to the target for 600ms', () => {
+  it('adds the jelly animation class to the target for ~650ms', () => {
     vi.useFakeTimers()
     const target = document.createElement('div')
     target.id = 'achievement-card-anim'
@@ -53,15 +55,15 @@ describe('ClaimBurst', () => {
     document.body.appendChild(target)
 
     render(<ClaimBurst targetKey="anim" stars={1} onDone={vi.fn()} />)
-    expect(target.classList.contains('animate-burst-pop')).toBe(true)
+    expect(target.classList.contains('animate-jelly')).toBe(true)
     act(() => {
       vi.advanceTimersByTime(700)
     })
-    expect(target.classList.contains('animate-burst-pop')).toBe(false)
+    expect(target.classList.contains('animate-jelly')).toBe(false)
     vi.useRealTimers()
   })
 
-  it('calls onDone after 1.2 seconds', () => {
+  it('calls onDone after the 1.7s celebration finishes', () => {
     vi.useFakeTimers()
     const target = document.createElement('div')
     target.id = 'achievement-card-done'
@@ -73,7 +75,7 @@ describe('ClaimBurst', () => {
     render(<ClaimBurst targetKey="done" stars={1} onDone={onDone} />)
     expect(onDone).not.toHaveBeenCalled()
     act(() => {
-      vi.advanceTimersByTime(1200)
+      vi.advanceTimersByTime(1700)
     })
     expect(onDone).toHaveBeenCalledTimes(1)
     vi.useRealTimers()

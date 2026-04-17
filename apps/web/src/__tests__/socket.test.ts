@@ -27,8 +27,12 @@ vi.mock('../store/auth', () => ({
   },
 }))
 
-// ---- Mock shared types (used as type-only import in socket.ts) ----
-vi.mock('@red-handed/shared', () => ({}))
+// ---- Mock shared: fall through to the real exports so any runtime constant
+// socket.ts or its transitive imports need (TUTORIAL_COMPLETION_REWARD,
+// MATCHMAKING_CONFIG, …) keeps working. Types are stripped at build time.
+vi.mock('@red-handed/shared', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+}))
 
 describe('socket', () => {
   beforeEach(() => {
