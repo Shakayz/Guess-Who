@@ -8,22 +8,22 @@ const rankedGamesProgression = progression({
   keyPrefix: 'ranked_games',
   category: 'ranked',
   icon: '⚔️',
-  name: (n) => n === 1 ? 'Ranked Debut' : `${n} Ranked Games`,
-  description: (n) => n === 1 ? 'Play your first ranked game' : `Play ${n} ranked games`,
+  name: (n) => n === 5 ? 'Ranked Debut' : `${n} Ranked Games`,
+  description: (n) => n === 5 ? 'Play 5 ranked games' : `Play ${n} ranked games`,
   event: 'game_end',
   getCount: (s) => s.rankedGames,
-  tiers: TIERS_6([1, 10, 50, 200, 1000, 5000]),
+  tiers: TIERS_6([5, 25, 100, 400, 2000, 10000]),
 })
 
 const rankedWinsProgression = progression({
   keyPrefix: 'ranked_wins',
   category: 'ranked',
   icon: '🗡️',
-  name: (n) => n === 1 ? 'Ranked Victor' : `${n} Ranked Wins`,
-  description: (n) => n === 1 ? 'Win your first ranked game' : `Win ${n} ranked games`,
+  name: (n) => n === 3 ? 'Ranked Victor' : `${n} Ranked Wins`,
+  description: (n) => n === 3 ? 'Win 3 ranked games' : `Win ${n} ranked games`,
   event: 'game_end',
   getCount: (s) => s.rankedWins,
-  tiers: TIERS_6([1, 10, 25, 100, 500, 2500]),
+  tiers: TIERS_6([3, 15, 50, 200, 1000, 5000]),
 })
 
 // Tier promotions are separate one-offs because they fire on rank_changed.
@@ -71,19 +71,24 @@ for (const t of RANK_TIERS) {
 
 const rankedOneOffs = merge(
   single(
-    { key: 'ranked_ratio', name: 'Cut-throat', description: 'Reach 60% win rate in 50+ ranked games', icon: '🥊', category: 'ranked', difficulty: 'platinum', xpReward: REWARD.platinum.xp, coinReward: REWARD.platinum.stars },
+    { key: 'ranked_ratio', name: 'Cut-throat', description: 'Reach 65% win rate in 100+ ranked games', icon: '🥊', category: 'ranked', difficulty: 'diamond', xpReward: REWARD.diamond.xp, coinReward: REWARD.diamond.stars },
     'game_end',
-    (ctx) => ctx.stats.rankedGames >= 50 && ctx.stats.rankedWins / ctx.stats.rankedGames >= 0.6,
+    (ctx) => ctx.stats.rankedGames >= 100 && ctx.stats.rankedWins / ctx.stats.rankedGames >= 0.65,
   ),
   single(
-    { key: 'ranked_immortal', name: 'Ranked Immortal', description: 'Win 2500 ranked games', icon: '♾️', category: 'ranked', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars },
+    { key: 'ranked_immortal', name: 'Ranked Immortal', description: 'Win 3000 ranked games', icon: '♾️', category: 'ranked', difficulty: 'mythic', xpReward: REWARD.mythic.xp, coinReward: REWARD.mythic.stars },
     'game_end',
-    (ctx) => ctx.stats.rankedWins >= 2500,
+    (ctx) => ctx.stats.rankedWins >= 3000,
   ),
   single(
     { key: 'perfectionist', name: 'Perfectionist', description: 'Reach Grandmaster rank', icon: '🌠', category: 'ranked', difficulty: 'diamond', xpReward: REWARD.diamond.xp, coinReward: REWARD.diamond.stars },
     'rank_changed',
     (ctx) => ctx.stats.rankTier === 'grandmaster',
+  ),
+  single(
+    { key: 'ranked_veteran', name: 'Ranked Veteran', description: 'Play 250 ranked games', icon: '🎖️', category: 'ranked', difficulty: 'gold', xpReward: REWARD.gold.xp, coinReward: REWARD.gold.stars },
+    'game_end',
+    (ctx) => ctx.stats.rankedGames >= 250,
   ),
 )
 
