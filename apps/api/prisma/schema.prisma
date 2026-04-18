@@ -18,7 +18,6 @@ model User {
   avatarUrl     String?
   locale        String   @default("en") @db.VarChar(5)
   starCoins     Int      @default(20)
-  goldCoins     Int      @default(0)
   rankTier      String   @default("wooden") @db.VarChar(20)
   rankPoints    Int      @default(0)
   honorPoints   Int      @default(0)
@@ -332,7 +331,7 @@ model SeasonTier {
   seasonPassId String
   tierNumber   Int
   xpRequired   Int
-  rewardType   String   @db.VarChar(20)  // 'starCoins' | 'goldCoins' | 'title'
+  rewardType   String   @db.VarChar(20)  // 'starCoins' | 'title'
   rewardValue  String                   // amount or title
   isPremium    Boolean  @default(false)
 
@@ -408,7 +407,7 @@ model Purchase {
   id              String   @id @default(cuid())
   userId          String
   packId          String
-  goldCoins       Int
+  starCoins       Int
   priceCents      Int
   currency        String   @default("usd") @db.VarChar(5)
   stripeSessionId String?  @unique

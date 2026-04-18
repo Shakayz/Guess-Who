@@ -188,7 +188,6 @@ describe('E2E User Journey', () => {
       email: 'profile@example.com',
       avatarUrl: null,
       starCoins: 0,
-      goldCoins: 0,
       rankTier: 'wooden',
       rankPoints: 0,
       honorPoints: 0,

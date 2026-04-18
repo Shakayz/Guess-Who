@@ -386,7 +386,6 @@ describe('Auth Routes - Unit Tests', () => {
         email: 'test@example.com',
         avatarUrl: null,
         starCoins: 100,
-        goldCoins: 50,
         rankTier: 'bronze',
         rankPoints: 250,
         honorPoints: 10,

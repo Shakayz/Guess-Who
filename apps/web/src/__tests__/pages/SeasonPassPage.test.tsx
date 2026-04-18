@@ -22,7 +22,7 @@ const seasonData = {
   userXp: 250,
   tiers: [
     { id: 't1', tierNumber: 1, xpRequired: 100, rewardType: 'starCoins', rewardValue: '50', isPremium: false, claimed: true, unlocked: true },
-    { id: 't2', tierNumber: 2, xpRequired: 200, rewardType: 'goldCoins', rewardValue: '10', isPremium: false, claimed: false, unlocked: true },
+    { id: 't2', tierNumber: 2, xpRequired: 200, rewardType: 'starCoins', rewardValue: '75', isPremium: false, claimed: false, unlocked: true },
     { id: 't3', tierNumber: 3, xpRequired: 300, rewardType: 'title', rewardValue: 'Champion', isPremium: true, claimed: false, unlocked: false },
   ],
 }
@@ -164,16 +164,6 @@ describe('SeasonPassPage', () => {
     })
     await waitFor(() => {
       expect(screen.getByText(/50 Star Coins/)).toBeInTheDocument()
-    })
-  })
-
-  it('renders goldCoins reward type with correct label', async () => {
-    mockApiGet.mockResolvedValueOnce(seasonData)
-    await act(async () => {
-      render(<SeasonPassPage />, { wrapper })
-    })
-    await waitFor(() => {
-      expect(screen.getByText(/10 Gold Coins/)).toBeInTheDocument()
     })
   })
 

@@ -127,7 +127,7 @@ describe('Season Pass Routes', () => {
 
     it('claims a tier reward successfully', async () => {
       mockSeasonTier.findUnique.mockResolvedValue(activeTier)
-      mockPrismaUser.findUnique.mockResolvedValue({ seasonXp: 500, goldCoins: 0 })
+      mockPrismaUser.findUnique.mockResolvedValue({ seasonXp: 500 })
       mockSeasonPassClaim.findUnique.mockResolvedValue(null)
       ;(prisma.$transaction as any).mockImplementation(async (fn: any) => fn({
         seasonPassClaim: { create: vi.fn().mockResolvedValue({}) },
@@ -179,7 +179,7 @@ describe('Season Pass Routes', () => {
 
     it('returns 400 when user lacks required XP', async () => {
       mockSeasonTier.findUnique.mockResolvedValue(activeTier)
-      mockPrismaUser.findUnique.mockResolvedValue({ seasonXp: 10, goldCoins: 0 })
+      mockPrismaUser.findUnique.mockResolvedValue({ seasonXp: 10 })
 
       const res = await app.inject({
         method: 'POST',
@@ -193,7 +193,7 @@ describe('Season Pass Routes', () => {
 
     it('returns 409 when tier is already claimed', async () => {
       mockSeasonTier.findUnique.mockResolvedValue(activeTier)
-      mockPrismaUser.findUnique.mockResolvedValue({ seasonXp: 500, goldCoins: 0 })
+      mockPrismaUser.findUnique.mockResolvedValue({ seasonXp: 500 })
       mockSeasonPassClaim.findUnique.mockResolvedValue({ userId: 'user-1', seasonTierId: 'tier-1' })
 
       const res = await app.inject({
@@ -225,30 +225,6 @@ describe('Season Pass Routes', () => {
       expect(res.json().error).toBe('User not found')
     })
 
-    it('claims a goldCoins reward (goldCoins branch is skipped but no error)', async () => {
-      const goldTier = {
-        ...activeTier,
-        rewardType: 'goldCoins',
-        rewardValue: '50',
-      }
-      mockSeasonTier.findUnique.mockResolvedValue(goldTier)
-      mockPrismaUser.findUnique.mockResolvedValue({ seasonXp: 500, goldCoins: 0 })
-      mockSeasonPassClaim.findUnique.mockResolvedValue(null)
-      ;(prisma.$transaction as any).mockImplementation(async (fn: any) => fn({
-        seasonPassClaim: { create: vi.fn().mockResolvedValue({}) },
-        user: { update: vi.fn().mockResolvedValue({}) },
-      }))
-
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/season-pass/claim/tier-1',
-        headers: { authorization: `Bearer ${token}` },
-      })
-
-      expect(res.statusCode).toBe(200)
-      expect(res.json().rewardType).toBe('goldCoins')
-    })
-
     it('claims a title reward (no extra side-effects)', async () => {
       const titleTier = {
         ...activeTier,
@@ -256,7 +232,7 @@ describe('Season Pass Routes', () => {
         rewardValue: 'Champion',
       }
       mockSeasonTier.findUnique.mockResolvedValue(titleTier)
-      mockPrismaUser.findUnique.mockResolvedValue({ seasonXp: 500, goldCoins: 0 })
+      mockPrismaUser.findUnique.mockResolvedValue({ seasonXp: 500 })
       mockSeasonPassClaim.findUnique.mockResolvedValue(null)
       const seasonPassClaimCreate = vi.fn().mockResolvedValue({})
       ;(prisma.$transaction as any).mockImplementation(async (fn: any) => fn({

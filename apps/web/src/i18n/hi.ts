@@ -520,7 +520,6 @@ export default {
   shop: {
     shop: 'दुकान',
     starCoins: 'स्टार कॉइन',
-    goldCoins: 'गोल्ड कॉइन',
     buy: 'खरीदें',
     owned: 'स्वामित्व',
     premium: 'प्रीमियम',

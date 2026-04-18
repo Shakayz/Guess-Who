@@ -119,7 +119,7 @@ function CoinsTab({ onPlayClick }: { onPlayClick: () => void }) {
   const { t } = useTranslation()
 
   // Pack catalogue comes from the API so prices/bonuses stay in sync with the
-  // server-side GOLD_COIN_PACKS constant and can be evolved without a web deploy.
+  // server-side COIN_PACKS constant and can be evolved without a web deploy.
   const { data, isLoading, isError } = useQuery<{ packs: Pack[] }>({
     queryKey: ['shop', 'packs'],
     queryFn: () => api.get('/shop/packs'),
@@ -233,7 +233,7 @@ function CheckoutBanner() {
   const status = params.get('checkout')
 
   // Refresh balance when we come back from a successful checkout. The webhook
-  // credits goldCoins server-side; this just re-fetches so the header updates.
+  // credits starCoins server-side; this just re-fetches so the header updates.
   React.useEffect(() => {
     if (status === 'success') {
       queryClient.invalidateQueries({ queryKey: ['me'] })

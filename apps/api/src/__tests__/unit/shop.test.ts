@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify'
 import Fastify from 'fastify'
 import jwt from '@fastify/jwt'
 import { shopRoutes } from '../../routes/shop'
-import { GOLD_COIN_PACKS } from '@red-handed/shared'
+import { COIN_PACKS } from '@red-handed/shared'
 
 // Shop now wires real Stripe Checkout. These tests exercise the routes that
 // don't require Stripe credentials — the pack catalogue (public) and the 503
@@ -36,7 +36,7 @@ describe('Shop Routes', () => {
       const res = await app.inject({ method: 'GET', url: '/api/shop/packs' })
       expect(res.statusCode).toBe(200)
       const body = res.json()
-      expect(body.packs).toHaveLength(GOLD_COIN_PACKS.length)
+      expect(body.packs).toHaveLength(COIN_PACKS.length)
       // The response intentionally strips Stripe price IDs — clients only need
       // display data, not billing identifiers.
       for (const pack of body.packs) {

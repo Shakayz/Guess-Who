@@ -126,7 +126,7 @@ packages/
 - `id` (cuid), `username`, `email`, `passwordHash`
 - OAuth: `googleId`, `appleId`
 - Profile: `avatarUrl`, `locale`, `pushToken`
-- Economy: `starCoins`, `goldCoins`
+- Economy: `starCoins`
 - Rank: `rankTier`, `rankPoints`, `honorPoints`, `seasonXp`
 - Flags: `emailVerified`, `createdAt`, `updatedAt`
 

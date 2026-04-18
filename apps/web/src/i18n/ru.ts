@@ -510,7 +510,6 @@ export default {
   shop: {
     shop: 'Магазин',
     starCoins: 'Звёздные монеты',
-    goldCoins: 'Золотые монеты',
     buy: 'Купить',
     owned: 'Куплено',
     premium: 'Премиум',

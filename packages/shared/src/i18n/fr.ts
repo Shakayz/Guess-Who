@@ -336,7 +336,6 @@ export default {
   shop: {
     shop: 'Boutique',
     starCoins: 'StarCoins',
-    goldCoins: 'GoldCoins',
     buy: 'Acheter',
     owned: 'Possédé',
     premium: 'Premium',

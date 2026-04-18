@@ -100,14 +100,13 @@ export const REFERRAL_INVITEE_REWARD = 20
 export const SOCIAL_SHARE_REWARD = 50
 
 /**
- * Gold-coin packs listed in the Shop. `priceCents` is the authoritative price
- * used to stamp the Purchase row and drive analytics; `stripePriceId` is the
- * per-environment Stripe Price the checkout session is created against and is
- * read from env vars (STRIPE_PRICE_ID_PACK_*) so test/live modes can carry
- * different IDs without a rebuild. `bonus` is additive — a purchase credits
- * `amount + bonus` gold coins.
+ * Star-coin packs listed in the Shop. `priceCents` is the authoritative price
+ * used to stamp the Purchase row and drive analytics; the Stripe Price ID is
+ * read from env vars (STRIPE_PRICE_ID_PACK_*) at checkout time so test/live
+ * modes can carry different IDs without a rebuild. `bonus` is additive — a
+ * purchase credits `amount + bonus` star coins.
  */
-export type GoldCoinPack = {
+export type CoinPack = {
   id: string
   amount: number
   priceCents: number
@@ -115,7 +114,7 @@ export type GoldCoinPack = {
   bonus: number
 }
 
-export const GOLD_COIN_PACKS: readonly GoldCoinPack[] = [
+export const COIN_PACKS: readonly CoinPack[] = [
   { id: 'pack_500',  amount: 500,  priceCents: 199,  currency: 'eur', bonus: 0 },
   { id: 'pack_1500', amount: 1500, priceCents: 499,  currency: 'eur', bonus: 150 },
   { id: 'pack_5000', amount: 5000, priceCents: 1499, currency: 'eur', bonus: 750 },

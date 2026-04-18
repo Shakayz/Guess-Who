@@ -62,7 +62,7 @@ export const seasonPassRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     // Check user has enough XP
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { seasonXp: true, goldCoins: true } })
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { seasonXp: true } })
     if (!user) return reply.status(404).send({ error: 'User not found' })
     if (user.seasonXp < tier.xpRequired) {
       return reply.status(400).send({ error: 'Not enough season XP' })
@@ -74,14 +74,10 @@ export const seasonPassRoutes: FastifyPluginAsync = async (fastify) => {
     })
     if (existing) return reply.status(409).send({ error: 'Already claimed' })
 
-    // Award reward (goldCoins rewards disabled until premium is ready)
     await prisma.$transaction(async (tx) => {
       await tx.seasonPassClaim.create({ data: { userId, seasonTierId: tierId } })
       if (tier.rewardType === 'starCoins') {
         await tx.user.update({ where: { id: userId }, data: { starCoins: { increment: parseInt(tier.rewardValue) } } })
-      } else if (tier.rewardType === 'goldCoins') {
-        // TODO: re-enable when premium is ready
-        // await tx.user.update({ where: { id: userId }, data: { goldCoins: { increment: parseInt(tier.rewardValue) } } })
       }
       // 'title' rewards are recorded via the seasonPassClaim row only — no
       // additional state to flip until titles get a backing model.
