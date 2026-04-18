@@ -85,6 +85,8 @@ export default {
     normalGameModeDesc: 'Villageois et imposteurs uniquement',
     specialGameMode: 'Spécial',
     specialGameModeDesc: 'Détective, double agent disponibles',
+    payForFun: 'Jouer pour le fun',
+    payForFunDesc: 'Partie décontractée — sans classement',
     gameModeLabel: 'Mode de jeu',
     findGame: '🎮 Trouver une partie non classée',
     findRanked: '🏆 Trouver une partie classée',

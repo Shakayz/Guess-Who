@@ -84,6 +84,8 @@ export default {
     normalGameModeDesc: 'Villagers & imposters only',
     specialGameMode: 'Special',
     specialGameModeDesc: 'Detective, double agent available',
+    payForFun: 'Pay for Fun',
+    payForFunDesc: 'Casual play — no ranking',
     gameModeLabel: 'Game mode',
     findGame: '🎮 Find Unranked Game',
     findRanked: '🏆 Find Ranked Game',

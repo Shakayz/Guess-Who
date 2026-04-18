@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Image,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -20,8 +21,13 @@ import type { WordCategory, MatchmakingStatus } from '@red-handed/shared'
 import { useResponsive, responsiveContentStyle } from '../../lib/responsive'
 import { OnboardingTutorial, hasTutorialCompleted } from '../../components/OnboardingTutorial'
 import InsufficientCoinsModal from '../../components/InsufficientCoinsModal'
+import { Wordmark } from '../../components/Wordmark'
+import { Avatar } from '../../components/Avatar'
+import { LanguagePicker } from '../../components/LanguagePicker'
+import { PopIn, FloatSoft } from '../../components/anim/AnimatedViews'
 
 type GameMode = 'normal' | 'ranked' | 'lobby'
+type SubGameMode = 'normal' | 'special'
 
 const HOW_TO_PLAY = [
   { icon: '🎭', title: 'Get your role', desc: 'Villager or Imposter — each gets a different word.' },
@@ -30,14 +36,14 @@ const HOW_TO_PLAY = [
   { icon: '🏆', title: 'Win', desc: 'Villagers win if all imposters are eliminated.' },
 ]
 
-const MODES: { id: GameMode; icon: string; label: string; desc: string }[] = [
-  { id: 'normal', icon: '🎮', label: 'Normal', desc: 'Play for fun — no LP at stake' },
-  { id: 'ranked', icon: '🏆', label: 'Ranked', desc: 'All categories · affects LP' },
-  { id: 'lobby',  icon: '🚪', label: 'Create Lobby', desc: 'Invite friends with a code' },
+const MODES: { id: GameMode; icon: string; labelKey: string; descKey: string }[] = [
+  { id: 'normal', icon: '🎲', labelKey: 'home.normalLabel', descKey: 'home.normalDesc' },
+  { id: 'ranked', icon: '🏆', labelKey: 'home.rankedLabel', descKey: 'home.rankedDesc' },
+  { id: 'lobby',  icon: '🚪', labelKey: 'home.lobbyLabel',  descKey: 'home.lobbyDesc' },
 ]
 
 export default function HomeScreen() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const { isTablet, px, gridItemWidth, fontScale } = useResponsive()
@@ -59,6 +65,8 @@ export default function HomeScreen() {
   }, [])
 
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
+  const [unrankedSubMode, setUnrankedSubMode] = useState<SubGameMode>('normal')
+  const [lobbyGameMode, setLobbyGameMode] = useState<SubGameMode>('normal')
   const [categories, setCategories] = useState<WordCategory[]>([])
   const [roomCode, setRoomCode] = useState('')
   const [showTutorial, setShowTutorial] = useState(false)
@@ -78,19 +86,33 @@ export default function HomeScreen() {
   // Star-coin balance shown in the header chip. Refreshed on focus. If the
   // fetch fails we just show 0 — not critical enough to retry or surface.
   const [starCoins, setStarCoins] = useState<number | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [streak, setStreak] = useState<{ count: number; lastPlayedAt: string | null }>({ count: 0, lastPlayedAt: null })
   useEffect(() => {
     if (!user) return
     let cancelled = false
     api
-      .get<{ starCoins?: number }>('/auth/me')
+      .get<{ starCoins?: number; avatarUrl?: string | null; dailyStreakCount?: number; lastPlayedAt?: string | null }>('/auth/me')
       .then((me) => {
-        if (!cancelled) setStarCoins(me.starCoins ?? 0)
+        if (cancelled) return
+        setStarCoins(me.starCoins ?? 0)
+        setAvatarUrl(me.avatarUrl ?? null)
+        setStreak({ count: me.dailyStreakCount ?? 0, lastPlayedAt: me.lastPlayedAt ?? null })
       })
       .catch(() => {
         if (!cancelled) setStarCoins(0)
       })
     return () => { cancelled = true }
   }, [user])
+
+  // Matches web: streak is "alive" if last-played day (UTC) is today or yesterday.
+  const streakAlive = (() => {
+    if (!streak.lastPlayedAt || streak.count <= 0) return false
+    const last = new Date(streak.lastPlayedAt)
+    if (isNaN(last.getTime())) return false
+    const dayMs = 86_400_000
+    return Math.floor(Date.now() / dayMs) - Math.floor(last.getTime() / dayMs) <= 1
+  })()
   const [inQueue, setInQueue] = useState(false)
   const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({
     queueSize: 1, needed: MATCHMAKING_CONFIG.IDEAL_PLAYERS, elapsed: 0,
@@ -98,6 +120,7 @@ export default function HomeScreen() {
   })
 
   const hasCategories = selectedMode === 'normal' || selectedMode === 'lobby'
+  const hasSubMode = selectedMode === 'normal' || selectedMode === 'lobby'
 
   // Matchmaking listeners
   useEffect(() => {
@@ -140,10 +163,10 @@ export default function HomeScreen() {
     setLoading(true)
     setError(null)
     socket.emit('matchmaking:join' as any, {
-      gameMode: selectedMode === 'ranked' ? 'ranked' : 'normal',
+      gameMode: selectedMode === 'ranked' ? 'ranked' : unrankedSubMode,
       categories: selectedMode === 'ranked' ? [] : categories,
     })
-  }, [selectedMode, categories])
+  }, [selectedMode, categories, unrankedSubMode])
 
   const cancelMatchmaking = useCallback(() => {
     const socket = getSocket()
@@ -163,14 +186,23 @@ export default function HomeScreen() {
     setLoading(true)
     setError(null)
     try {
+      const initialMode = selectedMode === 'ranked'
+        ? 'ranked'
+        : selectedMode === 'lobby'
+          ? lobbyGameMode
+          : unrankedSubMode
       const room = await api.post<{ code: string }>('/rooms', {
         settings: {
-          gameMode: selectedMode === 'ranked' ? 'ranked' : 'normal',
+          gameMode: initialMode,
           categories: selectedMode === 'ranked' ? [] : categories,
           isPrivate: selectedMode === 'lobby',
+          language: i18n.language.split('-')[0],
         },
       })
-      router.push(`/lobby/${room.code}`)
+      const dest = selectedMode === 'lobby'
+        ? `/lobby/${room.code}?mode=${lobbyGameMode}`
+        : `/lobby/${room.code}`
+      router.push(dest)
     } catch (err: any) {
       const code = err?.data?.error ?? err?.error
       const required = err?.data?.required ?? 10
@@ -202,21 +234,34 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={contentStyle}>
-          {/* Header */}
+          {/* Header — logo left, streak/coins/lang/avatar right (matches web NavBar) */}
           <View className="flex-row items-center justify-between pt-4 pb-2" style={{ paddingHorizontal: px + 8 }}>
-            <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-xl bg-violet-700/80 items-center justify-center">
-                <Text style={{ fontSize: 16 * fontScale }}>🎭</Text>
-              </View>
-              <Text className="text-white font-extrabold tracking-tight" style={{ fontSize: 18 * fontScale }}>Red Handed !</Text>
-            </View>
+            <Image
+              source={require('../../assets/masks.png')}
+              style={{ width: 36, height: 36, borderRadius: 8 }}
+              resizeMode="contain"
+            />
             {user && (
-              <View className="flex-row items-center gap-2">
-                {/* Coin-balance chip → opens /shop. Tappable so players can
-                    top up at any time, not just when game-start rejects them. */}
+              <View className="flex-row items-center gap-1.5">
+                <View
+                  className={[
+                    'flex-row items-center gap-1 px-2 py-1 rounded-full border',
+                    streakAlive
+                      ? 'bg-orange-500/10 border-orange-500/30'
+                      : 'bg-neutral-900 border-neutral-800',
+                  ].join(' ')}
+                >
+                  <Text style={{ fontSize: 12, opacity: streakAlive ? 1 : 0.5 }}>🔥</Text>
+                  <Text
+                    className={streakAlive ? 'text-orange-400 font-semibold' : 'text-neutral-500 font-semibold'}
+                    style={{ fontSize: 13 * fontScale }}
+                  >
+                    {streak.count}
+                  </Text>
+                </View>
                 <TouchableOpacity
                   onPress={() => router.push('/shop?tab=coins')}
-                  className="flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30"
+                  className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30"
                   activeOpacity={0.8}
                   accessibilityLabel="Shop"
                 >
@@ -225,26 +270,25 @@ export default function HomeScreen() {
                     {(starCoins ?? 0).toLocaleString()}
                   </Text>
                 </TouchableOpacity>
-                <View className="flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-900 border border-neutral-800">
-                  <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  <Text className="text-neutral-400" style={{ fontSize: 13 * fontScale }}>@{user.username}</Text>
-                </View>
+                <LanguagePicker />
+                <TouchableOpacity
+                  onPress={() => router.push('/(tabs)/profile')}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Profile"
+                >
+                  <Avatar url={avatarUrl} username={user.username} size={32} />
+                </TouchableOpacity>
               </View>
             )}
           </View>
 
           {/* Hero */}
-          <View className="items-center pt-10 pb-6" style={{ paddingHorizontal: px + 8 }}>
-            <View className="flex-row items-center gap-2 px-3 py-1.5 rounded-full border border-violet-700/40 bg-violet-900/20 mb-5">
-              <View className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-              <Text className="text-violet-400 font-semibold" style={{ fontSize: 12 * fontScale }}>Social Deduction · Real-time · Multiplayer</Text>
-            </View>
-            <Text className="font-extrabold text-white text-center leading-tight tracking-tight mb-2" style={{ fontSize: (isTablet ? 44 : 36) }}>
-              Play the{'\n'}
-              <Text className="text-violet-500">Red Handed !</Text> Game
-            </Text>
-            <Text className="text-neutral-400 mt-2 text-center" style={{ fontSize: 16 * fontScale }}>Deceive. Detect. Dominate.</Text>
-          </View>
+          <PopIn delay={80} style={{ alignItems: 'center', paddingTop: 16, paddingBottom: 16, paddingHorizontal: px + 8 }}>
+            <FloatSoft style={{ alignItems: 'center' }}>
+              <Wordmark size={isTablet ? 320 : 280} />
+            </FloatSoft>
+            <Text className="text-neutral-400 mt-1 text-center" style={{ fontSize: 14 * fontScale }}>Deceive. Detect. Dominate.</Text>
+          </PopIn>
 
           <View style={{ paddingHorizontal: px, gap: 16 }}>
 
@@ -325,10 +369,10 @@ export default function HomeScreen() {
                         <Text style={{ fontSize: isTablet ? 28 : 22 }}>{mode.icon}</Text>
                       </View>
                       <Text className={['font-extrabold', active ? activeText : 'text-neutral-400'].join(' ')} style={{ fontSize: 12 * fontScale }}>
-                        {mode.label}
+                        {t(mode.labelKey)}
                       </Text>
                       <Text className={['text-center leading-tight', active ? 'text-neutral-400' : 'text-neutral-700'].join(' ')} style={{ fontSize: 10 * fontScale }}>
-                        {mode.desc}
+                        {t(mode.descKey)}
                       </Text>
                     </TouchableOpacity>
                     </Animated.View>
@@ -336,6 +380,68 @@ export default function HomeScreen() {
                 })}
               </View>
             </View>
+
+            {/* Sub-mode selector — Pay for Fun (unranked) / Normal + Special (lobby) */}
+            {hasSubMode && (() => {
+              const isLobby = selectedMode === 'lobby'
+              const currentSubMode = isLobby ? lobbyGameMode : unrankedSubMode
+              const setSubMode = isLobby ? setLobbyGameMode : setUnrankedSubMode
+              const SUB_MODES: { id: SubGameMode; icon: string; labelKey: string; descKey: string }[] = isLobby
+                ? [
+                    { id: 'normal',  icon: '🎭', labelKey: 'home.normalGameMode',  descKey: 'home.normalGameModeDesc' },
+                    { id: 'special', icon: '✨', labelKey: 'home.specialGameMode', descKey: 'home.specialGameModeDesc' },
+                  ]
+                : [
+                    { id: 'normal',  icon: '🎉', labelKey: 'home.payForFun', descKey: 'home.payForFunDesc' },
+                  ]
+              return (
+                <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-2">
+                  <Text className="font-semibold uppercase tracking-widest text-neutral-500" style={{ fontSize: 12 * fontScale }}>
+                    {t('home.gameModeLabel')}
+                  </Text>
+                  <View className="flex-row gap-2">
+                    {SUB_MODES.map((m) => {
+                      const isActive = currentSubMode === m.id
+                      return (
+                        <TouchableOpacity
+                          key={m.id}
+                          onPress={() => setSubMode(m.id)}
+                          className={[
+                            'flex-1 items-center gap-1 rounded-xl border',
+                            isActive
+                              ? m.id === 'special'
+                                ? 'bg-purple-950/60 border-purple-700/50'
+                                : 'bg-violet-950/60 border-violet-700/50'
+                              : 'bg-neutral-800/60 border-neutral-700/50',
+                          ].join(' ')}
+                          style={{ paddingVertical: isTablet ? 14 : 12, paddingHorizontal: 8 }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={{ fontSize: 18 }}>{m.icon}</Text>
+                          <Text
+                            className={[
+                              'font-semibold',
+                              isActive
+                                ? m.id === 'special' ? 'text-purple-300' : 'text-violet-300'
+                                : 'text-neutral-400',
+                            ].join(' ')}
+                            style={{ fontSize: 13 * fontScale }}
+                          >
+                            {t(m.labelKey)}
+                          </Text>
+                          <Text
+                            className={['text-center leading-tight', isActive ? 'text-neutral-400' : 'text-neutral-600'].join(' ')}
+                            style={{ fontSize: 10 * fontScale }}
+                          >
+                            {t(m.descKey)}
+                          </Text>
+                        </TouchableOpacity>
+                      )
+                    })}
+                  </View>
+                </View>
+              )
+            })()}
 
             {/* Category picker */}
             {hasCategories && (

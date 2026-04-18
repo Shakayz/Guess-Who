@@ -45,6 +45,11 @@ export default function HomePage() {
   const [unrankedSubMode, setUnrankedSubMode] = useState<SubGameMode>('normal')
   const [lobbyGameMode, setSubGameMode] = useState<SubGameMode>('normal')
   const [categories, setCategories] = useState<WordCategory[]>([])
+  // Vocal-mode preference for unranked matchmaking. Defaults off. When on, the
+  // server partitions the queue so we only match with other vocal-opt-in
+  // players, and `vocalSpeakingTimeSeconds` sets the per-turn length.
+  const [vocalMode, setVocalMode] = useState(false)
+  const [vocalSpeakingTimeSeconds, setVocalSpeakingTimeSeconds] = useState(10)
   const [roomCode, setRoomCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -150,8 +155,16 @@ export default function HomePage() {
     setMatchmaking(true)
     // For unranked (selectedMode === 'normal'), use the sub-mode (normal/special)
     const actualGameMode = selectedMode === 'normal' ? unrankedSubMode : selectedMode
-    log.info('joining matchmaking', { mode: actualGameMode, categories })
-    getSocket().emit('matchmaking:join' as any, { gameMode: actualGameMode, categories })
+    // Vocal mode is unranked-only — server also enforces this, but we avoid
+    // sending a stray flag for ranked queue-joins.
+    const wantVocal = selectedMode === 'normal' && vocalMode
+    log.info('joining matchmaking', { mode: actualGameMode, categories, vocalMode: wantVocal })
+    getSocket().emit('matchmaking:join' as any, {
+      gameMode: actualGameMode,
+      categories,
+      vocalMode: wantVocal,
+      vocalSpeakingTimeSeconds,
+    })
   }
 
   const cancelMatchmaking = () => {
@@ -236,6 +249,9 @@ export default function HomePage() {
   const LOBBY_GAME_MODES: { id: SubGameMode; icon: string; labelKey: string; descKey: string }[] = [
     { id: 'normal',  icon: '🎭', labelKey: 'home.normalGameMode',  descKey: 'home.normalGameModeDesc' },
     { id: 'special', icon: '✨', labelKey: 'home.specialGameMode', descKey: 'home.specialGameModeDesc' },
+  ]
+  const UNRANKED_GAME_MODES: { id: SubGameMode; icon: string; labelKey: string; descKey: string }[] = [
+    { id: 'normal', icon: '🎉', labelKey: 'home.payForFun', descKey: 'home.payForFunDesc' },
   ]
 
   return (
@@ -434,7 +450,7 @@ export default function HomePage() {
             <div className="card animate-slide-up space-y-2">
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">{t('home.gameModeLabel')}</p>
               <div className="flex gap-2">
-                {LOBBY_GAME_MODES.map((m) => {
+                {(selectedMode === 'normal' ? UNRANKED_GAME_MODES : LOBBY_GAME_MODES).map((m) => {
                   const currentSubMode = selectedMode === 'normal' ? unrankedSubMode : lobbyGameMode
                   const setSubMode = selectedMode === 'normal' ? setUnrankedSubMode : setSubGameMode
                   const isActive = currentSubMode === m.id

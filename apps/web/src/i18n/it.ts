@@ -83,6 +83,8 @@ export default {
     normalGameModeDesc: 'Solo villagers e impostori',
     specialGameMode: 'Speciale',
     specialGameModeDesc: 'Detective, doppio agente disponibili',
+    payForFun: 'Gioca per divertirti',
+    payForFunDesc: 'Partita casuale — senza classifica',
     gameModeLabel: 'Modalità di gioco',
     findGame: '🎮 Trova partita non classificata',
     findRanked: '🏆 Trova partita classificata',

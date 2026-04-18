@@ -83,6 +83,8 @@ export default {
     normalGameModeDesc: 'Solo aldeanos e impostores',
     specialGameMode: 'Especial',
     specialGameModeDesc: 'Detective, doble agente disponibles',
+    payForFun: 'Jugar por diversión',
+    payForFunDesc: 'Juego casual — sin clasificación',
     gameModeLabel: 'Modo de juego',
     findGame: '🎮 Buscar partida sin clasificar',
     findRanked: '🏆 Buscar partida clasificatoria',

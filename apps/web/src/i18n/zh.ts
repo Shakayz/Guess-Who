@@ -83,6 +83,8 @@ export default {
     normalGameModeDesc: '仅村民和内奸',
     specialGameMode: '特殊',
     specialGameModeDesc: '侦探、双面特工可用',
+    payForFun: '娱乐游戏',
+    payForFunDesc: '休闲玩法 — 不计排名',
     gameModeLabel: '游戏模式',
     findGame: '🎮 查找休闲游戏',
     findRanked: '🏆 查找排位游戏',

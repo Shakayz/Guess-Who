@@ -83,6 +83,8 @@ export default {
     normalGameModeDesc: 'قرويون ومتسللون فقط',
     specialGameMode: 'خاص',
     specialGameModeDesc: 'المحقق، العميل المزدوج متاحون',
+    payForFun: 'العب للمتعة',
+    payForFunDesc: 'لعب عادي — بدون تصنيف',
     gameModeLabel: 'وضع اللعبة',
     findGame: '🎮 إيجاد مباراة غير مصنفة',
     findRanked: '🏆 ابحث عن مباراة مصنّفة',

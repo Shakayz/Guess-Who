@@ -84,6 +84,8 @@ export default {
     normalGameModeDesc: 'Только жители и самозванцы',
     specialGameMode: 'Специальный',
     specialGameModeDesc: 'Детектив, двойной агент доступны',
+    payForFun: 'Играть для веселья',
+    payForFunDesc: 'Обычная игра — без рейтинга',
     gameModeLabel: 'Режим игры',
     findGame: '🎮 Найти игру',
     findRanked: '🏆 Найти рейтинговую игру',

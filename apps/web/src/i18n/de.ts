@@ -83,6 +83,8 @@ export default {
     normalGameModeDesc: 'Nur Dorfbewohner und Impostoren',
     specialGameMode: 'Spezial',
     specialGameModeDesc: 'Detektiv, Doppelagent verfügbar',
+    payForFun: 'Zum Spaß spielen',
+    payForFunDesc: 'Lockeres Spiel — kein Ranking',
     gameModeLabel: 'Spielmodus',
     findGame: '🎮 Ungew. Spiel suchen',
     findRanked: '🏆 Gew. Spiel suchen',

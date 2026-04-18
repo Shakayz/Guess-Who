@@ -84,6 +84,8 @@ export default {
     normalGameModeDesc: 'केवल ग्रामीण और इम्पोस्टर',
     specialGameMode: 'स्पेशल',
     specialGameModeDesc: 'जासूस, दोहरा एजेंट उपलब्ध',
+    payForFun: 'मौज के लिए खेलें',
+    payForFunDesc: 'आम खेल — बिना रैंकिंग',
     gameModeLabel: 'गेम मोड',
     findGame: '🎮 अनरैंक्ड गेम खोजें',
     findRanked: '🏆 रैंक्ड गेम खोजें',

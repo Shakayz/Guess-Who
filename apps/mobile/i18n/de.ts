@@ -65,6 +65,8 @@ export default {
     normalGameModeDesc: 'Nur Dorfbewohner und Hochstapler',
     specialGameMode: 'Speziell',
     specialGameModeDesc: 'Detektiv, Doppelagent verfügbar',
+    payForFun: 'Zum Spaß spielen',
+    payForFunDesc: 'Lockeres Spiel — kein Ranking',
     gameModeLabel: 'Spielmodus',
     findGame: '🎮 Ungewertete Partie finden',
     findRanked: '🏆 Gewertete Partie finden',

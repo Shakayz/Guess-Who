@@ -83,6 +83,8 @@ export default {
     normalGameModeDesc: 'Apenas aldeões e impostores',
     specialGameMode: 'Especial',
     specialGameModeDesc: 'Detetive, agente duplo disponíveis',
+    payForFun: 'Jogar por diversão',
+    payForFunDesc: 'Jogo casual — sem ranking',
     gameModeLabel: 'Modo de jogo',
     findGame: '🎮 Buscar partida sem ranking',
     findRanked: '🏆 Encontrar partida ranqueada',
