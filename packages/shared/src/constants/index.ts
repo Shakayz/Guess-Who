@@ -120,6 +120,24 @@ export const COIN_PACKS: readonly CoinPack[] = [
   { id: 'pack_5000', amount: 5000, priceCents: 1499, currency: 'eur', bonus: 750 },
 ] as const
 
+/**
+ * Premium subscription plans. The `interval` drives UI copy and the webhook's
+ * `current_period_end` math; the actual price comes from Stripe (per-env Price
+ * IDs via STRIPE_PRICE_ID_PREMIUM_MONTHLY / _YEARLY). A user is premium iff
+ * `User.premiumUntil > now()` — see apps/api/prisma/schema.prisma.
+ */
+export type PremiumPlan = {
+  id: 'monthly' | 'yearly'
+  interval: 'month' | 'year'
+  priceCents: number
+  currency: string
+}
+
+export const PREMIUM_PLANS: readonly PremiumPlan[] = [
+  { id: 'monthly', interval: 'month', priceCents: 100,  currency: 'eur' },
+  { id: 'yearly',  interval: 'year',  priceCents: 1000, currency: 'eur' },
+] as const
+
 export const LP_DECAY = {
   /** Days of inactivity before decay begins */
   INACTIVITY_DAYS: 7,

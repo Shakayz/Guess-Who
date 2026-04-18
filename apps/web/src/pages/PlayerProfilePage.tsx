@@ -8,6 +8,7 @@ import { api } from '../lib/api'
 import { RANK_CONFIG, LEVEL_CAP } from '@red-handed/shared'
 import type { RankTier } from '@red-handed/shared'
 import { ReportModal } from '../components/ReportModal'
+import { PremiumBadge } from '../components/PremiumBadge'
 
 interface UserStats {
   totalGames: number
@@ -48,6 +49,7 @@ interface PlayerProfile {
   xpInLevel?: number
   xpForNextLevel?: number
   hasPlayedRanked?: boolean
+  isPremium?: boolean
   stats: UserStats
   statsRanked?: UserStats
   statsUnranked?: UserStats
@@ -189,9 +191,12 @@ export default function PlayerProfilePage() {
               )}
 
               <div className="flex-1 min-w-0">
-                <h1 className="text-2xl md:text-3xl font-extrabold text-white truncate">
-                  {profile.username}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl md:text-3xl font-extrabold text-white truncate">
+                    {profile.username}
+                  </h1>
+                  {profile.isPremium && <PremiumBadge size="sm" />}
+                </div>
                 {profile.createdAt && (
                   <p className="text-neutral-600 text-xs mt-0.5">
                     {t('profile.joinedDate', { date: formatDate(profile.createdAt) })}

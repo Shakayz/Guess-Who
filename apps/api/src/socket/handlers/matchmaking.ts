@@ -258,11 +258,14 @@ async function tickRankedQueue(io: Server<any, any>, queueKey: string, window: M
       const maxLP = group[RANKED_PLAYERS - 1].rankPoints ?? 0
       const lpSpread = maxLP - minLP
 
-      // Use the widest LP window among the group (longest waiter gets priority)
+      // Use the widest LP window among the group (longest waiter gets priority).
+      // Premium players get a +15s "head start" on LP window widening so they
+      // match faster at the edge of their skill band.
       const widestRange = Math.max(
         ...group.map((p: any) => {
           const elapsed = Math.floor((now - (p.joinedAt ?? window.startedAt)) / 1000)
-          return getRankedLPRange(elapsed)
+          const bonus = p.isPremium ? 15 : 0
+          return getRankedLPRange(elapsed + bonus)
         })
       )
 
@@ -410,12 +413,16 @@ export function registerMatchmakingHandlers(
       } catch {}
     }
 
-    // Fetch rank points for ranked queue
-    const userFull = await prisma.user.findUnique({ where: { id: userId }, select: { rankPoints: true } })
+    // Fetch rank points + premium status for ranked queue
+    const userFull = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { rankPoints: true, premiumUntil: true },
+    })
     const rankPoints = userFull?.rankPoints ?? 0
+    const isPremium = !!(userFull?.premiumUntil && userFull.premiumUntil.getTime() > Date.now())
 
     // Add to queue
-    const entry = JSON.stringify({ userId, socketId: socket.id, categories: data?.categories ?? [], locale, rankPoints, joinedAt: Date.now() })
+    const entry = JSON.stringify({ userId, socketId: socket.id, categories: data?.categories ?? [], locale, rankPoints, isPremium, joinedAt: Date.now() })
     await redis.rpush(queueKey, entry)
     await redis.expire(queueKey, 300) // 5-min TTL
 

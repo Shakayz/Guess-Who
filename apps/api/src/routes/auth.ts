@@ -366,6 +366,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           level: true, xp: true, hasPlayedRanked: true,
           emailVerified: true,
           dailyStreakCount: true, lastPlayedAt: true,
+          premiumUntil: true,
         },
       }),
       prisma.honor.groupBy({
@@ -378,6 +379,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     const honorMap: Record<string, number> = {}
     for (const h of honors) honorMap[h.type] = h._count.type
     const progress = xpProgressInLevel(user.xp ?? 0)
+    // Derive entitlement from the single source of truth. A user is premium
+    // iff premiumUntil is set AND still in the future. The client never needs
+    // to do this math itself.
+    const isPremium = !!(user.premiumUntil && user.premiumUntil.getTime() > Date.now())
     return reply.send({
       ...user,
       // If the player has never played a ranked game, expose 'unranked' as the
@@ -385,6 +390,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       rankTier: user.hasPlayedRanked ? user.rankTier : 'unranked',
       xpInLevel: progress.current,
       xpForNextLevel: progress.needed,
+      isPremium,
       honorTeamplayer: honorMap['teamplayer'] ?? 0,
       honorSharpMind:  honorMap['sharp_mind']  ?? 0,
       honorGoodSport:  honorMap['good_sport']  ?? 0,

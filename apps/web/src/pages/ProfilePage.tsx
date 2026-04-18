@@ -10,6 +10,7 @@ import { RANK_CONFIG, LEVEL_CAP, USERNAME_CHANGE_COST, EMAIL_VERIFICATION_REWARD
 import type { RankTier } from '@red-handed/shared'
 import { api } from '../lib/api'
 import { ReferralCard } from '../components/ReferralCard'
+import { PremiumBadge } from '../components/PremiumBadge'
 
 const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/gif,image/webp'
 
@@ -33,6 +34,8 @@ interface MeResponse {
   xpInLevel?: number
   xpForNextLevel?: number
   hasPlayedRanked?: boolean
+  isPremium?: boolean
+  premiumUntil?: string | null
 }
 
 interface UserStats {
@@ -309,6 +312,7 @@ export default function ProfilePage() {
                       ) : (
                         <>
                           <h1 className="text-2xl md:text-3xl font-extrabold text-white">{me?.username ?? authUser?.username}</h1>
+                          {me?.isPremium && <PremiumBadge size="sm" />}
                           <button
                             onClick={() => { setEditingUsername(true); setUsernameInput(me?.username ?? '') }}
                             className="text-neutral-600 hover:text-neutral-400 transition-colors text-sm"

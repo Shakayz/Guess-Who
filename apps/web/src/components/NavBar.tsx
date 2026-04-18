@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
 import { useSocialStore } from '../store/social'
 import { DmChatPanel } from './DmChatPanel'
+import { PremiumBadge } from './PremiumBadge'
 import { api } from '../lib/api'
 import { getSocket } from '../lib/socket'
 import { LANGUAGES, findLanguage } from '../i18n/languages'
@@ -30,6 +31,7 @@ export function NavBar() {
   //   3. socket `game:finished` (rewards were just credited)
   const token = useAuthStore((s) => s.token)
   const [starCoins, setStarCoins] = useState(0)
+  const [isPremium, setIsPremium] = useState(false)
   const [streak, setStreak] = useState<{ count: number; lastPlayedAt: string | null }>({
     count: 0,
     lastPlayedAt: null,
@@ -37,16 +39,18 @@ export function NavBar() {
   useEffect(() => {
     if (!token) {
       setStarCoins(0)
+      setIsPremium(false)
       setStreak({ count: 0, lastPlayedAt: null })
       return
     }
     let cancelled = false
     const fetchBalance = () => {
       api
-        .get<{ starCoins?: number; dailyStreakCount?: number; lastPlayedAt?: string | null }>('/auth/me')
+        .get<{ starCoins?: number; dailyStreakCount?: number; lastPlayedAt?: string | null; isPremium?: boolean }>('/auth/me')
         .then((me) => {
           if (cancelled) return
           setStarCoins(me.starCoins ?? 0)
+          setIsPremium(!!me.isPremium)
           setStreak({
             count: me.dailyStreakCount ?? 0,
             lastPlayedAt: me.lastPlayedAt ?? null,
@@ -217,10 +221,24 @@ export function NavBar() {
 
         <button
           onClick={() => navigate('/profile')}
-          className="px-3 py-1.5 text-sm text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-all font-medium"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-all font-medium"
         >
-          {user?.username}
+          <span>{user?.username}</span>
+          {isPremium && <PremiumBadge size="xs" />}
         </button>
+        {/* Upsell entry-point — only shown to non-premium users. Takes them
+            directly to the /premium page. Keeps the crown visible in the top
+            bar without crowding premium users' chrome. */}
+        {token && !isPremium && (
+          <button
+            onClick={() => navigate('/premium')}
+            aria-label="Go Premium"
+            title="Go Premium"
+            className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all"
+          >
+            <span className="text-sm">👑</span>
+          </button>
+        )}
         <button
           onClick={() => navigate('/settings')}
           aria-label={t('nav.settings')}
