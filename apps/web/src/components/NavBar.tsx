@@ -146,10 +146,10 @@ export function NavBar() {
 
       <div className="flex items-center gap-1">
         {/* Daily streak chip — fire + consecutive-day count (Duolingo-style).
-            Hidden when count is 0. Bright orange when the streak is alive
-            (played today or yesterday UTC); dim when the stored count is
-            stale and will reset on next game. */}
-        {token && streak.count > 0 && (
+            Always visible when logged in: bright orange when the streak is
+            alive (played today or yesterday UTC); dim grey at zero or when
+            the stored count is stale and will reset on next game. */}
+        {token && (
           <span
             aria-label={t('nav.streak', { count: streak.count })}
             title={t('nav.streak', { count: streak.count })}
