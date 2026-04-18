@@ -118,7 +118,9 @@ export async function sendSupportMessage(params: SupportMessageParams): Promise<
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Red Handed ! <contact@redhanded-game.com>',
+        // Sending to contact@ via Resend: FROM must not also be contact@,
+        // or PrivateEmail drops it on DMARC (mail appears self-spoofed).
+        from: 'Red Handed ! <noreply@redhanded-game.com>',
         to,
         reply_to: replyTo,
         subject,
