@@ -336,7 +336,6 @@ export default {
   shop: {
     shop: 'दुकान',
     starCoins: 'स्टार सिक्के',
-    goldCoins: 'सोने के सिक्के',
     buy: 'खरीदें',
     owned: 'स्वामित्व में',
     premium: 'प्रीमियम',

@@ -33,7 +33,6 @@ interface SeasonData {
 
 const REWARD_ICONS: Record<string, string> = {
   starCoins: '⭐',
-  goldCoins: '💰',
   title: '🏷️',
 }
 

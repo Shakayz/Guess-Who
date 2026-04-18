@@ -23,7 +23,6 @@ interface MeResponse {
   rankPoints: number
   honorPoints: number
   starCoins: number
-  goldCoins: number
   locale: string
   createdAt: string
   honorTeamplayer?: number

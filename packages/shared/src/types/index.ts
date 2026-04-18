@@ -9,7 +9,6 @@ export interface User {
   avatarUrl: string | null
   locale: Locale
   starCoins: number
-  goldCoins: number
   rank: RankTier
   rankPoints: number
   honorPoints: number

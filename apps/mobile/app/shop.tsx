@@ -80,13 +80,11 @@ export default function ShopScreen() {
   // Live balance — refreshed on mount. Plain useEffect pattern because the
   // mobile app doesn't bundle react-query.
   const [starCoins, setStarCoins] = useState(0)
-  const [goldCoins, setGoldCoins] = useState(0)
   const fetchMe = useCallback(() => {
     api
-      .get<{ starCoins?: number; goldCoins?: number }>('/auth/me')
+      .get<{ starCoins?: number }>('/auth/me')
       .then((me) => {
         setStarCoins(me.starCoins ?? 0)
-        setGoldCoins(me.goldCoins ?? 0)
       })
       .catch((err) => log.warn('balance fetch failed', { error: err?.message }))
   }, [])
@@ -103,19 +101,11 @@ export default function ShopScreen() {
         <Text className="text-white font-bold flex-1" style={{ fontSize: 16 * fontScale }}>
           {t('shop.shop', { defaultValue: 'Shop' })}
         </Text>
-        <View className="flex-row gap-2">
-          <View className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-800 border border-neutral-700">
-            <Text style={{ fontSize: 12 }}>⭐</Text>
-            <Text className="text-white font-semibold" style={{ fontSize: 12 * fontScale }}>
-              {starCoins.toLocaleString()}
-            </Text>
-          </View>
-          <View className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-950/60 border border-amber-800/50">
-            <Text style={{ fontSize: 12 }}>💰</Text>
-            <Text className="text-amber-400 font-semibold" style={{ fontSize: 12 * fontScale }}>
-              {goldCoins.toLocaleString()}
-            </Text>
-          </View>
+        <View className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-800 border border-neutral-700">
+          <Text style={{ fontSize: 12 }}>⭐</Text>
+          <Text className="text-white font-semibold" style={{ fontSize: 12 * fontScale }}>
+            {starCoins.toLocaleString()}
+          </Text>
         </View>
       </View>
 

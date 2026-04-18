@@ -523,7 +523,6 @@ export default {
   shop: {
     shop: 'المتجر',
     starCoins: 'عملات النجوم',
-    goldCoins: 'عملات الذهب',
     buy: 'شراء',
     owned: 'مملوك',
     premium: 'مميز',

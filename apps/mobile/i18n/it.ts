@@ -264,7 +264,6 @@ export default {
   shop: {
     shop: 'Negozio',
     starCoins: 'StarCoins',
-    goldCoins: 'GoldCoins',
     buy: 'Acquista',
     owned: 'Posseduto',
     premium: 'Premium',

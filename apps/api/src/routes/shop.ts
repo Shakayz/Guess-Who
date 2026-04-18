@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import rawBody from 'fastify-raw-body'
 import Stripe from 'stripe'
-import { GOLD_COIN_PACKS } from '@red-handed/shared'
+import { COIN_PACKS } from '@red-handed/shared'
 import { env } from '../config/env'
 import { prisma } from '../config/prisma'
 
@@ -45,7 +45,7 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
   // price at checkout time.
   fastify.get('/packs', async () => {
     return {
-      packs: GOLD_COIN_PACKS.map((p) => ({
+      packs: COIN_PACKS.map((p) => ({
         id: p.id,
         amount: p.amount,
         bonus: p.bonus,
@@ -69,7 +69,7 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
 
       const userId = (req.user as { sub: string }).sub
       const packId = req.params.id
-      const pack = GOLD_COIN_PACKS.find((p) => p.id === packId)
+      const pack = COIN_PACKS.find((p) => p.id === packId)
       if (!pack) {
         return reply.status(404).send({ error: 'Unknown pack' })
       }
@@ -111,7 +111,7 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
           data: {
             userId,
             packId,
-            goldCoins: pack.amount + pack.bonus,
+            starCoins: pack.amount + pack.bonus,
             priceCents: pack.priceCents,
             currency: pack.currency,
             stripeSessionId: session.id,
@@ -195,7 +195,7 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
   )
 }
 
-// Credits the user's goldCoins for a completed Stripe Checkout session. Safe
+// Credits the user's starCoins for a completed Stripe Checkout session. Safe
 // to call multiple times for the same session — the webhook can be retried by
 // Stripe on network blips. Uses a transaction so the balance update and the
 // status flip land atomically.
@@ -215,14 +215,14 @@ async function creditPurchase(
     }
     await tx.user.update({
       where: { id: purchase.userId },
-      data: { goldCoins: { increment: purchase.goldCoins } },
+      data: { starCoins: { increment: purchase.starCoins } },
     })
     await tx.purchase.update({
       where: { id: purchase.id },
       data: { status: 'completed' },
     })
     log.info(
-      { sessionId, userId: purchase.userId, goldCoins: purchase.goldCoins },
+      { sessionId, userId: purchase.userId, starCoins: purchase.starCoins },
       'purchase credited',
     )
   })

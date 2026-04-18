@@ -75,7 +75,6 @@ const meResponse = {
   rankPoints: 150,
   honorPoints: 5,
   starCoins: 50,
-  goldCoins: 0,
   locale: 'en',
   createdAt: new Date('2023-01-01').toISOString(),
   honorTeamplayer: 3,

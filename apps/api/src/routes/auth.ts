@@ -361,7 +361,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         where: { id: payload.sub },
         select: {
           id: true, username: true, email: true, avatarUrl: true,
-          starCoins: true, goldCoins: true, rankTier: true, rankPoints: true,
+          starCoins: true, rankTier: true, rankPoints: true,
           honorPoints: true, locale: true, createdAt: true,
           level: true, xp: true, hasPlayedRanked: true,
           emailVerified: true,

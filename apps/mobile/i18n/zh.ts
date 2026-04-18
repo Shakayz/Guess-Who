@@ -264,7 +264,6 @@ export default {
   shop: {
     shop: '商店',
     starCoins: '星币',
-    goldCoins: '金币',
     buy: '购买',
     owned: '已拥有',
     premium: '高级',

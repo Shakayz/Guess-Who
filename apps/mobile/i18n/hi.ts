@@ -264,7 +264,6 @@ export default {
   shop: {
     shop: 'दुकान',
     starCoins: 'StarCoins',
-    goldCoins: 'GoldCoins',
     buy: 'खरीदें',
     owned: 'स्वामित्व',
     premium: 'प्रीमियम',
