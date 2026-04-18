@@ -134,8 +134,8 @@ export type PremiumPlan = {
 }
 
 export const PREMIUM_PLANS: readonly PremiumPlan[] = [
-  { id: 'monthly', interval: 'month', priceCents: 100,  currency: 'eur' },
-  { id: 'yearly',  interval: 'year',  priceCents: 1000, currency: 'eur' },
+  { id: 'monthly', interval: 'month', priceCents: 499,  currency: 'eur' },
+  { id: 'yearly',  interval: 'year',  priceCents: 4990, currency: 'eur' },
 ] as const
 
 export const LP_DECAY = {

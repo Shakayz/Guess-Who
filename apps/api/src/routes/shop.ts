@@ -178,11 +178,11 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(409).send({ error: 'already_premium', premiumUntil: user.premiumUntil })
       }
 
-      // Subscription checkout lands back on /premium (not /shop) so the user
-      // sees the "You are Premium" state + Manage Subscription CTA right away.
+      // Land back on the Shop's Premium tab so the user sees the "You are
+      // Premium" state + Manage Subscription CTA right away.
       const origin = env.STRIPE_SUCCESS_URL.split('/shop')[0].split('/premium')[0]
-      const premiumSuccessUrl = `${origin}/premium?checkout=success`
-      const premiumCancelUrl  = `${origin}/premium?checkout=canceled`
+      const premiumSuccessUrl = `${origin}/shop?tab=premium&checkout=success`
+      const premiumCancelUrl  = `${origin}/shop?tab=premium&checkout=canceled`
       let session: Stripe.Checkout.Session
       try {
         session = await stripe.checkout.sessions.create({
