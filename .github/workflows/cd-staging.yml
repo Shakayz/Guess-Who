@@ -67,6 +67,7 @@ jobs:
           build-args: |
             VITE_GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}
             VITE_APPLE_CLIENT_ID=${{ secrets.VITE_APPLE_CLIENT_ID }}
+            VITE_DISCORD_CLIENT_ID=${{ secrets.VITE_DISCORD_CLIENT_ID }}
             VITE_API_URL=https://${{ env.API_DOMAIN }}
             VITE_SOCKET_URL=https://${{ env.API_DOMAIN }}
           tags: |
@@ -108,6 +109,8 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REDIRECT_URI: https://${{ env.API_DOMAIN }}/api/auth/google/callback
           APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          DISCORD_CLIENT_SECRET: ${{ secrets.DISCORD_CLIENT_SECRET }}
           ALLOWED_ORIGINS: https://${{ env.WEB_DOMAIN }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
@@ -138,6 +141,8 @@ jobs:
                   'GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}' \
                   'GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}' \
                   'APPLE_CLIENT_ID=${APPLE_CLIENT_ID}' \
+                  'DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}' \
+                  'DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}' \
                   'ALLOWED_ORIGINS=${ALLOWED_ORIGINS}' \
                   'STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}' \
                   'STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}' \
