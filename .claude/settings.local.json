@@ -112,7 +112,8 @@
       "Bash(pnpm --filter @imposter/web test ProfilePage)",
       "Bash(pnpm --filter @red-handed/shared build)",
       "Bash(pnpm --filter \"@red-handed/shared\" build)",
-      "Bash(pnpm --filter \"@red-handed/ui\" build)"
+      "Bash(pnpm --filter \"@red-handed/ui\" build)",
+      "Bash(pnpm --filter @red-handed/api typecheck)"
     ]
   }
 }

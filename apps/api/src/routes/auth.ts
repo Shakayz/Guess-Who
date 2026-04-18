@@ -3,7 +3,7 @@ import { z } from 'zod'
 import crypto from 'crypto'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
-import { sendPasswordResetEmail, sendVerificationEmail } from '../services/email'
+import { EmailProviderError, sendPasswordResetEmail, sendVerificationEmail } from '../services/email'
 import {
   xpProgressInLevel,
   EMAIL_VERIFICATION_REWARD,
@@ -254,15 +254,33 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         data: { emailVerificationCode: code, emailVerificationExpires: expiresAt },
       })
 
+      let result
       try {
-        await sendVerificationEmail(user.email, code)
+        result = await sendVerificationEmail(user.email, code)
       } catch (err) {
         req.log.error({ err, userId }, 'verification email send failed')
+        if (err instanceof EmailProviderError) {
+          // Surface the provider's status/reason so the operator can tell the
+          // difference between a misconfigured server (503 / no-transport) and
+          // a provider rejection (e.g. 422 unverified domain, 401 bad key).
+          return reply.status(502).send({
+            error: err.message,
+            providerStatus: err.providerStatus,
+          })
+        }
         return reply.status(502).send({ error: 'Could not send verification email. Please try again.' })
       }
 
-      req.log.info({ userId, ttlMinutes: EMAIL_VERIFICATION_CODE_TTL_MINUTES }, 'verification code sent')
-      return reply.send({ success: true, ttlMinutes: EMAIL_VERIFICATION_CODE_TTL_MINUTES })
+      req.log.info(
+        { userId, ttlMinutes: EMAIL_VERIFICATION_CODE_TTL_MINUTES, transport: result.transport },
+        'verification code sent',
+      )
+      return reply.send({
+        success: true,
+        ttlMinutes: EMAIL_VERIFICATION_CODE_TTL_MINUTES,
+        transport: result.transport,
+        providerId: result.transport === 'resend' ? result.providerId : undefined,
+      })
     },
   )
 

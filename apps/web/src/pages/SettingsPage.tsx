@@ -71,7 +71,13 @@ export default function SettingsPage() {
   const emailVerified = meQuery.data?.emailVerified ?? true
 
   const sendCodeMutation = useMutation({
-    mutationFn: () => api.post<{ success?: boolean; alreadyVerified?: boolean }>('/auth/email/send-code', {}),
+    mutationFn: () =>
+      api.post<{
+        success?: boolean
+        alreadyVerified?: boolean
+        transport?: 'resend' | 'smtp' | 'dev'
+        providerId?: string
+      }>('/auth/email/send-code', {}),
     onSuccess: (res) => {
       setVerifyError(null)
       if (res.alreadyVerified) {
@@ -80,13 +86,27 @@ export default function SettingsPage() {
         return
       }
       setCodeRequested(true)
-      setVerifyMessage(`Code sent. Check your inbox — it expires in ${EMAIL_VERIFICATION_CODE_TTL_MINUTES} minutes.`)
+      if (res.transport === 'dev') {
+        // No real email was sent — the backend logged the code to stdout.
+        setVerifyMessage('Dev mode: email provider not configured. Check the server logs for the code.')
+      } else if (res.transport === 'resend' && res.providerId) {
+        setVerifyMessage(
+          `Code sent (Resend id ${res.providerId}). Check your inbox — it expires in ${EMAIL_VERIFICATION_CODE_TTL_MINUTES} minutes. If it doesn't arrive, check the Resend dashboard for delivery status.`,
+        )
+      } else {
+        setVerifyMessage(`Code sent. Check your inbox — it expires in ${EMAIL_VERIFICATION_CODE_TTL_MINUTES} minutes.`)
+      }
     },
     onError: (err: any) => {
       setVerifyMessage(null)
-      // A 502 comes back when the mail service (Resend/SMTP) fails upstream —
-      // show a friendly message instead of the raw status code.
-      if (err?.status === 502) {
+      // The API returns { error, providerStatus } when the email provider
+      // rejects the send (e.g. unverified domain, bad API key). Surface that
+      // verbatim so the operator can tell misconfiguration from transient
+      // upstream failures.
+      const providerStatus: number | undefined = err?.data?.providerStatus
+      if (providerStatus) {
+        setVerifyError(`Email provider rejected send (${providerStatus}): ${err?.message ?? 'unknown error'}`)
+      } else if (err?.status === 502) {
         setVerifyError("We couldn't reach the email service right now. Please try again in a few minutes.")
       } else {
         setVerifyError(err?.message ?? 'Could not send code. Please try again.')
