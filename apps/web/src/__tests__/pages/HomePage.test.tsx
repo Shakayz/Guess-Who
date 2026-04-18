@@ -83,9 +83,7 @@ describe('HomePage', () => {
 
   it('renders without crashing and shows heading', () => {
     render(<HomePage />)
-    // i18n mock returns the raw key — heroTitle2 is the branded span inside
-    // the page's h1 heading.
-    expect(screen.getByText('home.heroTitle2')).toBeInTheDocument()
+    expect(screen.getByAltText('Red Handed !')).toBeInTheDocument()
   })
 
   it('renders the NavBar', () => {
