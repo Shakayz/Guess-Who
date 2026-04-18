@@ -132,18 +132,22 @@ export function ReferralCard() {
           url: inviteUrl,
         })
       } else if (platform === 'discord' || platform === 'instagram') {
-        // Neither service exposes a reliable web share intent, so copy the
-        // message to clipboard and let the user paste it into the app.
+        // Neither service exposes a reliable web share intent. Copy the
+        // message to clipboard so the user can paste it, then open the app
+        // (via deep link) or the web fallback in a new tab.
         try {
           await navigator.clipboard.writeText(`${shareMessage} ${inviteUrl}`)
           setClipboardHint(platform)
-          setTimeout(() => setClipboardHint(null), 2000)
+          setTimeout(() => setClipboardHint(null), 2500)
         } catch {
-          setShareError(
-            t('profile.shareFailed', { defaultValue: 'Share failed — try again' }),
-          )
-          return
+          // Clipboard may be blocked — still open the target below so the
+          // user can manually paste the link they already copied elsewhere.
         }
+        const target =
+          platform === 'discord'
+            ? 'https://discord.com/channels/@me'
+            : 'https://www.instagram.com/'
+        window.open(target, '_blank', 'noopener,noreferrer')
       } else {
         const msg = encodeURIComponent(`${shareMessage} ${inviteUrl}`)
         const url = encodeURIComponent(inviteUrl)
