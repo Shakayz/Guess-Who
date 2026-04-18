@@ -12,7 +12,16 @@ ALTER TABLE "users" DROP COLUMN "goldCoins";
 ALTER TABLE "purchases" RENAME COLUMN "goldCoins" TO "starCoins";
 
 -- Season-pass tiers that used to hand out goldCoins are rewritten to grant the
--- equivalent value in starCoins. `rewardValue` is already a plain integer
--- string for coin rewards, so no conversion is required beyond swapping the
--- type. Safe to run on fresh installs where no rows match.
-UPDATE "season_tiers" SET "rewardType" = 'starCoins' WHERE "rewardType" = 'goldCoins';
+-- equivalent value in starCoins. The `season_tiers` table is declared in the
+-- Prisma schema but no migration creates it, so staging (which applies
+-- migrations with `prisma migrate deploy`) never had it. Guard with IF EXISTS
+-- the same way 20260416000000_remove_cosmetics already does, otherwise the
+-- whole migration transaction rolls back with "relation does not exist" and
+-- the API container exits before binding its port — causing Caddy to return
+-- 502 to every request, including sign-in.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'season_tiers') THEN
+    UPDATE "season_tiers" SET "rewardType" = 'starCoins' WHERE "rewardType" = 'goldCoins';
+  END IF;
+END $$;
