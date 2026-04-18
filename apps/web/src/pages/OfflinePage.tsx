@@ -830,6 +830,19 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
           {t('offline.howToPlay')}
         </p>
 
+        {/* How it works — shown first so players understand the flow before reading roles */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-neutral-300">{t('offline.htpHowItWorks')}</p>
+          <ol className="space-y-1 ml-1 list-decimal list-inside text-xs text-neutral-500 leading-relaxed">
+            <li>{t('offline.htpStep1')}</li>
+            <li>{t('offline.htpStep2')}</li>
+            <li>{t('offline.htpStep3')}</li>
+            <li>{t('offline.htpStep4')}</li>
+          </ol>
+        </div>
+
+        <div className="border-t border-neutral-800/60" />
+
         {/* Normal mode */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -960,18 +973,6 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
           </div>
         </div>
 
-        <div className="border-t border-neutral-800/60" />
-
-        {/* How it works */}
-        <div className="space-y-1.5">
-          <p className="text-xs font-semibold text-neutral-300">{t('offline.htpHowItWorks')}</p>
-          <ol className="space-y-1 ml-1 list-decimal list-inside text-xs text-neutral-500 leading-relaxed">
-            <li>{t('offline.htpStep1')}</li>
-            <li>{t('offline.htpStep2')}</li>
-            <li>{t('offline.htpStep3')}</li>
-            <li>{t('offline.htpStep4')}</li>
-          </ol>
-        </div>
       </div>
     </div>
   )
