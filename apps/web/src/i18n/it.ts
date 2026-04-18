@@ -71,7 +71,7 @@ export default {
     'cat.celebrities': 'Celebrità',
     'cat.variety': 'Vari',
     normalLabel: 'Non classificato',
-    normalDesc: 'Gioca per divertimento — Modalità Normale o Speciale',
+    normalDesc: 'Gioca per divertimento',
     rankedLabel: 'Classificata',
     rankedDesc: 'Tutte le categorie · influenza LP',
     lobbyLabel: 'Crea stanza',

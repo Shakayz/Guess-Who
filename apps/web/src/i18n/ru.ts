@@ -72,7 +72,7 @@ export default {
     'cat.celebrities': 'Знаменитости',
     'cat.variety': 'Разное',
     normalLabel: 'Без рейтинга',
-    normalDesc: 'Играйте для веселья — обычный или специальный режим',
+    normalDesc: 'Играйте для веселья',
     rankedLabel: 'Рейтинг',
     rankedDesc: 'Все категории · влияет на LP',
     lobbyLabel: 'Создать лобби',

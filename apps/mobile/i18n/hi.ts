@@ -55,7 +55,7 @@ export default {
     catSelected: '{{total}} में से {{count}} श्रेणियां चुनी गईं',
     categories: 'श्रेणियां',
     normalLabel: 'अनरैंक्ड',
-    normalDesc: 'मज़े के लिए खेलें — सामान्य या विशेष मोड',
+    normalDesc: 'मज़े के लिए खेलें',
     rankedLabel: 'रैंक्ड',
     rankedDesc: 'सभी श्रेणियां · LP को प्रभावित करता है',
     lobbyLabel: 'रूम बनाएं',

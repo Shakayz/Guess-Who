@@ -55,7 +55,7 @@ export default {
     catSelected: 'Выбрано {{count}} из {{total}} категорий',
     categories: 'Категории',
     normalLabel: 'Нерейтинговая',
-    normalDesc: 'Игра для развлечения — Обычный или Особый режим',
+    normalDesc: 'Игра для развлечения',
     rankedLabel: 'Рейтинговая',
     rankedDesc: 'Все категории · влияет на LP',
     lobbyLabel: 'Создать комнату',

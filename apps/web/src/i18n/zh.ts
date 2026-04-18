@@ -71,7 +71,7 @@ export default {
     'cat.celebrities': '名人',
     'cat.variety': '综合',
     normalLabel: '休闲模式',
-    normalDesc: '休闲游戏 — 普通或特殊模式',
+    normalDesc: '休闲游戏',
     rankedLabel: '排位',
     rankedDesc: '全类别 · 影响积分',
     lobbyLabel: '创建房间',

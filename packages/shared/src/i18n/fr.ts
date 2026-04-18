@@ -67,7 +67,7 @@ export default {
     catSelected: '{{count}} sur {{total}} catégories sélectionnées',
     categories: 'Catégories',
     normalLabel: 'Non classé',
-    normalDesc: 'Jouer pour le fun — Mode Normal ou Spécial',
+    normalDesc: 'Jouer pour le fun',
     rankedLabel: 'Classé',
     rankedDesc: 'Toutes catégories · affecte les PL',
     lobbyLabel: 'Créer un lobby',

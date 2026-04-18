@@ -55,7 +55,7 @@ export default {
     catSelected: '已选 {{count}}/{{total}} 个类别',
     categories: '类别',
     normalLabel: '休闲模式',
-    normalDesc: '休闲游戏 — 普通或特殊模式',
+    normalDesc: '休闲游戏',
     rankedLabel: '排位',
     rankedDesc: '全类别 · 影响积分',
     lobbyLabel: '创建房间',

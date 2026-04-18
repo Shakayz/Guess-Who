@@ -47,9 +47,8 @@ export default function HomePage() {
   const [categories, setCategories] = useState<WordCategory[]>([])
   // Vocal-mode preference for unranked matchmaking. Defaults off. When on, the
   // server partitions the queue so we only match with other vocal-opt-in
-  // players, and `vocalSpeakingTimeSeconds` sets the per-turn length.
+  // players. Per-turn length is fixed at 10s for unranked; lobbies customize it.
   const [vocalMode, setVocalMode] = useState(false)
-  const [vocalSpeakingTimeSeconds, setVocalSpeakingTimeSeconds] = useState(10)
   const [roomCode, setRoomCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -163,7 +162,7 @@ export default function HomePage() {
       gameMode: actualGameMode,
       categories,
       vocalMode: wantVocal,
-      vocalSpeakingTimeSeconds,
+      vocalSpeakingTimeSeconds: 10,
     })
   }
 
@@ -250,9 +249,7 @@ export default function HomePage() {
     { id: 'normal',  icon: '🎭', labelKey: 'home.normalGameMode',  descKey: 'home.normalGameModeDesc' },
     { id: 'special', icon: '✨', labelKey: 'home.specialGameMode', descKey: 'home.specialGameModeDesc' },
   ]
-  const UNRANKED_GAME_MODES: { id: SubGameMode; icon: string; labelKey: string; descKey: string }[] = [
-    { id: 'normal', icon: '🎉', labelKey: 'home.payForFun', descKey: 'home.payForFunDesc' },
-  ]
+  const UNRANKED_GAME_MODES = LOBBY_GAME_MODES
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -513,32 +510,6 @@ export default function HomePage() {
                   />
                 </button>
               </div>
-              {vocalMode && (
-                <div className="flex items-center justify-between gap-4 pt-2 border-t border-neutral-800/60">
-                  <p className="text-xs text-neutral-400">
-                    {t('lobby.vocalTurnTime', 'Vocal turn time')}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setVocalSpeakingTimeSeconds((v) => Math.max(5, v - 5))}
-                      className="w-7 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-sm transition-colors disabled:opacity-40"
-                      disabled={vocalSpeakingTimeSeconds <= 5}
-                      aria-label="Decrease vocal turn time"
-                    >−</button>
-                    <span className="text-sm text-white font-mono tabular-nums w-10 text-center">
-                      {vocalSpeakingTimeSeconds}s
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setVocalSpeakingTimeSeconds((v) => Math.min(60, v + 5))}
-                      className="w-7 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-sm transition-colors disabled:opacity-40"
-                      disabled={vocalSpeakingTimeSeconds >= 60}
-                      aria-label="Increase vocal turn time"
-                    >+</button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 

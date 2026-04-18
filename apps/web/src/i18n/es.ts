@@ -71,7 +71,7 @@ export default {
     'cat.celebrities': 'Celebridades',
     'cat.variety': 'Variado',
     normalLabel: 'Sin clasificar',
-    normalDesc: 'Juega por diversión — Modo Normal o Especial',
+    normalDesc: 'Juega por diversión',
     rankedLabel: 'Clasificatoria',
     rankedDesc: 'Todas las categorías · afecta LP',
     lobbyLabel: 'Crear sala',

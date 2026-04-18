@@ -55,7 +55,7 @@ export default {
     catSelected: '{{count}} de {{total}} categorias selecionadas',
     categories: 'Categorias',
     normalLabel: 'Sem ranking',
-    normalDesc: 'Jogue por diversão — Modo Normal ou Especial',
+    normalDesc: 'Jogue por diversão',
     rankedLabel: 'Ranqueada',
     rankedDesc: 'Todas as categorias · afeta LP',
     lobbyLabel: 'Criar sala',

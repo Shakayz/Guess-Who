@@ -67,7 +67,7 @@ export default {
     catSelected: '{{count}} من {{total}} فئات مختارة',
     categories: 'الفئات',
     normalLabel: 'غير مصنف',
-    normalDesc: 'العب للمتعة — وضع عادي أو خاص',
+    normalDesc: 'العب للمتعة',
     rankedLabel: 'مصنّف',
     rankedDesc: 'جميع الفئات · يؤثر على النقاط',
     lobbyLabel: 'إنشاء غرفة',

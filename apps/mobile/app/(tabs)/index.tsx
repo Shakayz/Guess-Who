@@ -69,9 +69,9 @@ export default function HomeScreen() {
   const [lobbyGameMode, setLobbyGameMode] = useState<SubGameMode>('normal')
   const [categories, setCategories] = useState<WordCategory[]>([])
   // Vocal-mode preference for unranked matchmaking. Server partitions the
-  // queue so vocal-opt-in players only match with each other.
+  // queue so vocal-opt-in players only match with each other. Per-turn length
+  // is fixed at 10s for unranked; lobbies customize it.
   const [vocalMode, setVocalMode] = useState(false)
-  const [vocalSpeakingTimeSeconds, setVocalSpeakingTimeSeconds] = useState(10)
   const [roomCode, setRoomCode] = useState('')
   const [showTutorial, setShowTutorial] = useState(false)
 
@@ -173,9 +173,9 @@ export default function HomeScreen() {
       gameMode: selectedMode === 'ranked' ? 'ranked' : unrankedSubMode,
       categories: selectedMode === 'ranked' ? [] : categories,
       vocalMode: wantVocal,
-      vocalSpeakingTimeSeconds,
+      vocalSpeakingTimeSeconds: 10,
     })
-  }, [selectedMode, categories, unrankedSubMode, vocalMode, vocalSpeakingTimeSeconds])
+  }, [selectedMode, categories, unrankedSubMode, vocalMode])
 
   const cancelMatchmaking = useCallback(() => {
     const socket = getSocket()
@@ -390,19 +390,15 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Sub-mode selector — Pay for Fun (unranked) / Normal + Special (lobby) */}
+            {/* Sub-mode selector — Normal + Special (both unranked and lobby) */}
             {hasSubMode && (() => {
               const isLobby = selectedMode === 'lobby'
               const currentSubMode = isLobby ? lobbyGameMode : unrankedSubMode
               const setSubMode = isLobby ? setLobbyGameMode : setUnrankedSubMode
-              const SUB_MODES: { id: SubGameMode; icon: string; labelKey: string; descKey: string }[] = isLobby
-                ? [
-                    { id: 'normal',  icon: '🎭', labelKey: 'home.normalGameMode',  descKey: 'home.normalGameModeDesc' },
-                    { id: 'special', icon: '✨', labelKey: 'home.specialGameMode', descKey: 'home.specialGameModeDesc' },
-                  ]
-                : [
-                    { id: 'normal',  icon: '🎉', labelKey: 'home.payForFun', descKey: 'home.payForFunDesc' },
-                  ]
+              const SUB_MODES: { id: SubGameMode; icon: string; labelKey: string; descKey: string }[] = [
+                { id: 'normal',  icon: '🎭', labelKey: 'home.normalGameMode',  descKey: 'home.normalGameModeDesc' },
+                { id: 'special', icon: '✨', labelKey: 'home.specialGameMode', descKey: 'home.specialGameModeDesc' },
+              ]
               return (
                 <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-2">
                   <Text className="font-semibold uppercase tracking-widest text-neutral-500" style={{ fontSize: 12 * fontScale }}>
@@ -486,40 +482,6 @@ export default function HomeScreen() {
                     />
                   </TouchableOpacity>
                 </View>
-                {vocalMode && (
-                  <View className="flex-row items-center justify-between pt-2 border-t border-neutral-800">
-                    <Text className="text-neutral-400" style={{ fontSize: 12 * fontScale }}>
-                      {t('lobby.vocalTurnTime', 'Vocal turn time')}
-                    </Text>
-                    <View className="flex-row items-center gap-2">
-                      <TouchableOpacity
-                        onPress={() => setVocalSpeakingTimeSeconds((v) => Math.max(5, v - 5))}
-                        disabled={vocalSpeakingTimeSeconds <= 5}
-                        className={[
-                          'w-8 h-8 rounded-lg items-center justify-center',
-                          vocalSpeakingTimeSeconds <= 5 ? 'bg-neutral-900 opacity-40' : 'bg-neutral-800',
-                        ].join(' ')}
-                        activeOpacity={0.7}
-                      >
-                        <Text className="text-white font-bold" style={{ fontSize: 16 }}>−</Text>
-                      </TouchableOpacity>
-                      <Text className="text-white font-mono text-center" style={{ fontSize: 13 * fontScale, width: 40 }}>
-                        {vocalSpeakingTimeSeconds}s
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => setVocalSpeakingTimeSeconds((v) => Math.min(60, v + 5))}
-                        disabled={vocalSpeakingTimeSeconds >= 60}
-                        className={[
-                          'w-8 h-8 rounded-lg items-center justify-center',
-                          vocalSpeakingTimeSeconds >= 60 ? 'bg-neutral-900 opacity-40' : 'bg-neutral-800',
-                        ].join(' ')}
-                        activeOpacity={0.7}
-                      >
-                        <Text className="text-white font-bold" style={{ fontSize: 16 }}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
               </View>
             )}
 

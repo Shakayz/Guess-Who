@@ -71,7 +71,7 @@ export default {
     'cat.celebrities': 'مشاهير',
     'cat.variety': 'متنوع',
     normalLabel: 'غير مصنف',
-    normalDesc: 'العب للمتعة — وضع عادي أو خاص',
+    normalDesc: 'العب للمتعة',
     rankedLabel: 'مصنّف',
     rankedDesc: 'جميع الفئات · يؤثر على النقاط',
     lobbyLabel: 'إنشاء غرفة',

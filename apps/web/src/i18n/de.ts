@@ -71,7 +71,7 @@ export default {
     'cat.celebrities': 'Prominente',
     'cat.variety': 'Verschiedenes',
     normalLabel: 'Ungewertet',
-    normalDesc: 'Zum Spaß spielen — Normaler oder Spezialmodus',
+    normalDesc: 'Zum Spaß spielen',
     rankedLabel: 'Gewertet',
     rankedDesc: 'Alle Kategorien · beeinflusst LP',
     lobbyLabel: 'Lobby erstellen',

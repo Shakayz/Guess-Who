@@ -72,7 +72,7 @@ export default {
     'cat.celebrities': 'मशहूर हस्तियाँ',
     'cat.variety': 'विविध',
     normalLabel: 'अनरैंक्ड',
-    normalDesc: 'मज़े के लिए खेलें — नॉर्मल या स्पेशल मोड',
+    normalDesc: 'मज़े के लिए खेलें',
     rankedLabel: 'रैंक्ड',
     rankedDesc: 'सभी श्रेणियाँ · LP को प्रभावित करता है',
     lobbyLabel: 'लॉबी बनाएँ',

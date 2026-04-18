@@ -73,7 +73,7 @@ export default {
     'cat.celebrities': 'Célébrités',
     'cat.variety': 'Divers',
     normalLabel: 'Non classé',
-    normalDesc: 'Jouez pour le fun — Mode Normal ou Spécial',
+    normalDesc: 'Jouez pour le fun',
     rankedLabel: 'Classé',
     rankedDesc: 'Toutes catégories · affecte les PL',
     lobbyLabel: 'Créer un lobby',

@@ -55,7 +55,7 @@ export default {
     catSelected: '{{count}} di {{total}} categorie selezionate',
     categories: 'Categorie',
     normalLabel: 'Non classificato',
-    normalDesc: 'Gioca per divertimento — Modalità Normale o Speciale',
+    normalDesc: 'Gioca per divertimento',
     rankedLabel: 'Classificata',
     rankedDesc: 'Tutte le categorie · influenza LP',
     lobbyLabel: 'Crea stanza',

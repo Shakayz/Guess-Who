@@ -55,7 +55,7 @@ export default {
     catSelected: '{{count}} von {{total}} Kategorien ausgewählt',
     categories: 'Kategorien',
     normalLabel: 'Unranked',
-    normalDesc: 'Spiele zum Spaß — Normaler oder Spezieller Modus',
+    normalDesc: 'Spiele zum Spaß',
     rankedLabel: 'Gewertet',
     rankedDesc: 'Alle Kategorien · beeinflusst LP',
     lobbyLabel: 'Raum erstellen',
