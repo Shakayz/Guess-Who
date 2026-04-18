@@ -78,6 +78,81 @@ const RESET_EMAIL_HTML = (resetLink: string) => `
 </div>
 `
 
+type SupportMessageParams = {
+  fromEmail: string
+  username: string
+  userId: string
+  subject: string
+  message: string
+}
+
+const SUPPORT_EMAIL_HTML = ({ fromEmail, username, userId, subject, message }: SupportMessageParams) => {
+  const escape = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+  return `
+<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px">
+  <h1 style="font-size:20px;font-weight:800;color:#fff;background:#7c3aed;padding:12px 20px;border-radius:10px;margin:0 0 20px">
+    🎭 Red Handed — Support
+  </h1>
+  <p style="font-size:14px;color:#374151;margin:0 0 4px"><strong>From:</strong> ${escape(username)} &lt;${escape(fromEmail)}&gt;</p>
+  <p style="font-size:12px;color:#6b7280;margin:0 0 16px"><strong>User ID:</strong> ${escape(userId)}</p>
+  <p style="font-size:14px;color:#374151;margin:0 0 4px"><strong>Subject:</strong> ${escape(subject)}</p>
+  <div style="font-size:14px;color:#111827;background:#f5f3ff;padding:16px;border-radius:10px;white-space:pre-wrap;word-break:break-word">${escape(message)}</div>
+</div>
+`
+}
+
+export async function sendSupportMessage(params: SupportMessageParams): Promise<void> {
+  const to = 'contact@redhanded-game.com'
+  const subject = `[Support] ${params.subject}`
+  const html = SUPPORT_EMAIL_HTML(params)
+  const replyTo = params.fromEmail
+
+  if (env.RESEND_API_KEY) {
+    logger.info({ from: params.fromEmail, userId: params.userId }, 'sending support email via Resend')
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Red Handed ! <contact@redhanded-game.com>',
+        to,
+        reply_to: replyTo,
+        subject,
+        html,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(`Resend error: ${JSON.stringify(err)}`)
+    }
+    return
+  }
+
+  if (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS) {
+    logger.info({ from: params.fromEmail, userId: params.userId }, 'sending support email via SMTP')
+    const nodemailer = await import('nodemailer')
+    const transport = nodemailer.createTransport({
+      host: env.SMTP_HOST,
+      port: env.SMTP_PORT,
+      secure: env.SMTP_PORT === 465,
+      auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
+    })
+    await transport.sendMail({
+      from: env.SMTP_FROM,
+      to,
+      replyTo,
+      subject,
+      html,
+    })
+    return
+  }
+
+  logger.info({ to, ...params }, 'support email (dev fallback)')
+}
+
 export async function sendPasswordResetEmail(to: string, token: string): Promise<void> {
   const resetLink = `${env.APP_URL}/reset-password?token=${token}`
 

@@ -130,6 +130,42 @@ export default function SettingsPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
 
+  // Contact support
+  const [supportForm, setSupportForm] = useState({ subject: '', message: '' })
+  const [supportError, setSupportError] = useState<string | null>(null)
+  const [supportSuccess, setSupportSuccess] = useState(false)
+
+  const contactSupportMutation = useMutation({
+    mutationFn: (data: { subject: string; message: string }) =>
+      api.post<{ success: boolean }>('/support/contact', data),
+    onSuccess: () => {
+      setSupportSuccess(true)
+      setSupportError(null)
+      setSupportForm({ subject: '', message: '' })
+      setTimeout(() => setSupportSuccess(false), 5000)
+    },
+    onError: (err: any) => {
+      setSupportSuccess(false)
+      setSupportError(err.message ?? 'Failed to send message')
+    },
+  })
+
+  const handleContactSupport = (e: React.FormEvent) => {
+    e.preventDefault()
+    setSupportError(null)
+    const subject = supportForm.subject.trim()
+    const message = supportForm.message.trim()
+    if (subject.length < 3) {
+      setSupportError('Subject must be at least 3 characters.')
+      return
+    }
+    if (message.length < 10) {
+      setSupportError('Message must be at least 10 characters.')
+      return
+    }
+    contactSupportMutation.mutate({ subject, message })
+  }
+
   useEffect(() => {
     localStorage.setItem('sound_enabled', String(soundEnabled))
   }, [soundEnabled])
@@ -400,6 +436,52 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Contact Support */}
+          <div className="card space-y-3">
+            <SectionHeader title="Contact Support" />
+            <p className="text-xs text-neutral-500 -mt-2">
+              Found a bug, have a question, or want to suggest something? Send us a message — we'll reply to your
+              account email.
+            </p>
+            <form onSubmit={handleContactSupport} className="space-y-2">
+              <input
+                type="text"
+                placeholder="Subject"
+                value={supportForm.subject}
+                onChange={(e) => setSupportForm((f) => ({ ...f, subject: e.target.value }))}
+                maxLength={200}
+                className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-brand-600 transition-colors"
+                required
+              />
+              <textarea
+                placeholder="Describe your request or issue…"
+                value={supportForm.message}
+                onChange={(e) => setSupportForm((f) => ({ ...f, message: e.target.value }))}
+                maxLength={5000}
+                rows={5}
+                className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-brand-600 transition-colors resize-y"
+                required
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-neutral-600">
+                  {supportForm.message.length}/5000
+                </span>
+                <span className="text-[11px] text-neutral-600">Limit: 3 messages / hour</span>
+              </div>
+              {supportError && <p className="text-red-400 text-xs">{supportError}</p>}
+              {supportSuccess && (
+                <p className="text-emerald-400 text-xs">Message sent — we'll get back to you soon.</p>
+              )}
+              <button
+                type="submit"
+                disabled={contactSupportMutation.isPending}
+                className="w-full py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
+              >
+                {contactSupportMutation.isPending ? 'Sending…' : 'Send Message'}
+              </button>
+            </form>
+          </div>
+
           {/* Legal */}
           <div className="card">
             <SectionHeader title="Legal" />
@@ -425,6 +507,19 @@ export default function SettingsPage() {
                 <span className="text-xs text-neutral-600 font-mono">1.0.0</span>
               </div>
             </div>
+          </div>
+
+          {/* Help the developer */}
+          <div className="card text-center space-y-2">
+            <p className="text-2xl">☕</p>
+            <p className="text-sm font-semibold text-white">Help the developer</p>
+            <p className="text-xs text-neutral-500">
+              Red Handed is built by a tiny team. If you're enjoying the game, you'll soon be able to support
+              development here.
+            </p>
+            <p className="text-[11px] uppercase tracking-widest text-neutral-600 pt-1">
+              Buy Me a Coffee · Patreon · Coming soon
+            </p>
           </div>
         </div>
       </main>
