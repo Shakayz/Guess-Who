@@ -8,6 +8,7 @@ import es from './es'
 import it from './it'
 import pt from './pt'
 import zh from './zh'
+import de from './de'
 import ru from './ru'
 import hi from './hi'
 
@@ -22,6 +23,7 @@ i18n
       it: { translation: it },
       pt: { translation: pt },
       zh: { translation: zh },
+      de: { translation: de },
       ru: { translation: ru },
       hi: { translation: hi },
     },
