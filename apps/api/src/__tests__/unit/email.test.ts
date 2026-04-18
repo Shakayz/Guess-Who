@@ -33,13 +33,14 @@ describe('sendVerificationEmail', () => {
 
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: vi.fn().mockResolvedValue({}),
+      json: vi.fn().mockResolvedValue({ id: 'resend-abc-123' }),
     })
     vi.stubGlobal('fetch', mockFetch)
 
     const { sendVerificationEmail } = await import('@/services/email')
-    await sendVerificationEmail('user@example.com', '123456')
+    const result = await sendVerificationEmail('user@example.com', '123456')
 
+    expect(result).toEqual({ transport: 'resend', providerId: 'resend-abc-123' })
     expect(mockFetch).toHaveBeenCalledOnce()
     const [url, opts] = mockFetch.mock.calls[0]
     expect(url).toBe('https://api.resend.com/emails')
@@ -49,22 +50,33 @@ describe('sendVerificationEmail', () => {
     expect(body.html).toContain('123456')
   })
 
-  it('throws when Resend returns a non-ok response', async () => {
+  it('throws EmailProviderError with status when Resend returns a non-ok response', async () => {
     process.env.RESEND_API_KEY = 'bad-key'
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
+      status: 401,
       json: vi.fn().mockResolvedValue({ message: 'Unauthorized' }),
     }))
 
-    const { sendVerificationEmail } = await import('@/services/email')
-    await expect(sendVerificationEmail('u@x.com', '999')).rejects.toThrow('Resend error')
+    const { sendVerificationEmail, EmailProviderError } = await import('@/services/email')
+    await expect(sendVerificationEmail('u@x.com', '999')).rejects.toMatchObject({
+      message: expect.stringContaining('Resend error'),
+      providerStatus: 401,
+    })
+    await expect(sendVerificationEmail('u@x.com', '999')).rejects.toBeInstanceOf(EmailProviderError)
   })
 
-  it('falls back to pino logger when no transport is configured', async () => {
+  it('falls back to dev logger (transport=dev) when no transport is configured', async () => {
     const { sendVerificationEmail } = await import('@/services/email')
-    // Should not throw — it logs via pino instead of sending
-    await expect(sendVerificationEmail('dev@example.com', '654321')).resolves.toBeUndefined()
+    // In non-production env (test), this should log via pino instead of sending
+    await expect(sendVerificationEmail('dev@example.com', '654321')).resolves.toEqual({ transport: 'dev' })
+  })
+
+  it('throws in production when no transport is configured', async () => {
+    process.env.NODE_ENV = 'production'
+    const { sendVerificationEmail, EmailProviderError } = await import('@/services/email')
+    await expect(sendVerificationEmail('prod@example.com', '111111')).rejects.toBeInstanceOf(EmailProviderError)
   })
 
   it('uses SMTP transport when SMTP credentials are set', async () => {

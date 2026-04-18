@@ -16,7 +16,23 @@ const EMAIL_HTML = (code: string) => `
 </div>
 `
 
-export async function sendVerificationEmail(to: string, code: string): Promise<void> {
+export type SendEmailResult =
+  | { transport: 'resend'; providerId: string }
+  | { transport: 'smtp' }
+  | { transport: 'dev' }
+
+export class EmailProviderError extends Error {
+  constructor(
+    message: string,
+    public readonly providerStatus: number,
+    public readonly providerBody: unknown,
+  ) {
+    super(message)
+    this.name = 'EmailProviderError'
+  }
+}
+
+export async function sendVerificationEmail(to: string, code: string): Promise<SendEmailResult> {
   // 1. Resend (preferred — no extra package, just fetch)
   if (env.RESEND_API_KEY) {
     logger.info({ to }, 'sending verification email via Resend')
@@ -34,11 +50,15 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
       }),
     })
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      logger.error({ status: res.status, body: err, to }, 'Resend verification email rejected')
-      throw new Error(`Resend error ${res.status}: ${JSON.stringify(err)}`)
+      const body = await res.json().catch(() => ({})) as { message?: string; name?: string }
+      const reason = body.message ?? body.name ?? 'Unknown error'
+      logger.error({ status: res.status, body, to }, 'Resend verification email rejected')
+      throw new EmailProviderError(`Resend error ${res.status}: ${reason}`, res.status, body)
     }
-    return
+    const body = await res.json().catch(() => ({})) as { id?: string }
+    const providerId = body.id ?? 'unknown'
+    logger.info({ to, providerId }, 'Resend accepted verification email')
+    return { transport: 'resend', providerId }
   }
 
   // 2. SMTP via nodemailer (dynamic import — only if package installed)
@@ -57,11 +77,24 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
       subject: 'Your Red Handed ! verification code',
       html: EMAIL_HTML(code),
     })
-    return
+    return { transport: 'smtp' }
   }
 
-  // 3. Dev fallback
+  // 3. No transport configured. In production this is a misconfiguration: the
+  // UI would otherwise show "Code sent" while nothing is actually dispatched.
+  // Fail loudly so the operator notices instead of silently eating the send.
+  if (env.NODE_ENV === 'production') {
+    logger.error({ to }, 'no email transport configured in production')
+    throw new EmailProviderError(
+      'Email service not configured on this server.',
+      503,
+      { reason: 'no-transport' },
+    )
+  }
+
+  // Dev fallback — log the code so it can be used in local development.
   logger.info({ to, code }, 'verification email (dev fallback)')
+  return { transport: 'dev' }
 }
 
 const RESET_EMAIL_HTML = (resetLink: string) => `
