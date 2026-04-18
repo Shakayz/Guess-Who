@@ -84,7 +84,13 @@ export default function SettingsPage() {
     },
     onError: (err: any) => {
       setVerifyMessage(null)
-      setVerifyError(err.message ?? 'Could not send code. Please try again.')
+      // A 502 comes back when the mail service (Resend/SMTP) fails upstream —
+      // show a friendly message instead of the raw status code.
+      if (err?.status === 502) {
+        setVerifyError("We couldn't reach the email service right now. Please try again in a few minutes.")
+      } else {
+        setVerifyError(err?.message ?? 'Could not send code. Please try again.')
+      }
     },
   })
 

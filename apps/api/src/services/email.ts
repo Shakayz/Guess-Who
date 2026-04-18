@@ -35,7 +35,8 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      throw new Error(`Resend error: ${JSON.stringify(err)}`)
+      logger.error({ status: res.status, body: err, to }, 'Resend verification email rejected')
+      throw new Error(`Resend error ${res.status}: ${JSON.stringify(err)}`)
     }
     return
   }
