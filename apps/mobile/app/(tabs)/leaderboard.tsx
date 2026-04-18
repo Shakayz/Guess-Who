@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
+  Modal,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -13,6 +15,7 @@ import { RANK_CONFIG } from '@red-handed/shared'
 import type { RankTier } from '@red-handed/shared'
 import { api } from '../../lib/api'
 import { useResponsive } from '../../lib/responsive'
+import { LANGUAGES, findLanguage } from '../../i18n/languages'
 
 interface LeaderboardEntry {
   id: string
@@ -25,26 +28,37 @@ interface LeaderboardEntry {
 const PODIUM_MEDALS = ['🥇', '🥈', '🥉'] as const
 
 export default function LeaderboardScreen() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const router = useRouter()
 
   const { isTablet, px, fontScale } = useResponsive()
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [locale, setLocale] = useState<string>(() => findLanguage(i18n.language).code)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [search, setSearch] = useState('')
+
+  const currentLang = findLanguage(locale)
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return entries
+    return entries.filter((u) => u.username.toLowerCase().includes(q))
+  }, [entries, search])
+  const isSearching = search.trim().length > 0
 
   const fetchLeaderboard = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await api.get<LeaderboardEntry[]>('/users/leaderboard')
+      const data = await api.get<LeaderboardEntry[]>(`/users/leaderboard?locale=${locale}`)
       setEntries(data)
     } catch (err: any) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [locale])
 
   useEffect(() => {
     fetchLeaderboard()
@@ -78,6 +92,7 @@ export default function LeaderboardScreen() {
 
   const top3 = entries.slice(0, 3)
   const rest = entries.slice(3)
+  const listData = isSearching ? filtered : rest
 
   // Reorder for podium display: [2nd, 1st, 3rd]
   const podiumOrder = top3.length >= 3
@@ -93,7 +108,10 @@ export default function LeaderboardScreen() {
   const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
   const renderItem = ({ item, index }: { item: LeaderboardEntry; index: number }) => {
-    const position = index + 4 // offset by top 3
+    // When searching, show original rank from entries; otherwise offset by podium top-3.
+    const position = isSearching
+      ? entries.findIndex((u) => u.id === item.id) + 1
+      : index + 4
     const rankCfg = RANK_CONFIG[item.rank] ?? RANK_CONFIG.wooden
 
     return (
@@ -149,7 +167,7 @@ export default function LeaderboardScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-950" edges={['bottom']}>
       <FlatList
-        data={rest}
+        data={listData}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
@@ -157,25 +175,66 @@ export default function LeaderboardScreen() {
         ListHeaderComponent={
           <>
             {/* Screen header */}
-            <View className="flex-row items-center justify-between pt-5 pb-2" style={{ paddingHorizontal: px, ...contentStyle }}>
+            <View className="flex-row items-center justify-between pt-5 pb-1" style={{ paddingHorizontal: px, ...contentStyle }}>
               <Text className="text-white font-extrabold tracking-tight" style={{ fontSize: isTablet ? 26 : 22 }}>
-                Leaderboard
+                {t('leaderboard.title', { defaultValue: 'Leaderboard' })}
               </Text>
-              <View className="px-2.5 py-1 rounded-full bg-violet-950/60 border border-violet-800/40">
-                <Text className="text-violet-400 font-bold text-xs">Season 1</Text>
+              <TouchableOpacity
+                onPress={() => setPickerOpen(true)}
+                accessibilityLabel={t('leaderboard.languagePickerLabel', { defaultValue: 'Change leaderboard language' })}
+                accessibilityRole="button"
+                className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-800/80 border border-neutral-700/50"
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 14 }}>{currentLang.flag}</Text>
+                <Text className="text-white text-xs font-bold uppercase">{currentLang.code}</Text>
+                <Text className="text-neutral-400 text-[10px]">▾</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Subtitle: rankings for {language} */}
+            <View className="pb-2" style={{ paddingHorizontal: px, ...contentStyle }}>
+              <Text className="text-neutral-500 text-xs">
+                {t('leaderboard.rankingsFor', {
+                  language: currentLang.label,
+                  defaultValue: `Top players in ${currentLang.label}`,
+                })}
+              </Text>
+            </View>
+
+            {/* Search */}
+            <View className="pb-3" style={{ paddingHorizontal: px, ...contentStyle }}>
+              <View className="flex-row items-center bg-neutral-900 border border-neutral-800 rounded-xl px-3">
+                <Text className="text-neutral-500" style={{ fontSize: 14 }}>🔍</Text>
+                <TextInput
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder={t('leaderboard.searchPlaceholder', { defaultValue: 'Search player...' })}
+                  placeholderTextColor="#525252"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  className="flex-1 text-white text-sm py-2.5 px-2"
+                />
+                {isSearching && (
+                  <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+                    <Text className="text-neutral-500 text-xs">✕</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
-            {/* Podium header */}
-            <View className="items-center pb-2" style={{ paddingHorizontal: px }}>
-              <View className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-700/40 bg-amber-950/20 mb-1">
-                <Text style={{ fontSize: 12 }}>🏆</Text>
-                <Text className="text-amber-400 font-bold text-xs uppercase tracking-widest">Top Players</Text>
+            {/* Podium header — hidden while searching */}
+            {!isSearching && (
+              <View className="items-center pb-2" style={{ paddingHorizontal: px }}>
+                <View className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-700/40 bg-amber-950/20 mb-1">
+                  <Text style={{ fontSize: 12 }}>🏆</Text>
+                  <Text className="text-amber-400 font-bold text-xs uppercase tracking-widest">Top Players</Text>
+                </View>
               </View>
-            </View>
+            )}
 
             {/* Podium */}
-            {top3.length > 0 && (
+            {!isSearching && top3.length > 0 && (
               <View className="pb-4" style={{ paddingHorizontal: px, ...contentStyle }}>
                 <View className="flex-row items-end justify-center gap-4">
                   {podiumOrder.map((player, i) => {
@@ -254,8 +313,8 @@ export default function LeaderboardScreen() {
               </View>
             )}
 
-            {/* Divider */}
-            {rest.length > 0 && (
+            {/* Divider — hidden while searching since podium is hidden too */}
+            {!isSearching && rest.length > 0 && (
               <View className="flex-row items-center gap-3 mb-3 mt-2" style={{ marginHorizontal: px, ...contentStyle }}>
                 <View className="flex-1 h-px bg-neutral-800" />
                 <Text className="text-neutral-500 text-xs font-medium uppercase tracking-wider">
@@ -269,11 +328,54 @@ export default function LeaderboardScreen() {
         ListEmptyComponent={
           <View className="items-center py-12">
             <Text className="text-neutral-500 text-sm">
-              {t('leaderboard.empty', 'No players yet')}
+              {isSearching
+                ? t('leaderboard.noPlayerFound', { defaultValue: 'No player found' })
+                : t('leaderboard.empty', { defaultValue: 'No players yet' })}
             </Text>
           </View>
         }
       />
+
+      {/* Language picker modal */}
+      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setPickerOpen(false)}
+          className="flex-1 bg-black/60 items-center justify-center"
+        >
+          <View
+            className="bg-neutral-900 rounded-2xl border border-neutral-700 overflow-hidden"
+            style={{ width: 280 }}
+          >
+            <View className="px-5 py-4 border-b border-neutral-800">
+              <Text className="text-white font-bold text-base text-center">
+                {t('leaderboard.language', { defaultValue: 'Language' })}
+              </Text>
+            </View>
+            <FlatList
+              data={LANGUAGES}
+              keyExtractor={(item) => item.code}
+              renderItem={({ item }) => {
+                const isSelected = item.code === locale
+                return (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setLocale(item.code)
+                      setPickerOpen(false)
+                    }}
+                    className={`flex-row items-center gap-3 px-5 py-3.5 ${isSelected ? 'bg-violet-900/40' : ''}`}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 20 }}>{item.flag}</Text>
+                    <Text className="text-white text-sm flex-1">{item.label}</Text>
+                    {isSelected && <View className="w-2 h-2 rounded-full bg-violet-400" />}
+                  </TouchableOpacity>
+                )
+              }}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   )
 }

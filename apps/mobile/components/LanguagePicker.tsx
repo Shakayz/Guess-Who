@@ -1,23 +1,12 @@
 import React, { useState } from 'react'
 import { View, Text, TouchableOpacity, Modal, FlatList } from 'react-native'
 import { useTranslation } from 'react-i18next'
-
-const LANGUAGES = [
-  { code: 'en', label: 'English', flag: '🇬🇧' },
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'ar', label: 'العربية', flag: '🇸🇦' },
-  { code: 'es', label: 'Español', flag: '🇪🇸' },
-  { code: 'it', label: 'Italiano', flag: '🇮🇹' },
-  { code: 'pt', label: 'Português', flag: '🇧🇷' },
-  { code: 'zh', label: '中文', flag: '🇨🇳' },
-  { code: 'ru', label: 'Русский', flag: '🇷🇺' },
-  { code: 'hi', label: 'हिन्दी', flag: '🇮🇳' },
-] as const
+import { LANGUAGES, findLanguage } from '../i18n/languages'
 
 export function LanguagePicker() {
   const { i18n, t } = useTranslation()
   const [visible, setVisible] = useState(false)
-  const current = LANGUAGES.find((l) => l.code === i18n.language) ?? LANGUAGES[0]
+  const current = findLanguage(i18n.language)
 
   return (
     <>
