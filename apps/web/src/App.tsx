@@ -379,6 +379,10 @@ export default function App() {
       <BottomNav />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+        {/* Discord OAuth callback. AuthPage picks up `?code=…` and exchanges
+            it via /auth/discord/verify. Kept as its own path so Discord's
+            redirect_uri registration is a stable, dedicated URL. */}
+        <Route path="/auth/discord/callback" element={<AuthPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/offline" element={<OfflinePage />} />

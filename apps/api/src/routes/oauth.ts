@@ -192,6 +192,113 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send({ token, user: { id: user.id, username: user.username, email: user.email } })
   })
 
+  // POST /api/auth/discord/verify
+  // Body: { code: string, redirectUri: string }  — Discord authorization-code flow
+  //
+  // The web client sends the user to Discord's /oauth2/authorize consent page,
+  // Discord redirects back to our app with `?code=…`, and the client POSTs
+  // the code here together with the exact redirect URI it used (Discord checks
+  // those match on token exchange, so the client is the source of truth —
+  // supports staging/preview/prod without hardcoded URIs).
+  fastify.post('/discord/verify', async (req, reply) => {
+    const { code, redirectUri } = req.body as { code?: string; redirectUri?: string }
+    if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET) {
+      return reply.status(503).send({ error: 'Discord auth not configured' })
+    }
+    if (!code || !redirectUri) {
+      return reply.status(400).send({ error: 'Missing code or redirectUri' })
+    }
+
+    req.log.info('discord oauth verify attempt')
+
+    try {
+      // Exchange the authorization code for an access token.
+      const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: env.DISCORD_CLIENT_ID,
+          client_secret: env.DISCORD_CLIENT_SECRET,
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUri,
+        }),
+      })
+      if (!tokenRes.ok) {
+        req.log.warn({ status: tokenRes.status }, 'discord token exchange failed')
+        return reply.status(401).send({ error: 'Discord token exchange failed' })
+      }
+      const { access_token } = await tokenRes.json() as { access_token?: string }
+      if (!access_token) return reply.status(401).send({ error: 'Discord returned no access token' })
+
+      // Fetch the user's profile. `id` is Discord's stable per-user snowflake;
+      // `email` is only included if we requested the `email` scope AND the
+      // account has a verified email attached. `avatar` is a hash we turn
+      // into the standard CDN URL.
+      const userRes = await fetch('https://discord.com/api/users/@me', {
+        headers: { Authorization: `Bearer ${access_token}` },
+      })
+      if (!userRes.ok) return reply.status(401).send({ error: 'Discord profile fetch failed' })
+      const profile = await userRes.json() as {
+        id: string
+        username?: string
+        global_name?: string
+        email?: string
+        avatar?: string | null
+        verified?: boolean
+      }
+
+      const discordId = profile.id
+      const email = profile.verified ? profile.email : undefined
+      const displayName = profile.global_name ?? profile.username ?? email?.split('@')[0] ?? 'user'
+      const avatarUrl = profile.avatar
+        ? `https://cdn.discordapp.com/avatars/${discordId}/${profile.avatar}.png`
+        : null
+
+      let user = await prisma.user.findFirst({ where: { discordId } })
+      let isNewUser = false
+      if (!user) {
+        const byEmail = email ? await prisma.user.findUnique({ where: { email } }) : null
+        if (byEmail) {
+          user = await prisma.user.update({
+            where: { id: byEmail.id },
+            data: { discordId, avatarUrl: byEmail.avatarUrl ?? avatarUrl },
+          })
+        } else {
+          const tempUsername = `pending_${Date.now()}`.slice(0, 20)
+          const safeEmail = email ?? `${discordId}@discord.oauth`
+          const referralCode = await allocateReferralCode()
+          user = await prisma.user.create({
+            data: {
+              discordId,
+              email: safeEmail,
+              username: tempUsername,
+              avatarUrl,
+              emailVerified: true,
+              starCoins: OAUTH_INITIAL_STAR_COINS,
+              referralCode,
+            },
+          })
+          isNewUser = true
+        }
+      }
+
+      if (isNewUser) {
+        req.log.info({ userId: user.id }, 'discord oauth: new user, needs username setup')
+        const setupToken = fastify.jwt.sign({ sub: user.id, setup: true }, { expiresIn: '10m' })
+        const suggestedUsername = displayName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || 'user'
+        return reply.send({ needsUsername: true, setupToken, suggestedUsername, user: { id: user.id, email: user.email } })
+      }
+
+      req.log.info({ userId: user.id, username: user.username }, 'discord oauth verify successful')
+      const token = issueToken(fastify, user)
+      return reply.send({ token, user: { id: user.id, username: user.username, email: user.email } })
+    } catch (err: any) {
+      req.log.error({ err }, 'discord oauth verify error')
+      return reply.status(401).send({ error: 'Discord authentication failed' })
+    }
+  })
+
   // POST /api/auth/setup-username — finalize new OAuth user with chosen username
   fastify.post('/setup-username', async (req, reply) => {
     const { setupToken, username, referralCode } = req.body as {
