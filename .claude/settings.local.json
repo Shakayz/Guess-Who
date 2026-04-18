@@ -110,7 +110,9 @@
       "Bash(pnpm --filter @guess-who/web typecheck)",
       "Bash(pnpm --filter @guess-who/web test ProfilePage)",
       "Bash(pnpm --filter @imposter/web test ProfilePage)",
-      "Bash(pnpm --filter @red-handed/shared build)"
+      "Bash(pnpm --filter @red-handed/shared build)",
+      "Bash(pnpm --filter \"@red-handed/shared\" build)",
+      "Bash(pnpm --filter \"@red-handed/ui\" build)"
     ]
   }
 }
