@@ -115,6 +115,7 @@ jobs:
           STRIPE_PRICE_ID_PACK_500: ${{ secrets.STRIPE_PRICE_ID_PACK_500_STAGING }}
           STRIPE_PRICE_ID_PACK_1500: ${{ secrets.STRIPE_PRICE_ID_PACK_1500_STAGING }}
           STRIPE_PRICE_ID_PACK_5000: ${{ secrets.STRIPE_PRICE_ID_PACK_5000_STAGING }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           ECR_PW: ${{ steps.ecr.outputs.pw }}
         run: |
           ssh -i ~/.ssh/deploy ubuntu@${{ secrets.LIGHTSAIL_STAGING_HOST }} \
@@ -140,7 +141,8 @@ jobs:
                   'STRIPE_CANCEL_URL=${STRIPE_CANCEL_URL}' \
                   'STRIPE_PRICE_ID_PACK_500=${STRIPE_PRICE_ID_PACK_500}' \
                   'STRIPE_PRICE_ID_PACK_1500=${STRIPE_PRICE_ID_PACK_1500}' \
-                  'STRIPE_PRICE_ID_PACK_5000=${STRIPE_PRICE_ID_PACK_5000}'; do \
+                  'STRIPE_PRICE_ID_PACK_5000=${STRIPE_PRICE_ID_PACK_5000}' \
+                  'RESEND_API_KEY=${RESEND_API_KEY}'; do \
                   key=\${kv%%=*}; \
                   if sudo grep -q \"^\${key}=\" .env; then \
                     sudo sed -i \"s|^\${key}=.*|\${kv}|\" .env; \
