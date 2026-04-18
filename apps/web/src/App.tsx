@@ -23,7 +23,6 @@ const HomePage        = lazyWithRetry(() => import('./pages/HomePage'))
 const LobbyPage       = lazyWithRetry(() => import('./pages/LobbyPage'))
 const GamePage        = lazyWithRetry(() => import('./pages/GamePage'))
 const ProfilePage     = lazyWithRetry(() => import('./pages/ProfilePage'))
-const PremiumPage     = lazyWithRetry(() => import('./pages/PremiumPage'))
 const LeaderboardPage = lazyWithRetry(() => import('./pages/LeaderboardPage'))
 const ResultsPage     = lazyWithRetry(() => import('./pages/ResultsPage'))
 const AuthPage              = lazyWithRetry(() => import('./pages/AuthPage'))
@@ -344,8 +343,8 @@ function AuthenticatedConnectionStatus() {
 
 /**
  * Listens for 402 Payment Required responses from the API and redirects the
- * user to /premium so they can upgrade. Skips redirect if already on the
- * premium or auth pages.
+ * user to the Shop's Premium tab so they can upgrade. Skips redirect if
+ * already on the shop or auth pages.
  */
 function PremiumRequiredRedirector() {
   const navigate = useNavigate()
@@ -353,8 +352,8 @@ function PremiumRequiredRedirector() {
   useEffect(() => {
     const handler = () => {
       const p = location.pathname
-      if (p === '/premium' || p === '/auth') return
-      navigate('/premium?upsell=1', { replace: false })
+      if (p === '/shop' || p === '/auth') return
+      navigate('/shop?tab=premium&upsell=1', { replace: false })
     }
     window.addEventListener('premium-required', handler)
     return () => window.removeEventListener('premium-required', handler)
@@ -379,6 +378,10 @@ export default function App() {
       <BottomNav />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+        {/* Discord OAuth callback. AuthPage picks up `?code=…` and exchanges
+            it via /auth/discord/verify. Kept as its own path so Discord's
+            redirect_uri registration is a stable, dedicated URL. */}
+        <Route path="/auth/discord/callback" element={<AuthPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/offline" element={<OfflinePage />} />
@@ -389,7 +392,7 @@ export default function App() {
         <Route path="/game/:code" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
         <Route path="/results/:code" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
         <Route path="/profile/:id?" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        <Route path="/premium" element={<ProtectedRoute><PremiumPage /></ProtectedRoute>} />
+        <Route path="/premium" element={<Navigate to="/shop?tab=premium" replace />} />
         <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
         <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
         <Route path="/history/:gameId" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />

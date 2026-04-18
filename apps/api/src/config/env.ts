@@ -14,6 +14,14 @@ const envSchema = z.object({
   // for the JWT audience check in routes/oauth.ts. Server-to-server
   // vars (TEAM_ID, KEY_ID, PRIVATE_KEY) are not required for this flow.
   APPLE_CLIENT_ID:    z.string().optional(),
+  // Discord OAuth (authorization-code flow). The web client redirects the user
+  // to Discord's consent screen, Discord sends them back to the app with a
+  // short-lived `code`, then the client POSTs that code to /auth/discord/verify
+  // — the server exchanges it for an access token and fetches the profile. The
+  // redirect_uri that Discord sees must match what we pass during exchange, so
+  // the client always sends its own redirectUri alongside the code.
+  DISCORD_CLIENT_ID:     z.string().optional(),
+  DISCORD_CLIENT_SECRET: z.string().optional(),
   APP_URL:            z.string().default('http://localhost:5173'),
   RESEND_API_KEY:     z.string().optional(),
   SMTP_HOST:          z.string().optional(),

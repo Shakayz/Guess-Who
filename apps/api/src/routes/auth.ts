@@ -365,6 +365,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           honorPoints: true, locale: true, createdAt: true,
           level: true, xp: true, hasPlayedRanked: true,
           emailVerified: true,
+          // Only one of these is non-null on a given OAuth-created account
+          // (google/apple/discord), and all three are null on email-signup
+          // users. Selected so the /me response can expose a single
+          // `authProvider` string to drive the "Signed in with X" badge.
+          googleId: true, appleId: true, discordId: true,
           dailyStreakCount: true, lastPlayedAt: true,
           premiumUntil: true,
         },
@@ -383,14 +388,26 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     // iff premiumUntil is set AND still in the future. The client never needs
     // to do this math itself.
     const isPremium = !!(user.premiumUntil && user.premiumUntil.getTime() > Date.now())
+    // Collapse the three mutually-exclusive provider IDs into a single tag so
+    // the client doesn't have to know about any specific one. 'email' covers
+    // both traditional signups and the no-provider fallback.
+    const authProvider: 'google' | 'apple' | 'discord' | 'email' =
+      user.googleId ? 'google'
+      : user.appleId ? 'apple'
+      : user.discordId ? 'discord'
+      : 'email'
+    // Strip the raw provider IDs from the wire response — they're internal
+    // lookup keys, not something the UI should ever render or key off of.
+    const { googleId: _g, appleId: _a, discordId: _d, ...rest } = user
     return reply.send({
-      ...user,
+      ...rest,
       // If the player has never played a ranked game, expose 'unranked' as the
       // public tier so the client can render the Unranked badge consistently.
       rankTier: user.hasPlayedRanked ? user.rankTier : 'unranked',
       xpInLevel: progress.current,
       xpForNextLevel: progress.needed,
       isPremium,
+      authProvider,
       honorTeamplayer: honorMap['teamplayer'] ?? 0,
       honorSharpMind:  honorMap['sharp_mind']  ?? 0,
       honorGoodSport:  honorMap['good_sport']  ?? 0,

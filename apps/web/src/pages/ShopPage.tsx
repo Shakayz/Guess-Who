@@ -3,7 +3,19 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { NavBar } from '../components/NavBar'
+import { PremiumBadge } from '../components/PremiumBadge'
 import { api } from '../lib/api'
+import { usePremium } from '../lib/usePremium'
+
+// Premium prices shown on the plan selector. Source of truth for the actual
+// charge is the Stripe Price referenced by STRIPE_PRICE_ID_PREMIUM_{MONTHLY,YEARLY}
+// — these constants only drive the display, and match the matching entries in
+// packages/shared/src/constants/index.ts (PREMIUM_PLANS).
+const PREMIUM_MONTHLY_PRICE_CENTS = 499
+const PREMIUM_YEARLY_PRICE_CENTS = 4990
+const PREMIUM_CURRENCY = 'eur'
+
+type PremiumPlanId = 'monthly' | 'yearly'
 
 type Tab = 'coins' | 'premium'
 
@@ -269,24 +281,58 @@ function CheckoutBanner() {
   )
 }
 
-// ─── Premium tab (coming soon — feature preview) ──────────────────────────────
-// Subscription plumbing (Prisma model, entitlements middleware, ad system,
-// deck creator, coin-free play) is follow-up work. This card exists so the
-// shop advertises what Premium will deliver the moment the backend lands.
+// ─── Premium tab ──────────────────────────────────────────────────────────────
+// Subscribes the user to the monthly Premium plan via Stripe Checkout.
+// Single-tier entry point — the shop is the only place Premium is sold.
 
 function PremiumTab() {
   const { t } = useTranslation()
+  const { isPremium, premiumUntil } = usePremium()
+  // Default to yearly — highlighted as BEST VALUE so the cheapest-per-month
+  // option is the one pre-selected when a user opens the tab.
+  const [plan, setPlan] = useState<PremiumPlanId>('yearly')
+
+  const checkout = useMutation<{ url: string | null; sessionId: string }, Error, PremiumPlanId>({
+    mutationFn: (planId) => api.post(`/shop/premium/checkout/${planId}`, {}),
+    onSuccess: (res) => {
+      if (res.url) window.location.href = res.url
+    },
+  })
+
+  const portal = useMutation<{ url: string }, Error, void>({
+    mutationFn: () => api.post('/shop/premium/portal', {}),
+    onSuccess: (res) => {
+      if (res.url) window.location.href = res.url
+    },
+  })
+
   const features: Array<{ icon: string; title: string; desc: string }> = [
     { icon: '🚫', title: t('shop.premiumFeatureNoAdsTitle'),     desc: t('shop.premiumFeatureNoAdsDesc') },
     { icon: '🃏', title: t('shop.premiumFeatureDecksTitle'),     desc: t('shop.premiumFeatureDecksDesc') },
     { icon: '♾️', title: t('shop.premiumFeatureUnlimitedTitle'), desc: t('shop.premiumFeatureUnlimitedDesc') },
   ]
+
+  const monthlyLabel = formatPrice(PREMIUM_MONTHLY_PRICE_CENTS, PREMIUM_CURRENCY)
+  const yearlyLabel  = formatPrice(PREMIUM_YEARLY_PRICE_CENTS,  PREMIUM_CURRENCY)
+  const priceLabel   = plan === 'yearly' ? yearlyLabel : monthlyLabel
+  const ctaKey       = plan === 'yearly' ? 'shop.premiumSubscribeYearly' : 'shop.premiumSubscribe'
+
   return (
     <div className="card py-8 px-6">
       <div className="text-center mb-6">
         <p className="text-5xl mb-2">👑</p>
         <h2 className="text-2xl font-extrabold text-white">{t('shop.premiumTitle')}</h2>
         <p className="text-neutral-400 text-sm mt-1">{t('shop.premiumSubtitle')}</p>
+        {isPremium && (
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <PremiumBadge size="md" />
+            {premiumUntil && (
+              <span className="text-xs text-neutral-500">
+                {t('shop.premiumRenews', { date: premiumUntil.toLocaleDateString() })}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <ul className="space-y-3 mb-6">
         {features.map((f) => (
@@ -302,9 +348,89 @@ function PremiumTab() {
           </li>
         ))}
       </ul>
-      <div className="px-3 py-2.5 rounded-xl bg-amber-950/30 border border-amber-900/50 text-amber-300 text-xs text-center">
-        ⏳ {t('shop.premiumComingSoon')}
-      </div>
+
+      {isPremium ? (
+        <button
+          onClick={() => portal.mutate()}
+          disabled={portal.isPending}
+          className="w-full py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:opacity-60 text-white font-bold text-base transition-all border border-neutral-700"
+        >
+          {portal.isPending ? '…' : t('shop.premiumManage')}
+        </button>
+      ) : (
+        <>
+          {/* Plan selector — two side-by-side tiles. Yearly is highlighted as
+              the BEST VALUE since it's cheaper per month (~€4.16) than the
+              monthly plan (€4.99) and matches the PREMIUM_PLANS entries. */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <PlanTile
+              active={plan === 'monthly'}
+              onClick={() => setPlan('monthly')}
+              label={t('shop.premiumPerMonth', { price: monthlyLabel })}
+            />
+            <PlanTile
+              active={plan === 'yearly'}
+              onClick={() => setPlan('yearly')}
+              label={t('shop.premiumPerYear', { price: yearlyLabel })}
+              badge={t('shop.premiumBestValue')}
+              hint={t('shop.premiumSaveTwoMonths')}
+            />
+          </div>
+          <button
+            onClick={() => checkout.mutate(plan)}
+            disabled={checkout.isPending}
+            className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 active:scale-[0.98] text-neutral-900 font-bold text-base transition-all shadow-lg shadow-amber-500/25"
+          >
+            {checkout.isPending ? '…' : t(ctaKey, { price: priceLabel })}
+          </button>
+          <p className="text-center text-neutral-600 text-[11px] mt-2">
+            {t('shop.premiumCancelAnytime')}
+          </p>
+        </>
+      )}
+
+      {(checkout.isError || portal.isError) && (
+        <div className="mt-3 px-3 py-2.5 rounded-xl bg-red-950/30 border border-red-900/50 text-red-300 text-xs text-center">
+          {(checkout.error ?? portal.error)?.message}
+        </div>
+      )}
     </div>
+  )
+}
+
+function PlanTile({
+  active,
+  onClick,
+  label,
+  badge,
+  hint,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+  badge?: string
+  hint?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        'relative p-3 rounded-xl border text-center transition-all',
+        active
+          ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/30'
+          : 'border-neutral-800 bg-neutral-900 hover:border-neutral-700',
+      ].join(' ')}
+    >
+      {badge && (
+        <span className="absolute -top-2 right-2 text-[9px] font-bold tracking-wide text-amber-400 bg-neutral-950 border border-amber-500/40 px-1.5 py-0.5 rounded-full">
+          {badge}
+        </span>
+      )}
+      <p className={['text-sm font-semibold', active ? 'text-white' : 'text-neutral-300'].join(' ')}>
+        {label}
+      </p>
+      {hint && <p className="text-[11px] text-emerald-400 font-semibold mt-0.5">{hint}</p>}
+    </button>
   )
 }

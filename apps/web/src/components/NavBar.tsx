@@ -72,11 +72,20 @@ export function NavBar() {
     if (sock && typeof sock.on === 'function') {
       sock.on('game:finished', fetchBalance)
     }
+    // Other views (e.g. AchievementsPage claim flow) dispatch this after
+    // actions that mutate the wallet, so the chip updates without an F5.
+    const onWallet = (e: Event) => {
+      const next = (e as CustomEvent<{ starCoins?: number }>).detail?.starCoins
+      if (typeof next === 'number') setStarCoins(next)
+      else fetchBalance()
+    }
+    window.addEventListener('wallet:balance', onWallet)
     return () => {
       cancelled = true
       if (sock && typeof sock.off === 'function') {
         sock.off('game:finished', fetchBalance)
       }
+      window.removeEventListener('wallet:balance', onWallet)
     }
   }, [token, location.pathname])
   React.useEffect(() => {
@@ -227,11 +236,11 @@ export function NavBar() {
           {isPremium && <PremiumBadge size="xs" />}
         </button>
         {/* Upsell entry-point — only shown to non-premium users. Takes them
-            directly to the /premium page. Keeps the crown visible in the top
-            bar without crowding premium users' chrome. */}
+            directly to the Shop's Premium tab. Keeps the crown visible in the
+            top bar without crowding premium users' chrome. */}
         {token && !isPremium && (
           <button
-            onClick={() => navigate('/premium')}
+            onClick={() => navigate('/shop?tab=premium')}
             aria-label="Go Premium"
             title="Go Premium"
             className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all"

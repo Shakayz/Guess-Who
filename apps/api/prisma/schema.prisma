@@ -15,6 +15,7 @@ model User {
   passwordHash  String?
   googleId      String?  @unique
   appleId       String?  @unique
+  discordId     String?  @unique
   avatarUrl     String?
   locale        String   @default("en") @db.VarChar(5)
   starCoins     Int      @default(20)
