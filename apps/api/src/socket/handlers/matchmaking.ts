@@ -97,13 +97,21 @@ async function executeMatch(io: Server<any, any>, queueKey: string, count: numbe
     return
   }
 
-  // Extract locale from queue key: matchmaking:{gameMode}:{locale}
+  // Extract locale + vocal flag from queue key: matchmaking:{gameMode}:{locale}[:v1]
+  // The trailing `:v1` segment (if present) signals the vocal-mode queue partition.
   const parts = queueKey.split(':')
   const gameMode = parts[1] ?? 'normal'
   const locale = parts[2] ?? 'en'
+  const vocalMode = parts[3] === 'v1'
 
   const hostPlayer = players[0]
   const redHandedCount = computeRedHandedCount(players.length)
+  // Clamp vocal speaking time to the same [5, 60] band the lobby editor uses.
+  // We take the host's preference; everyone in this queue already opted into
+  // vocal mode, so the host sets the exact turn length.
+  const vocalSpeakingTimeSeconds = vocalMode
+    ? Math.max(5, Math.min(60, Number(hostPlayer?.vocalSpeakingTimeSeconds) || 10))
+    : 10
 
   const room = await prisma.room.create({
     data: {
@@ -143,6 +151,8 @@ async function executeMatch(io: Server<any, any>, queueKey: string, count: numbe
     maxRounds: 5,
     isMatchmade: true,
     expectedPlayers: players.length,
+    vocalMode,
+    vocalSpeakingTimeSeconds,
   }), 'EX', 21600)
 
   for (const player of players) {
@@ -376,8 +386,12 @@ export function registerMatchmakingHandlers(
 ) {
   const userId: string = (socket as any).userId
 
-  socket.on('matchmaking:join', async (data: { gameMode: string; categories: string[] }) => {
+  socket.on('matchmaking:join', async (data: { gameMode: string; categories: string[]; vocalMode?: boolean; vocalSpeakingTimeSeconds?: number }) => {
     const gameMode = data?.gameMode ?? 'normal'
+    // Vocal mode is only valid for unranked queues (normal/special). Ranked is
+    // always text-only to keep competitive integrity — mirror the lobby rule.
+    const vocalMode = gameMode !== 'ranked' && !!data?.vocalMode
+    const vocalSpeakingTimeSeconds = Math.max(5, Math.min(60, Number(data?.vocalSpeakingTimeSeconds) || 10))
 
     // Fetch user's locale + balance from DB — the queue is language-scoped
     // and we want to bounce broke players before they enter the queue.
@@ -399,18 +413,26 @@ export function registerMatchmakingHandlers(
       return
     }
 
-    const queueKey = `matchmaking:${gameMode}:${locale}`
-    log.info({ userId, gameMode, locale, queueKey }, 'matchmaking:join')
+    // Partition vocal-opt-in players into their own queue so they never get
+    // surprised by a silent lobby (and vice versa). The `:v1` suffix is the
+    // signal picked up by executeMatch to flip the room's vocalMode flag.
+    const queueKey = vocalMode
+      ? `matchmaking:${gameMode}:${locale}:v1`
+      : `matchmaking:${gameMode}:${locale}`
+    log.info({ userId, gameMode, locale, vocalMode, queueKey }, 'matchmaking:join')
 
-    // Remove stale entry if any (in case of reconnect)
-    const current = await redis.lrange(queueKey, 0, -1)
-    for (const entry of current) {
-      try {
-        const parsed = JSON.parse(entry)
-        if (parsed.userId === userId) {
-          await redis.lrem(queueKey, 0, entry)
-        }
-      } catch {}
+    // Remove stale entry in BOTH partitions (user may have flipped the toggle
+    // across a reconnect/re-queue — don't leave a ghost in the other queue).
+    for (const key of [queueKey, `matchmaking:${gameMode}:${locale}`, `matchmaking:${gameMode}:${locale}:v1`]) {
+      const current = await redis.lrange(key, 0, -1)
+      for (const entry of current) {
+        try {
+          const parsed = JSON.parse(entry)
+          if (parsed.userId === userId) {
+            await redis.lrem(key, 0, entry)
+          }
+        } catch {}
+      }
     }
 
     // Fetch rank points + premium status for ranked queue
@@ -422,7 +444,7 @@ export function registerMatchmakingHandlers(
     const isPremium = !!(userFull?.premiumUntil && userFull.premiumUntil.getTime() > Date.now())
 
     // Add to queue
-    const entry = JSON.stringify({ userId, socketId: socket.id, categories: data?.categories ?? [], locale, rankPoints, isPremium, joinedAt: Date.now() })
+    const entry = JSON.stringify({ userId, socketId: socket.id, categories: data?.categories ?? [], locale, rankPoints, isPremium, vocalSpeakingTimeSeconds, joinedAt: Date.now() })
     await redis.rpush(queueKey, entry)
     await redis.expire(queueKey, 300) // 5-min TTL
 
@@ -462,20 +484,29 @@ export function registerMatchmakingHandlers(
     const gameMode = data?.gameMode ?? 'normal'
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
     const locale = user?.locale ?? 'en'
-    const queueKey = `matchmaking:${gameMode}:${locale}`
-    log.info({ userId, gameMode, locale, queueKey }, 'matchmaking:leave')
-    const current = await redis.lrange(queueKey, 0, -1)
-    for (const entry of current) {
-      try {
-        if (JSON.parse(entry).userId === userId) {
-          await redis.lrem(queueKey, 0, entry)
-          break
-        }
-      } catch {}
+    // The client doesn't track which partition it joined, so clear both the
+    // text-only and vocal-mode queues for this (gameMode, locale) pair.
+    const queueKeys = [
+      `matchmaking:${gameMode}:${locale}`,
+      `matchmaking:${gameMode}:${locale}:v1`,
+    ]
+    log.info({ userId, gameMode, locale }, 'matchmaking:leave')
+    for (const queueKey of queueKeys) {
+      const current = await redis.lrange(queueKey, 0, -1)
+      for (const entry of current) {
+        try {
+          if (JSON.parse(entry).userId === userId) {
+            await redis.lrem(queueKey, 0, entry)
+            break
+          }
+        } catch {}
+      }
     }
     socket.emit('matchmaking:left' as any, {})
 
-    // Clean up window if queue is now empty
-    await cleanupEmptyQueue(queueKey)
+    // Clean up windows if queues are now empty
+    for (const queueKey of queueKeys) {
+      await cleanupEmptyQueue(queueKey)
+    }
   })
 }

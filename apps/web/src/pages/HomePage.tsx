@@ -479,6 +479,69 @@ export default function HomePage() {
             </div>
           )}
 
+          {/* Vocal mode toggle — unranked matchmaking only. Mirrors the
+              private-lobby toggle; server partitions the queue so vocal-opt-in
+              players only match with each other. */}
+          {selectedMode === 'normal' && (
+            <div className="card animate-slide-up space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white flex items-center gap-2">
+                    <span>🎙️</span>
+                    <span>{t('lobby.vocalMode', 'Vocal mode')}</span>
+                  </p>
+                  <p className="text-[11px] text-neutral-500 mt-0.5">
+                    {t('lobby.vocalModeDesc', 'Each player speaks out loud on their turn — no typing.')}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={vocalMode}
+                  aria-label={t('lobby.vocalMode', 'Vocal mode')}
+                  onClick={() => setVocalMode((v) => !v)}
+                  className={[
+                    'relative w-11 h-6 rounded-full transition-colors shrink-0',
+                    vocalMode ? 'bg-brand-600' : 'bg-neutral-800',
+                  ].join(' ')}
+                >
+                  <span
+                    className={[
+                      'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform',
+                      vocalMode ? 'translate-x-5' : 'translate-x-0',
+                    ].join(' ')}
+                  />
+                </button>
+              </div>
+              {vocalMode && (
+                <div className="flex items-center justify-between gap-4 pt-2 border-t border-neutral-800/60">
+                  <p className="text-xs text-neutral-400">
+                    {t('lobby.vocalTurnTime', 'Vocal turn time')}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setVocalSpeakingTimeSeconds((v) => Math.max(5, v - 5))}
+                      className="w-7 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-sm transition-colors disabled:opacity-40"
+                      disabled={vocalSpeakingTimeSeconds <= 5}
+                      aria-label="Decrease vocal turn time"
+                    >−</button>
+                    <span className="text-sm text-white font-mono tabular-nums w-10 text-center">
+                      {vocalSpeakingTimeSeconds}s
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setVocalSpeakingTimeSeconds((v) => Math.min(60, v + 5))}
+                      className="w-7 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-sm transition-colors disabled:opacity-40"
+                      disabled={vocalSpeakingTimeSeconds >= 60}
+                      aria-label="Increase vocal turn time"
+                    >+</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Category picker */}
           {hasCategories && (
             <div className="card space-y-3 animate-slide-up">

@@ -68,6 +68,10 @@ export default function HomeScreen() {
   const [unrankedSubMode, setUnrankedSubMode] = useState<SubGameMode>('normal')
   const [lobbyGameMode, setLobbyGameMode] = useState<SubGameMode>('normal')
   const [categories, setCategories] = useState<WordCategory[]>([])
+  // Vocal-mode preference for unranked matchmaking. Server partitions the
+  // queue so vocal-opt-in players only match with each other.
+  const [vocalMode, setVocalMode] = useState(false)
+  const [vocalSpeakingTimeSeconds, setVocalSpeakingTimeSeconds] = useState(10)
   const [roomCode, setRoomCode] = useState('')
   const [showTutorial, setShowTutorial] = useState(false)
 
@@ -162,11 +166,16 @@ export default function HomeScreen() {
     setInQueue(true)
     setLoading(true)
     setError(null)
+    // Vocal mode is unranked-only; server also enforces this but we avoid
+    // sending a stray flag for ranked joins.
+    const wantVocal = selectedMode === 'normal' && vocalMode
     socket.emit('matchmaking:join' as any, {
       gameMode: selectedMode === 'ranked' ? 'ranked' : unrankedSubMode,
       categories: selectedMode === 'ranked' ? [] : categories,
+      vocalMode: wantVocal,
+      vocalSpeakingTimeSeconds,
     })
-  }, [selectedMode, categories, unrankedSubMode])
+  }, [selectedMode, categories, unrankedSubMode, vocalMode, vocalSpeakingTimeSeconds])
 
   const cancelMatchmaking = useCallback(() => {
     const socket = getSocket()
@@ -442,6 +451,77 @@ export default function HomeScreen() {
                 </View>
               )
             })()}
+
+            {/* Vocal mode toggle — unranked matchmaking only. Mirrors the
+                private-lobby toggle; server partitions the queue so vocal
+                opt-in players only match with each other. */}
+            {selectedMode === 'normal' && (
+              <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-3">
+                <View className="flex-row items-center justify-between gap-3">
+                  <View className="flex-1 pr-2">
+                    <View className="flex-row items-center gap-1.5">
+                      <Text className="text-sm">🎙</Text>
+                      <Text className="text-white font-semibold" style={{ fontSize: 14 * fontScale }}>
+                        {t('lobby.vocalMode', 'Vocal mode')}
+                      </Text>
+                    </View>
+                    <Text className="text-neutral-500 mt-0.5" style={{ fontSize: 11 * fontScale }}>
+                      {t('lobby.vocalModeDesc', 'Each player speaks out loud on their turn — no typing.')}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setVocalMode((v) => !v)}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: vocalMode }}
+                    accessibilityLabel={t('lobby.vocalMode', 'Vocal mode')}
+                    className={[
+                      'w-11 h-6 rounded-full relative',
+                      vocalMode ? 'bg-violet-600' : 'bg-neutral-700',
+                    ].join(' ')}
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      className="absolute top-0.5 w-5 h-5 rounded-full bg-white"
+                      style={{ left: vocalMode ? 22 : 2 }}
+                    />
+                  </TouchableOpacity>
+                </View>
+                {vocalMode && (
+                  <View className="flex-row items-center justify-between pt-2 border-t border-neutral-800">
+                    <Text className="text-neutral-400" style={{ fontSize: 12 * fontScale }}>
+                      {t('lobby.vocalTurnTime', 'Vocal turn time')}
+                    </Text>
+                    <View className="flex-row items-center gap-2">
+                      <TouchableOpacity
+                        onPress={() => setVocalSpeakingTimeSeconds((v) => Math.max(5, v - 5))}
+                        disabled={vocalSpeakingTimeSeconds <= 5}
+                        className={[
+                          'w-8 h-8 rounded-lg items-center justify-center',
+                          vocalSpeakingTimeSeconds <= 5 ? 'bg-neutral-900 opacity-40' : 'bg-neutral-800',
+                        ].join(' ')}
+                        activeOpacity={0.7}
+                      >
+                        <Text className="text-white font-bold" style={{ fontSize: 16 }}>−</Text>
+                      </TouchableOpacity>
+                      <Text className="text-white font-mono text-center" style={{ fontSize: 13 * fontScale, width: 40 }}>
+                        {vocalSpeakingTimeSeconds}s
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setVocalSpeakingTimeSeconds((v) => Math.min(60, v + 5))}
+                        disabled={vocalSpeakingTimeSeconds >= 60}
+                        className={[
+                          'w-8 h-8 rounded-lg items-center justify-center',
+                          vocalSpeakingTimeSeconds >= 60 ? 'bg-neutral-900 opacity-40' : 'bg-neutral-800',
+                        ].join(' ')}
+                        activeOpacity={0.7}
+                      >
+                        <Text className="text-white font-bold" style={{ fontSize: 16 }}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* Category picker */}
             {hasCategories && (
