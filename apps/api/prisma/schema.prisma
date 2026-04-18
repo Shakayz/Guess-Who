@@ -32,20 +32,23 @@ model User {
   emailVerificationExpires DateTime?
   // Referral / invite system. Every account is issued its own immutable
   // `referralCode` that they can share; `referredByUserId` is set at signup
-  // time when the new user submits someone else's code. The rewards
-  // (REFERRAL_INVITER_REWARD / REFERRAL_INVITEE_REWARD) are credited
-  // atomically during /auth/signup and never re-run afterwards.
-  referralCode     String? @unique @db.VarChar(12)
-  referredByUserId String?
-  referredBy       User?   @relation("Referrals", fields: [referredByUserId], references: [id])
-  referred         User[]  @relation("Referrals")
+  // time when the new user submits someone else's code. The invitee is
+  // credited (REFERRAL_INVITEE_REWARD) immediately at signup, but the
+  // inviter is only paid (REFERRAL_INVITER_REWARD) once the invitee plays
+  // their first ranked game — `referralInviterRewarded` is the idempotency
+  // flag that prevents double-crediting.
+  referralCode            String? @unique @db.VarChar(12)
+  referredByUserId        String?
+  referredBy              User?   @relation("Referrals", fields: [referredByUserId], references: [id])
+  referred                User[]  @relation("Referrals")
+  referralInviterRewarded Boolean @default(false)
   // One-time "share the app on social media" reward. SOCIAL_SHARE_REWARD stars
   // are credited the first time the user taps the Share & Earn button in
   // ReferralCard. The claim endpoint flips this column from NULL to the claim
   // timestamp via an atomic updateMany guard (WHERE sharedAppAt IS NULL) so
   // concurrent calls can't double-credit. External shares can't be verified,
   // so it's trust-on-click — capped at once per account.
-  sharedAppAt      DateTime?
+  sharedAppAt             DateTime?
   pushToken     String?
   lastPlayedAt     DateTime?
   dailyStreakCount Int       @default(0)

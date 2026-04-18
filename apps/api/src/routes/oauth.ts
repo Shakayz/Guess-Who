@@ -4,7 +4,7 @@ import * as jwt from 'jsonwebtoken'
 import { prisma } from '../config/prisma'
 import { env } from '../config/env'
 import { INITIAL_STAR_COINS, EMAIL_VERIFICATION_REWARD } from '@red-handed/shared'
-import { allocateReferralCode, creditReferral, resolveInviter } from '../services/referral'
+import { allocateReferralCode, creditInvitee, resolveInviter } from '../services/referral'
 
 // Google/Apple have already attested the email, so these users skip the
 // 6-digit verification flow AND get the same total balance an email-signup
@@ -228,17 +228,18 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
       data: { username },
     })
 
-    // Apply referral credit after the OAuth account is finalized. Matches the
-    // plain signup flow — an invalid code is silently ignored rather than
-    // blocking the account setup.
+    // Apply the invitee-side credit after the OAuth account is finalized.
+    // The inviter's reward is deferred until this user plays their first
+    // ranked game (handled by the gameLoop). Matches the plain signup flow —
+    // an invalid code is silently ignored rather than blocking setup.
     if (referralCode) {
       const inviter = await resolveInviter(referralCode, user.id)
       if (inviter) {
-        const credit = await creditReferral(inviter.id, user.id)
+        const credit = await creditInvitee(inviter.id, user.id)
         if (credit) {
           req.log.info(
             { userId: user.id, inviterId: inviter.id, ...credit },
-            'setup-username: referral credited',
+            'setup-username: invitee credited (inviter reward deferred to first ranked game)',
           )
         }
       } else {

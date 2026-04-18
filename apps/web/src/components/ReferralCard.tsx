@@ -11,6 +11,7 @@ import { api } from '../lib/api'
 interface ReferralResponse {
   code: string
   invitedCount: number
+  invitedBy: { id: string; username: string; avatarUrl: string | null } | null
   shareRewardClaimed: boolean
 }
 
@@ -142,6 +143,30 @@ export function ReferralCard() {
             'Share your code. When a friend signs up with it, you earn +{{inviter}} ⭐ and they get +{{invitee}} ⭐.',
         })}
       </p>
+
+      {/* If the caller signed up through someone else's invite code, show who
+          referred them. Purely informational — there's nothing to click. */}
+      {data?.invitedBy && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-neutral-900/60 border border-neutral-800">
+          {data.invitedBy.avatarUrl ? (
+            <img
+              src={data.invitedBy.avatarUrl}
+              alt=""
+              className="w-6 h-6 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-brand-600/30 flex items-center justify-center text-[10px] font-bold text-brand-300 uppercase">
+              {data.invitedBy.username.slice(0, 2)}
+            </div>
+          )}
+          <span className="text-xs text-neutral-400 truncate">
+            {t('profile.invitedBy', {
+              username: data.invitedBy.username,
+              defaultValue: 'Invited by @{{username}}',
+            })}
+          </span>
+        </div>
+      )}
 
       {/* Code */}
       <div className="flex items-center gap-2">

@@ -150,21 +150,32 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
   })
 
   // GET /api/users/me/referral — fetch (and lazily generate) the caller's
-  // shareable referral code plus a live count of accepted invites. The count
+  // shareable referral code plus a live count of accepted invites. Also
+  // returns `invitedBy` when the caller signed up through someone else's
+  // code, so the profile can render a "Invited by @xxx" line. The count
   // is cheap (indexed foreign key) and avoids a second round-trip from the UI.
   // `shareRewardClaimed` lets the ReferralCard hide the one-time +50⭐ CTA
   // once the user has taken it, without a second request.
   fastify.get('/me/referral', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
     const code = await ensureReferralCode(userId)
-    const [invitedCount, user] = await Promise.all([
+    const [invitedCount, me] = await Promise.all([
       prisma.user.count({ where: { referredByUserId: userId } }),
-      prisma.user.findUnique({ where: { id: userId }, select: { sharedAppAt: true } }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          sharedAppAt: true,
+          referredBy: {
+            select: { id: true, username: true, avatarUrl: true },
+          },
+        },
+      }),
     ])
     return reply.send({
       code,
       invitedCount,
-      shareRewardClaimed: !!user?.sharedAppAt,
+      invitedBy: me?.referredBy ?? null,
+      shareRewardClaimed: !!me?.sharedAppAt,
     })
   })
 

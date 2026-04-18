@@ -16,6 +16,7 @@ import {
   xpProgressInLevel,
 } from '@red-handed/shared'
 import { evaluateEvent } from '../services/achievements'
+import { creditInviterForFirstGame } from '../services/referral'
 
 /** Final winner label used across all end-game branches. */
 type Winner = 'villagers' | 'red_handed' | 'jester' | 'evil_twins' | 'draw'
@@ -394,7 +395,8 @@ async function applyXpAndLevel(
       const dataToUpdate: Record<string, unknown> = { xp: newXp }
       if (promoted) dataToUpdate.level = newLevel
       if (coinsFromLevelUp > 0) dataToUpdate.starCoins = { increment: coinsFromLevelUp }
-      if (isRanked && !user.hasPlayedRanked) dataToUpdate.hasPlayedRanked = true
+      const firstRankedGame = isRanked && !user.hasPlayedRanked
+      if (firstRankedGame) dataToUpdate.hasPlayedRanked = true
 
       await prisma.user.update({
         where: { id: user.id },
@@ -403,6 +405,15 @@ async function applyXpAndLevel(
 
       if (coinsFromLevelUp > 0) {
         levelUpRewards.set(user.id, coinsFromLevelUp)
+      }
+
+      // Deferred referral payout: when this player just finished their first
+      // ranked game AND they originally signed up through someone else's
+      // invite code, credit the inviter now. The credit function is
+      // idempotent via `referralInviterRewarded`, so concurrent end-game
+      // passes or replays can't double-pay.
+      if (firstRankedGame) {
+        await creditInviterForFirstGame(user.id).catch(() => null)
       }
 
       // Notify the player about their XP gain + level progression
