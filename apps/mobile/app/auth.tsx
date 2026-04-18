@@ -22,6 +22,7 @@ import * as Crypto from 'expo-crypto'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
 import i18n from '../i18n'
+import { LANGUAGES } from '../i18n/languages'
 import { useResponsive } from '../lib/responsive'
 import { createLogger } from '../lib/logger'
 
@@ -32,18 +33,6 @@ WebBrowser.maybeCompleteAuthSession()
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || ''
-
-const LANGUAGES = [
-  { code: 'en', label: 'English', flag: '🇬🇧' },
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'ar', label: 'العربية', flag: '🇸🇦' },
-  { code: 'es', label: 'Español', flag: '🇪🇸' },
-  { code: 'it', label: 'Italiano', flag: '🇮🇹' },
-  { code: 'pt', label: 'Português', flag: '🇧🇷' },
-  { code: 'zh', label: '中文', flag: '🇨🇳' },
-  { code: 'ru', label: 'Русский', flag: '🇷🇺' },
-  { code: 'hi', label: 'हिन्दी', flag: '🇮🇳' },
-] as const
 
 const googleDiscovery = {
   authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
