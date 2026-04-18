@@ -131,6 +131,13 @@ export interface Player {
   userId: string
   username: string
   avatarUrl: string | null
+  /**
+   * Populated from User.premiumUntil at the moment the player joins a room,
+   * so every lobby/voting UI can render the crown badge without a per-render
+   * /users/:id round-trip. Stale within a single game is fine — entitlement
+   * only matters here for the badge itself.
+   */
+  isPremium?: boolean
   role?: PlayerRole
   status: PlayerStatus
   word?: string

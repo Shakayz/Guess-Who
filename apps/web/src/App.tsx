@@ -23,7 +23,7 @@ const HomePage        = lazyWithRetry(() => import('./pages/HomePage'))
 const LobbyPage       = lazyWithRetry(() => import('./pages/LobbyPage'))
 const GamePage        = lazyWithRetry(() => import('./pages/GamePage'))
 const ProfilePage     = lazyWithRetry(() => import('./pages/ProfilePage'))
-// const PremiumPage     = lazyWithRetry(() => import('./pages/PremiumPage'))  // TODO: re-enable when premium is ready
+const PremiumPage     = lazyWithRetry(() => import('./pages/PremiumPage'))
 const LeaderboardPage = lazyWithRetry(() => import('./pages/LeaderboardPage'))
 const ResultsPage     = lazyWithRetry(() => import('./pages/ResultsPage'))
 const AuthPage              = lazyWithRetry(() => import('./pages/AuthPage'))
@@ -342,6 +342,26 @@ function AuthenticatedConnectionStatus() {
   return <ConnectionStatus />
 }
 
+/**
+ * Listens for 402 Payment Required responses from the API and redirects the
+ * user to /premium so they can upgrade. Skips redirect if already on the
+ * premium or auth pages.
+ */
+function PremiumRequiredRedirector() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  useEffect(() => {
+    const handler = () => {
+      const p = location.pathname
+      if (p === '/premium' || p === '/auth') return
+      navigate('/premium?upsell=1', { replace: false })
+    }
+    window.addEventListener('premium-required', handler)
+    return () => window.removeEventListener('premium-required', handler)
+  }, [navigate, location.pathname])
+  return null
+}
+
 export default function App() {
   return (
     <Suspense fallback={<Spinner />}>
@@ -351,6 +371,7 @@ export default function App() {
       <ActiveGameRestorer />
       <GlobalSocketListeners />
       <ActiveGameGuard />
+      <PremiumRequiredRedirector />
       <AuthenticatedConnectionStatus />
       <InviteBanner />
       <FriendRequestBanner />
@@ -368,7 +389,7 @@ export default function App() {
         <Route path="/game/:code" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
         <Route path="/results/:code" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
         <Route path="/profile/:id?" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        {/* <Route path="/premium" element={<ProtectedRoute><PremiumPage /></ProtectedRoute>} /> */}
+        <Route path="/premium" element={<ProtectedRoute><PremiumPage /></ProtectedRoute>} />
         <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
         <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
         <Route path="/history/:gameId" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />

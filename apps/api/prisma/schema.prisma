@@ -51,6 +51,18 @@ model User {
   pushToken     String?
   lastPlayedAt     DateTime?
   dailyStreakCount Int       @default(0)
+  // ── Premium subscription ────────────────────────────────────────────────────
+  // `premiumUntil` is the single source of truth: a user is premium iff this
+  // column is non-null and strictly in the future. The webhook writes
+  // `current_period_end` here on every Stripe subscription event, so a
+  // cancelled sub keeps its perks until the paid period actually ends.
+  // `stripeCustomerId` is created the first time a user starts a subscription
+  // checkout and reused across renewals so returning customers see saved cards
+  // and a single billing history. `stripeSubscriptionId` lets the webhook and
+  // billing-portal route look up the live subscription without scanning.
+  premiumUntil         DateTime?
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

@@ -31,6 +31,16 @@ const envSchema = z.object({
   STRIPE_PRICE_ID_PACK_500:  z.string().optional(),
   STRIPE_PRICE_ID_PACK_1500: z.string().optional(),
   STRIPE_PRICE_ID_PACK_5000: z.string().optional(),
+  // Premium subscription Price IDs (recurring). Monthly/yearly plans share the
+  // same Stripe product; each interval gets its own Price. Optional so the API
+  // still boots without premium configured — /api/shop/premium/checkout returns
+  // 503 if the requested plan's price id is missing.
+  STRIPE_PRICE_ID_PREMIUM_MONTHLY: z.string().optional(),
+  STRIPE_PRICE_ID_PREMIUM_YEARLY:  z.string().optional(),
+  // Where Stripe sends the user back from the Billing Portal (manage / cancel
+  // subscription). Defaults to the Premium page so the returning user lands on
+  // a meaningful screen.
+  STRIPE_PORTAL_RETURN_URL: z.string().default('http://localhost:5173/premium'),
 })
 
 export const env = envSchema.parse(process.env)

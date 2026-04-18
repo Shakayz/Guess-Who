@@ -46,6 +46,8 @@ interface UserProfile {
   xpInLevel?: number
   xpForNextLevel?: number
   hasPlayedRanked?: boolean
+  isPremium?: boolean
+  premiumUntil?: string | null
 }
 
 interface UserStats {
@@ -456,6 +458,21 @@ export default function ProfileScreen() {
             <View className="px-2.5 py-1 rounded-full border border-amber-700/50 bg-amber-950/40">
               <Text className="text-amber-300 text-[11px] font-bold">⚡ Lvl {playerLevel}</Text>
             </View>
+            {profile.isPremium ? (
+              <TouchableOpacity
+                onPress={() => router.push('/premium')}
+                className="px-2.5 py-1 rounded-full border border-amber-500/50 bg-amber-500/15"
+              >
+                <Text className="text-amber-300 text-[11px] font-bold">👑 Premium</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => router.push('/premium')}
+                className="px-2.5 py-1 rounded-full border border-amber-700/50 bg-amber-950/30"
+              >
+                <Text className="text-amber-300/90 text-[11px] font-bold">👑 Go Premium</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Lifetime player level gauge */}

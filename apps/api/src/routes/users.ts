@@ -273,12 +273,17 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     const cached = await redis.get(cacheKey)
     if (cached) return reply.send(JSON.parse(cached))
 
-    const users = await prisma.user.findMany({
+    const rows = await prisma.user.findMany({
       where: { locale: lang },
-      select: { id: true, username: true, avatarUrl: true, rankTier: true, rankPoints: true },
+      select: { id: true, username: true, avatarUrl: true, rankTier: true, rankPoints: true, premiumUntil: true },
       orderBy: { rankPoints: 'desc' },
       take: 100,
     })
+    const now = Date.now()
+    const users = rows.map(({ premiumUntil, ...rest }) => ({
+      ...rest,
+      isPremium: !!(premiumUntil && premiumUntil.getTime() > now),
+    }))
     await redis.set(cacheKey, JSON.stringify(users), 'EX', 300) // 5 min cache
     return reply.send(users)
   })
@@ -341,16 +346,21 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         id: true, username: true, avatarUrl: true, rankTier: true,
         rankPoints: true, honorPoints: true, createdAt: true,
         level: true, xp: true, hasPlayedRanked: true,
+        premiumUntil: true,
         _count: { select: { gameParticipations: true } },
       },
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
     const progress = xpProgressInLevel(user.xp ?? 0)
+    const isPremium = !!(user.premiumUntil && user.premiumUntil.getTime() > Date.now())
+    // Don't leak the exact subscription end-date to other users — just the flag.
+    const { premiumUntil: _omit, ...publicUser } = user
     return reply.send({
-      ...user,
+      ...publicUser,
       rankTier: user.hasPlayedRanked ? user.rankTier : 'unranked',
       xpInLevel: progress.current,
       xpForNextLevel: progress.needed,
+      isPremium,
     })
   })
 
@@ -429,9 +439,11 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         id: true, username: true, avatarUrl: true, rankTier: true,
         rankPoints: true, honorPoints: true, createdAt: true,
         level: true, xp: true, hasPlayedRanked: true,
+        premiumUntil: true,
       },
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
+    const isPremiumProfile = !!(user.premiumUntil && user.premiumUntil.getTime() > Date.now())
 
     // Helper that builds the same set of stat queries scoped by gameMode.
     // mode = 'ranked' → only games where game.gameMode === 'ranked'
@@ -567,11 +579,15 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     for (const h of honorsRanked)   lifetimeHonors.set(h.type, (lifetimeHonors.get(h.type) ?? 0) + h.count)
     for (const h of honorsUnranked) lifetimeHonors.set(h.type, (lifetimeHonors.get(h.type) ?? 0) + h.count)
 
+    // Drop the raw `premiumUntil` from the public payload — callers only see
+    // the derived boolean so the exact subscription end date stays private.
+    const { premiumUntil: _omitProfile, ...publicProfile } = user
     return reply.send({
-      ...user,
+      ...publicProfile,
       rankTier: user.hasPlayedRanked ? user.rankTier : 'unranked',
       xpInLevel: progress.current,
       xpForNextLevel: progress.needed,
+      isPremium: isPremiumProfile,
       stats: {
         totalGames,
         wins,

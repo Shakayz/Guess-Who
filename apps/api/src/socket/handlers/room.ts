@@ -440,12 +440,17 @@ export function registerRoomHandlers(
         return
       }
 
+      const joiningUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { locale: true, premiumUntil: true, avatarUrl: true },
+      })
+      const isPremium = !!(joiningUser?.premiumUntil && joiningUser.premiumUntil.getTime() > Date.now())
+
       // ── Language check: joiner must speak the room's language ────────────────
       // The host is exempt (they set the room language). Normalize both codes to
       // 2-letter base so 'en-US' matches 'en', etc.
       if (room.hostId !== userId) {
-        const playerUser = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
-        const playerLocale = (playerUser?.locale ?? 'en').split('-')[0]
+        const playerLocale = (joiningUser?.locale ?? 'en').split('-')[0]
         const roomLanguage = room.language.split('-')[0]
         if (roomLanguage !== playerLocale) {
           socket.emit('error', { code: 'LANGUAGE_MISMATCH', message: 'This room is in a different language. You can only join rooms that match your language.' })
@@ -513,7 +518,8 @@ export function registerRoomHandlers(
             id: socket.id,
             userId,
             username,
-            avatarUrl: null,
+            avatarUrl: joiningUser?.avatarUrl ?? null,
+            isPremium,
             role: undefined,
             status: 'alive',
             isHost: room.hostId === userId,
