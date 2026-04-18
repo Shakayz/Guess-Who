@@ -325,8 +325,10 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={contentStyle}>
-        {/* Star-coin chip (top-right) */}
-        <View
+        {/* Star-coin chip (top-right) — tap to open shop */}
+        <TouchableOpacity
+          onPress={() => router.push('/shop?tab=coins')}
+          activeOpacity={0.8}
           className="flex-row items-center gap-1.5 self-end mt-3 mr-4 px-3 py-1.5 rounded-full border border-amber-700/50 bg-amber-950/50"
           style={{ shadowColor: '#451a03', shadowOpacity: 0.4, shadowRadius: 4 }}
         >
@@ -334,7 +336,7 @@ export default function ProfileScreen() {
           <Text className="text-amber-300 font-bold font-mono text-sm">
             {profile.starCoins.toLocaleString()}
           </Text>
-        </View>
+        </TouchableOpacity>
 
         {/* Avatar + Name */}
         <View className="items-center pt-2 pb-4" style={{ paddingHorizontal: px + 8 }}>

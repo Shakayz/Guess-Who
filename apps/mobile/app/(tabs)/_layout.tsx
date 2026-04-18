@@ -84,13 +84,21 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="shop"
+        options={{
+          title: t('nav.shop', 'Shop'),
+          headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <TabIcon icon="🛒" size={iconSize} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: t('nav.settings', 'Settings'),
           headerTitle: t('nav.settings', 'Settings'),
-          tabBarIcon: ({ color }) => (
-            <TabIcon icon="⚙️" size={iconSize} color={color} />
-          ),
+          href: null,
         }}
       />
     </Tabs>
