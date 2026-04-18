@@ -9,7 +9,7 @@ import {
   EMAIL_VERIFICATION_REWARD,
   EMAIL_VERIFICATION_CODE_TTL_MINUTES,
 } from '@red-handed/shared'
-import { allocateReferralCode, creditReferral, resolveInviter } from '../services/referral'
+import { allocateReferralCode, creditInvitee, resolveInviter } from '../services/referral'
 import bcrypt from 'bcryptjs'
 
 const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de'] as const
@@ -19,10 +19,11 @@ const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   locale: z.string().transform((v) => v.split('-')[0].toLowerCase()).pipe(z.enum(SUPPORTED_LOCALES)).default('en'),
-  // Optional invite code — when present and valid, both the inviter and the
-  // new user are credited via services/referral.creditReferral() right after
-  // the account is created. Invalid codes are logged and ignored so a busted
-  // share link never blocks a legitimate signup.
+  // Optional invite code — when present and valid, the new user is credited
+  // via services/referral.creditInvitee() right after the account is created.
+  // The inviter's reward is deferred until the invitee plays their first
+  // ranked game (fired from the gameLoop). Invalid codes are logged and
+  // ignored so a busted share link never blocks a legitimate signup.
   referralCode: z.string().trim().min(1).max(12).optional(),
 })
 
@@ -99,11 +100,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       })
 
       if (inviterId) {
-        const credit = await creditReferral(inviterId, user.id)
+        const credit = await creditInvitee(inviterId, user.id)
         if (credit) {
           req.log.info(
             { userId: user.id, inviterId, ...credit },
-            'signup: referral credited',
+            'signup: invitee credited (inviter reward deferred to first ranked game)',
           )
         }
       }

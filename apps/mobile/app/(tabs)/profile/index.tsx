@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 import * as ImagePicker from 'expo-image-picker'
 import { useAuthStore } from '../../../store/auth'
 import { api } from '../../../lib/api'
+import { ReferralCard } from '../../../components/ReferralCard'
 import { RANK_CONFIG, LEVEL_CAP } from '@red-handed/shared'
 import type { RankTier } from '@red-handed/shared'
 import i18n from '../../../i18n'
@@ -658,6 +659,9 @@ export default function ProfileScreen() {
             <Text className="text-neutral-600" style={{ fontSize: 18 }}>›</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Invite a friend */}
+        <ReferralCard />
 
         {/* Language Switcher */}
         <View className="mx-4 mb-4">

@@ -150,13 +150,25 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
   })
 
   // GET /api/users/me/referral — fetch (and lazily generate) the caller's
-  // shareable referral code plus a live count of accepted invites. The count
+  // shareable referral code plus a live count of accepted invites. Also
+  // returns `invitedBy` when the caller signed up through someone else's
+  // code, so the profile can render a "Invited by @xxx" line. The count
   // is cheap (indexed foreign key) and avoids a second round-trip from the UI.
   fastify.get('/me/referral', async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
     const code = await ensureReferralCode(userId)
-    const invitedCount = await prisma.user.count({ where: { referredByUserId: userId } })
-    return reply.send({ code, invitedCount })
+    const [invitedCount, me] = await Promise.all([
+      prisma.user.count({ where: { referredByUserId: userId } }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          referredBy: {
+            select: { id: true, username: true, avatarUrl: true },
+          },
+        },
+      }),
+    ])
+    return reply.send({ code, invitedCount, invitedBy: me?.referredBy ?? null })
   })
 
   // POST /api/users/me/push-token — register device push token (mobile)

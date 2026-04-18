@@ -76,16 +76,22 @@ export async function resolveInviter(
 }
 
 /**
- * Credit both sides of a referral atomically. The invitee row must NOT have
- * a `referredByUserId` yet — this is the check that makes the operation
- * idempotent against concurrent retries. On success, returns the rewards
- * that were applied; returns null if the invitee had already been credited
- * (the signup flow should treat that as a silent no-op).
+ * Credit the invitee side of a referral at signup. Sets `referredByUserId`
+ * and bumps the invitee's star balance by REFERRAL_INVITEE_REWARD atomically.
+ * The invitee row must NOT already have a `referredByUserId` — this is the
+ * check that makes the operation idempotent against concurrent retries.
+ *
+ * The inviter is NOT credited here; their reward is deferred until the
+ * invitee plays their first ranked game (see `creditInviterForFirstGame`),
+ * so the +50 ⭐ incentive can't be farmed by creating throwaway accounts.
+ *
+ * Returns the amount awarded to the invitee on success, or null if the
+ * invitee had already been linked (treated as a silent no-op).
  */
-export async function creditReferral(
+export async function creditInvitee(
   inviterId: string,
   inviteeId: string,
-): Promise<{ inviterReward: number; inviteeReward: number } | null> {
+): Promise<{ inviteeReward: number } | null> {
   if (inviterId === inviteeId) return null
 
   const claim = await prisma.user.updateMany({
@@ -97,13 +103,43 @@ export async function creditReferral(
   })
   if (claim.count !== 1) return null
 
+  return { inviteeReward: REFERRAL_INVITEE_REWARD }
+}
+
+/**
+ * Fire the deferred inviter reward after the invitee finishes their first
+ * ranked game. Called from the gameLoop's post-game XP pass. The
+ * `referralInviterRewarded` flag on the invitee row is the idempotency
+ * gate — `updateMany` with that flag in the WHERE clause ensures the
+ * inviter can only be paid once per invitee, even under concurrent calls.
+ *
+ * Returns the amount credited to the inviter, or null if there's nothing
+ * to do (no inviter, or the reward was already paid).
+ */
+export async function creditInviterForFirstGame(
+  inviteeId: string,
+): Promise<{ inviterId: string; inviterReward: number } | null> {
+  const invitee = await prisma.user.findUnique({
+    where: { id: inviteeId },
+    select: { referredByUserId: true, referralInviterRewarded: true },
+  })
+  if (!invitee || !invitee.referredByUserId || invitee.referralInviterRewarded) {
+    return null
+  }
+
+  const claim = await prisma.user.updateMany({
+    where: { id: inviteeId, referralInviterRewarded: false, referredByUserId: { not: null } },
+    data: { referralInviterRewarded: true },
+  })
+  if (claim.count !== 1) return null
+
   await prisma.user.update({
-    where: { id: inviterId },
+    where: { id: invitee.referredByUserId },
     data: { starCoins: { increment: REFERRAL_INVITER_REWARD } },
   })
 
   return {
+    inviterId: invitee.referredByUserId,
     inviterReward: REFERRAL_INVITER_REWARD,
-    inviteeReward: REFERRAL_INVITEE_REWARD,
   }
 }
