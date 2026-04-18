@@ -18,6 +18,7 @@ import { api } from '../../../lib/api'
 import { RANK_CONFIG, LEVEL_CAP } from '@red-handed/shared'
 import type { RankTier } from '@red-handed/shared'
 import i18n from '../../../i18n'
+import { LANGUAGES } from '../../../i18n/languages'
 import { useResponsive } from '../../../lib/responsive'
 
 interface UserProfile {
@@ -80,18 +81,6 @@ interface Achievement {
   unlockedAt: string | null
   claimed?: boolean
 }
-
-const LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'fr', label: 'Francais' },
-  { code: 'ar', label: 'Arabic' },
-  { code: 'es', label: 'Espanol' },
-  { code: 'it', label: 'Italiano' },
-  { code: 'pt', label: 'Portugues' },
-  { code: 'zh', label: 'Chinese' },
-  { code: 'ru', label: 'Russian' },
-  { code: 'hi', label: 'Hindi' },
-] as const
 
 export default function ProfileScreen() {
   const { t } = useTranslation()

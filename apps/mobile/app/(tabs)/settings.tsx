@@ -18,21 +18,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useAuthStore } from '../../store/auth'
 import { api } from '../../lib/api'
 import i18n from '../../i18n'
+import { LANGUAGES } from '../../i18n/languages'
 
-const LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'fr', label: 'Français' },
-  { code: 'ar', label: 'العربية' },
-  { code: 'es', label: 'Español' },
-  { code: 'it', label: 'Italiano' },
-  { code: 'pt', label: 'Português' },
-  { code: 'zh', label: '中文' },
-  { code: 'de', label: 'Deutsch' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'hi', label: 'हिन्दी' },
-] as const
-
-type LangCode = typeof LANGUAGES[number]['code']
+type LangCode = (typeof LANGUAGES)[number]['code']
 
 function SectionHeader({ title }: { title: string }) {
   return (
