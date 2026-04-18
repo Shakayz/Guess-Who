@@ -44,6 +44,7 @@ export default {
     continueWithGoogle: '使用谷歌登录',
     alreadyHaveAccount: '已有账号？',
     noAccount: '没有账号？',
+    referralCodePlaceholder: '邀请码（可选）',
   },
   home: {
     tagline: '社交推理 · 实时 · 多人游戏',

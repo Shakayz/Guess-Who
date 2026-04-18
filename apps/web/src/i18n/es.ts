@@ -44,6 +44,7 @@ export default {
     continueWithGoogle: 'Continuar con Google',
     alreadyHaveAccount: '¿Ya tienes cuenta?',
     noAccount: '¿No tienes cuenta?',
+    referralCodePlaceholder: 'Código de invitación (opcional)',
   },
   home: {
     tagline: 'Deducción social · Tiempo real · Multijugador',

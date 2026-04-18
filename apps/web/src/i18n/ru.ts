@@ -44,6 +44,7 @@ export default {
     continueWithGoogle: 'Продолжить с Google',
     alreadyHaveAccount: 'Уже есть аккаунт?',
     noAccount: 'Нет аккаунта?',
+    referralCodePlaceholder: 'Код приглашения (необязательно)',
   },
   home: {
     tagline: 'Социальная дедукция · В реальном времени · Мультиплеер',
