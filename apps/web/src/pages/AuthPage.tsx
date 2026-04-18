@@ -4,11 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
 import { createLogger } from '../lib/logger'
-import {
-  REFERRAL_INVITER_REWARD,
-  REFERRAL_INVITEE_REWARD,
-} from '@red-handed/shared'
-
 const log = createLogger('auth-page')
 
 const LANGUAGES = [
@@ -330,14 +325,6 @@ export default function AuthPage() {
                   autoCapitalize="characters"
                   autoComplete="off"
                 />
-                <p className="text-[11px] text-neutral-500">
-                  {t('auth.referralCodeHelp', {
-                    inviter: REFERRAL_INVITER_REWARD,
-                    invitee: REFERRAL_INVITEE_REWARD,
-                    defaultValue:
-                      'Got a friend\'s code? You get +{{invitee}} ⭐, they get +{{inviter}} ⭐.',
-                  })}
-                </p>
               </div>
 
               {usernameError && (
@@ -555,14 +542,6 @@ export default function AuthPage() {
                   autoCapitalize="characters"
                   autoComplete="off"
                 />
-                <p className="text-[11px] text-neutral-500">
-                  {t('auth.referralCodeHelp', {
-                    inviter: REFERRAL_INVITER_REWARD,
-                    invitee: REFERRAL_INVITEE_REWARD,
-                    defaultValue:
-                      'Got a friend\'s code? You get +{{invitee}} ⭐, they get +{{inviter}} ⭐.',
-                  })}
-                </p>
               </div>
             )}
 

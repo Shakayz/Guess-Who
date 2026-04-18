@@ -44,6 +44,7 @@ export default {
     continueWithGoogle: 'Mit Google fortfahren',
     alreadyHaveAccount: 'Bereits ein Konto?',
     noAccount: 'Noch kein Konto?',
+    referralCodePlaceholder: 'Einladungscode (optional)',
   },
   home: {
     tagline: 'Soziale Deduktion · Echtzeit · Mehrspieler',

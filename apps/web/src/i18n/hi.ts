@@ -44,6 +44,7 @@ export default {
     continueWithGoogle: 'Google के साथ जारी रखें',
     alreadyHaveAccount: 'क्या आपके पास पहले से खाता है?',
     noAccount: 'कोई खाता नहीं है?',
+    referralCodePlaceholder: 'आमंत्रण कोड (वैकल्पिक)',
   },
   home: {
     tagline: 'सामाजिक अनुमान · रीयल-टाइम · मल्टीप्लेयर',

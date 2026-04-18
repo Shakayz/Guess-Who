@@ -44,6 +44,7 @@ export default {
     continueWithGoogle: 'المتابعة مع Google',
     alreadyHaveAccount: 'هل لديك حساب بالفعل؟',
     noAccount: 'ليس لديك حساب؟',
+    referralCodePlaceholder: 'رمز الدعوة (اختياري)',
   },
   home: {
     tagline: 'استنتاج اجتماعي · في الوقت الفعلي · متعدد اللاعبين',

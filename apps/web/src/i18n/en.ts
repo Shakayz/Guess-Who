@@ -44,6 +44,7 @@ export default {
     continueWithGoogle: 'Continue with Google',
     alreadyHaveAccount: 'Already have an account?',
     noAccount: "Don't have an account?",
+    referralCodePlaceholder: 'Invite code (optional)',
   },
   home: {
     tagline: 'Social Deduction · Real-time · Multiplayer',
