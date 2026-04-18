@@ -24,6 +24,8 @@ import { useResponsive } from '../../lib/responsive'
 import { createLogger } from '../../lib/logger'
 import { HapticManager } from '../../lib/haptics'
 import { SoundManager } from '../../lib/sounds'
+import { UrgentPulse, Heartbeat } from '../../components/anim/AnimatedViews'
+import { Wordmark } from '../../components/Wordmark'
 
 const log = createLogger('game-screen')
 
@@ -44,6 +46,27 @@ function CountdownBar({
 }) {
   const pct = Math.max(0, (seconds / total) * 100)
   const urgent = seconds <= 10
+  const critical = seconds <= 3
+
+  const readoutText = (
+    <Text
+      className={[
+        'text-xs font-mono font-semibold w-8 text-right',
+        urgent ? 'text-red-400' : 'text-neutral-400',
+      ].join(' ')}
+      style={
+        urgent
+          ? {
+              textShadowColor: 'rgba(239,68,68,0.65)',
+              textShadowOffset: { width: 0, height: 0 },
+              textShadowRadius: 10,
+            }
+          : undefined
+      }
+    >
+      {seconds}s
+    </Text>
+  )
 
   return (
     <View className="flex-row items-center gap-2">
@@ -57,14 +80,13 @@ function CountdownBar({
           style={{ width: `${pct}%` }}
         />
       </View>
-      <Text
-        className={[
-          'text-xs font-mono font-semibold w-8 text-right',
-          urgent ? 'text-red-400' : 'text-neutral-400',
-        ].join(' ')}
-      >
-        {seconds}s
-      </Text>
+      {critical ? (
+        <UrgentPulse>{readoutText}</UrgentPulse>
+      ) : urgent ? (
+        <Heartbeat>{readoutText}</Heartbeat>
+      ) : (
+        readoutText
+      )}
     </View>
   )
 }
@@ -129,7 +151,7 @@ function PlayerClueHistoryModal({
   onClose,
 }: {
   visible: boolean
-  player: { userId: string; username: string } | null
+  player: { userId: string; username: string; avatarUrl?: string | null } | null
   completedRounds: any[]
   currentClues: any[]
   onClose: () => void
@@ -174,11 +196,7 @@ function PlayerClueHistoryModal({
           {/* Header */}
           <View className="flex-row items-center justify-between px-5 py-3 border-b border-neutral-800">
             <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-full bg-violet-700 items-center justify-center">
-                <Text className="text-white text-sm font-bold">
-                  {player.username.charAt(0).toUpperCase()}
-                </Text>
-              </View>
+              <Avatar url={player.avatarUrl} username={player.username} size={32} />
               <View>
                 <Text className="text-white font-bold text-base">{player.username}</Text>
                 <Text className="text-neutral-500 text-xs">Clue history</Text>
@@ -295,7 +313,7 @@ export default function GameScreen() {
   } | null>(null)
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
   const [clueFlagCounts, setClueFlagCounts] = useState<Record<number, number>>({})
-  const [clueHistoryPlayer, setClueHistoryPlayer] = useState<{ userId: string; username: string } | null>(null)
+  const [clueHistoryPlayer, setClueHistoryPlayer] = useState<{ userId: string; username: string; avatarUrl?: string | null } | null>(null)
 
   // ─── Vocal mode ─────────────────────────────────────────────────────────────
   // When the room is in vocal mode, players speak out loud on their turn
@@ -346,8 +364,8 @@ export default function GameScreen() {
   useEffect(() => {
     if (timeLeft <= 0) return
     if (timeLeft <= 3) {
-      SoundManager.play('timer_warning')
-    } else if (timeLeft <= 5) {
+      SoundManager.play('countdown_final')
+    } else if (timeLeft <= 10) {
       SoundManager.play('timer_tick')
     }
   }, [timeLeft])
@@ -837,7 +855,7 @@ export default function GameScreen() {
           <View className="gap-2">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-2">
-                <Text className="text-lg font-extrabold text-white tracking-tight">Red Handed !</Text>
+                <Wordmark size={90} />
                 {code && (
                   <View className="border border-neutral-800 rounded px-2 py-0.5">
                     <Text className="text-xs font-mono text-neutral-500">{code}</Text>
@@ -1095,11 +1113,7 @@ export default function GameScreen() {
                 </View>
                 {speaker ? (
                   <View className="flex-row items-center gap-3 mb-3">
-                    <View className="w-10 h-10 rounded-full bg-neutral-700 items-center justify-center">
-                      <Text className="text-white font-bold">
-                        {(speaker.username ?? '?').charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
+                    <Avatar url={speaker.avatarUrl} username={speaker.username ?? '?'} size={40} />
                     <View className="flex-1">
                       <Text className="text-white font-bold text-base">
                         {isMyTurn
@@ -1210,16 +1224,12 @@ export default function GameScreen() {
                         {isVotedTarget && (
                           <View className="absolute top-0 left-0 right-0 h-0.5 bg-amber-500" />
                         )}
-                        <View
-                          className={[
-                            'w-9 h-9 rounded-full items-center justify-center',
-                            isVotedTarget ? 'bg-amber-800/60' : 'bg-neutral-700',
-                          ].join(' ')}
-                        >
-                          <Text className="text-white text-sm font-bold">
-                            {p.username.charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
+                        <Avatar
+                          url={p.avatarUrl}
+                          username={p.username}
+                          size={36}
+                          borderColor={isVotedTarget ? '#d97706' : undefined}
+                        />
                         <Text className={['flex-1 font-semibold text-sm', isVotedTarget ? 'text-amber-200' : 'text-white'].join(' ')}>
                           {p.username}
                         </Text>
@@ -1358,10 +1368,8 @@ export default function GameScreen() {
                           : 'bg-neutral-800/30 border-neutral-800/50',
                       ].join(' ')}
                     >
-                      <View className="w-6 h-6 rounded-full bg-neutral-700 items-center justify-center mt-0.5">
-                        <Text className="text-white text-xs font-bold">
-                          {(player?.username ?? '?').charAt(0).toUpperCase()}
-                        </Text>
+                      <View className="mt-0.5">
+                        <Avatar url={player?.avatarUrl} username={player?.username ?? '?'} size={24} />
                       </View>
                       <View className="flex-1">
                         <View className="flex-row items-center gap-1.5 flex-wrap">
@@ -1420,7 +1428,7 @@ export default function GameScreen() {
                 return (
                   <TouchableOpacity
                     key={p.id}
-                    onPress={() => canViewHistory ? setClueHistoryPlayer({ userId: p.userId, username: p.username }) : undefined}
+                    onPress={() => canViewHistory ? setClueHistoryPlayer({ userId: p.userId, username: p.username, avatarUrl: p.avatarUrl }) : undefined}
                     activeOpacity={canViewHistory ? 0.7 : 1}
                     className={[
                       'flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-xl border',
