@@ -313,10 +313,10 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       if (!VALID_HONOR_TYPES.includes(data.honorType)) return
       log.info({ userId, targetUserId: data.targetUserId, honorType: data.honorType, gameId: data.gameId }, 'honor:give')
       try {
-        // ── One honor per sender → target per game ────────────────────────────
+        // One honor per sender per game — sender may only honor a single player.
         if (data.gameId) {
           const existing = await prisma.honor.findFirst({
-            where: { senderId: userId, receiverId: data.targetUserId, gameId: data.gameId },
+            where: { senderId: userId, gameId: data.gameId },
           })
           if (existing) return
         }

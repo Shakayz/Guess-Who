@@ -401,6 +401,7 @@ export default function ResultsPage() {
   const [showCinematic, setShowCinematic] = useState(true)
   const [honorGiven, setHonorGiven] = useState<Record<string, HonorType>>({})
   const [honorTarget, setHonorTarget] = useState<string | null>(null)
+  const hasGivenHonor = Object.keys(honorGiven).length > 0
   const [rankUp, setRankUp] = useState<{ oldTier: RankTier; newTier: RankTier; newLP: number } | null>(null)
   const [showRankCelebration, setShowRankCelebration] = useState(false)
 
@@ -818,7 +819,7 @@ export default function ResultsPage() {
                         {HONOR_ICON[honorGiven[p.userId]]}{' '}
                         {t(`honor.${honorGiven[p.userId] === 'sharp_mind' ? 'sharpMind' : honorGiven[p.userId] === 'good_sport' ? 'goodSport' : 'teamplayer'}`)}
                       </span>
-                    ) : honorTarget === p.userId ? (
+                    ) : hasGivenHonor ? null : honorTarget === p.userId ? (
                       <div className="flex flex-col gap-1.5 items-end animate-slide-up">
                         {(['teamplayer', 'sharp_mind', 'good_sport'] as HonorType[]).map((type) => {
                           const honorColors: Record<HonorType, string> = {
