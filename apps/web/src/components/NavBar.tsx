@@ -6,21 +6,9 @@ import { useSocialStore } from '../store/social'
 import { DmChatPanel } from './DmChatPanel'
 import { api } from '../lib/api'
 import { getSocket } from '../lib/socket'
+import { LANGUAGES, findLanguage } from '../i18n/languages'
 
 const NAV_PATHS = ['/', '/leaderboard', '/history', '/friends'] as const
-
-const LANGUAGES = [
-  { code: 'en', label: 'English', country: 'gb' },
-  { code: 'fr', label: 'Français', country: 'fr' },
-  { code: 'ar', label: 'العربية', country: 'sa' },
-  { code: 'es', label: 'Español', country: 'es' },
-  { code: 'it', label: 'Italiano', country: 'it' },
-  { code: 'pt', label: 'Português', country: 'br' },
-  { code: 'zh', label: '中文', country: 'cn' },
-  { code: 'de', label: 'Deutsch', country: 'de' },
-  { code: 'ru', label: 'Русский', country: 'ru' },
-  { code: 'hi', label: 'हिन्दी', country: 'in' },
-]
 
 export function NavBar() {
   const navigate = useNavigate()
@@ -42,17 +30,27 @@ export function NavBar() {
   //   3. socket `game:finished` (rewards were just credited)
   const token = useAuthStore((s) => s.token)
   const [starCoins, setStarCoins] = useState(0)
+  const [streak, setStreak] = useState<{ count: number; lastPlayedAt: string | null }>({
+    count: 0,
+    lastPlayedAt: null,
+  })
   useEffect(() => {
     if (!token) {
       setStarCoins(0)
+      setStreak({ count: 0, lastPlayedAt: null })
       return
     }
     let cancelled = false
     const fetchBalance = () => {
       api
-        .get<{ starCoins?: number }>('/auth/me')
+        .get<{ starCoins?: number; dailyStreakCount?: number; lastPlayedAt?: string | null }>('/auth/me')
         .then((me) => {
-          if (!cancelled) setStarCoins(me.starCoins ?? 0)
+          if (cancelled) return
+          setStarCoins(me.starCoins ?? 0)
+          setStreak({
+            count: me.dailyStreakCount ?? 0,
+            lastPlayedAt: me.lastPlayedAt ?? null,
+          })
         })
         .catch(() => {
           // Non-critical — silently keep the last value on transient errors.
@@ -88,8 +86,21 @@ export function NavBar() {
     return () => document.removeEventListener('mousedown', handler)
   }, [langOpen])
 
+  // A streak is "alive" if the last played day (UTC) is today or yesterday.
+  // Otherwise the server-stored count is stale — it'll reset to 1 next game.
+  // Matches the UTC day logic in apps/api/src/services/dailyRewards.ts.
+  const streakAlive = (() => {
+    if (!streak.lastPlayedAt || streak.count <= 0) return false
+    const last = new Date(streak.lastPlayedAt)
+    if (isNaN(last.getTime())) return false
+    const dayMs = 86_400_000
+    const lastDay = Math.floor(last.getTime() / dayMs)
+    const todayDay = Math.floor(Date.now() / dayMs)
+    return todayDay - lastDay <= 1
+  })()
+
   const baseLang = i18n.language?.split('-')[0] ?? 'en'
-  const currentLang = LANGUAGES.find((l) => l.code === baseLang) ?? LANGUAGES[0]
+  const currentLang = findLanguage(i18n.language)
 
   const handleLangChange = (code: string) => {
     i18n.changeLanguage(code)
@@ -130,6 +141,26 @@ export function NavBar() {
       </div>
 
       <div className="flex items-center gap-1">
+        {/* Daily streak chip — fire + consecutive-day count (Duolingo-style).
+            Hidden when count is 0. Bright orange when the streak is alive
+            (played today or yesterday UTC); dim when the stored count is
+            stale and will reset on next game. */}
+        {token && streak.count > 0 && (
+          <span
+            aria-label={t('nav.streak', { count: streak.count })}
+            title={t('nav.streak', { count: streak.count })}
+            className={[
+              'flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm font-semibold mr-1 border',
+              streakAlive
+                ? 'bg-orange-500/10 text-orange-400 border-orange-500/30'
+                : 'bg-neutral-800/60 text-neutral-500 border-neutral-700',
+            ].join(' ')}
+          >
+            <span className={streakAlive ? '' : 'grayscale opacity-60'}>🔥</span>
+            <span>{streak.count}</span>
+          </span>
+        )}
+
         {/* Coin-balance chip → opens the shop. We only render when the user is
             logged in (unauth visitors never hit NavBar, but the useQuery is
             also gated on token). The chip is compact on small screens — icon

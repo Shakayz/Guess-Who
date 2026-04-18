@@ -23,6 +23,7 @@ export default {
     signOut: 'Abmelden',
     profile: 'Profil',
     settings: 'Einstellungen',
+    streak: '{{count}}-Tage-Serie',
   },
   auth: {
     signIn: 'Anmelden',
@@ -695,7 +696,9 @@ export default {
   },
   leaderboard: {
     title: 'Rangliste',
-    subtitle: 'Beste Spieler diese Saison',
+    rankingsFor: 'Beste Spieler auf {{language}}',
+    language: 'Sprache',
+    languagePickerLabel: 'Rangliste-Sprache ändern',
     searchPlaceholder: 'Spieler suchen...',
     noPlayerFound: 'Kein Spieler gefunden',
     noPlayersYet: 'Noch keine platzierten Spieler',

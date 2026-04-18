@@ -23,6 +23,7 @@ export default {
     signOut: 'تسجيل الخروج',
     profile: 'الملف الشخصي',
     settings: 'الإعدادات',
+    streak: 'سلسلة {{count}} يوم',
   },
   auth: {
     signIn: 'تسجيل الدخول',
@@ -709,7 +710,9 @@ export default {
   },
   leaderboard: {
     title: 'الترتيب',
-    subtitle: 'أفضل اللاعبين هذا الموسم',
+    rankingsFor: 'أفضل اللاعبين باللغة {{language}}',
+    language: 'اللغة',
+    languagePickerLabel: 'تغيير لغة الترتيب',
     searchPlaceholder: 'بحث عن لاعب...',
     noPlayerFound: 'لم يتم العثور على لاعب',
     noPlayersYet: 'لا يوجد لاعبون مصنفون بعد',

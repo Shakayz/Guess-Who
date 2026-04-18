@@ -23,6 +23,7 @@ export default {
     signOut: '退出登录',
     profile: '个人资料',
     settings: '设置',
+    streak: '连续 {{count}} 天',
   },
   auth: {
     signIn: '登录',
@@ -705,7 +706,9 @@ export default {
   },
   leaderboard: {
     title: '排行榜',
-    subtitle: '本赛季最佳选手',
+    rankingsFor: '{{language}} 最佳选手',
+    language: '语言',
+    languagePickerLabel: '更改排行榜语言',
     searchPlaceholder: '搜索玩家...',
     noPlayerFound: '未找到玩家',
     noPlayersYet: '暂无排名玩家',

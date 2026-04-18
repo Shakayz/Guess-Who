@@ -89,6 +89,17 @@ export const REFERRAL_INVITER_REWARD = 50
 export const REFERRAL_INVITEE_REWARD = 20
 
 /**
+ * One-time star-coin reward granted the first time a player uses the in-app
+ * "Share on social media" button (ReferralCard). External shares can't be
+ * verified (no social platform exposes a "did user X post URL Y" API), so
+ * the claim is trust-on-click — but capped at once per account via the
+ * `sharedAppAt` timestamp on User. The atomic updateMany guard prevents
+ * concurrent double-credit. Kept in /shared so the API and the CTA copy on
+ * the web UI stay aligned on the amount.
+ */
+export const SOCIAL_SHARE_REWARD = 50
+
+/**
  * Gold-coin packs listed in the Shop. `priceCents` is the authoritative price
  * used to stamp the Purchase row and drive analytics; `stripePriceId` is the
  * per-environment Stripe Price the checkout session is created against and is

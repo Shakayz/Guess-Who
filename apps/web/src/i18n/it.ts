@@ -23,6 +23,7 @@ export default {
     signOut: 'Disconnetti',
     profile: 'Profilo',
     settings: 'Impostazioni',
+    streak: 'Serie di {{count}} giorni',
   },
   auth: {
     signIn: 'Accedi',
@@ -705,7 +706,9 @@ export default {
   },
   leaderboard: {
     title: 'Classifica',
-    subtitle: 'Migliori giocatori questa stagione',
+    rankingsFor: 'Migliori giocatori in {{language}}',
+    language: 'Lingua',
+    languagePickerLabel: 'Cambia lingua della classifica',
     searchPlaceholder: 'Cerca giocatore...',
     noPlayerFound: 'Nessun giocatore trovato',
     noPlayersYet: 'Nessun giocatore classificato',
