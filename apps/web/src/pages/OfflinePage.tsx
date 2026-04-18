@@ -430,11 +430,15 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
       </div>
 
       {/* Header */}
-      <div className="text-center">
-        <div className="text-5xl mb-3">🎭</div>
+      <div className="text-center flex flex-col items-center">
+        <img
+          src="/masks.png"
+          alt=""
+          aria-hidden="true"
+          className="w-20 h-20 md:w-24 md:h-24 object-contain select-none pointer-events-none mb-3"
+        />
         <h1 className="text-3xl font-extrabold text-white mb-1">{t('offline.title')}</h1>
         <p className="text-brand-400 font-semibold text-lg">{t('offline.passAndPlay')}</p>
-        <p className="text-neutral-500 text-sm mt-2">{t('offline.noInternet')}</p>
       </div>
 
       {/* Game mode selector */}
