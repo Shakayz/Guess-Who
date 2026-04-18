@@ -1038,12 +1038,14 @@ function RoleRevealCard({
           if (!baseTeam) return <View style={{ marginBottom: 16 }} />
           const teamClass = baseTeam === 'villager' ? 'text-emerald-400' : 'text-red-400'
           const teamIcon = baseTeam === 'villager' ? '🟢' : '🔴'
+          const teamKey = baseTeam === 'villager' ? 'offline.villager' : 'offline.redHanded'
+          const teamFallback = baseTeam === 'villager' ? 'Villager' : 'Imposter'
           return (
             <Text
               className={['text-center font-semibold mt-1 mb-4', teamClass].join(' ')}
               style={{ fontSize: 13 * fontScale }}
             >
-              {teamIcon} {t(`offline.${baseTeam}`, { defaultValue: baseTeam })}
+              {teamIcon} {t(teamKey, { defaultValue: teamFallback })}
             </Text>
           )
         })()}
