@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { EXTENDED_PAIRS } from './extended-pairs'
+import { V2_PAIRS_BY_LOCALE, ENGLISH_PAIRS, FRENCH_PAIRS, SPANISH_PAIRS, GERMAN_PAIRS, ARABIC_PAIRS, ITALIAN_PAIRS, PORTUGUESE_PAIRS, CHINESE_PAIRS, RUSSIAN_PAIRS, INDIAN_PAIRS } from './v2-pairs'
 
 const prisma = new PrismaClient()
 
@@ -11277,11 +11278,12 @@ const HI: PairData[] = [
   { wordA: 'संक्रांति', wordB: 'विषुव', difficulty: 'hard', category: 'variety', locale: 'hi' },
 ]
 
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Pack definitions — one per locale
 // ─────────────────────────────────────────────────────────────────────────────
-// Merge base pack + extended pairs, deduplicating on (category, wordA, wordB).
-// Order-insensitive: {A,B} is considered the same as {B,A}.
+// Merge base pack + extended pairs + V2 expansion, deduplicating on
+// (category, wordA, wordB). Order-insensitive: {A,B} == {B,A}.
 function mergePairs(base: PairData[], loc: string): PairData[] {
   const seen = new Set<string>()
   const key = (p: PairData) => {
@@ -11295,6 +11297,10 @@ function mergePairs(base: PairData[], loc: string): PairData[] {
   }
   for (const p of EXTENDED_PAIRS) {
     if (p.locale !== loc) continue
+    const k = key(p)
+    if (!seen.has(k)) { seen.add(k); out.push(p) }
+  }
+  for (const p of V2_PAIRS_BY_LOCALE[loc] ?? []) {
     const k = key(p)
     if (!seen.has(k)) { seen.add(k); out.push(p) }
   }

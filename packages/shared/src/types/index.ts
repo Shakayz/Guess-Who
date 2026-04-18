@@ -78,6 +78,7 @@ export const WORD_CATEGORIES = [
   { key: 'jobs',         label: 'Jobs',           icon: '💼' },
   { key: 'sports',       label: 'Sports',         icon: '⚽' },
   { key: 'movies',       label: 'Movies',         icon: '🎬' },
+  { key: 'tech',         label: 'Tech',           icon: '💻' },
   { key: 'history',      label: 'History',        icon: '📜' },
   { key: 'mangas',       label: 'Mangas',         icon: '🈶' },
   { key: 'celebrities',  label: 'Celebrities',    icon: '⭐' },
