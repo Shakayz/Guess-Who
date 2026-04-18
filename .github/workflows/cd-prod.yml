@@ -86,13 +86,13 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/deploy
           chmod 600 ~/.ssh/deploy
-          ssh-keyscan -H ${{ secrets.LIGHTSAIL_PROD_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.LIGHTSAIL_HOST }} >> ~/.ssh/known_hosts
 
       - name: Sync compose file & Caddyfile to VM
         run: |
-          scp -i ~/.ssh/deploy deploy/docker-compose.yml ubuntu@${{ secrets.LIGHTSAIL_PROD_HOST }}:/tmp/docker-compose.yml
-          scp -i ~/.ssh/deploy deploy/Caddyfile ubuntu@${{ secrets.LIGHTSAIL_PROD_HOST }}:/tmp/Caddyfile
-          ssh -i ~/.ssh/deploy ubuntu@${{ secrets.LIGHTSAIL_PROD_HOST }} \
+          scp -i ~/.ssh/deploy deploy/docker-compose.yml ubuntu@${{ secrets.LIGHTSAIL_HOST }}:/tmp/docker-compose.yml
+          scp -i ~/.ssh/deploy deploy/Caddyfile ubuntu@${{ secrets.LIGHTSAIL_HOST }}:/tmp/Caddyfile
+          ssh -i ~/.ssh/deploy ubuntu@${{ secrets.LIGHTSAIL_HOST }} \
             "sudo mkdir -p /opt/red-handed \
              && sudo mv /tmp/docker-compose.yml /opt/red-handed/docker-compose.yml \
              && sudo mv /tmp/Caddyfile /opt/red-handed/Caddyfile"
@@ -114,17 +114,17 @@ jobs:
           GOOGLE_REDIRECT_URI: https://${{ env.API_DOMAIN }}/api/auth/google/callback
           APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
           ALLOWED_ORIGINS: https://${{ env.WEB_DOMAIN }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY_PROD }}
-          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET_PROD }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           STRIPE_SUCCESS_URL: https://${{ env.WEB_DOMAIN }}/shop?checkout=success
           STRIPE_CANCEL_URL: https://${{ env.WEB_DOMAIN }}/shop?checkout=canceled
-          STRIPE_PRICE_ID_PACK_500: ${{ secrets.STRIPE_PRICE_ID_PACK_500_PROD }}
-          STRIPE_PRICE_ID_PACK_1500: ${{ secrets.STRIPE_PRICE_ID_PACK_1500_PROD }}
-          STRIPE_PRICE_ID_PACK_5000: ${{ secrets.STRIPE_PRICE_ID_PACK_5000_PROD }}
+          STRIPE_PRICE_ID_PACK_500: ${{ secrets.STRIPE_PRICE_ID_PACK_500 }}
+          STRIPE_PRICE_ID_PACK_1500: ${{ secrets.STRIPE_PRICE_ID_PACK_1500 }}
+          STRIPE_PRICE_ID_PACK_5000: ${{ secrets.STRIPE_PRICE_ID_PACK_5000 }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           ECR_PW: ${{ steps.ecr.outputs.pw }}
         run: |
-          ssh -i ~/.ssh/deploy ubuntu@${{ secrets.LIGHTSAIL_PROD_HOST }} \
+          ssh -i ~/.ssh/deploy ubuntu@${{ secrets.LIGHTSAIL_HOST }} \
             "cd /opt/red-handed \
              && sudo touch .env && sudo chmod 600 .env \
              && for kv in \
