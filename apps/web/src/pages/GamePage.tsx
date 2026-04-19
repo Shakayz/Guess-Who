@@ -1448,7 +1448,7 @@ export default function GamePage() {
                 </div>
                 {speaker ? (
                   <div className="flex items-center gap-3 mb-3">
-                    <Avatar username={speaker.username} size="md" />
+                    <Avatar src={speaker.avatarUrl} username={speaker.username} size="md" />
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-bold truncate">
                         {isMyTurn
