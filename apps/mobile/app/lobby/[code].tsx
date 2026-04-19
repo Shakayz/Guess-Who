@@ -995,6 +995,17 @@ export default function LobbyScreen() {
           </View>
           <Text className="font-extrabold text-white" style={{ fontSize: (isTablet ? 28 : 24) }}>Lobby</Text>
           <Text className="text-neutral-500 mt-1" style={{ fontSize: 14 * fontScale }}>Share the code below to invite friends</Text>
+          {/* Visibility badge (Custom Lobbies only). Surfaces whether the
+              lobby is listed in the public browser so the host notices when
+              they forgot to flip the toggle at creation. */}
+          {room?.settings?.isPrivate ? (
+            <View className="flex-row items-center gap-1.5 px-2.5 py-1 mt-2 rounded-full bg-neutral-900/60 border border-neutral-800">
+              <Text style={{ fontSize: 11 * fontScale }}>{room?.settings?.isPublic ? '🌐' : '🔒'}</Text>
+              <Text className="text-neutral-300 font-semibold" style={{ fontSize: 11 * fontScale }}>
+                {room?.settings?.isPublic ? 'Public lobby' : 'Private lobby'}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Socket error toast (other, non-coin errors) */}

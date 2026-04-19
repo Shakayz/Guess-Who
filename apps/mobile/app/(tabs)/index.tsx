@@ -25,6 +25,7 @@ import { Wordmark } from '../../components/Wordmark'
 import { Avatar } from '../../components/Avatar'
 import { LanguagePicker } from '../../components/LanguagePicker'
 import { PopIn, FloatSoft } from '../../components/anim/AnimatedViews'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 type GameMode = 'normal' | 'ranked' | 'lobby'
 type SubGameMode = 'normal' | 'special'
@@ -72,8 +73,18 @@ export default function HomeScreen() {
   // card; 'create' reveals the settings form, 'join' navigates to the browser.
   const [lobbyAction, setLobbyAction] = useState<LobbyAction | null>(null)
   // Public vs private visibility for Custom Lobby. Public lobbies show up in
-  // the public browser; both cost the host 10 ⭐.
+  // the public browser; both cost the host 10 ⭐. Persisted so hosts who opt
+  // in once don't silently fall back to private when they open the creator a
+  // second time.
   const [lobbyPublic, setLobbyPublic] = useState(false)
+  useEffect(() => {
+    AsyncStorage.getItem('lobbyPublic').then((v) => {
+      if (v === 'true') setLobbyPublic(true)
+    }).catch(() => {})
+  }, [])
+  useEffect(() => {
+    AsyncStorage.setItem('lobbyPublic', String(lobbyPublic)).catch(() => {})
+  }, [lobbyPublic])
   const [categories, setCategories] = useState<WordCategory[]>([])
   // Vocal-mode preference. For unranked matchmaking: server partitions the
   // queue so vocal-opt-in players only match with each other. For Custom

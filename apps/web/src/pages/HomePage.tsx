@@ -55,8 +55,14 @@ export default function HomePage() {
   // Public vs private toggle for Custom Lobby creation. Public lobbies are
   // listed in the public browser (GET /rooms/public) with live player count
   // and the category / audio-mode badges; private lobbies stay code-only.
-  // Both cost the host 10 ⭐.
-  const [lobbyPublic, setLobbyPublic] = useState(false)
+  // Both cost the host 10 ⭐. Persisted so hosts who opt in once don't silently
+  // fall back to private when they open the creator a second time.
+  const [lobbyPublic, setLobbyPublic] = useState<boolean>(() => {
+    try { return localStorage.getItem('lobbyPublic') === 'true' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('lobbyPublic', String(lobbyPublic)) } catch {}
+  }, [lobbyPublic])
   const [categories, setCategories] = useState<WordCategory[]>([])
   // Vocal-mode preference for unranked matchmaking. Defaults off. When on, the
   // server partitions the queue so we only match with other vocal-opt-in

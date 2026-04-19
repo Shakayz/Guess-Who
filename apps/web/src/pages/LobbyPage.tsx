@@ -970,6 +970,15 @@ export default function LobbyPage() {
             <p className="text-xs md:text-sm font-semibold uppercase tracking-widest text-neutral-500 mb-1">{t('room.roomCode')}</p>
             <h1 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-white">{t('lobby.waiting')}</h1>
             <p className="text-neutral-500 text-sm md:text-base mt-1">{t('lobby.shareHint')}</p>
+            {/* Visibility badge: Custom Lobbies only. Makes it obvious at a
+                glance whether this lobby is listed in the public browser, so
+                hosts notice when they forgot to flip the toggle at creation. */}
+            {!isMatchmade && room?.settings?.isPrivate && (
+              <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-neutral-900/60 border-neutral-800 text-neutral-300">
+                <span>{room?.settings?.isPublic ? '🌐' : '🔒'}</span>
+                <span>{room?.settings?.isPublic ? t('home.lobbyPublicLabel') : t('home.lobbyPrivateLabel')}</span>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col items-center gap-3">

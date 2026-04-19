@@ -49,7 +49,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
       include: {
         game: {
           include: {
-            room: { select: { id: true, code: true, hostId: true, maxPlayers: true, redHandedCount: true, speakingTimeSeconds: true, votingTimeSeconds: true, wordPackId: true, isPrivate: true, language: true, createdAt: true } },
+            room: { select: { id: true, code: true, hostId: true, maxPlayers: true, redHandedCount: true, speakingTimeSeconds: true, votingTimeSeconds: true, wordPackId: true, isPrivate: true, isPublic: true, language: true, createdAt: true } },
           },
         },
       },
@@ -90,6 +90,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
           votingTimeSeconds: room.votingTimeSeconds,
           wordPackId: room.wordPackId,
           isPrivate: room.isPrivate,
+          isPublic: room.isPublic,
           language: room.language as any,
           gameMode: state.gameMode ?? 'normal',
           categories: state.categories ?? [],

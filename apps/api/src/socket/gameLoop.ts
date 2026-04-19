@@ -143,6 +143,7 @@ async function resetRoomAfterGame(roomId: string, state: any, io?: IO): Promise<
         votingTimeSeconds: room.votingTimeSeconds,
         wordPackId: room.wordPackId,
         isPrivate: room.isPrivate,
+        isPublic: room.isPublic,
         language: room.language as any,
         gameMode: resetState.gameMode ?? 'normal',
         categories: resetState.categories ?? [],

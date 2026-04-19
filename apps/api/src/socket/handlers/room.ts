@@ -364,7 +364,7 @@ async function startGameForRoom(
       settings: {
         maxPlayers: room.maxPlayers, minPlayers: 3, redHandedCount: room.redHandedCount,
         speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
-        wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
+        wordPackId: room.wordPackId, isPrivate: room.isPrivate, isPublic: room.isPublic, language: room.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0), doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
         guardianCount: state.guardianCount ?? 0,
@@ -615,6 +615,7 @@ export function registerRoomHandlers(
           votingTimeSeconds: room.votingTimeSeconds,
           wordPackId: room.wordPackId,
           isPrivate: room.isPrivate,
+          isPublic: room.isPublic,
           language: room.language as any,
           gameMode: state.gameMode ?? 'normal',
           categories: state.categories ?? [],
@@ -796,7 +797,7 @@ export function registerRoomHandlers(
       settings: {
         maxPlayers: updatedRoom.maxPlayers, minPlayers: 3, redHandedCount: updatedRoom.redHandedCount,
         speakingTimeSeconds: updatedRoom.speakingTimeSeconds, votingTimeSeconds: updatedRoom.votingTimeSeconds,
-        wordPackId: updatedRoom.wordPackId, isPrivate: updatedRoom.isPrivate, language: updatedRoom.language as any,
+        wordPackId: updatedRoom.wordPackId, isPrivate: updatedRoom.isPrivate, isPublic: updatedRoom.isPublic, language: updatedRoom.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
         doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
@@ -845,7 +846,7 @@ export function registerRoomHandlers(
       settings: {
         maxPlayers: room.maxPlayers, minPlayers: 3, redHandedCount: room.redHandedCount,
         speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
-        wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
+        wordPackId: room.wordPackId, isPrivate: room.isPrivate, isPublic: room.isPublic, language: room.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
         doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),

@@ -95,6 +95,11 @@ export interface RoomSettings {
   votingTimeSeconds: number
   wordPackId: string
   isPrivate: boolean
+  /** Discoverability toggle for Custom Lobbies. When true, the lobby is listed
+   *  in the public browser (GET /rooms/public). Pricing is identical either
+   *  way — this is purely a visibility flag. Ranked rooms always have this
+   *  false. Optional in transit for backwards compatibility with old clients. */
+  isPublic?: boolean
   language: Locale
   gameMode: GameMode
   categories: WordCategory[]   // empty = all categories
