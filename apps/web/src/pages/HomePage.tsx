@@ -175,18 +175,21 @@ export default function HomePage() {
     // sending a stray flag for ranked queue-joins.
     const wantVocal = selectedMode === 'normal' && vocalMode
     log.info('joining matchmaking', { mode: actualGameMode, categories, vocalMode: wantVocal })
+    const joinLocale = i18n.language.split('-')[0]
     startSearch({
       topMode: selectedMode as 'normal' | 'ranked',
       gameMode: actualGameMode as 'normal' | 'special' | 'ranked',
       categories,
       vocalMode: wantVocal,
+      locale: joinLocale,
+      vocalSpeakingTimeSeconds: 10,
     })
     getSocket().emit('matchmaking:join' as any, {
       gameMode: actualGameMode,
       categories,
       vocalMode: wantVocal,
       vocalSpeakingTimeSeconds: 10,
-      locale: i18n.language.split('-')[0],
+      locale: joinLocale,
     })
   }
 

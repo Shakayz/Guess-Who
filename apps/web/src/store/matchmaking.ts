@@ -10,6 +10,11 @@ export interface StartSearchPayload {
   gameMode: MatchmakingGameMode
   categories: WordCategory[]
   vocalMode: boolean
+  // Locale is captured at search start so auto-rejoin after a socket reconnect
+  // lands the player back in the same queue bucket, even if they flipped the
+  // language flag afterwards.
+  locale: string
+  vocalSpeakingTimeSeconds?: number
 }
 
 interface MatchmakingStore {
@@ -19,6 +24,11 @@ interface MatchmakingStore {
   topMode: MatchmakingTopMode | null
   // `gameMode` is what we actually sent to the server (normal / special / ranked).
   gameMode: MatchmakingGameMode | null
+  // Kept so the global MatchmakingManager can replay `matchmaking:join` when
+  // the socket reconnects after a drop (tab backgrounded, flaky wifi, etc.) —
+  // without it, the client banner would stay up while the server had silently
+  // evicted the user from the queue.
+  joinPayload: StartSearchPayload | null
   status: MatchmakingStatus
   requiredStars: number | null
   errorMessage: string | null
@@ -41,21 +51,29 @@ export const useMatchmakingStore = create<MatchmakingStore>((set) => ({
   isSearching: false,
   topMode: null,
   gameMode: null,
+  joinPayload: null,
   status: initialStatus,
   requiredStars: null,
   errorMessage: null,
-  startSearch: ({ topMode, gameMode }) =>
+  startSearch: (payload) =>
     set({
       isSearching: true,
-      topMode,
-      gameMode,
+      topMode: payload.topMode,
+      gameMode: payload.gameMode,
+      joinPayload: payload,
       status: initialStatus,
       requiredStars: null,
       errorMessage: null,
     }),
   setStatus: (status) => set({ status }),
   stopSearch: () =>
-    set({ isSearching: false, topMode: null, gameMode: null, status: initialStatus }),
+    set({
+      isSearching: false,
+      topMode: null,
+      gameMode: null,
+      joinPayload: null,
+      status: initialStatus,
+    }),
   setRequiredStars: (n) => set({ requiredStars: n }),
   setErrorMessage: (msg) => set({ errorMessage: msg }),
 }))

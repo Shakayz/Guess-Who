@@ -531,10 +531,29 @@ function MatchmakingManager() {
         setErrorMessage(d?.message ?? t('common.error'))
       }
     }
+    // When the socket drops (tab backgrounded, flaky wifi, language flag
+    // change) the server's disconnect handler evicts us from the Redis queue.
+    // The store still thinks we're searching, so on reconnect we replay the
+    // original join payload to put ourselves back in line — otherwise the
+    // banner shows a ghost queue that never resolves. Ranked users felt this
+    // most because the 90s wait gave disconnects more chances to happen.
+    const handleConnect = () => {
+      const payload = useMatchmakingStore.getState().joinPayload
+      if (!useMatchmakingStore.getState().isSearching || !payload) return
+      log.info('matchmaking: socket reconnected, re-joining queue', { gameMode: payload.gameMode })
+      sock.emit('matchmaking:join', {
+        gameMode: payload.gameMode,
+        categories: payload.categories,
+        vocalMode: payload.vocalMode,
+        vocalSpeakingTimeSeconds: payload.vocalSpeakingTimeSeconds ?? 10,
+        locale: payload.locale,
+      })
+    }
 
     sock.on('matchmaking:status', handleStatus)
     sock.on('matchmaking:found', handleFound)
     sock.on('matchmaking:error', handleError)
+    sock.on('connect', handleConnect)
 
     // Same connection-sanity heartbeat the HomePage used to run — keeps the
     // socket alive across idle navigations so status broadcasts keep flowing.
@@ -551,6 +570,7 @@ function MatchmakingManager() {
       sock.off('matchmaking:status', handleStatus)
       sock.off('matchmaking:found', handleFound)
       sock.off('matchmaking:error', handleError)
+      sock.off('connect', handleConnect)
     }
   }, [isSearching, t, navigate, setStatus, stopSearch, setRequiredStars, setErrorMessage])
 
