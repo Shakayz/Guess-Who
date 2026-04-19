@@ -282,7 +282,7 @@ async function startGameForRoom(
     const selectedCategories: string[] = state.categories ?? []
     const roomLocale: string = (room as any).language ?? 'en'
     let wordPair = FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)]
-    let wordCategory: string | undefined
+    let wordCategory: WordCategory | undefined
     try {
       if (room.wordPackId && room.wordPackId !== 'default') {
         const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
@@ -293,7 +293,7 @@ async function startGameForRoom(
         if (pack && pack.pairs.length > 0) {
           const pair = pack.pairs[Math.floor(Math.random() * pack.pairs.length)]
           wordPair = { wordA: pair.wordA, wordB: pair.wordB }
-          wordCategory = pair.category
+          wordCategory = pair.category as WordCategory
         } else {
           const pair = pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
           wordPair = { wordA: pair.villagerWord, wordB: pair.redHandedWord }
