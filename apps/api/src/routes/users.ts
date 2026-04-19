@@ -35,6 +35,21 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       if (!current) return reply.status(404).send({ error: 'User not found' })
 
       if (body.username !== current.username) {
+        // Case-insensitive collision against OTHER users: "Shakayz" can't
+        // pick a name that only differs in casing from an existing account.
+        // The same user re-casing their own name is allowed (it's a real
+        // rename from their perspective, and the display case will update).
+        const collision = await prisma.user.findFirst({
+          where: {
+            username: { equals: body.username, mode: 'insensitive' },
+            NOT: { id: userId },
+          },
+          select: { id: true },
+        })
+        if (collision) {
+          return reply.status(409).send({ error: 'Username already taken' })
+        }
+
         if (current.starCoins < USERNAME_CHANGE_COST) {
           req.log.info(
             { userId, balance: current.starCoins, cost: USERNAME_CHANGE_COST },

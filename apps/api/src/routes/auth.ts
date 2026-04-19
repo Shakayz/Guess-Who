@@ -72,7 +72,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(409).send({ error: 'Email already in use' })
       }
 
-      const existingUsername = await prisma.user.findUnique({ where: { username: body.username } })
+      // Case-insensitive collision check: "Shakayz" blocks "shakayz" and
+      // "sHakayz" so display names stay visually unique. The original casing
+      // the user typed is still what gets stored and shown.
+      const existingUsername = await prisma.user.findFirst({
+        where: { username: { equals: body.username, mode: 'insensitive' } },
+      })
       if (existingUsername) {
         req.log.warn({ username: body.username }, 'signup failed: username already taken')
         return reply.status(409).send({ error: 'Username already taken' })
@@ -149,7 +154,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const isEmail = body.identifier.includes('@')
       const user = isEmail
         ? await prisma.user.findUnique({ where: { email: body.identifier } })
-        : await prisma.user.findUnique({ where: { username: body.identifier } })
+        : await prisma.user.findFirst({
+            where: { username: { equals: body.identifier, mode: 'insensitive' } },
+          })
       if (!user || !user.passwordHash) {
         req.log.warn('signin failed: invalid credentials')
         return reply.status(401).send({ error: 'Invalid credentials' })

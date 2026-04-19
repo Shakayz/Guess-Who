@@ -341,7 +341,11 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
 
     req.log.info({ userId: payload.sub, username }, 'setup-username attempt')
 
-    const existing = await prisma.user.findUnique({ where: { username } })
+    // Case-insensitive collision: "Shakayz" blocks "shakayz" and "sHakayz"
+    // from any other account so display names stay visually unique.
+    const existing = await prisma.user.findFirst({
+      where: { username: { equals: username, mode: 'insensitive' } },
+    })
     if (existing && existing.id !== payload.sub) {
       req.log.warn({ username }, 'setup-username failed: username already taken')
       return reply.status(409).send({ error: 'Username already taken' })
