@@ -14,18 +14,34 @@
  */
 
 import { Platform, PermissionsAndroid } from 'react-native'
-import {
-  RTCPeerConnection,
-  RTCIceCandidate,
-  RTCSessionDescription,
-  mediaDevices,
-  type MediaStream,
+import Constants from 'expo-constants'
+import type {
+  RTCPeerConnection as RTCPeerConnectionType,
+  MediaStream,
 } from 'react-native-webrtc'
 import type { Socket } from 'socket.io-client'
 import type { ServerToClientEvents, ClientToServerEvents } from '@red-handed/shared'
 import { createLogger } from './logger'
 
 const log = createLogger('voice')
+
+// react-native-webrtc ships a native module that is not bundled in Expo Go.
+// A top-level import crashes the route module at evaluation time, which
+// breaks the whole game screen. Load it lazily so the screen renders
+// everywhere; vocal mode itself still requires a dev/standalone build.
+const isExpoGo = Constants.appOwnership === 'expo'
+
+type WebRTCModule = typeof import('react-native-webrtc')
+let webrtcModule: WebRTCModule | null = null
+function loadWebRTC(): WebRTCModule {
+  if (isExpoGo) {
+    throw new Error('Vocal mode requires a dev build (react-native-webrtc is not available in Expo Go)')
+  }
+  if (!webrtcModule) {
+    webrtcModule = require('react-native-webrtc') as WebRTCModule
+  }
+  return webrtcModule
+}
 
 type IOSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
@@ -35,7 +51,7 @@ interface VoiceChannelOptions {
 }
 
 interface PeerEntry {
-  pc: RTCPeerConnection
+  pc: RTCPeerConnectionType
   initiator: boolean
 }
 
@@ -90,6 +106,7 @@ export class VoiceChannel {
     }
 
     try {
+      const { mediaDevices } = loadWebRTC()
       this.localStream = (await mediaDevices.getUserMedia({
         audio: true,
         video: false,
@@ -164,6 +181,7 @@ export class VoiceChannel {
       peer = await this.ensurePeer(fromUserId, false)
     }
     try {
+      const { RTCSessionDescription, RTCIceCandidate } = loadWebRTC()
       if (data.type === 'offer' && data.sdp) {
         await peer.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }))
         const answer = await peer.pc.createAnswer()
@@ -204,6 +222,7 @@ export class VoiceChannel {
     const existing = this.peers.get(userId)
     if (existing) return existing
 
+    const { RTCPeerConnection } = loadWebRTC()
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
 
     if (this.localStream) {

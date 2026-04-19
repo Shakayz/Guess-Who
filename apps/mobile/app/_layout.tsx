@@ -25,6 +25,8 @@ import { ErrorBoundary } from '../components/ErrorBoundary'
 import { ConnectionStatus } from '../components/ConnectionStatus'
 import { AchievementToastBanner } from '../components/achievements/AchievementToast'
 import { GiftToastBanner } from '../components/GiftToast'
+import { MatchmakingManager } from '../components/MatchmakingManager'
+import { MatchmakingBanner } from '../components/MatchmakingBanner'
 import { api } from '../lib/api'
 import { initAds, setAdsUserMeta } from '../lib/ads'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -306,6 +308,8 @@ export default function RootLayout() {
         <FriendRequestBanner />
         <AchievementToastBanner />
         <GiftToastBanner />
+        <MatchmakingManager />
+        <MatchmakingBanner />
         <Stack
           screenOptions={{
             headerStyle: { backgroundColor: '#09090b' },

@@ -17,7 +17,8 @@ import { useAuthStore } from '../../store/auth'
 import { api } from '../../lib/api'
 import { connectSocket, getSocket } from '../../lib/socket'
 import { WORD_CATEGORIES, MATCHMAKING_CONFIG } from '@red-handed/shared'
-import type { WordCategory, MatchmakingStatus } from '@red-handed/shared'
+import type { WordCategory } from '@red-handed/shared'
+import { useMatchmakingStore } from '../../store/matchmaking'
 import { useResponsive, responsiveContentStyle } from '../../lib/responsive'
 import { OnboardingTutorial, hasTutorialCompleted } from '../../components/OnboardingTutorial'
 import InsufficientCoinsModal from '../../components/InsufficientCoinsModal'
@@ -135,11 +136,17 @@ export default function HomeScreen() {
     const dayMs = 86_400_000
     return Math.floor(Date.now() / dayMs) - Math.floor(last.getTime() / dayMs) <= 1
   })()
-  const [inQueue, setInQueue] = useState(false)
-  const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({
-    queueSize: 1, needed: MATCHMAKING_CONFIG.IDEAL_PLAYERS, elapsed: 0,
-    maxWait: MATCHMAKING_CONFIG.MAX_WAIT_SECONDS, idealPlayers: MATCHMAKING_CONFIG.IDEAL_PLAYERS,
-  })
+  // Matchmaking state lives in the global store so the search persists across
+  // tab navigation — the floating MatchmakingBanner on other tabs and the
+  // MatchmakingManager listeners in the root layout both read from it.
+  const inQueue = useMatchmakingStore((s) => s.isSearching)
+  const matchStatus = useMatchmakingStore((s) => s.status)
+  const startSearch = useMatchmakingStore((s) => s.startSearch)
+  const stopSearch = useMatchmakingStore((s) => s.stopSearch)
+  const matchmakingErrorMessage = useMatchmakingStore((s) => s.errorMessage)
+  const setMatchmakingErrorMessage = useMatchmakingStore((s) => s.setErrorMessage)
+  const matchmakingRequiredStars = useMatchmakingStore((s) => s.requiredStars)
+  const setMatchmakingRequiredStars = useMatchmakingStore((s) => s.setRequiredStars)
 
   // Lobby settings (sub-mode, categories, toggles) only appear once the
   // player has picked "Create lobby" from the Custom Lobby chooser.
@@ -157,63 +164,64 @@ export default function HomeScreen() {
     if (!hasCategories && categories.length > 0) setCategories([])
   }, [hasCategories, categories.length])
 
-  // Matchmaking listeners
+  // Loading spinner for the "Find" button should disappear once the queue
+  // actually starts (banner takes over) — clear it when `inQueue` flips on or
+  // matchmaking resolves from elsewhere (banner cancel, match found, error).
   useEffect(() => {
-    if (!inQueue) return
-    connectSocket()
-    const socket = getSocket()
-
-    const onStatus = (data: MatchmakingStatus) => setMatchStatus(data)
-    const onFound = (data: any) => {
-      setInQueue(false)
-      setLoading(false)
-      router.push(`/lobby/${data.roomCode}`)
-    }
-    const onError = (data: any) => {
-      setInQueue(false)
-      setLoading(false)
-      if (data?.reason === 'INSUFFICIENT_STARS') {
-        setInsufficientCoinsRequired(data.required ?? 10)
-      } else {
-        setError(data?.message ?? 'Matchmaking error')
-      }
-    }
-
-    socket.on('matchmaking:status' as any, onStatus)
-    socket.on('matchmaking:found' as any, onFound)
-    socket.on('matchmaking:error' as any, onError)
-
-    return () => {
-      socket.off('matchmaking:status' as any, onStatus)
-      socket.off('matchmaking:found' as any, onFound)
-      socket.off('matchmaking:error' as any, onError)
-    }
+    if (!inQueue && loading) setLoading(false)
   }, [inQueue])
+
+  // Surface any matchmaking error/insufficient-coins signal that the global
+  // manager wrote into the store while the user was away from this tab.
+  useEffect(() => {
+    if (matchmakingErrorMessage) {
+      setError(matchmakingErrorMessage)
+      setMatchmakingErrorMessage(null)
+    }
+  }, [matchmakingErrorMessage, setMatchmakingErrorMessage])
+  useEffect(() => {
+    if (matchmakingRequiredStars !== null) {
+      setInsufficientCoinsRequired(matchmakingRequiredStars)
+      setMatchmakingRequiredStars(null)
+    }
+  }, [matchmakingRequiredStars, setMatchmakingRequiredStars])
 
   const handleMatchmaking = useCallback(() => {
     if (!selectedMode || selectedMode === 'lobby') return
     connectSocket()
     const socket = getSocket()
-    setInQueue(true)
     setLoading(true)
     setError(null)
-    // Vocal mode is unranked-only; server also enforces this but we avoid
-    // sending a stray flag for ranked joins.
     const wantVocal = selectedMode === 'normal' && vocalMode
+    const resolvedGameMode =
+      selectedMode === 'ranked' ? 'ranked' : unrankedSubMode
+    const locale = i18n.language.split('-')[0]
+    startSearch({
+      topMode: selectedMode === 'ranked' ? 'ranked' : 'normal',
+      gameMode: resolvedGameMode,
+      categories: selectedMode === 'ranked' ? [] : categories,
+      vocalMode: wantVocal,
+      locale,
+      vocalSpeakingTimeSeconds: 10,
+    })
     socket.emit('matchmaking:join' as any, {
-      gameMode: selectedMode === 'ranked' ? 'ranked' : unrankedSubMode,
+      gameMode: resolvedGameMode,
       categories: selectedMode === 'ranked' ? [] : categories,
       vocalMode: wantVocal,
       vocalSpeakingTimeSeconds: 10,
+      locale,
     })
-  }, [selectedMode, categories, unrankedSubMode, vocalMode])
+  }, [selectedMode, categories, unrankedSubMode, vocalMode, i18n.language, startSearch])
 
   const cancelMatchmaking = useCallback(() => {
     const socket = getSocket()
-    socket.emit('matchmaking:leave' as any, {})
-    setInQueue(false)
+    const topMode = useMatchmakingStore.getState().topMode
+    try {
+      socket.emit('matchmaking:leave' as any, { gameMode: topMode })
+    } catch {}
+    stopSearch()
     setLoading(false)
-  }, [])
+  }, [stopSearch])
 
   const toggleCategory = (key: WordCategory) => {
     setCategories((prev) =>
