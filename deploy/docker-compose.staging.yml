@@ -48,30 +48,34 @@ services:
     restart: always
     # Staging: skip the heavy seed step (prod still seeds via default CMD).
     #
-    # Before `migrate deploy`, we unstick any wedged migration state so the
-    # container does not crash-loop on restart. Three cases we clean up:
-    #   1. Rows with `finished_at IS NULL` — a migration that errored mid-apply
-    #      leaves `_prisma_migrations` in a "failed" state. `migrate deploy`
-    #      refuses to proceed until someone resolves it, so every subsequent
-    #      boot returns 502 through Caddy.
-    #   2. The old `20260418050000_purchase_platform_fields` name — now
-    #      renamed to `20260419010000_...`. If staging recorded the old name,
-    #      `migrate deploy` sees "applied migration not in folder" (drift) and
-    #      aborts.
-    #   3. The new `20260419010000_purchase_platform_fields` row — cleared so
-    #      the now-idempotent migration re-runs from a known state
-    #      (`ALTER TABLE ... IF NOT EXISTS` makes re-applying a no-op if the
-    #      columns/indexes already exist, and avoids the
-    #      "migration modified after applied" checksum error).
-    # All three are cleared best-effort (|| true) so a fresh DB — where
-    # `_prisma_migrations` does not yet exist — boots normally.
+    # Before `migrate deploy`, unstick any wedged `_prisma_migrations` rows so
+    # the container does not crash-loop through Caddy as 502 on /health. Three
+    # rows need clearing after the 20260418050000 → 20260419010000 → 20260419020000
+    # rename churn for purchase_platform_fields:
+    #   1. Any row with `finished_at IS NULL` — a migration that errored
+    #      mid-apply (Prisma refuses to proceed until such a row is resolved).
+    #   2. `20260418050000_purchase_platform_fields` — first shipped name, now
+    #      gone from the folder. Leaving the row means "applied migration not
+    #      in folder" drift.
+    #   3. `20260419010000_purchase_platform_fields` — second name, also gone
+    #      from the folder (renamed again to dodge a checksum mismatch
+    #      introduced by #65). Same drift problem if we leave the row.
+    # Afterwards, the renamed `20260419020000_purchase_platform_fields`
+    # migration is applied fresh. Its DDL is idempotent (IF NOT EXISTS) so it
+    # is a no-op on a DB where the columns were created by an earlier
+    # non-idempotent run, and a real apply on a fresh DB.
+    #
+    # Wrapped in `|| true` so a fresh DB (no `_prisma_migrations` table yet)
+    # boots normally. Stderr is intentionally left visible so a real prisma
+    # error shows up in the container logs — swallowing it (as #65 did with
+    # `2>/dev/null`) hid the actual failure during the last regression.
     command:
       - "sh"
       - "-c"
       - |
         echo "DELETE FROM \"_prisma_migrations\" WHERE finished_at IS NULL OR migration_name IN ('20260418050000_purchase_platform_fields', '20260419010000_purchase_platform_fields');" \
-          | prisma db execute --stdin --schema prisma/schema.prisma 2>/dev/null || true
-        prisma migrate deploy && node dist/index.js
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        prisma migrate deploy && exec node dist/index.js
     depends_on:
       postgres:
         condition: service_healthy
