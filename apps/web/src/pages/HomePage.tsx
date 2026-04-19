@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { NavBar } from '../components/NavBar'
@@ -25,6 +25,7 @@ type LobbyAction = 'create' | 'join'
 export default function HomePage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const activeRoom = useGameStore((s) => s.room)
   const gameFinished = useGameStore((s) => s.gameFinished)
   const gameResult = useGameStore((s) => s.result)
@@ -97,6 +98,27 @@ export default function HomePage() {
   // simple and queues don't fragment by filter combinations.
   const hasCategories = showLobbyForm && lobbyGameMode === 'special'
   const hasSubMode = selectedMode === 'normal' || showLobbyForm
+
+  // Deep-link support: the Public Lobbies page links back here with
+  // `?mode=lobby` (returns to the Create / Join chooser) or
+  // `?mode=lobby&action=create` (jumps straight into the lobby settings
+  // form). We consume the params on mount and strip them so a later refresh
+  // doesn't re-apply stale state.
+  useEffect(() => {
+    const mode = searchParams.get('mode')
+    const action = searchParams.get('action')
+    if (mode === 'lobby') {
+      setSelectedMode('lobby')
+      if (action === 'create') setLobbyAction('create')
+      const next = new URLSearchParams(searchParams)
+      next.delete('mode')
+      next.delete('action')
+      setSearchParams(next, { replace: true })
+    }
+    // Intentionally run once on mount — later in-app navigations set state
+    // directly rather than round-tripping through the URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Keep state in sync with visibility: clear any stale picks whenever the
   // category UI is hidden, so switching Special → Normal doesn't silently

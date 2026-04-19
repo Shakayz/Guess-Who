@@ -74,11 +74,24 @@ export default function PublicLobbiesPage() {
 
           {/* Header */}
           <div className="flex items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
-                <span>🔍</span> {t('publicLobbies.title')}
-              </h1>
-              <p className="text-neutral-400 text-sm mt-1">{t('publicLobbies.subtitle')}</p>
+            <div className="flex items-start gap-2 min-w-0">
+              {/* Back arrow returns to the Custom Lobby chooser (Create / Join)
+                  on the home page. Explicit route instead of navigate(-1) so
+                  direct loads or deep links still land somewhere sensible. */}
+              <button
+                type="button"
+                onClick={() => { SoundManager.play('click'); navigate('/?mode=lobby') }}
+                aria-label={t('common.back')}
+                className="shrink-0 mt-1 h-9 w-9 -ml-1 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800/70 flex items-center justify-center transition-colors"
+              >
+                ←
+              </button>
+              <div className="min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
+                  <span>🔍</span> {t('publicLobbies.title')}
+                </h1>
+                <p className="text-neutral-400 text-sm mt-1">{t('publicLobbies.subtitle')}</p>
+              </div>
             </div>
             <button
               onClick={fetchLobbies}
@@ -108,7 +121,7 @@ export default function PublicLobbiesPage() {
               <p className="text-white font-semibold">{t('publicLobbies.emptyTitle')}</p>
               <p className="text-neutral-500 text-sm max-w-sm">{t('publicLobbies.emptyDesc')}</p>
               <button
-                onClick={() => navigate('/')}
+                onClick={() => { SoundManager.play('click'); navigate('/?mode=lobby&action=create') }}
                 className="mt-2 h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
               >
                 {t('publicLobbies.createOne')}
