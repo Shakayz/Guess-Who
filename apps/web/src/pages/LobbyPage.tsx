@@ -62,14 +62,14 @@ function NumStepper({
       <div className="flex items-center gap-2">
         <button
           onClick={() => onChange(Math.max(min, value - step))}
-          className="w-7 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-bold transition-colors"
+          className="w-9 h-9 sm:w-7 sm:h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-bold transition-colors"
         >−</button>
         <span className="text-sm font-mono font-semibold text-white w-14 text-center">
           {format ? format(value) : value}
         </span>
         <button
           onClick={() => onChange(Math.min(max, value + step))}
-          className="w-7 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-bold transition-colors"
+          className="w-9 h-9 sm:w-7 sm:h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-bold transition-colors"
         >+</button>
       </div>
     </div>
@@ -144,16 +144,16 @@ function RoleStepper({
           type="button"
           onClick={() => { if (canDec) onChange(Math.max(min, value - 1)) }}
           disabled={!canDec}
-          className="w-7 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="w-9 h-9 sm:w-7 sm:h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >−</button>
-        <span className={`text-sm font-mono font-bold w-7 text-center ${isLocked ? 'text-neutral-600' : a.value}`}>
+        <span className={`text-sm font-mono font-bold w-8 sm:w-7 text-center ${isLocked ? 'text-neutral-600' : a.value}`}>
           {value}
         </span>
         <button
           type="button"
           onClick={() => { if (canInc) onChange(Math.min(max, value + 1)) }}
           disabled={!canInc}
-          className="w-7 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="w-9 h-9 sm:w-7 sm:h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >+</button>
       </div>
     </div>

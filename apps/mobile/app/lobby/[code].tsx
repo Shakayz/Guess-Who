@@ -26,8 +26,10 @@ import {
   isNeutralUnlocked,
   maxRedHandedFor,
 } from '@red-handed/shared'
-import type { Room, GameMode, WordCategory, SpecialRoleCounts, Player } from '@red-handed/shared'
+import type { Room, GameMode, WordCategory, SpecialRoleCounts, Player, Locale } from '@red-handed/shared'
 import { useResponsive } from '../../lib/responsive'
+import { LANGUAGES, findLanguage } from '../../i18n/languages'
+import i18n from '../../i18n'
 import { createLogger } from '../../lib/logger'
 import { SoundManager } from '../../lib/sounds'
 import { HapticManager } from '../../lib/haptics'
@@ -246,6 +248,8 @@ interface Settings {
   // Only available in unranked modes.
   vocalMode: boolean
   vocalSpeakingTimeSeconds: number
+  // Room language — controls which UI locale players must match to join.
+  language: Locale
 }
 
 /** Pull a `SpecialRoleCounts` shape out of the lobby `Settings` for the
@@ -286,6 +290,42 @@ function SettingsPanel({
       <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
         Room Settings
       </Text>
+
+      {/* Room language — controls which locale players must match to join */}
+      <View>
+        <Text className="text-xs text-neutral-500 mb-2">Room language</Text>
+        <View className="flex-row flex-wrap gap-1.5">
+          {LANGUAGES.map((lang) => {
+            const selected = settings.language === lang.code
+            return (
+              <TouchableOpacity
+                key={lang.code}
+                onPress={() => onChange({ ...settings, language: lang.code as Locale })}
+                activeOpacity={0.8}
+                className={[
+                  'flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-lg border',
+                  selected
+                    ? 'bg-violet-950/60 border-violet-700/60'
+                    : 'bg-neutral-900/40 border-neutral-800/60',
+                ].join(' ')}
+              >
+                <Text style={{ fontSize: 13 }}>{lang.flag}</Text>
+                <Text
+                  className={[
+                    'text-xs font-medium',
+                    selected ? 'text-violet-300' : 'text-neutral-400',
+                  ].join(' ')}
+                >
+                  {lang.label}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
+        </View>
+        <Text className="text-[10px] text-neutral-600 mt-1.5">
+          Players must use this language to join.
+        </Text>
+      </View>
 
       {/* Game Mode — ranked lobbies are created by matchmaking, so hosts can
           only flip between Normal / Special here (mirrors web). When a ranked
@@ -844,6 +884,7 @@ const DEFAULT_SETTINGS: Settings = {
   evilTwinsEnabled: 0,
   vocalMode: false,
   vocalSpeakingTimeSeconds: 10,
+  language: 'en',
 }
 
 export default function LobbyScreen() {
@@ -875,6 +916,8 @@ export default function LobbyScreen() {
   // Player action modal + kick toast — mirrors web LobbyPage.
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
   const [kickedToast, setKickedToast] = useState<string | null>(null)
+  // Sticky language-mismatch banner. Cleared by room:updated (= join succeeded).
+  const [languageMismatch, setLanguageMismatch] = useState<{ roomLanguage: Locale } | null>(null)
 
   // ─── Settings change ────────────────────────────────────────────────────
 
@@ -903,8 +946,17 @@ export default function LobbyScreen() {
       evilTwinsEnabled: s.evilTwinsEnabled,
       vocalMode: s.vocalMode,
       vocalSpeakingTimeSeconds: s.vocalSpeakingTimeSeconds,
+      language: s.language,
     })
   }
+
+  // Switch the viewer's UI locale to the room language (mirrors web's
+  // switchMyLanguage). Used by the language-mismatch CTA so the heartbeat's
+  // next room:join request carries the matching locale.
+  const switchMyLanguage = useCallback((lang: string) => {
+    i18n.changeLanguage(lang)
+    api.patch('/users/me', { locale: lang }).catch(() => { /* non-critical */ })
+  }, [])
 
   // ─── Copy room code ─────────────────────────────────────────────────────
 
@@ -1001,7 +1053,11 @@ export default function LobbyScreen() {
           evilTwinsEnabled: rs.evilTwinsEnabled ?? 0,
           vocalMode: rs.vocalMode ?? false,
           vocalSpeakingTimeSeconds: rs.vocalSpeakingTimeSeconds ?? 10,
+          language: (rs.language ?? 'en') as Locale,
         }))
+        // Any successful room:updated means our locale is now aligned with
+        // the room — clear the mismatch banner if it was sticking around.
+        setLanguageMismatch(null)
       }
     })
 
@@ -1047,6 +1103,14 @@ export default function LobbyScreen() {
       if (code === 'KICKED_FROM_ROOM') {
         setKickedToast('You were removed from this lobby')
         setTimeout(() => router.replace('/'), 2000)
+        return
+      }
+      if (code === 'LANGUAGE_MISMATCH') {
+        // Sticky — stays up until the viewer's locale matches the room (the
+        // heartbeat retries room:join every 8s, and room:updated clears it).
+        const roomLang = ((err as any).roomLanguage ?? 'en') as Locale
+        setLanguageMismatch({ roomLanguage: roomLang })
+        return
       }
     })
 
@@ -1145,10 +1209,42 @@ export default function LobbyScreen() {
 
         {/* Socket error toast (other, non-coin errors) */}
         {socketError && (
-          <View className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800 mb-2">
-            <Text className="text-red-300 text-xs flex-1">⚠ {socketError}</Text>
-          </View>
+          <SlideUp style={{ marginBottom: 8 }}>
+            <View className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800">
+              <Text className="text-red-300 text-xs flex-1">⚠ {socketError}</Text>
+            </View>
+          </SlideUp>
         )}
+
+        {/* Language mismatch — sticky alert with "switch to X" CTA. */}
+        {languageMismatch && (() => {
+          const langInfo = findLanguage(languageMismatch.roomLanguage)
+          return (
+            <SlideUp style={{ marginBottom: 8 }}>
+              <View
+                accessibilityRole="alert"
+                className="rounded-xl bg-red-950/95 border border-red-700/60 px-3 py-3"
+              >
+                <View className="flex-row items-start gap-2 mb-2">
+                  <Text className="text-red-300" style={{ fontSize: 14 }}>⚠</Text>
+                  <Text className="flex-1 text-red-200 text-xs font-semibold leading-snug">
+                    This room is playing in {langInfo.label}. Your app is in a different language.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => switchMyLanguage(languageMismatch.roomLanguage)}
+                  className="flex-row items-center justify-center gap-2 px-3 py-2 rounded-lg bg-red-800/60 border border-red-700/60"
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ fontSize: 14 }}>{langInfo.flag}</Text>
+                  <Text className="text-red-100 text-xs font-semibold">
+                    Switch to {langInfo.label}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </SlideUp>
+          )
+        })()}
 
         {/* INSUFFICIENT_STARS modal with "Get coins" CTA */}
         <InsufficientCoinsModal
@@ -1160,12 +1256,14 @@ export default function LobbyScreen() {
 
         {/* Kicked toast — shown briefly before navigating home */}
         {kickedToast && (
-          <View
-            accessibilityRole="alert"
-            className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800 mb-2"
-          >
-            <Text className="text-red-300 text-xs flex-1">🚫 {kickedToast}</Text>
-          </View>
+          <SlideUp style={{ marginBottom: 8 }}>
+            <View
+              accessibilityRole="alert"
+              className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800"
+            >
+              <Text className="text-red-300 text-xs flex-1">🚫 {kickedToast}</Text>
+            </View>
+          </SlideUp>
         )}
 
         {/* Player action modal (view profile / kick) */}
@@ -1472,6 +1570,11 @@ export default function LobbyScreen() {
               {settings.gameMode === 'ranked' ? '🏆' : settings.gameMode === 'special' ? '🔮' : '🎮'}
             </Text>
             <Text className="text-xs text-neutral-500 capitalize">{settings.gameMode}</Text>
+            <Text className="text-neutral-700">·</Text>
+            <View className="flex-row items-center gap-1">
+              <Text style={{ fontSize: 11 }}>{findLanguage(settings.language).flag}</Text>
+              <Text className="text-xs text-neutral-500">{findLanguage(settings.language).label}</Text>
+            </View>
             <Text className="text-neutral-700">·</Text>
             <Text className="text-xs text-neutral-500">{settings.maxPlayers} max</Text>
             <Text className="text-neutral-700">·</Text>

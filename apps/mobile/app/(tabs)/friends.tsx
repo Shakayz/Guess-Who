@@ -17,7 +17,6 @@ import { getSocket } from '../../lib/socket'
 import { useAuthStore } from '../../store/auth'
 import { useSocialStore } from '../../store/social'
 import { useResponsive } from '../../lib/responsive'
-import DmChatModal from '../../components/DmChatModal'
 
 /* ---------- Types ---------- */
 
@@ -72,8 +71,9 @@ export default function FriendsScreen() {
   const [friendsLoading, setFriendsLoading] = useState(true)
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
 
-  // Active DM chat
-  const [activeDm, setActiveDm] = useState<{ id: string; username: string } | null>(null)
+  // Active DM chat (driven by social store so the toast tap-to-open flow
+  // from other tabs can open the modal via setActiveDm).
+  const setActiveDm = useSocialStore((s) => s.setActiveDm)
 
   /* ---------- Fetch data on mount ---------- */
 
@@ -184,9 +184,9 @@ export default function FriendsScreen() {
 
   const handleDm = useCallback(
     (friendId: string, friendUsername: string) => {
-      setActiveDm({ id: friendId, username: friendUsername })
+      setActiveDm({ friendId, friendUsername })
     },
-    [],
+    [setActiveDm],
   )
 
   const handleShareInvite = useCallback(async () => {
@@ -458,15 +458,6 @@ export default function FriendsScreen() {
         </View>
         </View>
       </ScrollView>
-
-      {activeDm && (
-        <DmChatModal
-          visible={!!activeDm}
-          friendId={activeDm.id}
-          friendUsername={activeDm.username}
-          onClose={() => setActiveDm(null)}
-        />
-      )}
     </SafeAreaView>
   )
 }

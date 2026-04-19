@@ -98,13 +98,13 @@ function LanguagePicker({ value, onChange, label }: LanguagePickerProps) {
           role="listbox"
           aria-label={label}
           className={[
-            'absolute right-0 mt-2 w-56 z-50',
+            'absolute left-0 sm:left-auto sm:right-0 mt-2 w-[min(14rem,calc(100vw-1.5rem))] z-50',
             'bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl',
-            'overflow-hidden origin-top-right',
+            'overflow-hidden origin-top-left sm:origin-top-right',
             'animate-in fade-in slide-in-from-top-1 duration-150',
           ].join(' ')}
         >
-          <div className="max-h-80 overflow-y-auto py-1">
+          <div className="max-h-[min(20rem,calc(100vh-10rem))] overflow-y-auto py-1">
             {LANGUAGES.map((lang) => {
               const isSelected = lang.code === selected.code
               return (

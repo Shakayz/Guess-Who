@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import { View, Text, TouchableOpacity, useWindowDimensions } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSocialStore } from '../store/social'
+import { SlideUp } from './anim/AnimatedViews'
 
 /**
  * Stack of dismissible "gift received" toasts. Coins/premium are already
@@ -63,7 +64,7 @@ function GiftToastItem({
     : `${coinAmount.toLocaleString()} ⭐`
 
   return (
-    <View className="flex-row items-start gap-3 px-4 py-3 rounded-2xl border border-amber-600/60 bg-violet-950/95">
+    <SlideUp distance={-16} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(217,119,6,0.6)', backgroundColor: 'rgba(46,16,101,0.95)' }}>
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={() => {
@@ -92,6 +93,6 @@ function GiftToastItem({
       <TouchableOpacity onPress={() => dismiss(id)} hitSlop={8}>
         <Text className="text-neutral-400 text-lg leading-none">×</Text>
       </TouchableOpacity>
-    </View>
+    </SlideUp>
   )
 }

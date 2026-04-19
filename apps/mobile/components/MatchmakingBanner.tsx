@@ -6,6 +6,7 @@ import { useMatchmakingStore } from '../store/matchmaking'
 import { getSocket } from '../lib/socket'
 import { createLogger } from '../lib/logger'
 import { useResponsive } from '../lib/responsive'
+import { SlideUp, GlowPulse } from './anim/AnimatedViews'
 
 const log = createLogger('matchmaking-banner')
 
@@ -69,6 +70,8 @@ export function MatchmakingBanner() {
         zIndex: 40,
       }}
     >
+      <SlideUp distance={24}>
+      <GlowPulse color={accent}>
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={() => router.push('/')}
@@ -165,6 +168,8 @@ export function MatchmakingBanner() {
           <View style={{ height: 2, width: `${timePct}%`, backgroundColor: '#525252' }} />
         </View>
       </TouchableOpacity>
+      </GlowPulse>
+      </SlideUp>
     </View>
   )
 }

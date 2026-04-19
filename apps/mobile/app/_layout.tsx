@@ -25,8 +25,11 @@ import { ErrorBoundary } from '../components/ErrorBoundary'
 import { ConnectionStatus } from '../components/ConnectionStatus'
 import { AchievementToastBanner } from '../components/achievements/AchievementToast'
 import { GiftToastBanner } from '../components/GiftToast'
+import { DmToastBanner } from '../components/DmToastBanner'
+import { GlobalDmChatHost } from '../components/GlobalDmChatHost'
 import { MatchmakingManager } from '../components/MatchmakingManager'
 import { MatchmakingBanner } from '../components/MatchmakingBanner'
+import { SlideUp } from '../components/anim/AnimatedViews'
 import { api } from '../lib/api'
 import { initAds, setAdsUserMeta } from '../lib/ads'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -77,7 +80,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function GlobalSocketListeners() {
   const token = useAuthStore((s) => s.token)
-  const { setPendingInvite, setPendingFriendRequest, incrementUnread, pushAchievementToast, pushFriendAcceptedToast, pushGiftToast } = useSocialStore()
+  const { setPendingInvite, setPendingFriendRequest, incrementUnread, pushAchievementToast, pushFriendAcceptedToast, pushGiftToast, pushDmToast } = useSocialStore()
 
   useEffect(() => {
     if (!token) return
@@ -107,6 +110,15 @@ function GlobalSocketListeners() {
 
     socket.on('dm:receive' as any, (data: any) => {
       incrementUnread(data.senderId)
+      // Suppress toast if the chat with this sender is already open —
+      // the modal renders the message inline.
+      const { activeDm } = useSocialStore.getState()
+      if (activeDm?.friendId === data.senderId) return
+      pushDmToast({
+        senderId: data.senderId,
+        senderUsername: data.senderUsername,
+        text: data.text,
+      })
     })
 
     socket.on('achievement:unlocked' as any, (data: any) => {
@@ -207,28 +219,33 @@ function InviteBanner() {
   if (!pendingInvite) return null
 
   return (
-    <View className="absolute top-14 left-4 right-4 z-50 bg-violet-900 border border-violet-700 rounded-2xl p-4 flex-row items-center gap-3" style={bannerStyle}>
-      <Text className="text-2xl">🎮</Text>
-      <View className="flex-1">
-        <Text className="text-white font-semibold text-sm">Game Invite</Text>
-        <Text className="text-violet-300 text-xs">
-          {pendingInvite.fromUsername} invited you to play
-        </Text>
+    <SlideUp
+      distance={-20}
+      style={{ position: 'absolute', top: 56, left: 16, right: 16, zIndex: 50, ...bannerStyle }}
+    >
+      <View className="bg-violet-900 border border-violet-700 rounded-2xl p-4 flex-row items-center gap-3">
+        <Text className="text-2xl">🎮</Text>
+        <View className="flex-1">
+          <Text className="text-white font-semibold text-sm">Game Invite</Text>
+          <Text className="text-violet-300 text-xs">
+            {pendingInvite.fromUsername} invited you to play
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => {
+            const code = pendingInvite.roomCode
+            setPendingInvite(null)
+            router.push(`/lobby/${code}`)
+          }}
+          className="bg-violet-600 px-3 py-1.5 rounded-lg"
+        >
+          <Text className="text-white font-semibold text-xs">Join</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setPendingInvite(null)}>
+          <Text className="text-violet-400 text-sm">✕</Text>
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity
-        onPress={() => {
-          const code = pendingInvite.roomCode
-          setPendingInvite(null)
-          router.push(`/lobby/${code}`)
-        }}
-        className="bg-violet-600 px-3 py-1.5 rounded-lg"
-      >
-        <Text className="text-white font-semibold text-xs">Join</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => setPendingInvite(null)}>
-        <Text className="text-violet-400 text-sm">✕</Text>
-      </TouchableOpacity>
-    </View>
+    </SlideUp>
   )
 }
 
@@ -259,29 +276,34 @@ function FriendRequestBanner() {
   }
 
   return (
-    <View className="absolute top-14 left-4 right-4 z-50 bg-emerald-900 border border-emerald-700 rounded-2xl p-4 flex-row items-center gap-3" style={bannerStyle}>
-      <Text className="text-2xl">👋</Text>
-      <View className="flex-1">
-        <Text className="text-white font-semibold text-sm">Friend Request</Text>
-        <Text className="text-emerald-300 text-xs">
-          {pendingFriendRequest.fromUsername} wants to be your friend
-        </Text>
+    <SlideUp
+      distance={-20}
+      style={{ position: 'absolute', top: 56, left: 16, right: 16, zIndex: 50, ...bannerStyle }}
+    >
+      <View className="bg-emerald-900 border border-emerald-700 rounded-2xl p-4 flex-row items-center gap-3">
+        <Text className="text-2xl">👋</Text>
+        <View className="flex-1">
+          <Text className="text-white font-semibold text-sm">Friend Request</Text>
+          <Text className="text-emerald-300 text-xs">
+            {pendingFriendRequest.fromUsername} wants to be your friend
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={handleAccept}
+          className="bg-emerald-600 px-3 py-1.5 rounded-lg"
+          activeOpacity={0.8}
+        >
+          <Text className="text-white font-semibold text-xs">Accept</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleDecline}
+          className="px-3 py-1.5 rounded-lg bg-emerald-950 border border-emerald-700/50"
+          activeOpacity={0.8}
+        >
+          <Text className="text-emerald-300 font-semibold text-xs">Decline</Text>
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity
-        onPress={handleAccept}
-        className="bg-emerald-600 px-3 py-1.5 rounded-lg"
-        activeOpacity={0.8}
-      >
-        <Text className="text-white font-semibold text-xs">Accept</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={handleDecline}
-        className="px-3 py-1.5 rounded-lg bg-emerald-950 border border-emerald-700/50"
-        activeOpacity={0.8}
-      >
-        <Text className="text-emerald-300 font-semibold text-xs">Decline</Text>
-      </TouchableOpacity>
-    </View>
+    </SlideUp>
   )
 }
 
@@ -308,6 +330,8 @@ export default function RootLayout() {
         <FriendRequestBanner />
         <AchievementToastBanner />
         <GiftToastBanner />
+        <DmToastBanner />
+        <GlobalDmChatHost />
         <MatchmakingManager />
         <MatchmakingBanner />
         <Stack

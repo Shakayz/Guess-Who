@@ -326,10 +326,10 @@ function FriendRequestBanner() {
   }
 
   return (
-    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
-      <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-emerald-700/60 bg-brand-950/90 backdrop-blur shadow-2xl text-sm">
+    <div className="fixed top-20 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-50 animate-slide-up">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-2xl border border-emerald-700/60 bg-brand-950/90 backdrop-blur shadow-2xl text-sm">
         <span className="text-lg">👤</span>
-        <span className="text-white font-medium">
+        <span className="text-white font-medium flex-1 min-w-0">
           <span className="text-emerald-400 font-bold">{pendingFriendRequest.fromUsername}</span> sent you a friend request!
         </span>
         <button
@@ -353,7 +353,7 @@ function DmToastStack() {
   const toasts = useSocialStore((s) => s.dmToasts)
   if (toasts.length === 0) return null
   return (
-    <div className="fixed bottom-24 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+    <div className="fixed bottom-24 inset-x-3 sm:inset-x-auto sm:right-4 z-50 flex flex-col gap-2 sm:max-w-sm pointer-events-none">
       {toasts.map((toast, i) => (
         <DmToastItem
           key={toast.id}
@@ -432,7 +432,7 @@ function GiftToastStack() {
 
   if (toasts.length === 0) return null
   return (
-    <div className="fixed bottom-24 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+    <div className="fixed bottom-24 inset-x-3 sm:inset-x-auto sm:right-4 z-50 flex flex-col gap-2 sm:max-w-sm pointer-events-none">
       {toasts.map((toast, i) => {
         const describe = toast.premiumPlanId
           ? toast.premiumPlanId === 'yearly'
@@ -521,7 +521,7 @@ function FriendAcceptedToastStack() {
   const toasts = useSocialStore((s) => s.friendAcceptedToasts)
   if (toasts.length === 0) return null
   return (
-    <div className="fixed bottom-24 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+    <div className="fixed bottom-24 inset-x-3 sm:inset-x-auto sm:right-4 z-50 flex flex-col gap-2 sm:max-w-sm pointer-events-none">
       {toasts.map((toast, i) => (
         <FriendAcceptedToastItem key={toast.id} id={toast.id} username={toast.username} index={i} />
       ))}
@@ -573,10 +573,10 @@ function InviteBanner() {
   }
 
   return (
-    <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
-      <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-brand-700/60 bg-brand-950/90 backdrop-blur shadow-2xl text-sm">
+    <div className="fixed top-16 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-50 animate-slide-up">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-2xl border border-brand-700/60 bg-brand-950/90 backdrop-blur shadow-2xl text-sm">
         <span className="text-lg">📨</span>
-        <span className="text-white font-medium">
+        <span className="text-white font-medium flex-1 min-w-0">
           <span className="text-brand-400 font-bold">{pendingInvite.fromUsername}</span> invited you to a game!
         </span>
         <button
