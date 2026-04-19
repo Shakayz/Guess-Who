@@ -333,6 +333,8 @@ export default function GameScreen() {
   const phaseRef = useRef<Phase>('speaking')
   const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([])
   const lastEmoteTime = useRef(0)
+  const [emoteCooldownUntil, setEmoteCooldownUntil] = useState(0)
+  const [emoteNow, setEmoteNow] = useState(0)
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -637,6 +639,9 @@ export default function GameScreen() {
         timeoutRefs.current.push(tid)
       }
     )
+    socket.on('emote:cooldown' as any, ({ until }: { until: number }) => {
+      setEmoteCooldownUntil((prev) => (until > prev ? until : prev))
+    })
 
     // Clue flag response
     socket.on('clue:flagged' as any, ({ clueIndex, flagCount }: any) => {
@@ -663,6 +668,7 @@ export default function GameScreen() {
       socket.off('chat:message')
       socket.off('deadchat:message' as any)
       socket.off('emote:receive' as any)
+      socket.off('emote:cooldown' as any)
       socket.off('twin:partner' as any)
       socket.off('detective:result')
       socket.off('round:word-said' as any)
@@ -722,10 +728,19 @@ export default function GameScreen() {
 
   const sendEmote = (emoji: string) => {
     const now = Date.now()
-    if (now - lastEmoteTime.current < 2000) return
+    if (now < emoteCooldownUntil) return
+    if (now - lastEmoteTime.current < 1000) return
     lastEmoteTime.current = now
     getSocket().emit('emote:send' as any, { emoji })
   }
+
+  // Tick once per second while a server lockout is active so buttons
+  // re-enable when the cooldown expires.
+  useEffect(() => {
+    if (emoteCooldownUntil <= Date.now()) return
+    const id = setInterval(() => setEmoteNow(Date.now()), 250)
+    return () => clearInterval(id)
+  }, [emoteCooldownUntil])
 
   const flagClue = (clueIndex: number) => {
     getSocket().emit('clue:flag' as any, { clueIndex })
@@ -1472,25 +1487,37 @@ export default function GameScreen() {
           </View>
 
           {/* ─── Emote Reactions Bar ───────────────────────────────────────── */}
-          {!isEliminated && (
-            <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3">
-              <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-600 mb-2">
-                React
-              </Text>
-              <View className="flex-row gap-2">
-                {EMOTES.map((emoji) => (
-                  <TouchableOpacity
-                    key={emoji}
-                    onPress={() => sendEmote(emoji)}
-                    className="w-11 h-11 rounded-xl bg-neutral-800/60 border border-neutral-700/50 items-center justify-center"
-                    activeOpacity={0.7}
-                  >
-                    <Text className="text-2xl">{emoji}</Text>
-                  </TouchableOpacity>
-                ))}
+          {!isEliminated && (() => {
+            const cooldownRemaining = Math.max(0, emoteCooldownUntil - (emoteNow || Date.now()))
+            const locked = cooldownRemaining > 0
+            return (
+              <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3">
+                <View className="flex-row items-center justify-between mb-2">
+                  <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-600">
+                    React
+                  </Text>
+                  {locked && (
+                    <Text className="text-[10px] text-amber-500">
+                      Slow down · {Math.ceil(cooldownRemaining / 1000)}s
+                    </Text>
+                  )}
+                </View>
+                <View className="flex-row gap-2">
+                  {EMOTES.map((emoji) => (
+                    <TouchableOpacity
+                      key={emoji}
+                      onPress={() => sendEmote(emoji)}
+                      disabled={locked}
+                      className={`w-11 h-11 rounded-xl bg-neutral-800/60 border border-neutral-700/50 items-center justify-center ${locked ? 'opacity-40' : ''}`}
+                      activeOpacity={0.7}
+                    >
+                      <Text className="text-2xl">{emoji}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-            </View>
-          )}
+            )
+          })()}
 
           {/* ─── Dead Chat (when eliminated) ───────────────────────────────── */}
           {isEliminated && (

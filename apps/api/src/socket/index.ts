@@ -38,6 +38,39 @@ function isRateLimited(socket: any, event: string, maxPerSecond: number = 5): bo
   return false
 }
 
+// Emote-specific anti-spam: min 1s between emotes plus a 5-in-10s burst cap
+// with a 10s lockout once tripped. Tuned tighter than the generic limiter
+// since emotes broadcast to every player in the room.
+const EMOTE_MIN_INTERVAL_MS = 1000
+const EMOTE_BURST_WINDOW_MS = 10_000
+const EMOTE_BURST_MAX = 5
+const EMOTE_LOCKOUT_MS = 10_000
+const emoteRateLimits = new WeakMap<object, { times: number[]; lockoutUntil: number }>()
+
+function checkEmoteSpam(socket: any): { allowed: boolean; reason?: string; retryAfter?: number } {
+  let state = emoteRateLimits.get(socket)
+  if (!state) {
+    state = { times: [], lockoutUntil: 0 }
+    emoteRateLimits.set(socket, state)
+  }
+  const now = Date.now()
+  if (now < state.lockoutUntil) {
+    return { allowed: false, reason: 'lockout', retryAfter: state.lockoutUntil - now }
+  }
+  const last = state.times[state.times.length - 1]
+  if (last !== undefined && now - last < EMOTE_MIN_INTERVAL_MS) {
+    return { allowed: false, reason: 'too_fast', retryAfter: EMOTE_MIN_INTERVAL_MS - (now - last) }
+  }
+  state.times = state.times.filter((t) => now - t < EMOTE_BURST_WINDOW_MS)
+  if (state.times.length >= EMOTE_BURST_MAX) {
+    state.lockoutUntil = now + EMOTE_LOCKOUT_MS
+    state.times = []
+    return { allowed: false, reason: 'burst_lockout', retryAfter: EMOTE_LOCKOUT_MS }
+  }
+  state.times.push(now)
+  return { allowed: true }
+}
+
 export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerToClientEvents>, fastify?: any) {
   // Attach onlineUsers and io to fastify for use in HTTP routes
   if (fastify) {
@@ -206,15 +239,22 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       io.to(`dead:${room.id}`).emit('deadchat:message' as any, msg)
     })
 
-    // Emote: quick reaction broadcast to the room
+    // Emote: quick reaction broadcast to the room.
+    // Anti-spam: 1s min between emotes, plus a 5-in-10s burst cap that
+    // triggers a 10s lockout. Sender gets `emote:cooldown` with a retry
+    // timestamp so the UI can disable buttons.
     socket.on('emote:send' as any, (data: { emoji: string }) => {
-      if (isRateLimited(socket, 'emote:send', 2)) return
       if (!socket.data.userId) return
       const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
       if (!roomKey) return
       const allowed = ['👍', '😮', '🤔', '😂', '😱']
       if (!allowed.includes(data.emoji)) {
         log.warn({ userId: socket.data.userId, emoji: data.emoji }, 'emote:send rejected: invalid emoji')
+        return
+      }
+      const spam = checkEmoteSpam(socket)
+      if (!spam.allowed) {
+        socket.emit('emote:cooldown' as any, { until: Date.now() + spam.retryAfter!, reason: spam.reason })
         return
       }
       log.info({ userId: socket.data.userId, emoji: data.emoji, room: roomKey }, 'emote:send')

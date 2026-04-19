@@ -328,6 +328,9 @@ export default function GamePage() {
   const [deadChatMessages, setDeadChatMessages] = useState<{ id: string; userId: string; username: string; text: string }[]>([])
   const [isEliminated, setIsEliminated] = useState(false)
   const [floatingEmotes, setFloatingEmotes] = useState<{ id: string; emoji: string; username: string; x: number }[]>([])
+  const [emoteCooldownUntil, setEmoteCooldownUntil] = useState(0)
+  const [emoteNow, setEmoteNow] = useState(0)
+  const lastEmoteTime = useRef(0)
   const [phase, setPhase] = useState<Phase>('clues')
   const [votedFor, setVotedFor] = useState<string | null>(null)
   const [eliminated, setEliminated] = useState<{ username: string; role: string } | null>(null)
@@ -773,6 +776,9 @@ export default function GamePage() {
       const tid = setTimeout(() => setFloatingEmotes((prev) => prev.filter((e) => e.id !== id)), 2800)
       timeoutRefs.current.push(tid)
     })
+    socket.on('emote:cooldown' as any, ({ until }: { until: number }) => {
+      setEmoteCooldownUntil((prev) => (until > prev ? until : prev))
+    })
 
     // Register all handlers BEFORE emitting room:join so we don't miss the response
     const handleConnect = () => {
@@ -800,6 +806,7 @@ export default function GamePage() {
       socket.off('chat:message')
       socket.off('deadchat:message' as any)
       socket.off('emote:receive' as any)
+      socket.off('emote:cooldown' as any)
       socket.off('detective:result')
       socket.off('guardian:protect-ack' as any)
       socket.off('guardian:protection-triggered' as any)
@@ -925,8 +932,19 @@ export default function GamePage() {
   }
 
   const sendEmote = (emoji: string) => {
+    const now = Date.now()
+    if (now < emoteCooldownUntil) return
+    if (now - lastEmoteTime.current < 1000) return
+    lastEmoteTime.current = now
     getSocket().emit('emote:send' as any, { emoji })
   }
+
+  // Tick while a server lockout is active so disabled buttons re-enable.
+  useEffect(() => {
+    if (emoteCooldownUntil <= Date.now()) return
+    const id = setInterval(() => setEmoteNow(Date.now()), 250)
+    return () => clearInterval(id)
+  }, [emoteCooldownUntil])
 
   const sendDeadChat = (e: React.FormEvent) => {
     e.preventDefault()
@@ -2086,20 +2104,32 @@ export default function GamePage() {
           <div className="flex-1 flex flex-col justify-end p-3 gap-3">
             {/* Chat disabled notice */}
             <p className="text-xs text-neutral-600 text-center">{t('game.chatDisabled')}</p>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600 mb-2">{t('game.react')}</p>
-              <div className="flex gap-2 flex-wrap">
-                {EMOTES.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => sendEmote(emoji)}
-                    className="text-2xl w-11 h-11 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/80 hover:scale-110 active:scale-95 transition-all border border-neutral-700/50"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {(() => {
+              const cooldownRemaining = Math.max(0, emoteCooldownUntil - (emoteNow || Date.now()))
+              const locked = cooldownRemaining > 0
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600">{t('game.react')}</p>
+                    {locked && (
+                      <span className="text-[10px] text-amber-500">Slow down · {Math.ceil(cooldownRemaining / 1000)}s</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {EMOTES.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => sendEmote(emoji)}
+                        disabled={locked}
+                        className={`text-2xl w-11 h-11 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/80 hover:scale-110 active:scale-95 transition-all border border-neutral-700/50 ${locked ? 'opacity-40 cursor-not-allowed hover:scale-100' : ''}`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
             {/* Quit & Forfeit */}
             {showForfeitConfirm ? (
               <div className="rounded-xl border border-orange-800/50 bg-orange-950/30 p-3 space-y-2">
