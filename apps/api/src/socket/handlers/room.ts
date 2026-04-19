@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io'
-import type { ServerToClientEvents, ClientToServerEvents } from '@red-handed/shared'
-import { shuffleArray } from '@red-handed/shared'
+import type { ServerToClientEvents, ClientToServerEvents, WordCategory } from '@red-handed/shared'
+import { shuffleArray, pickRandomWordPair } from '@red-handed/shared'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
 import { childLogger } from '../../config/logger'
@@ -190,26 +190,33 @@ async function startGameForRoom(
       'roles assigned for new game',
     )
 
-    // Pick words
+    // Pick words. The default path draws from the shared offline pair bank so
+    // online/unranked/ranked/create-lobby games use the *exact same* curated
+    // pairs as offline mode, locale-aware and with working category filtering.
+    // Only custom word packs (room.wordPackId set to a real pack id) still go
+    // through the DB — that's where user-authored content lives.
     const selectedCategories: string[] = state.categories ?? []
+    const roomLocale: string = (room as any).language ?? 'en'
     let wordPair = FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)]
     try {
-      const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
-      const roomLocale: string = (room as any).language ?? 'en'
-      const pack = room.wordPackId && room.wordPackId !== 'default'
-        ? await prisma.wordPack.findUnique({
-            where: { id: room.wordPackId },
-            include: { pairs: { where: { ...categoryFilter, locale: roomLocale } } },
-          })
-        : await prisma.wordPack.findFirst({
-            where: { isPremium: false, isApproved: true, locale: roomLocale, authorId: null },
-            include: { pairs: { where: categoryFilter } },
-          })
-      if (pack && pack.pairs.length > 0) {
-        const pair = pack.pairs[Math.floor(Math.random() * pack.pairs.length)]
-        wordPair = { wordA: pair.wordA, wordB: pair.wordB }
+      if (room.wordPackId && room.wordPackId !== 'default') {
+        const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
+        const pack = await prisma.wordPack.findUnique({
+          where: { id: room.wordPackId },
+          include: { pairs: { where: { ...categoryFilter, locale: roomLocale } } },
+        })
+        if (pack && pack.pairs.length > 0) {
+          const pair = pack.pairs[Math.floor(Math.random() * pack.pairs.length)]
+          wordPair = { wordA: pair.wordA, wordB: pair.wordB }
+        } else {
+          const pair = pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
+          wordPair = { wordA: pair.villagerWord, wordB: pair.redHandedWord }
+        }
+      } else {
+        const pair = pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
+        wordPair = { wordA: pair.villagerWord, wordB: pair.redHandedWord }
       }
-    } catch { /* use fallback */ }
+    } catch { /* use FALLBACK_WORDS */ }
 
     // Randomly swap which word goes to villagers vs redHanded
     if (Math.random() < 0.5) {

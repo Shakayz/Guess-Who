@@ -299,6 +299,7 @@ export default function RootLayout() {
           <Stack.Screen name="lobby/[code]" options={{ title: 'Lobby', headerBackTitle: 'Leave' }} />
           <Stack.Screen name="game/[code]" options={{ title: 'Game', headerShown: false }} />
           <Stack.Screen name="results/[code]" options={{ title: 'Results' }} />
+          <Stack.Screen name="settings" options={{ title: 'Settings', headerBackTitle: 'Back' }} />
         </Stack>
       </AuthGuard>
       </QueryClientProvider>

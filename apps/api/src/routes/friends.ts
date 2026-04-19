@@ -64,17 +64,21 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     })
   })
 
-  // POST /api/friends/request — send friend request by username
+  // POST /api/friends/request — send friend request by username or user id
   fastify.post('/request', { preHandler: [fastify.authenticate] }, async (req, reply) => {
     const userId = req.user.sub
-    const { username } = req.body as { username?: string }
-    if (!username) return reply.status(400).send({ error: 'username required' })
+    const { username, toUserId } = req.body as { username?: string; toUserId?: string }
+    if (!username && !toUserId) {
+      return reply.status(400).send({ error: 'username or toUserId required' })
+    }
 
-    req.log.info({ userId, targetUsername: username }, 'friend request attempt')
+    req.log.info({ userId, targetUsername: username, targetUserId: toUserId }, 'friend request attempt')
 
-    const target = await prisma.user.findUnique({ where: { username } })
+    const target = toUserId
+      ? await prisma.user.findUnique({ where: { id: toUserId } })
+      : await prisma.user.findUnique({ where: { username: username! } })
     if (!target) {
-      req.log.warn({ userId, targetUsername: username }, 'friend request failed: user not found')
+      req.log.warn({ userId, targetUsername: username, targetUserId: toUserId }, 'friend request failed: user not found')
       return reply.status(404).send({ error: 'User not found' })
     }
     if (target.id === userId) return reply.status(400).send({ error: 'Cannot add yourself' })

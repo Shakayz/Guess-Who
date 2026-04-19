@@ -36,6 +36,11 @@ interface HonorBucket {
   count: number
 }
 
+type ProfileFriendship =
+  | { id: string; status: 'accepted' }
+  | { id: string; status: 'pending_outgoing' }
+  | { id: string; status: 'pending_incoming' }
+
 interface PlayerProfile {
   id: string
   username: string
@@ -50,6 +55,8 @@ interface PlayerProfile {
   xpForNextLevel?: number
   hasPlayedRanked?: boolean
   isPremium?: boolean
+  friendship?: ProfileFriendship | null
+  isSelf?: boolean
   stats: UserStats
   statsRanked?: UserStats
   statsUnranked?: UserStats
@@ -74,6 +81,9 @@ export default function PlayerProfilePage() {
   const [blockLoading, setBlockLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [statsTab, setStatsTab] = useState<'unranked' | 'ranked'>('unranked')
+  const [friendLoading, setFriendLoading] = useState(false)
+  const [localFriendship, setLocalFriendship] =
+    useState<ProfileFriendship | null | undefined>(undefined)
 
   const { data: profile, isLoading, error } = useQuery<PlayerProfile>({
     queryKey: ['player-profile', userId],
@@ -81,6 +91,43 @@ export default function PlayerProfilePage() {
     enabled: !!userId,
     retry: false,
   })
+
+  const friendship =
+    localFriendship === undefined ? (profile?.friendship ?? null) : localFriendship
+
+  const handleAddFriend = async () => {
+    if (!profile || friendLoading) return
+    setFriendLoading(true)
+    setActionError(null)
+    try {
+      const res = await api.post<{ friendship: { id: string; status: string } }>(
+        '/friends/request',
+        { username: profile.username },
+      )
+      setLocalFriendship({
+        id: res.friendship.id,
+        status: 'pending_outgoing',
+      })
+    } catch (err: any) {
+      setActionError(err?.message ?? 'Failed to send friend request')
+    } finally {
+      setFriendLoading(false)
+    }
+  }
+
+  const handleAcceptFriend = async () => {
+    if (!friendship || friendship.status !== 'pending_incoming' || friendLoading) return
+    setFriendLoading(true)
+    setActionError(null)
+    try {
+      await api.put(`/friends/${friendship.id}/accept`, {})
+      setLocalFriendship({ id: friendship.id, status: 'accepted' })
+    } catch (err: any) {
+      setActionError(err?.message ?? 'Failed to accept friend request')
+    } finally {
+      setFriendLoading(false)
+    }
+  }
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -217,8 +264,36 @@ export default function PlayerProfilePage() {
                 </div>
               </div>
 
-              {/* Report / Block actions */}
+              {/* Friend / Report / Block actions */}
               <div className="flex flex-col gap-1.5 shrink-0">
+                {!profile.isSelf && (
+                  friendship?.status === 'accepted' ? (
+                    <span className="px-3 py-1.5 rounded-lg border border-emerald-800/50 bg-emerald-950/30 text-emerald-400 text-xs font-semibold text-center">
+                      ✓ {t('friends.alreadyFriend')}
+                    </span>
+                  ) : friendship?.status === 'pending_outgoing' ? (
+                    <span className="px-3 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 text-neutral-400 text-xs font-semibold text-center">
+                      {t('friends.requestPending')}
+                    </span>
+                  ) : friendship?.status === 'pending_incoming' ? (
+                    <button
+                      onClick={handleAcceptFriend}
+                      disabled={friendLoading}
+                      className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                    >
+                      {friendLoading ? '...' : `✓ ${t('friends.accept')}`}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleAddFriend}
+                      disabled={friendLoading}
+                      className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                      title={t('friends.addFriend')}
+                    >
+                      {friendLoading ? '...' : `+ ${t('friends.addFriend')}`}
+                    </button>
+                  )
+                )}
                 <button
                   onClick={() => setShowReport(true)}
                   className="px-3 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-red-950/40 hover:border-red-800/50 text-neutral-400 hover:text-red-400 text-xs font-semibold transition-colors"

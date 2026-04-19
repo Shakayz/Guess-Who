@@ -433,6 +433,18 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/:id/profile', async (req, reply) => {
     type HonorCount = { type: string; count: number }
     const { id } = req.params as { id: string }
+
+    // Opportunistically resolve the viewer so we can surface their friendship
+    // status with this profile (Add / Pending / Friend). The route stays
+    // publicly readable — no token still returns the profile minus friendship.
+    let viewerId: string | null = null
+    try {
+      await (req as any).jwtVerify()
+      viewerId = (req as any).user?.sub ?? null
+    } catch {
+      viewerId = null
+    }
+
     const user = await prisma.user.findUnique({
       where: { id },
       select: {
@@ -579,6 +591,28 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     for (const h of honorsRanked)   lifetimeHonors.set(h.type, (lifetimeHonors.get(h.type) ?? 0) + h.count)
     for (const h of honorsUnranked) lifetimeHonors.set(h.type, (lifetimeHonors.get(h.type) ?? 0) + h.count)
 
+    // Resolve the viewer ↔ profile friendship so the client can show the
+    // correct action without first clicking and hitting a 400 error.
+    let friendship: { id: string; status: 'accepted' | 'pending_outgoing' | 'pending_incoming' } | null = null
+    if (viewerId && viewerId !== id) {
+      const f = await prisma.friendship.findFirst({
+        where: {
+          OR: [
+            { requesterId: viewerId, addresseeId: id },
+            { requesterId: id, addresseeId: viewerId },
+          ],
+        },
+        select: { id: true, requesterId: true, status: true },
+      })
+      if (f) {
+        let fstatus: 'accepted' | 'pending_outgoing' | 'pending_incoming'
+        if (f.status === 'accepted') fstatus = 'accepted'
+        else if (f.requesterId === viewerId) fstatus = 'pending_outgoing'
+        else fstatus = 'pending_incoming'
+        friendship = { id: f.id, status: fstatus }
+      }
+    }
+
     // Drop the raw `premiumUntil` from the public payload — callers only see
     // the derived boolean so the exact subscription end date stays private.
     const { premiumUntil: _omitProfile, ...publicProfile } = user
@@ -588,6 +622,8 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       xpInLevel: progress.current,
       xpForNextLevel: progress.needed,
       isPremium: isPremiumProfile,
+      friendship,
+      isSelf: viewerId === id,
       stats: {
         totalGames,
         wins,

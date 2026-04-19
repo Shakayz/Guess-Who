@@ -21,9 +21,16 @@ import DmChatModal from '../../components/DmChatModal'
 
 /* ---------- Types ---------- */
 
+type SearchFriendship =
+  | { id: string; status: 'accepted' }
+  | { id: string; status: 'pending_outgoing' }
+  | { id: string; status: 'pending_incoming' }
+
 interface SearchUser {
   id: string
   username: string
+  avatarUrl?: string | null
+  friendship?: SearchFriendship | null
 }
 
 interface FriendRequest {
@@ -113,12 +120,11 @@ export default function FriendsScreen() {
       setSearchLoading(true)
       debounceRef.current = setTimeout(async () => {
         try {
-          const data = await api.get<SearchUser[]>(
+          const data = await api.get<{ users: SearchUser[] }>(
             `/users/search?q=${encodeURIComponent(text.trim())}`,
           )
-          setSearchResults(
-            data.filter((u) => u.id !== user?.id),
-          )
+          const list = Array.isArray(data) ? (data as unknown as SearchUser[]) : data.users
+          setSearchResults((list ?? []).filter((u) => u.id !== user?.id))
         } catch {
           setSearchResults([])
         } finally {
@@ -129,14 +135,17 @@ export default function FriendsScreen() {
     [user?.id],
   )
 
-  const handleSendRequest = useCallback(async (toUserId: string) => {
-    try {
-      await api.post('/friends/request', { toUserId })
-      setSentRequests((prev) => new Set(prev).add(toUserId))
-    } catch (err: any) {
-      Alert.alert(t('common.error'), err.message)
-    }
-  }, [t])
+  const handleSendRequest = useCallback(
+    async (toUserId: string, username: string) => {
+      try {
+        await api.post('/friends/request', { username })
+        setSentRequests((prev) => new Set(prev).add(toUserId))
+      } catch (err: any) {
+        Alert.alert(t('common.error'), err.message)
+      }
+    },
+    [t],
+  )
 
   /* ---------- Friend request actions ---------- */
 
@@ -260,13 +269,17 @@ export default function FriendsScreen() {
                       <Text className="text-white text-sm font-semibold flex-1">
                         {result.username}
                       </Text>
-                      {alreadyFriend ? (
+                      {alreadyFriend || result.friendship?.status === 'accepted' ? (
                         <Text className="text-neutral-600 text-xs">
                           Already friends
                         </Text>
+                      ) : result.friendship?.status === 'pending_outgoing' ? (
+                        <Text className="text-neutral-600 text-xs">
+                          Pending
+                        </Text>
                       ) : (
                         <TouchableOpacity
-                          onPress={() => handleSendRequest(result.id)}
+                          onPress={() => handleSendRequest(result.id, result.username)}
                           disabled={alreadySent}
                           className={`px-3 py-1.5 rounded-lg ${
                             alreadySent

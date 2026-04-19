@@ -116,10 +116,45 @@ function buildResetState(state: any): any {
 
 const REDIS_ROOM_TTL = 21600  // 6 hours (was 24h — no game lasts that long)
 
-async function resetRoomAfterGame(roomId: string, state: any): Promise<void> {
+async function resetRoomAfterGame(roomId: string, state: any, io?: IO): Promise<void> {
   const resetState = buildResetState(state)
   await redis.set(`room:${roomId}:state`, JSON.stringify(resetState), 'EX', REDIS_ROOM_TTL)
-  await prisma.room.update({ where: { id: roomId }, data: { status: 'waiting' } }).catch(() => {})
+  const room = await prisma.room.update({ where: { id: roomId }, data: { status: 'waiting' } }).catch(() => null)
+  // Broadcast the reset lobby state so players returning from the Results
+  // screen (including non-hosts) land in a fresh `waiting` lobby instead of
+  // a stale `finished` one. Without this, non-hosts who click "Play Again"
+  // during the short window before anyone re-emits `room:join` see old
+  // player entries / finished status and can't rejoin cleanly.
+  if (io && room) {
+    io.to(`room:${roomId}`).emit('room:updated', {
+      id: room.id,
+      code: room.code,
+      hostId: room.hostId,
+      status: 'waiting',
+      players: [],
+      currentRound: 0,
+      maxRounds: resetState.maxRounds ?? 0,
+      createdAt: room.createdAt.toISOString(),
+      settings: {
+        maxPlayers: room.maxPlayers,
+        minPlayers: 3,
+        redHandedCount: room.redHandedCount,
+        speakingTimeSeconds: room.speakingTimeSeconds,
+        votingTimeSeconds: room.votingTimeSeconds,
+        wordPackId: room.wordPackId,
+        isPrivate: room.isPrivate,
+        language: room.language as any,
+        gameMode: resetState.gameMode ?? 'normal',
+        categories: resetState.categories ?? [],
+        detectiveCount: resetState.detectiveCount ?? 0,
+        doubleAgentCount: resetState.doubleAgentCount ?? 0,
+        guardianCount: resetState.guardianCount ?? 0,
+        mayorCount: resetState.mayorCount ?? 0,
+        infiltratorCount: resetState.infiltratorCount ?? 0,
+        jesterCount: resetState.jesterCount ?? 0,
+      },
+    } as any)
+  }
 }
 
 /** Shared helper to build the round payload sent to clients */
@@ -611,7 +646,7 @@ async function finishGameWithWinner(
     return DAILY_COST
   }
 
-  setTimeout(async () => { try {
+  try {
     // Emit per-socket so each player sees their own bonus breakdown.
     let emittedToSomeone = false
     for (const p of state.players) {
@@ -661,8 +696,12 @@ async function finishGameWithWinner(
         rewards: fallbackRewards,
       })
     }
-    await resetRoomAfterGame(roomId, state)
-  } catch (err) { logger.error({ err }, '[finishGameWithWinner] emit error') } }, 3000)
+    // Reset the room immediately so players clicking "Play Again" land in a
+    // fresh waiting-lobby rather than a stale finished one. The results
+    // screen renders off the `game:finished` payload they just received, so
+    // wiping the Redis state now doesn't affect what they see.
+    await resetRoomAfterGame(roomId, state, io)
+  } catch (err) { logger.error({ err }, '[finishGameWithWinner] emit error') }
 }
 
 // ─── Entry point called after game:start ─────────────────────────────────────
@@ -1228,7 +1267,7 @@ async function _resolveRound(io: IO, roomId: string) {
       }
       const survivalLevelUpRewards = await applyXpAndLevel(io, state.players, 'red_handed', isRankedSurvival)
       const survivalLpChange = isRankedSurvival ? LP_REWARDS.SURVIVAL_VILLAGER_LOSS : 0
-      setTimeout(async () => { try {
+      try {
         // Broadcast per-socket so each surviving redHanded sees their own
         // level-up coin total (level × 10 per level gained).
         let emitted = false
@@ -1255,8 +1294,9 @@ async function _resolveRound(io: IO, roomId: string) {
             rewards: { starCoinsEarned: 0, xpEarned: 120, lpChange: survivalLpChange, achievements: [], levelUpCoinsEarned: 0 },
           })
         }
-        await resetRoomAfterGame(roomId, state)
-      } catch (err) { logger.error({ err }, '[survival:game:finished] emit error') } }, 3000)
+        // Reset immediately — see finishGameWithWinner comment above.
+        await resetRoomAfterGame(roomId, state, io)
+      } catch (err) { logger.error({ err }, '[survival:game:finished] emit error') }
       return
     }
     const alivePlayers = state.players.filter((p: any) => p.status === 'alive')

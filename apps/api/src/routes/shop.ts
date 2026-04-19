@@ -130,6 +130,11 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Stamp the pending row *before* returning so the webhook has something
       // to flip to `completed` even if the client never hits the success URL.
+      // If the DB write fails (schema drift, platform column missing, etc.)
+      // we expire the Stripe session so the user isn't left with a live
+      // checkout link that will credit nothing — and surface the underlying
+      // error to the client so the real cause is visible instead of a flat
+      // generic message.
       try {
         await prisma.purchase.create({
           data: {
@@ -143,8 +148,19 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
           },
         })
       } catch (err) {
-        req.log.error({ err, userId, packId, sessionId: session.id }, 'purchase row create failed')
-        return reply.status(500).send({ error: 'Could not record purchase — please retry.' })
+        const message = err instanceof Error ? err.message : String(err)
+        req.log.error(
+          { err, userId, packId, sessionId: session.id, message },
+          'purchase row create failed — expiring orphan Stripe session',
+        )
+        try {
+          await stripe.checkout.sessions.expire(session.id)
+        } catch (expireErr) {
+          req.log.warn({ err: expireErr, sessionId: session.id }, 'failed to expire orphan Stripe session')
+        }
+        return reply.status(500).send({
+          error: `Could not record purchase — ${message}`,
+        })
       }
 
       req.log.info({ userId, packId, sessionId: session.id }, 'checkout session created')
