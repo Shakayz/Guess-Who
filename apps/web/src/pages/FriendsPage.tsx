@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { Avatar } from '@red-handed/ui'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { useSocialStore } from '../store/social'
@@ -38,19 +39,6 @@ interface OutgoingRequest {
   friendshipId: string
   to: FriendUser
   createdAt: string
-}
-
-function InitialsAvatar({ username }: { username: string }) {
-  const colors = [
-    'bg-brand-600', 'bg-amber-600', 'bg-emerald-600', 'bg-red-600',
-    'bg-purple-600', 'bg-sky-600', 'bg-pink-600', 'bg-orange-600',
-  ]
-  const idx = username.charCodeAt(0) % colors.length
-  return (
-    <div className={`w-9 h-9 ${colors[idx]} rounded-full flex items-center justify-center font-bold text-white text-xs flex-shrink-0`}>
-      {username.slice(0, 2).toUpperCase()}
-    </div>
-  )
 }
 
 function ShareCard() {
@@ -270,7 +258,7 @@ export default function FriendsPage() {
               <div className="space-y-2">
                 {outgoing.map((req) => (
                   <div key={req.friendshipId} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40">
-                    <InitialsAvatar username={req.to.username} />
+                    <Avatar src={req.to.avatarUrl} username={req.to.username} size="sm" className="flex-shrink-0" />
                     <button
                       type="button"
                       onClick={() => navigate(`/player/${req.to.id}`)}
@@ -313,7 +301,7 @@ export default function FriendsPage() {
                 <div className="space-y-2">
                   {requests.map((req) => (
                     <div key={req.friendshipId} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40">
-                      <InitialsAvatar username={req.from.username} />
+                      <Avatar src={req.from.avatarUrl} username={req.from.username} size="sm" className="flex-shrink-0" />
                       <button
                         type="button"
                         onClick={() => navigate(`/player/${req.from.id}`)}
@@ -371,7 +359,7 @@ export default function FriendsPage() {
                   return (
                     <div key={f.friendshipId} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40 hover:border-neutral-700 transition-colors">
                       <div className="relative">
-                        <InitialsAvatar username={f.user.username} />
+                        <Avatar src={f.user.avatarUrl} username={f.user.username} size="sm" className="flex-shrink-0" />
                         {unread > 0 && (
                           <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[9px] text-white font-bold">
                             {unread > 9 ? '9+' : unread}
@@ -432,7 +420,7 @@ export default function FriendsPage() {
                   const f = u.friendship
                   return (
                     <div key={u.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40">
-                      <InitialsAvatar username={u.username} />
+                      <Avatar src={u.avatarUrl} username={u.username} size="sm" className="flex-shrink-0" />
                       <button
                         type="button"
                         onClick={() => navigate(`/player/${u.id}`)}
