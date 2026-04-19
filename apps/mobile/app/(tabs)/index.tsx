@@ -580,15 +580,13 @@ export default function HomeScreen() {
                 <View className="flex-row items-center justify-between gap-3">
                   <View className="flex-1 pr-2">
                     <View className="flex-row items-center gap-1.5">
-                      <Text className="text-sm">{vocalMode ? '🎙️' : '⌨️'}</Text>
+                      <Text className="text-sm">🎙️</Text>
                       <Text className="text-white font-semibold" style={{ fontSize: 14 * fontScale }}>
-                        {vocalMode ? t('lobby.vocalMode', 'Vocal mode') : t('home.lobbyTypingMode')}
+                        {t('lobby.vocalMode', 'Vocal mode')}
                       </Text>
                     </View>
                     <Text className="text-neutral-500 mt-0.5" style={{ fontSize: 11 * fontScale }}>
-                      {vocalMode
-                        ? t('lobby.vocalModeDesc', 'Each player speaks out loud on their turn — no typing.')
-                        : t('home.lobbyTypingModeDesc')}
+                      {t('lobby.vocalModeDesc', 'Each player speaks out loud on their turn — no typing.')}
                     </Text>
                   </View>
                   <TouchableOpacity

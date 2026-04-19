@@ -614,13 +614,11 @@ export default function HomePage() {
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white flex items-center gap-2">
-                    <span>{vocalMode ? '🎙️' : '⌨️'}</span>
-                    <span>{vocalMode ? t('lobby.vocalMode', 'Vocal mode') : t('home.lobbyTypingMode')}</span>
+                    <span>🎙️</span>
+                    <span>{t('lobby.vocalMode', 'Vocal mode')}</span>
                   </p>
                   <p className="text-[11px] text-neutral-500 mt-0.5">
-                    {vocalMode
-                      ? t('lobby.vocalModeDesc', 'Each player speaks out loud on their turn — no typing.')
-                      : t('home.lobbyTypingModeDesc')}
+                    {t('lobby.vocalModeDesc', 'Each player speaks out loud on their turn — no typing.')}
                   </p>
                 </div>
                 <button
