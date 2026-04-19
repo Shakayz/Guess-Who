@@ -88,7 +88,22 @@ services:
         # migration is wedged in `_prisma_migrations`, every prisma.purchase.create
         # (the shop checkout path) fails with "column purchases.giftReceiverId
         # does not exist" because Prisma's INSERT references all scalar fields.
-        echo "ALTER TABLE \"purchases\" ADD COLUMN IF NOT EXISTS \"giftReceiverId\" TEXT; ALTER TABLE \"purchases\" ADD COLUMN IF NOT EXISTS \"premiumPlanId\" VARCHAR(16); ALTER TABLE \"gifts\" ADD COLUMN IF NOT EXISTS \"premiumPlanId\" VARCHAR(16);" \
+        #
+        # Run each ALTER in its own `prisma db execute` invocation. The third
+        # statement — ALTER TABLE "gifts" — targets a table that may not exist
+        # at all on staging (the Gift model is in schema.prisma but no migration
+        # ever CREATE TABLEs it; staging came up from migrate deploy so the
+        # table is absent). When all three were bundled, the pg driver ran them
+        # in a single implicit transaction and the gifts failure rolled back
+        # the purchases ALTERs — leaving giftReceiverId missing and every
+        # coin-pack buy 500ing. `IF EXISTS` on the gifts ALTER keeps the third
+        # call a no-op when the table is gone, and the split ensures a failure
+        # on one can't undo the others.
+        echo "ALTER TABLE \"purchases\" ADD COLUMN IF NOT EXISTS \"giftReceiverId\" TEXT;" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        echo "ALTER TABLE \"purchases\" ADD COLUMN IF NOT EXISTS \"premiumPlanId\" VARCHAR(16);" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        echo "ALTER TABLE IF EXISTS \"gifts\" ADD COLUMN IF NOT EXISTS \"premiumPlanId\" VARCHAR(16);" \
           | prisma db execute --stdin --schema prisma/schema.prisma || true
         # Self-heal for 20260419040000_add_user_emotes. The users.equippedEmotes
         # column is included in Prisma's default SELECT for any user.findUnique
