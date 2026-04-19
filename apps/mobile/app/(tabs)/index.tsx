@@ -123,8 +123,19 @@ export default function HomeScreen() {
     maxWait: MATCHMAKING_CONFIG.MAX_WAIT_SECONDS, idealPlayers: MATCHMAKING_CONFIG.IDEAL_PLAYERS,
   })
 
-  const hasCategories = selectedMode === 'normal' || selectedMode === 'lobby'
+  // Categories only apply in "Special" sub-mode — the Normal game runs on the
+  // full word pool. Ranked has no sub-mode and never exposes categories.
+  const hasCategories =
+    (selectedMode === 'normal' && unrankedSubMode === 'special') ||
+    (selectedMode === 'lobby' && lobbyGameMode === 'special')
   const hasSubMode = selectedMode === 'normal' || selectedMode === 'lobby'
+
+  // Keep state in sync with visibility: clear any stale picks whenever the
+  // category UI is hidden, so switching Special → Normal doesn't silently
+  // smuggle filters into the matchmaking / create-lobby payload.
+  useEffect(() => {
+    if (!hasCategories && categories.length > 0) setCategories([])
+  }, [hasCategories, categories.length])
 
   // Matchmaking listeners
   useEffect(() => {
