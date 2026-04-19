@@ -142,13 +142,14 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
           text: msg.text,
           createdAt: msg.createdAt,
         }
-        // Send to recipient if online
-        const recipientSocketId = onlineUsers.get(data.toUserId)
-        if (recipientSocketId) {
-          io.to(recipientSocketId).emit('dm:receive' as any, payload)
-        }
-        // Confirm to sender
-        socket.emit('dm:receive' as any, payload)
+        // Deliver via the per-user room so every tab/device of the recipient
+        // gets it. The old `onlineUsers.get()` lookup only held the most
+        // recent socket id per user, so a second tab or a brief reconnect
+        // could leave the map pointing at a dead socket and silently drop
+        // the message.
+        io.to(`user:${data.toUserId}`).emit('dm:receive' as any, payload)
+        // Confirm to sender on every tab/device they have open, too
+        io.to(`user:${socket.data.userId}`).emit('dm:receive' as any, payload)
         // Fire dm_sent achievement event
         await evaluateEvent(io, 'dm_sent', { userId: socket.data.userId, otherUserId: data.toUserId }).catch(() => {})
       } catch {}
