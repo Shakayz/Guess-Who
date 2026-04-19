@@ -593,23 +593,29 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Resolve the viewer ↔ profile friendship so the client can show the
     // correct action without first clicking and hitting a 400 error.
+    // Wrapped in try/catch so a failure here (e.g. missing table on a fresh
+    // environment, stale Prisma client) never takes down the whole profile.
     let friendship: { id: string; status: 'accepted' | 'pending_outgoing' | 'pending_incoming' } | null = null
     if (viewerId && viewerId !== id) {
-      const f = await prisma.friendship.findFirst({
-        where: {
-          OR: [
-            { requesterId: viewerId, addresseeId: id },
-            { requesterId: id, addresseeId: viewerId },
-          ],
-        },
-        select: { id: true, requesterId: true, status: true },
-      })
-      if (f) {
-        let fstatus: 'accepted' | 'pending_outgoing' | 'pending_incoming'
-        if (f.status === 'accepted') fstatus = 'accepted'
-        else if (f.requesterId === viewerId) fstatus = 'pending_outgoing'
-        else fstatus = 'pending_incoming'
-        friendship = { id: f.id, status: fstatus }
+      try {
+        const f = await prisma.friendship.findFirst({
+          where: {
+            OR: [
+              { requesterId: viewerId, addresseeId: id },
+              { requesterId: id, addresseeId: viewerId },
+            ],
+          },
+          select: { id: true, requesterId: true, status: true },
+        })
+        if (f) {
+          let fstatus: 'accepted' | 'pending_outgoing' | 'pending_incoming'
+          if (f.status === 'accepted') fstatus = 'accepted'
+          else if (f.requesterId === viewerId) fstatus = 'pending_outgoing'
+          else fstatus = 'pending_incoming'
+          friendship = { id: f.id, status: fstatus }
+        }
+      } catch (err) {
+        req.log.warn({ err, viewerId, targetId: id }, 'profile: friendship lookup failed, returning null')
       }
     }
 
