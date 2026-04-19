@@ -106,6 +106,10 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
 
     // Track online user — delete stale entry first to avoid race with old socket
     onlineUsers.set(userId, socket.id)
+    // Join a per-user room so per-user events (game:finished, level:xp,
+    // rank:updated, judge prompt, ...) reach every tab/device this user has
+    // connected — not just the most recent one in `onlineUsers`.
+    await socket.join(`user:${userId}`)
 
     registerRoomHandlers(io, socket)
     registerGameHandlers(io, socket)

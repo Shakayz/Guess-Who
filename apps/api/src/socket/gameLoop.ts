@@ -339,8 +339,7 @@ async function applyRankedLP(
       })
 
       if (tierChanged) {
-        const socketId = onlineUsers.get(player.userId)
-        if (socketId) io.to(socketId).emit('rank:updated' as any, { oldTier, newTier, newLP, promoted })
+        io.to(`user:${player.userId}`).emit('rank:updated' as any, { oldTier, newTier, newLP, promoted })
         // Fire rank_changed for tier-reached achievements
         await evaluateEvent(io, 'rank_changed', { userId: player.userId, newTier })
       }
@@ -451,22 +450,21 @@ async function applyXpAndLevel(
         await creditInviterForFirstGame(user.id).catch(() => null)
       }
 
-      // Notify the player about their XP gain + level progression
-      const socketId = onlineUsers.get(user.id)
-      if (socketId) {
-        const progress = xpProgressInLevel(newXp)
-        io.to(socketId).emit('level:xp' as any, {
-          xpGained:    xpGain,
-          totalXp:     newXp,
-          level:       progress.level,
-          xpInLevel:   progress.current,
-          xpForNext:   progress.needed,
-          leveledUp:   promoted,
-          oldLevel,
-          newLevel,
-          coinsEarned: coinsFromLevelUp,
-        })
-      }
+      // Notify the player about their XP gain + level progression.
+      // Emit to the per-user room so every tab/device of this user updates,
+      // not just the most recently connected one.
+      const progress = xpProgressInLevel(newXp)
+      io.to(`user:${user.id}`).emit('level:xp' as any, {
+        xpGained:    xpGain,
+        totalXp:     newXp,
+        level:       progress.level,
+        xpInLevel:   progress.current,
+        xpForNext:   progress.needed,
+        leveledUp:   promoted,
+        oldLevel,
+        newLevel,
+        coinsEarned: coinsFromLevelUp,
+      })
 
       // Fire level_up event so the achievement evaluator can unlock any
       // level_N thresholds the player just crossed.
@@ -647,11 +645,14 @@ async function finishGameWithWinner(
   }
 
   try {
-    // Emit per-socket so each player sees their own bonus breakdown.
+    // Emit per-user so each player sees their own bonus breakdown.
+    // We target `user:${userId}` instead of a single socket id so every tab
+    // or device the player has connected receives the navigation signal —
+    // `onlineUsers` only tracks the most recently connected socket per user,
+    // which leaves earlier tabs stuck on the round-reveal screen.
     let emittedToSomeone = false
     for (const p of state.players) {
-      const sid = onlineUsers.get(p.userId)
-      if (!sid) continue
+      if (!onlineUsers.has(p.userId)) continue
       emittedToSomeone = true
       const r = perPlayerRewards.get(p.userId)
       const rewards = {
@@ -665,7 +666,7 @@ async function finishGameWithWinner(
         newStreakCount: r?.newStreakCount ?? 0,
         gameCostPaid: costForPlayer(p.userId),
       }
-      io.to(sid).emit('game:finished', {
+      io.to(`user:${p.userId}`).emit('game:finished', {
         winner: winner as any,
         finalRound: roundPayload as any,
         rewards,
@@ -1272,14 +1273,15 @@ async function _resolveRound(io: IO, roomId: string) {
       const survivalLevelUpRewards = await applyXpAndLevel(io, state.players, 'red_handed', isRankedSurvival)
       const survivalLpChange = isRankedSurvival ? LP_REWARDS.SURVIVAL_VILLAGER_LOSS : 0
       try {
-        // Broadcast per-socket so each surviving redHanded sees their own
-        // level-up coin total (level × 10 per level gained).
+        // Broadcast per-user so each surviving redHanded sees their own
+        // level-up coin total (level × 10 per level gained). Targeting the
+        // user room (not a single socket) ensures all of the player's tabs
+        // navigate to /results, not just the most recently connected one.
         let emitted = false
         for (const p of state.players as any[]) {
-          const sid = onlineUsers.get(p.userId)
-          if (!sid) continue
+          if (!onlineUsers.has(p.userId)) continue
           emitted = true
-          io.to(sid).emit('game:finished', {
+          io.to(`user:${p.userId}`).emit('game:finished', {
             winner: 'red_handed',
             finalRound: roundPayload as any,
             rewards: {
@@ -1428,14 +1430,11 @@ async function startTiebreakerVoting(io: IO, roomId: string) {
     const candidateUsernames = tiedPlayerIds.map((id: string) =>
       state.players.find((p: any) => p.userId === id)?.username ?? id,
     )
-    const judgeSocketId = onlineUsers.get(judge.userId)
-    if (judgeSocketId) {
-      io.to(judgeSocketId).emit('judge:decide-prompt' as any, {
-        candidateUserIds: tiedPlayerIds,
-        candidateUsernames,
-        timeSeconds: JUDGE_DECIDE_SECONDS,
-      })
-    }
+    io.to(`user:${judge.userId}`).emit('judge:decide-prompt' as any, {
+      candidateUserIds: tiedPlayerIds,
+      candidateUsernames,
+      timeSeconds: JUDGE_DECIDE_SECONDS,
+    })
     // Timeout: no decision → auto-pick a random tied player
     clearRoomTimer(roomId)
     const t = setTimeout(async () => {
