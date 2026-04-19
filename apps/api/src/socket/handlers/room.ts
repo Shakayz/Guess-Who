@@ -20,6 +20,90 @@ const FALLBACK_WORDS = [
   { wordA: 'Coffee',  wordB: 'Tea'    },
 ]
 
+/**
+ * Remove a user from a waiting lobby's Redis state. Idempotent and safe to
+ * call when the user isn't actually a member. Handles three outcomes:
+ *
+ *  - Lobby is empty after removal → delete Redis state and flip the Postgres
+ *    row to `status='closed'` so the public browser drops it immediately.
+ *  - Removed player was the host → promote the next remaining player and
+ *    broadcast `room:host-changed`.
+ *  - Otherwise → persist the updated state and broadcast `player:left`.
+ *
+ * Bails out without mutating state if the game has already started
+ * (`in_progress` / `voting` / `starting`) — mid-game departures go through
+ * `forfeitPlayer` in the `room:leave` handler, not here. Takes a per-room
+ * mutex so concurrent joins/leaves can't clobber each other.
+ *
+ * Returns `true` if the lobby was torn down (last player out).
+ */
+export async function removeUserFromWaitingLobby(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+  roomId: string,
+  userId: string,
+  leavingSocketId?: string,
+): Promise<boolean> {
+  const lockKey = `room:${roomId}:join-lock`
+  let lockAcquired = false
+  for (let i = 0; i < 15; i++) {
+    const result = await (redis as any).set(lockKey, '1', 'PX', 5000, 'NX')
+    if (result === 'OK') { lockAcquired = true; break }
+    await new Promise((r) => setTimeout(r, 25))
+  }
+  if (!lockAcquired) {
+    log.warn({ roomId, userId }, 'removeUserFromWaitingLobby: could not acquire lock, skipping')
+    return false
+  }
+
+  try {
+    const stateRaw = await redis.get(`room:${roomId}:state`)
+    if (!stateRaw) return false
+    const state = JSON.parse(stateRaw)
+
+    // Only this helper's concern — mid-game handling is up to the caller.
+    if (state.status !== 'waiting') return false
+
+    const wasMember = Array.isArray(state.players) && state.players.some((p: any) => p.userId === userId)
+    if (!wasMember) return false
+
+    state.players = state.players.filter((p: any) => p.userId !== userId)
+    const roomKey = `room:${roomId}`
+
+    if (state.players.length === 0) {
+      await redis.del(`room:${roomId}:state`)
+      await prisma.room.update({
+        where: { id: roomId },
+        data:  { status: 'closed' },
+      }).catch(() => {})
+      log.info({ roomId, userId }, 'waiting lobby closed (last player removed)')
+      if (leavingSocketId) io.to(roomKey).emit('player:left', leavingSocketId)
+      return true
+    }
+
+    // Someone remains — reassign host if the leaver was hosting.
+    const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
+    if (room && room.hostId === userId) {
+      const newHost = state.players[0]
+      newHost.isHost  = true
+      newHost.isReady = true
+      await prisma.room.update({
+        where: { id: roomId },
+        data:  { hostId: newHost.userId },
+      }).catch(() => {})
+      io.to(roomKey).emit('room:host-changed' as any, {
+        newHostId:       newHost.userId,
+        newHostUsername: newHost.username,
+      })
+    }
+
+    await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+    if (leavingSocketId) io.to(roomKey).emit('player:left', leavingSocketId)
+    return false
+  } finally {
+    await redis.del(lockKey).catch(() => {})
+  }
+}
+
 /** Start a game for a room — used by both game:start handler and matchmaking auto-start */
 async function startGameForRoom(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
@@ -485,6 +569,27 @@ export function registerRoomHandlers(
           await socket.leave(`room:${room.id}`)
           return
         }
+      }
+
+      // ── Evict from any stale waiting lobbies before joining the new one ──
+      // If the player navigated away from a previous lobby page without clicking
+      // "Leave" (browser back, creating a new lobby from Home, closing a duplicate
+      // tab), the socket is still a member of the old socket.io room AND the old
+      // Redis state still lists them as a player. That's how ghost rows ended up
+      // in the public browser ("hosted by X" showing 1/10 when X is actually in
+      // a different lobby). Evicting here keeps a user in at most one waiting
+      // lobby at a time, and tears the old one down if it empties out.
+      const staleRoomKeys = [...socket.rooms].filter(
+        (r) => r.startsWith('room:') && r !== `room:${room.id}`,
+      )
+      for (const staleRoomKey of staleRoomKeys) {
+        const staleRoomId = staleRoomKey.split(':')[1]
+        try {
+          await removeUserFromWaitingLobby(io, staleRoomId, userId, socket.id)
+        } catch (err) {
+          log.error({ err, staleRoomId, userId }, 'failed to evict user from stale lobby on join')
+        }
+        await socket.leave(staleRoomKey)
       }
 
       await socket.join(`room:${room.id}`)
@@ -1176,38 +1281,15 @@ export function registerRoomHandlers(
         const isInGame = state.status === 'in_progress' || state.status === 'voting'
 
         if (isInGame) {
-          // Voluntary leave during game = forfeit (guaranteed LP loss)
+          // Voluntary leave during game = forfeit (guaranteed LP loss).
+          // forfeitPlayer persists its own state mutations; we just broadcast.
           await forfeitPlayer(io, roomId, userId)
-          await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
           io.to(roomKey).emit('player:left', socket.id)
         } else {
-          // In lobby: remove the player entirely
-          state.players = state.players.filter((p: any) => p.userId !== userId)
-
-          if (state.players.length === 0) {
-            // Last player out — tear the lobby down so it disappears from the browser.
-            await redis.del(`room:${roomId}:state`)
-            await prisma.room.update({
-              where: { id: roomId },
-              data:  { status: 'closed' },
-            }).catch(() => {})
-            io.to(roomKey).emit('player:left', socket.id)
-          } else {
-            // ── Host reassignment ───────────────────────────────────────────
-            const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
-            if (room && room.hostId === userId) {
-              const newHost = state.players[0]
-              newHost.isHost  = true
-              newHost.isReady = true
-              await prisma.room.update({
-                where: { id: roomId },
-                data:  { hostId: newHost.userId },
-              }).catch(() => {})
-              io.to(roomKey).emit('room:host-changed' as any, { newHostId: newHost.userId, newHostUsername: newHost.username })
-            }
-            await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
-            io.to(roomKey).emit('player:left', socket.id)
-          }
+          // Waiting lobby: delegate to the shared helper so the empty→close
+          // and host-reassignment paths stay consistent with room:join's
+          // stale-lobby eviction.
+          await removeUserFromWaitingLobby(io, roomId, userId, socket.id)
         }
       }
       await socket.leave(roomKey)

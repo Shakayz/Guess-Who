@@ -5,7 +5,7 @@ import { env } from '../config/env'
 import { childLogger } from '../config/logger'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
-import { registerRoomHandlers } from './handlers/room'
+import { registerRoomHandlers, removeUserFromWaitingLobby } from './handlers/room'
 import { registerGameHandlers } from './handlers/game'
 import { registerChatHandlers } from './handlers/chat'
 import { registerMatchmakingHandlers, cleanupEmptyQueue } from './handlers/matchmaking'
@@ -489,44 +489,21 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         const wasInGame = state.status === 'in_progress' || state.status === 'voting'
 
         if (wasInGame) {
-          // Mid-game: mark as eliminated (forfeit), don't remove from player list
+          // Mid-game disconnect: mark as eliminated but keep the player entry
+          // so reconnect can resume correctly. Host-loss here is cosmetic only —
+          // intentionally not reassigning host during an active game.
           const player = state.players.find((p: any) => p.userId === userId)
           if (player && player.status === 'alive') player.status = 'eliminated'
-        } else {
-          // In lobby: remove the player entirely
-          state.players = state.players.filter((p: any) => p.userId !== userId)
-        }
-
-        if (!wasInGame && state.players.length === 0) {
-          // Last player out — tear the lobby down so it disappears from the browser.
-          await redis.del(`room:${roomId}:state`)
-          await prisma.room.update({
-            where: { id: roomId },
-            data:  { status: 'closed' },
-          }).catch(() => {})
+          await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
           io.to(roomKey).emit('player:left', socket.id)
-          continue
+        } else {
+          // Waiting lobby: delegate to the shared helper so the empty→close,
+          // host-reassignment, and broadcast paths stay consistent with the
+          // room:leave handler and the stale-lobby eviction in room:join.
+          await removeUserFromWaitingLobby(io, roomId, userId, socket.id).catch((err) => {
+            log.error({ err, roomId, userId }, 'disconnect: removeUserFromWaitingLobby failed')
+          })
         }
-
-        // ── Host reassignment ───────────────────────────────────────────────
-        // Only reassign host if game is in waiting state (mid-game host loss is cosmetic only)
-        if (!wasInGame && state.players.length > 0) {
-          const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
-          if (room && room.hostId === userId) {
-            // Promote the first remaining player to host
-            const newHost = state.players[0]
-            newHost.isHost  = true
-            newHost.isReady = true
-            await prisma.room.update({
-              where: { id: roomId },
-              data:  { hostId: newHost.userId },
-            }).catch(() => {})
-            io.to(roomKey).emit('room:host-changed' as any, { newHostId: newHost.userId, newHostUsername: newHost.username })
-          }
-        }
-
-        await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
-        io.to(roomKey).emit('player:left', socket.id)
       }
     })
   })
