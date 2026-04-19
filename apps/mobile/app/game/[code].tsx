@@ -26,6 +26,7 @@ import { HapticManager } from '../../lib/haptics'
 import { SoundManager } from '../../lib/sounds'
 import { UrgentPulse, Heartbeat } from '../../components/anim/AnimatedViews'
 import { Wordmark } from '../../components/Wordmark'
+import { VoiceChannel } from '../../lib/voice'
 
 const log = createLogger('game-screen')
 
@@ -326,6 +327,8 @@ export default function GameScreen() {
   const [vocalTurnIndex, setVocalTurnIndex] = useState(0)
   const [vocalTotalSpeakers, setVocalTotalSpeakers] = useState(0)
   const vocalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const voiceChannelRef = useRef<VoiceChannel | null>(null)
+  const [voiceMicError, setVoiceMicError] = useState<string | null>(null)
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatScrollRef = useRef<ScrollView>(null)
@@ -379,6 +382,33 @@ export default function GameScreen() {
       setShowRoleReveal(true)
     }
   }, []) // only on mount
+
+  // ─── Voice channel (vocal mode) ────────────────────────────────────────────
+  // When the room is in vocal mode, every player joins a WebRTC mesh for
+  // the whole game — mic is captured once on game start and the audio
+  // tracks stay live throughout. The server-side `round:vocal-turn` event
+  // still dictates *whose* turn it is; this effect just ensures the audio
+  // pipe is open so every speaker can actually be heard.
+  useEffect(() => {
+    if (!vocalMode || !user?.id) return
+    const socket = getSocket()
+    if (!socket) return
+
+    const vc = new VoiceChannel({ socket, selfUserId: user.id })
+    voiceChannelRef.current = vc
+    vc.onMicError = (err) => {
+      log.warn('mic error', { message: err.message })
+      setVoiceMicError(err.message)
+    }
+    vc.start().catch((err) => {
+      log.warn('voice start failed', { message: (err as Error).message })
+    })
+
+    return () => {
+      try { vc.destroy() } catch {}
+      if (voiceChannelRef.current === vc) voiceChannelRef.current = null
+    }
+  }, [vocalMode, user?.id])
 
   // ─── Show elimination overlay ──────────────────────────────────────────────
 
@@ -1126,6 +1156,13 @@ export default function GameScreen() {
                     style={{ width: `${pct * 100}%` }}
                   />
                 </View>
+                {voiceMicError && (
+                  <View className="rounded-xl border border-amber-800 bg-amber-950/40 px-3 py-2 mb-3">
+                    <Text className="text-amber-300 text-xs font-semibold">
+                      Microphone unavailable — other players won't hear you. Enable mic in system settings to join the conversation.
+                    </Text>
+                  </View>
+                )}
                 {speaker ? (
                   <View className="flex-row items-center gap-3 mb-3">
                     <Avatar url={speaker.avatarUrl} username={speaker.username ?? '?'} size={40} />

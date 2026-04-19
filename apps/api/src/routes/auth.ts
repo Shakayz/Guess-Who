@@ -13,12 +13,23 @@ import { allocateReferralCode, creditInvitee, resolveInviter } from '../services
 import bcrypt from 'bcryptjs'
 
 const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de'] as const
+const SUPPORTED_LOCALE_SET: ReadonlySet<string> = new Set(SUPPORTED_LOCALES)
 
 const signUpSchema = z.object({
   username: z.string().min(3).max(20),
   email: z.string().email(),
   password: z.string().min(8),
-  locale: z.string().transform((v) => v.split('-')[0].toLowerCase()).pipe(z.enum(SUPPORTED_LOCALES)).default('en'),
+  // Be lenient: clients now auto-detect device/browser language and send
+  // whatever the OS reports (e.g. 'fr-FR', 'ru'). Strip the region tag and
+  // fall back to 'en' when we don't ship a word pool for that language, so
+  // auto-detection can never fail signup for an otherwise-valid account.
+  locale: z
+    .string()
+    .transform((v) => {
+      const base = v.split('-')[0].toLowerCase()
+      return SUPPORTED_LOCALE_SET.has(base) ? base : 'en'
+    })
+    .default('en'),
   // Optional invite code — when present and valid, the new user is credited
   // via services/referral.creditInvitee() right after the account is created.
   // The inviter's reward is deferred until the invitee plays their first

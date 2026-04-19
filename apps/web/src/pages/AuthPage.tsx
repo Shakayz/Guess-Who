@@ -101,7 +101,7 @@ export default function AuthPage() {
     if (!code) return
     const redirectUri = `${window.location.origin}/auth/discord/callback`
     setOauthLoading('discord')
-    api.post<any>('/auth/discord/verify', { code, redirectUri })
+    api.post<any>('/auth/discord/verify', { code, redirectUri, locale: i18n.language })
       .then((data) => {
         window.history.replaceState({}, '', '/auth')
         handleOAuthResponse(data)
@@ -179,7 +179,7 @@ export default function AuthPage() {
             return
           }
           try {
-            const data = await api.post<any>('/auth/google/verify', { accessToken: response.access_token })
+            const data = await api.post<any>('/auth/google/verify', { accessToken: response.access_token, locale: i18n.language })
             handleOAuthResponse(data)
           } catch (err: any) {
             setError(err.message ?? 'Google sign-in failed')
@@ -241,7 +241,7 @@ export default function AuthPage() {
           const name = res.user?.name
             ? `${res.user.name.firstName ?? ''} ${res.user.name.lastName ?? ''}`.trim()
             : undefined
-          const data = await api.post<any>('/auth/apple/verify', { identityToken, name })
+          const data = await api.post<any>('/auth/apple/verify', { identityToken, name, locale: i18n.language })
           handleOAuthResponse(data)
         })
         .catch((err: AppleIDSignInError | Error | undefined) => {

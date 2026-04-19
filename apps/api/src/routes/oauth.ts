@@ -11,6 +11,17 @@ import { allocateReferralCode, creditInvitee, resolveInviter } from '../services
 // user would end up with after verifying (initial + verification reward).
 const OAUTH_INITIAL_STAR_COINS = INITIAL_STAR_COINS + EMAIL_VERIFICATION_REWARD
 
+// Keep in sync with SUPPORTED_LOCALES in routes/auth.ts. The OAuth clients pass
+// whatever the device/browser reports (e.g. 'fr-FR', 'en-US', 'zh-Hans-CN');
+// we strip the region tag and fall back to 'en' if it's not one we ship a
+// language pack for.
+const SUPPORTED_LOCALES = new Set(['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de'])
+function normalizeLocale(raw: unknown): string {
+  if (typeof raw !== 'string' || !raw) return 'en'
+  const base = raw.split('-')[0].toLowerCase()
+  return SUPPORTED_LOCALES.has(base) ? base : 'en'
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function issueToken(fastify: any, user: { id: string; username: string }) {
@@ -58,8 +69,9 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
   // Body: { idToken?: string, accessToken?: string, userInfo?: object }
   // Supports both ID token (from credential response) and access token (from implicit flow)
   fastify.post('/google/verify', async (req, reply) => {
-    const body = req.body as { idToken?: string; accessToken?: string; userInfo?: any }
+    const body = req.body as { idToken?: string; accessToken?: string; userInfo?: any; locale?: string }
     if (!env.GOOGLE_CLIENT_ID) return reply.status(503).send({ error: 'Google auth not configured' })
+    const detectedLocale = normalizeLocale(body.locale)
 
     req.log.info('google oauth verify attempt')
 
@@ -110,14 +122,15 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
               emailVerified: true,
               starCoins: OAUTH_INITIAL_STAR_COINS,
               referralCode,
+              locale: detectedLocale,
             },
           })
           isNewUser = true
         }
       }
 
-      if (isNewUser) {
-        req.log.info({ userId: user.id }, 'google oauth: new user, needs username setup')
+      if (isNewUser || user.username.startsWith('pending_')) {
+        req.log.info({ userId: user.id, locale: detectedLocale }, 'google oauth: needs username setup')
         const setupToken = fastify.jwt.sign({ sub: user.id, setup: true }, { expiresIn: '10m' })
         const suggestedUsername = name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || 'user'
         return reply.send({ needsUsername: true, setupToken, suggestedUsername, user: { id: user.id, email: user.email } })
@@ -135,8 +148,9 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /api/auth/apple/verify
   // Body: { identityToken: string, name?: string }  — from Apple Sign In
   fastify.post('/apple/verify', async (req, reply) => {
-    const { identityToken, name } = req.body as { identityToken?: string; name?: string }
+    const { identityToken, name, locale } = req.body as { identityToken?: string; name?: string; locale?: string }
     if (!identityToken) return reply.status(400).send({ error: 'Missing identityToken' })
+    const detectedLocale = normalizeLocale(locale)
 
     req.log.info('apple oauth verify attempt')
 
@@ -174,14 +188,15 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
             emailVerified: true,
             starCoins: OAUTH_INITIAL_STAR_COINS,
             referralCode,
+            locale: detectedLocale,
           },
         })
         isNewUser = true
       }
     }
 
-    if (isNewUser) {
-      req.log.info({ userId: user.id }, 'apple oauth: new user, needs username setup')
+    if (isNewUser || user.username.startsWith('pending_')) {
+      req.log.info({ userId: user.id, locale: detectedLocale }, 'apple oauth: needs username setup')
       const setupToken = fastify.jwt.sign({ sub: user.id, setup: true }, { expiresIn: '10m' })
       const suggestedUsername = displayName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || 'user'
       return reply.send({ needsUsername: true, setupToken, suggestedUsername, user: { id: user.id, email: user.email } })
@@ -201,13 +216,14 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
   // those match on token exchange, so the client is the source of truth —
   // supports staging/preview/prod without hardcoded URIs).
   fastify.post('/discord/verify', async (req, reply) => {
-    const { code, redirectUri } = req.body as { code?: string; redirectUri?: string }
+    const { code, redirectUri, locale } = req.body as { code?: string; redirectUri?: string; locale?: string }
     if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET) {
       return reply.status(503).send({ error: 'Discord auth not configured' })
     }
     if (!code || !redirectUri) {
       return reply.status(400).send({ error: 'Missing code or redirectUri' })
     }
+    const detectedLocale = normalizeLocale(locale)
 
     req.log.info('discord oauth verify attempt')
 
@@ -277,14 +293,15 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
               emailVerified: true,
               starCoins: OAUTH_INITIAL_STAR_COINS,
               referralCode,
+              locale: detectedLocale,
             },
           })
           isNewUser = true
         }
       }
 
-      if (isNewUser) {
-        req.log.info({ userId: user.id }, 'discord oauth: new user, needs username setup')
+      if (isNewUser || user.username.startsWith('pending_')) {
+        req.log.info({ userId: user.id, locale: detectedLocale }, 'discord oauth: needs username setup')
         const setupToken = fastify.jwt.sign({ sub: user.id, setup: true }, { expiresIn: '10m' })
         const suggestedUsername = displayName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || 'user'
         return reply.send({ needsUsername: true, setupToken, suggestedUsername, user: { id: user.id, email: user.email } })
