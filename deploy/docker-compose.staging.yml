@@ -83,6 +83,13 @@ services:
         # DB that already has the column.
         echo "ALTER TABLE \"rooms\" ADD COLUMN IF NOT EXISTS \"isPublic\" BOOLEAN NOT NULL DEFAULT FALSE; CREATE INDEX IF NOT EXISTS \"rooms_isPublic_status_idx\" ON \"rooms\"(\"isPublic\", \"status\");" \
           | prisma db execute --stdin --schema prisma/schema.prisma || true
+        # Same self-heal for the gift/premium fields added by
+        # 20260419000000_gift_premium_and_purchase_gift_fields. When that
+        # migration is wedged in `_prisma_migrations`, every prisma.purchase.create
+        # (the shop checkout path) fails with "column purchases.giftReceiverId
+        # does not exist" because Prisma's INSERT references all scalar fields.
+        echo "ALTER TABLE \"purchases\" ADD COLUMN IF NOT EXISTS \"giftReceiverId\" TEXT; ALTER TABLE \"purchases\" ADD COLUMN IF NOT EXISTS \"premiumPlanId\" VARCHAR(16); ALTER TABLE \"gifts\" ADD COLUMN IF NOT EXISTS \"premiumPlanId\" VARCHAR(16);" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
         prisma migrate deploy || echo "[entrypoint] prisma migrate deploy failed; starting API anyway so /health responds (DB-backed routes may 500 until migrations converge)"
         exec node dist/index.js
     depends_on:
