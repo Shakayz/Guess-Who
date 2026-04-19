@@ -46,8 +46,32 @@ services:
   api:
     image: ${API_IMAGE}
     restart: always
-    # Staging: skip the heavy seed step (prod still seeds via default CMD)
-    command: ["sh", "-c", "prisma migrate deploy && node dist/index.js"]
+    # Staging: skip the heavy seed step (prod still seeds via default CMD).
+    #
+    # Before `migrate deploy`, we unstick any wedged migration state so the
+    # container does not crash-loop on restart. Three cases we clean up:
+    #   1. Rows with `finished_at IS NULL` — a migration that errored mid-apply
+    #      leaves `_prisma_migrations` in a "failed" state. `migrate deploy`
+    #      refuses to proceed until someone resolves it, so every subsequent
+    #      boot returns 502 through Caddy.
+    #   2. The old `20260418050000_purchase_platform_fields` name — now
+    #      renamed to `20260419010000_...`. If staging recorded the old name,
+    #      `migrate deploy` sees "applied migration not in folder" (drift) and
+    #      aborts.
+    #   3. The new `20260419010000_purchase_platform_fields` row — cleared so
+    #      the now-idempotent migration re-runs from a known state
+    #      (`ALTER TABLE ... IF NOT EXISTS` makes re-applying a no-op if the
+    #      columns/indexes already exist, and avoids the
+    #      "migration modified after applied" checksum error).
+    # All three are cleared best-effort (|| true) so a fresh DB — where
+    # `_prisma_migrations` does not yet exist — boots normally.
+    command:
+      - "sh"
+      - "-c"
+      - |
+        echo "DELETE FROM \"_prisma_migrations\" WHERE finished_at IS NULL OR migration_name IN ('20260418050000_purchase_platform_fields', '20260419010000_purchase_platform_fields');" \
+          | prisma db execute --stdin --schema prisma/schema.prisma 2>/dev/null || true
+        prisma migrate deploy && node dist/index.js
     depends_on:
       postgres:
         condition: service_healthy
