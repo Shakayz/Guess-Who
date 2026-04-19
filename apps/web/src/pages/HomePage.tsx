@@ -92,11 +92,10 @@ export default function HomePage() {
   // appear once the player has picked "Create lobby" from the Custom Lobby
   // chooser — before that we only show the two big Create/Join cards.
   const showLobbyForm = selectedMode === 'lobby' && lobbyAction === 'create'
-  // Categories only apply in "Special" sub-mode — the Normal game runs on the
-  // full word pool. Ranked has no sub-mode and never exposes categories.
-  const hasCategories =
-    (selectedMode === 'normal' && unrankedSubMode === 'special') ||
-    (showLobbyForm && lobbyGameMode === 'special')
+  // Category picking is a Custom Lobby (Special) feature only. Unranked —
+  // including Special — always plays the full word pool so matchmaking stays
+  // simple and queues don't fragment by filter combinations.
+  const hasCategories = showLobbyForm && lobbyGameMode === 'special'
   const hasSubMode = selectedMode === 'normal' || showLobbyForm
 
   // Keep state in sync with visibility: clear any stale picks whenever the
