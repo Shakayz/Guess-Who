@@ -10,6 +10,7 @@ import {
   EMAIL_VERIFICATION_CODE_TTL_MINUTES,
 } from '@red-handed/shared'
 import { allocateReferralCode, creditInvitee, resolveInviter } from '../services/referral'
+import { grantDailyLoginBonus } from '../services/dailyRewards'
 import bcrypt from 'bcryptjs'
 
 const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de'] as const
@@ -367,6 +368,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get('/me', { onRequest: [fastify.authenticate] }, async (req, reply) => {
     const payload = req.user as { sub: string }
+    // Credit the +20 daily login bonus (idempotent per UTC day) before we read
+    // the row, so the response reflects the freshly incremented starCoins in
+    // the same request. `grantDailyLoginBonus` swallows its own errors — a
+    // DB hiccup here must never block /me, since that would brick the app.
+    const loginBonus = await grantDailyLoginBonus(payload.sub)
     const [user, honors] = await Promise.all([
       prisma.user.findUnique({
         where: { id: payload.sub },
@@ -422,6 +428,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       honorTeamplayer: honorMap['teamplayer'] ?? 0,
       honorSharpMind:  honorMap['sharp_mind']  ?? 0,
       honorGoodSport:  honorMap['good_sport']  ?? 0,
+      // 0 on every call except the first one of each UTC day, when it's
+      // DAILY_BONUS (20). Lets the client show a "+20 ⭐ Daily login bonus"
+      // toast without re-querying the wallet to detect the delta.
+      dailyLoginBonusEarned: loginBonus.bonusGranted,
     })
   })
 }

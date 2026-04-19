@@ -52,6 +52,12 @@ model User {
   pushToken     String?
   lastPlayedAt     DateTime?
   dailyStreakCount Int       @default(0)
+  // Timestamp of the last `/auth/me` call that credited the +20 daily login
+  // bonus. Separate from `lastPlayedAt` because the login bonus is awarded
+  // for *connecting* (so a broke player can't be locked out of the economy
+  // by the entry fee), while the 7-day streak bonus remains tied to actually
+  // finishing a game. Compared at UTC-day granularity.
+  lastDailyBonusAt DateTime?
   // ── Premium subscription ────────────────────────────────────────────────────
   // `premiumUntil` is the single source of truth: a user is premium iff this
   // column is non-null and strictly in the future. The webhook writes

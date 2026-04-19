@@ -368,12 +368,12 @@ function CoinsTab({
         </Text>
         <EarnRow
           icon="🎁"
-          text={t('shop.earnDailyBonus', { defaultValue: 'Daily bonus: +20 ⭐ for your first game each day.' })}
+          text={t('shop.earnDailyBonus', { defaultValue: 'Daily login: +20 ⭐ just for opening the app each day.' })}
           fontScale={fontScale}
         />
         <EarnRow
           icon="🔥"
-          text={t('shop.earnStreak', { defaultValue: '7-day streak: +100 ⭐ every 7 days.' })}
+          text={t('shop.earnStreak', { defaultValue: '7-day play streak: +100 ⭐ every 7 days you play a game.' })}
           fontScale={fontScale}
         />
         <EarnRow

@@ -623,7 +623,7 @@ async function finishGameWithWinner(
       newStreakCount: applied.newStreakCount,
     })
     // Fire daily_login achievement event if the streak actually ticked forward.
-    if (applied.dailyBonusEarned > 0) {
+    if (applied.streakTicked) {
       await evaluateEvent(io, 'daily_login', {
         userId: p.userId,
         newStreakCount: applied.newStreakCount,
