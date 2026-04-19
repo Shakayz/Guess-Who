@@ -194,6 +194,11 @@ function GlobalSocketListeners() {
     const handleDmReceive = (data: DmReceiveEvent) => {
       if (!activeDm || activeDm.friendId !== data.senderId) {
         incrementUnread(data.senderId)
+        useSocialStore.getState().pushDmToast({
+          senderId: data.senderId,
+          senderUsername: data.senderUsername,
+          text: data.text,
+        })
       }
     }
 
@@ -317,6 +322,82 @@ function FriendRequestBanner() {
           Decline
         </button>
       </div>
+    </div>
+  )
+}
+
+function DmToastStack() {
+  const toasts = useSocialStore((s) => s.dmToasts)
+  if (toasts.length === 0) return null
+  return (
+    <div className="fixed bottom-24 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+      {toasts.map((toast, i) => (
+        <DmToastItem
+          key={toast.id}
+          id={toast.id}
+          senderId={toast.senderId}
+          senderUsername={toast.senderUsername}
+          text={toast.text}
+          index={i}
+        />
+      ))}
+    </div>
+  )
+}
+
+function DmToastItem({
+  id,
+  senderId,
+  senderUsername,
+  text,
+  index,
+}: {
+  id: string
+  senderId: string
+  senderUsername: string
+  text: string
+  index: number
+}) {
+  const dismiss = useSocialStore((s) => s.dismissDmToast)
+  const setActiveDm = useSocialStore((s) => s.setActiveDm)
+  const clearUnread = useSocialStore((s) => s.clearUnread)
+
+  useEffect(() => {
+    const timer = setTimeout(() => dismiss(id), 6000)
+    return () => clearTimeout(timer)
+  }, [id, dismiss])
+
+  return (
+    <div
+      style={{ animationDelay: `${index * 60}ms` }}
+      className="pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-2xl border border-brand-600/60 bg-brand-950/95 backdrop-blur shadow-2xl text-sm animate-slide-up hover:scale-[1.02] transition-transform"
+    >
+      <button
+        type="button"
+        onClick={() => {
+          setActiveDm({ friendId: senderId, friendUsername: senderUsername })
+          clearUnread(senderId)
+          dismiss(id)
+        }}
+        className="flex items-start gap-3 text-left flex-1 min-w-0"
+      >
+        <span className="text-xl">💬</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-brand-300">New message</p>
+          <p className="text-white font-semibold truncate">
+            <span className="text-brand-400">{senderUsername}</span>
+          </p>
+          <p className="text-neutral-300 text-xs truncate">{text}</p>
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={() => dismiss(id)}
+        aria-label="Dismiss"
+        className="shrink-0 text-neutral-500 hover:text-white transition-colors text-lg leading-none"
+      >
+        ×
+      </button>
     </div>
   )
 }
@@ -528,6 +609,7 @@ export default function App() {
       <InviteBanner />
       <FriendRequestBanner />
       <FriendAcceptedToastStack />
+      <DmToastStack />
       <AchievementToastBanner />
       <MatchmakingBanner />
       <ActiveLobbyBanner />
