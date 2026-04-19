@@ -48,8 +48,19 @@ function SkeletonCard() {
 }
 
 export default function HistoryPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
+  const languageName = React.useMemo(() => {
+    try {
+      const dn = new Intl.DisplayNames([i18n.language], { type: 'language' })
+      return (code: string) => {
+        const name = dn.of(code)
+        return name ? name.charAt(0).toUpperCase() + name.slice(1) : code
+      }
+    } catch {
+      return (code: string) => code
+    }
+  }, [i18n.language])
   const [mode, setMode] = useState<HistoryMode>('unranked')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<HistoryResponse | null>(null)
@@ -205,7 +216,7 @@ export default function HistoryPage() {
                             alt=""
                             className="w-3.5 h-2.5 object-cover rounded-sm"
                           />
-                          <span>{langInfo.label}</span>
+                          <span>{languageName(langInfo.code)}</span>
                         </span>
                         <span
                           className={[
@@ -216,9 +227,6 @@ export default function HistoryPage() {
                           ].join(' ')}
                         >
                           {game.myRole === 'red_handed' ? t('gameDetail.redHandedRole') : t('gameDetail.villagerRole')}
-                        </span>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-400 bg-neutral-800/60">
-                          ⭐ +{game.starCoinsEarned}
                         </span>
                         <span
                           className={[
