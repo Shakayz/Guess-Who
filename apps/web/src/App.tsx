@@ -12,6 +12,7 @@ import { BottomNav } from './components/BottomNav'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { AchievementToastBanner } from './components/achievements/AchievementToastBanner'
 import { MatchmakingBanner } from './components/MatchmakingBanner'
+import { ActiveLobbyBanner } from './components/ActiveLobbyBanner'
 import type { MatchmakingStatus } from '@red-handed/shared'
 import { InsufficientCoinsModal } from './components/InsufficientCoinsModal'
 import { useTranslation } from 'react-i18next'
@@ -120,9 +121,12 @@ function ActiveGameRestorer() {
           log.info('active game detected', { code: data.room.code, status: data.room.status })
           useGameStore.getState().setRoom(data.room)
         } else {
-          // No active game on server — clear any stale client state
+          // No active game on server — clear any stale client state. A
+          // `waiting` lobby is NOT reported as active by /rooms/active (the
+          // endpoint only looks at GameParticipation), so we must preserve
+          // it here or the ActiveLobbyBanner would never survive a refresh.
           const store = useGameStore.getState()
-          if (store.room) {
+          if (store.room && store.room.status !== 'waiting') {
             log.info('clearing stale game state')
             store.reset()
           }
@@ -526,6 +530,7 @@ export default function App() {
       <FriendAcceptedToastStack />
       <AchievementToastBanner />
       <MatchmakingBanner />
+      <ActiveLobbyBanner />
       <GlobalMatchmakingModals />
       <BottomNav />
       <Routes>

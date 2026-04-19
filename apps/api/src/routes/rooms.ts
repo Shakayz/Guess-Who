@@ -215,30 +215,54 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     // Batch the Redis reads — one round-trip instead of N.
     const stateKeys = rooms.map((r) => `room:${r.id}:state`)
     const stateRaws = await redis.mget(...stateKeys)
-    const lobbies = rooms
-      .map((room, idx) => {
-        const raw = stateRaws[idx]
-        const state = raw ? JSON.parse(raw) : null
-        // Drop stale rows where Redis has evicted the state or the game has
-        // already advanced past `waiting` — prevents the browser from
-        // surfacing lobbies the host abandoned.
-        if (!state || state.status !== 'waiting') return null
-        const players = Array.isArray(state.players) ? state.players : []
-        // Defensive: empty lobbies are closed by the leave/disconnect handlers,
-        // but filter here too so any pre-existing stale row never surfaces.
-        if (players.length === 0) return null
-        return {
-          code: room.code,
-          host: room.host,
-          playerCount: players.length,
-          maxPlayers: room.maxPlayers,
-          gameMode: state.gameMode ?? 'normal',
-          categories: state.categories ?? [],
-          vocalMode: !!state.vocalMode,
-          language: room.language,
-          createdAt: room.createdAt.toISOString(),
+
+    // Ghost-lobby reaper: if the socket.io room channel is empty, nobody is
+    // actually connected even though Redis still lists players. This happens
+    // when every occupant's socket died unexpectedly (e.g. the server crashed
+    // mid-lobby and the disconnect handler never ran, or a proxy dropped the
+    // WebSocket without a FIN). Close such rooms on sight so they stop
+    // appearing in the browser.
+    const io = (fastify as any).io as import('socket.io').Server | undefined
+
+    const lobbies = (await Promise.all(rooms.map(async (room, idx) => {
+      const raw = stateRaws[idx]
+      const state = raw ? JSON.parse(raw) : null
+      // Drop stale rows where Redis has evicted the state or the game has
+      // already advanced past `waiting` — prevents the browser from
+      // surfacing lobbies the host abandoned.
+      if (!state || state.status !== 'waiting') return null
+      const players = Array.isArray(state.players) ? state.players : []
+      // Defensive: empty lobbies are closed by the leave/disconnect handlers,
+      // but filter here too so any pre-existing stale row never surfaces.
+      if (players.length === 0) return null
+
+      // Liveness check against the socket.io adapter. If no socket is in the
+      // `room:<id>` channel, the lobby is a ghost — every previous occupant
+      // disconnected without triggering cleanup. Close it and skip.
+      const channelSize = io?.sockets?.adapter?.rooms?.get(`room:${room.id}`)?.size ?? 0
+      if (channelSize === 0) {
+        try {
+          await redis.del(`room:${room.id}:state`)
+          await prisma.room.update({ where: { id: room.id }, data: { status: 'closed' } })
+          fastify.log.info({ roomId: room.id, code: room.code }, 'ghost lobby reaped from /public')
+        } catch (err) {
+          fastify.log.error({ err, roomId: room.id }, 'ghost lobby reap failed')
         }
-      })
+        return null
+      }
+
+      return {
+        code: room.code,
+        host: room.host,
+        playerCount: players.length,
+        maxPlayers: room.maxPlayers,
+        gameMode: state.gameMode ?? 'normal',
+        categories: state.categories ?? [],
+        vocalMode: !!state.vocalMode,
+        language: room.language,
+        createdAt: room.createdAt.toISOString(),
+      }
+    })))
       .filter((l): l is NonNullable<typeof l> => l !== null)
       // Full lobbies last — they're not joinable but worth showing as social proof.
       .sort((a, b) => {

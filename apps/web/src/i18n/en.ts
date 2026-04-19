@@ -545,6 +545,9 @@ export default {
     hostBadge: 'Host',
     kickedByHost: 'You were removed from the lobby by {{name}}',
     kickedFromLobby: 'You were removed from this lobby',
+    stillInLobby: 'Still in lobby',
+    returnToLobby: 'Tap to return',
+    leaveLobby: 'Leave lobby',
   },
   rank: {
     wooden: 'Wooden',

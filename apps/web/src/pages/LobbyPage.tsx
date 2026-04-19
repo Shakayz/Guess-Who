@@ -711,6 +711,7 @@ export default function LobbyPage() {
   const { t, i18n } = useTranslation()
   const user = useAuthStore((s) => s.user)
   const { room, setRoom, setRoleAndWord, setRound } = useGameStore()
+  const resetGameStore = useGameStore((s) => s.reset)
 
   // Block joining a DIFFERENT lobby while in an active game
   const activeRoom = useGameStore((s) => s.room)
@@ -931,6 +932,7 @@ export default function LobbyPage() {
       log.warn('socket error', { code, message: err.message })
       if (code === 'KICKED_FROM_ROOM') {
         setKickedToast(msg)
+        resetGameStore()
         setTimeout(() => navigate('/', { replace: true }), 2000)
         return
       }
@@ -943,6 +945,7 @@ export default function LobbyPage() {
         ? t('lobby.kickedByHost', { name: data.byUsername })
         : t('lobby.kickedFromLobby')
       setKickedToast(msg)
+      resetGameStore()
       setTimeout(() => navigate('/', { replace: true }), 2000)
     })
     // Game start was refused because at least one player can't afford the
@@ -1333,7 +1336,14 @@ export default function LobbyPage() {
           {/* Actions */}
           <div className="flex gap-3">
             <button
-              onClick={() => { log.info('leaving room', { code }); getSocket().emit('room:leave'); navigate('/') }}
+              onClick={() => {
+                log.info('leaving room', { code })
+                getSocket().emit('room:leave')
+                // Clear the persisted room so the ActiveLobbyBanner doesn't
+                // keep nagging the user after they intentionally left.
+                resetGameStore()
+                navigate('/')
+              }}
               className="px-4 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold text-sm transition-colors"
             >
               {t('lobby.leave')}
