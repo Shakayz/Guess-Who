@@ -560,38 +560,49 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Custom Lobby — visibility + audio mode toggles. The visibility
-              toggle controls whether the lobby shows up in the public browser;
-              pricing is identical for both (10 ⭐ host fee). */}
+          {/* Custom Lobby — visibility (two big side-by-side cards) + audio
+              mode toggle. The visibility card lets the host pick Private vs
+              Public up front instead of reading a toggle label; pricing is
+              identical for both (10 ⭐ host fee). */}
           {showLobbyForm && (
             <div className="card animate-slide-up space-y-3">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white flex items-center gap-2">
-                    <span>{lobbyPublic ? '🌐' : '🔒'}</span>
-                    <span>{lobbyPublic ? t('home.lobbyPublicLabel') : t('home.lobbyPrivateLabel')}</span>
-                  </p>
-                  <p className="text-[11px] text-neutral-500 mt-0.5">
-                    {lobbyPublic ? t('home.lobbyPublicDesc') : t('home.lobbyPrivateDesc')}
-                  </p>
-                </div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                {t('home.lobbyVisibilityLabel', 'Who can join?')}
+              </p>
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  role="switch"
-                  aria-checked={lobbyPublic}
-                  aria-label={t('home.lobbyPublicLabel')}
-                  onClick={() => setLobbyPublic((v) => !v)}
+                  onClick={() => setLobbyPublic(false)}
+                  aria-pressed={!lobbyPublic}
                   className={[
-                    'relative w-11 h-6 rounded-full transition-colors shrink-0',
-                    lobbyPublic ? 'bg-indigo-500' : 'bg-neutral-800',
+                    'flex-1 flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-sm font-semibold transition-all border',
+                    !lobbyPublic
+                      ? 'bg-neutral-800/80 border-neutral-600/60 text-white'
+                      : 'bg-neutral-900/40 border-neutral-800/60 text-neutral-500 hover:text-neutral-300',
                   ].join(' ')}
                 >
-                  <span
-                    className={[
-                      'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform',
-                      lobbyPublic ? 'translate-x-5' : 'translate-x-0',
-                    ].join(' ')}
-                  />
+                  <span className="text-lg">🔒</span>
+                  <span>{t('home.lobbyPrivateLabel')}</span>
+                  <span className={['text-[10px] font-normal text-center leading-tight', !lobbyPublic ? 'opacity-70' : 'text-neutral-600'].join(' ')}>
+                    {t('home.lobbyPrivateDesc')}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLobbyPublic(true)}
+                  aria-pressed={lobbyPublic}
+                  className={[
+                    'flex-1 flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-sm font-semibold transition-all border',
+                    lobbyPublic
+                      ? 'bg-indigo-950/60 border-indigo-700/50 text-indigo-300'
+                      : 'bg-neutral-900/40 border-neutral-800/60 text-neutral-500 hover:text-neutral-300',
+                  ].join(' ')}
+                >
+                  <span className="text-lg">🌐</span>
+                  <span>{t('home.lobbyPublicLabel')}</span>
+                  <span className={['text-[10px] font-normal text-center leading-tight', lobbyPublic ? 'opacity-70' : 'text-neutral-600'].join(' ')}>
+                    {t('home.lobbyPublicDesc')}
+                  </span>
                 </button>
               </div>
 
