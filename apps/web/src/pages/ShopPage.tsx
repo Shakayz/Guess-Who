@@ -117,6 +117,11 @@ export default function ShopPage() {
               (balance was credited by the webhook) or ?checkout=canceled. */}
           <CheckoutBanner />
 
+          {/* Gifts received from friends. Hidden when empty. Placed above the
+              tab content so it's the first thing a user sees when they open
+              the shop to redeem. */}
+          <GiftsInbox />
+
           {tab === 'coins' && <CoinsTab onPlayClick={() => navigate('/')} />}
           {tab === 'premium' && <PremiumTab />}
         </div>
@@ -129,6 +134,7 @@ export default function ShopPage() {
 
 function CoinsTab({ onPlayClick }: { onPlayClick: () => void }) {
   const { t } = useTranslation()
+  const [giftTarget, setGiftTarget] = useState<{ kind: 'pack'; id: string; label: string } | null>(null)
 
   // Pack catalogue comes from the API so prices/bonuses stay in sync with the
   // server-side COIN_PACKS constant and can be evolved without a web deploy.
@@ -195,6 +201,16 @@ function CoinsTab({ onPlayClick }: { onPlayClick: () => void }) {
                   >
                     {isBusy ? '…' : t('shop.buy')}
                   </button>
+                  <button
+                    onClick={() => setGiftTarget({
+                      kind: 'pack',
+                      id: pack.id,
+                      label: `${pack.amount.toLocaleString()}⭐ · ${formatPrice(pack.priceCents, pack.currency)}`,
+                    })}
+                    className="mt-1.5 w-full py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold transition-colors"
+                  >
+                    🎁 Gift
+                  </button>
                 </div>
               )
             })}
@@ -206,6 +222,13 @@ function CoinsTab({ onPlayClick }: { onPlayClick: () => void }) {
           </div>
         )}
       </section>
+
+      {giftTarget && (
+        <GiftModal
+          target={giftTarget}
+          onClose={() => setGiftTarget(null)}
+        />
+      )}
 
       {/* Honest alternative — the game's real earning mechanics. These are
           the channels dailyRewards.ts already implements on the server. */}
@@ -234,6 +257,86 @@ function EarnRow({ icon, text }: { icon: string; text: string }) {
       <span className="text-xl shrink-0">{icon}</span>
       <p className="text-sm text-neutral-300">{text}</p>
     </div>
+  )
+}
+
+// ─── Gifts inbox ──────────────────────────────────────────────────────────────
+// Shows gifts the user has received but not yet claimed. Claiming credits coins
+// or extends premiumUntil server-side — we invalidate ['me'] so the header
+// balance and premium badge update immediately.
+
+type InboxGift = {
+  id: string
+  coinAmount: number
+  premiumPlanId: string | null
+  message: string | null
+  createdAt: string
+  sender: { id: string; username: string; avatarUrl: string | null }
+}
+
+function GiftsInbox() {
+  const queryClient = useQueryClient()
+  const { data, isLoading } = useQuery<InboxGift[]>({
+    queryKey: ['gifts', 'inbox'],
+    queryFn: () => api.get('/gifts/inbox'),
+    retry: false,
+  })
+
+  const claim = useMutation<unknown, Error, string>({
+    mutationFn: (giftId) => api.post(`/gifts/${giftId}/claim`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gifts', 'inbox'] })
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+    },
+  })
+
+  if (isLoading || !data || data.length === 0) return null
+
+  return (
+    <section className="mb-6">
+      <p className="text-xs text-neutral-500 uppercase tracking-widest font-semibold mb-3">
+        🎁 Gifts for you
+      </p>
+      <div className="space-y-2">
+        {data.map((gift) => {
+          const describe = gift.premiumPlanId
+            ? gift.premiumPlanId === 'yearly'
+              ? 'Premium · 1 year'
+              : 'Premium · 1 month'
+            : `${gift.coinAmount.toLocaleString()} ⭐`
+          const busy = claim.isPending && claim.variables === gift.id
+          return (
+            <div
+              key={gift.id}
+              className="flex items-center gap-3 p-3 rounded-xl bg-neutral-900 border border-neutral-800"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white">
+                  <span className="font-semibold">@{gift.sender.username}</span>
+                  <span className="text-neutral-400"> sent you </span>
+                  <span className="font-semibold">{describe}</span>
+                </p>
+                {gift.message && (
+                  <p className="text-xs text-neutral-400 mt-1 italic truncate">"{gift.message}"</p>
+                )}
+              </div>
+              <button
+                onClick={() => claim.mutate(gift.id)}
+                disabled={claim.isPending}
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold transition-colors"
+              >
+                {busy ? '…' : 'Claim'}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+      {claim.isError && (
+        <div className="mt-2 px-3 py-2 rounded-lg bg-red-950/30 border border-red-900/50 text-red-300 text-xs">
+          {claim.error.message}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -291,6 +394,7 @@ function PremiumTab() {
   // Default to yearly — highlighted as BEST VALUE so the cheapest-per-month
   // option is the one pre-selected when a user opens the tab.
   const [plan, setPlan] = useState<PremiumPlanId>('yearly')
+  const [giftTarget, setGiftTarget] = useState<{ kind: 'premium'; id: PremiumPlanId; label: string } | null>(null)
 
   const checkout = useMutation<{ url: string | null; sessionId: string }, Error, PremiumPlanId>({
     mutationFn: (planId) => api.post(`/shop/premium/checkout/${planId}`, {}),
@@ -389,13 +493,136 @@ function PremiumTab() {
         </>
       )}
 
+      {/* Gift CTA — always shown (even if the buyer is already premium) so
+          users can buy premium for friends regardless of their own status. */}
+      <button
+        onClick={() => setGiftTarget({
+          kind: 'premium',
+          id: plan,
+          label: plan === 'yearly' ? `Premium 1 year · ${yearlyLabel}` : `Premium 1 month · ${monthlyLabel}`,
+        })}
+        className="mt-3 w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-sm font-semibold transition-colors border border-neutral-700"
+      >
+        🎁 Gift this to a friend
+      </button>
+
       {(checkout.isError || portal.isError) && (
         <div className="mt-3 px-3 py-2.5 rounded-xl bg-red-950/30 border border-red-900/50 text-red-300 text-xs text-center">
           {(checkout.error ?? portal.error)?.message}
         </div>
       )}
+
+      {giftTarget && (
+        <GiftModal target={giftTarget} onClose={() => setGiftTarget(null)} />
+      )}
     </div>
   )
+}
+
+// ─── Gift modal ───────────────────────────────────────────────────────────────
+// Pops up from the shop when the user taps "🎁 Gift" on a pack or the premium
+// plan. Collects the receiver's username + an optional message, then POSTs to
+// the server's gift-checkout endpoint and redirects to Stripe. On completion
+// the webhook creates a Gift row instead of crediting the buyer — the
+// receiver claims through the normal gifts inbox.
+
+type GiftTarget =
+  | { kind: 'pack'; id: string; label: string }
+  | { kind: 'premium'; id: PremiumPlanId; label: string }
+
+function GiftModal({ target, onClose }: { target: GiftTarget; onClose: () => void }) {
+  const [username, setUsername] = useState('')
+  const [message, setMessage] = useState('')
+
+  const checkout = useMutation<{ url: string | null }, Error, void>({
+    mutationFn: () => {
+      const path = target.kind === 'pack'
+        ? `/shop/packs/${target.id}/gift`
+        : `/shop/premium/gift/${target.id}`
+      return api.post(path, { receiverUsername: username.trim(), message: message.trim() || undefined })
+    },
+    onSuccess: (res) => {
+      if (res.url) window.location.href = res.url
+    },
+  })
+
+  const canSubmit = username.trim().length > 0 && !checkout.isPending
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-neutral-900 border border-neutral-800 p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-extrabold text-white">🎁 Send as gift</h3>
+          <button onClick={onClose} className="text-neutral-500 hover:text-white text-lg leading-none">✕</button>
+        </div>
+
+        <p className="text-xs text-neutral-400 mb-4">
+          You're gifting <span className="font-semibold text-white">{target.label}</span>. Your
+          friend gets it in their inbox after your payment clears.
+        </p>
+
+        <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1.5">
+          Friend's username
+        </label>
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="e.g. alice"
+          autoFocus
+          maxLength={20}
+          className="w-full mb-3 px-3 py-2 rounded-lg bg-neutral-950 border border-neutral-800 text-white text-sm focus:border-brand-500 focus:outline-none"
+        />
+
+        <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1.5">
+          Message <span className="text-neutral-600 normal-case font-normal">(optional)</span>
+        </label>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Happy birthday! 🎂"
+          maxLength={200}
+          rows={2}
+          className="w-full mb-4 px-3 py-2 rounded-lg bg-neutral-950 border border-neutral-800 text-white text-sm focus:border-brand-500 focus:outline-none resize-none"
+        />
+
+        {checkout.isError && (
+          <div className="mb-3 px-3 py-2 rounded-lg bg-red-950/30 border border-red-900/50 text-red-300 text-xs">
+            {errorMessage(checkout.error)}
+          </div>
+        )}
+
+        <button
+          onClick={() => checkout.mutate()}
+          disabled={!canSubmit}
+          className="w-full py-2.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white text-sm font-bold transition-colors"
+        >
+          {checkout.isPending ? '…' : 'Continue to payment'}
+        </button>
+        <p className="text-[11px] text-neutral-600 text-center mt-2">
+          You must be friends to send a gift.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// Translates the API's discriminated error codes to end-user-friendly text.
+// The server returns short machine-readable codes (`not_friends`,
+// `user_not_found`, etc.) so the UI layer controls the copy/tone.
+function errorMessage(err: Error): string {
+  const raw = err.message || ''
+  if (raw.includes('not_friends')) return 'You can only gift friends.'
+  if (raw.includes('user_not_found')) return 'No user with that username.'
+  if (raw.includes('cannot_gift_self')) return "You can't gift yourself."
+  if (raw.includes('missing_receiver')) return 'Enter a username.'
+  return raw || 'Something went wrong.'
 }
 
 function PlanTile({

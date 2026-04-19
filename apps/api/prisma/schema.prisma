@@ -375,6 +375,11 @@ model Gift {
   senderId    String
   receiverId  String
   coinAmount  Int      @default(0)
+  // When set, this gift delivers a Premium subscription extension. The value
+  // matches a PremiumPlan id ('monthly' | 'yearly') from shared constants,
+  // and the claim route extends `receiver.premiumUntil` by that plan's
+  // interval (monotonically — never shortens existing entitlement).
+  premiumPlanId String? @db.VarChar(16)
   message     String?  @db.VarChar(200)
   claimed     Boolean  @default(false)
   createdAt   DateTime @default(now())
@@ -423,11 +428,28 @@ model Purchase {
   starCoins       Int
   priceCents      Int
   currency        String   @default("usd") @db.VarChar(5)
+  // Payment platform. "stripe" for web checkout, "apple" for iOS StoreKit /
+  // App Store IAP, "google" for Android Play Billing. Drives which verifier
+  // ran and which id columns are populated.
+  platform        String   @default("stripe") @db.VarChar(16)
   stripeSessionId String?  @unique
+  // Platform-specific transaction id for idempotent crediting:
+  //   - Apple: originalTransactionId from the signed JWS payload
+  //   - Google: purchaseToken returned by Play Billing
+  // Unique so a retried verify call for the same receipt can't double-credit.
+  platformTxId    String?  @unique
   status          String   @default("pending") @db.VarChar(20) // pending | completed | failed
+  // Gift fields. When `giftReceiverId` is set, the payment is made by `userId`
+  // but the entitlement is delivered to the receiver through a Gift row on
+  // checkout completion. `premiumPlanId` marks one-time premium gifts (not a
+  // recurring subscription on the buyer's account) so the webhook knows to
+  // create a premium-bearing Gift instead of crediting the buyer.
+  giftReceiverId  String?
+  premiumPlanId   String?  @db.VarChar(16)
   createdAt       DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
 
+  @@index([userId, platform])
   @@map("purchases")
 }
