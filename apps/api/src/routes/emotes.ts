@@ -8,20 +8,33 @@ import {
   priceForEmote,
 } from '@red-handed/shared'
 import { prisma } from '../config/prisma'
+import { childLogger } from '../config/logger'
+
+const log = childLogger('emotes')
 
 /**
  * Resolve the authoritative set of emote ids a user "has access to" — the
  * implicit free ids plus the ones they've paid for. Used by the catalog
  * response (so the UI can mark owned items) and by the loadout validator
  * (so players can't equip something they don't own).
+ *
+ * Never throws: if the DB query fails (e.g. the user_emotes migration hasn't
+ * been applied yet, transient connection drop), returns just the free-tier
+ * set so the React bar keeps working. Paid emotes silently become
+ * unavailable until the DB recovers, which is the right trade — the alternative
+ * is bricking every player's reactions for a feature flag.
  */
 async function resolveOwnedIds(userId: string): Promise<Set<string>> {
-  const purchased = await prisma.userEmote.findMany({
-    where: { userId },
-    select: { emoteId: true },
-  })
   const owned = new Set<string>(DEFAULT_LOADOUT)
-  for (const row of purchased) owned.add(row.emoteId)
+  try {
+    const purchased = await prisma.userEmote.findMany({
+      where: { userId },
+      select: { emoteId: true },
+    })
+    for (const row of purchased) owned.add(row.emoteId)
+  } catch (err) {
+    log.error({ err, userId }, 'resolveOwnedIds: falling back to free tier')
+  }
   return owned
 }
 
@@ -59,19 +72,28 @@ function parseLoadout(raw: string | null, owned: Set<string>): string[] {
 /**
  * Exported for the socket handler: returns the validated loadout ids for a
  * given user. Lives here so the ownership-filtering rules stay in one place.
+ *
+ * Never throws: on DB error, returns the free default loadout so the in-game
+ * React bar keeps sending. This matters during rollouts where the new emote
+ * migration hasn't landed on every env yet — without this, every `emote:send`
+ * silently failed and emojis appeared broken.
  */
 export async function getUserLoadout(userId: string): Promise<{
   loadout: string[]
   owned: Set<string>
 }> {
-  const [user, owned] = await Promise.all([
-    prisma.user.findUnique({
+  let equippedRaw: string | null = null
+  try {
+    const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { equippedEmotes: true },
-    }),
-    resolveOwnedIds(userId),
-  ])
-  const loadout = parseLoadout(user?.equippedEmotes ?? null, owned)
+    })
+    equippedRaw = user?.equippedEmotes ?? null
+  } catch (err) {
+    log.error({ err, userId }, 'getUserLoadout: equippedEmotes read failed, using defaults')
+  }
+  const owned = await resolveOwnedIds(userId)
+  const loadout = parseLoadout(equippedRaw, owned)
   return { loadout, owned }
 }
 

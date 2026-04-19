@@ -251,9 +251,16 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     // back to the matching free-tier emote id so pre-update clients keep
     // working). Anything the sender doesn't have equipped is rejected.
     socket.on('emote:send' as any, async (data: { emoteId?: string; emoji?: string }) => {
-      if (!socket.data.userId) return
+      if (!socket.data.userId) {
+        socket.emit('error', { code: 'UNAUTHENTICATED', message: 'Not signed in' })
+        return
+      }
       const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
-      if (!roomKey) return
+      if (!roomKey) {
+        socket.emit('error', { code: 'EMOTE_NO_ROOM', message: 'Not in a room' })
+        log.warn({ userId: socket.data.userId, rooms: [...socket.rooms] }, 'emote:send rejected: no room membership')
+        return
+      }
 
       // Resolve id — prefer the explicit emoteId, fall back to matching the
       // legacy emoji against the catalog so older clients stay functional.
@@ -263,21 +270,18 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         emoteId = hit?.id
       }
       if (!emoteId || !EMOTES_BY_ID[emoteId]) {
+        socket.emit('error', { code: 'EMOTE_UNKNOWN', message: 'Unknown emote' })
         log.warn({ userId: socket.data.userId, data }, 'emote:send rejected: unknown id')
         return
       }
 
       // Loadout check — server-authoritative so a patched client can't send
       // unlocked-but-not-equipped content (or content they haven't paid for).
-      let loadout: string[]
-      try {
-        const res = await getUserLoadout(socket.data.userId as string)
-        loadout = res.loadout
-      } catch (err) {
-        log.error({ err, userId: socket.data.userId }, 'emote:send: loadout lookup failed')
-        return
-      }
+      // getUserLoadout() is hardened to never throw (falls back to defaults on
+      // DB error), so we don't need a try/catch around it here.
+      const { loadout } = await getUserLoadout(socket.data.userId as string)
       if (!loadout.includes(emoteId)) {
+        socket.emit('error', { code: 'EMOTE_NOT_EQUIPPED', message: 'Emote not in loadout' })
         log.warn({ userId: socket.data.userId, emoteId }, 'emote:send rejected: not in loadout')
         return
       }
