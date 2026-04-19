@@ -347,29 +347,12 @@ export default function GameDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {data.participations.map((p) => {
                 const isMe = p.userId === user?.id
-                return (
-                  <div
-                    key={p.userId}
-                    className={[
-                      'flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors',
-                      isMe
-                        ? 'border-brand-800/50 bg-brand-950/20'
-                        : 'border-neutral-800 bg-neutral-900/40',
-                    ].join(' ')}
-                  >
+                const inner = (
+                  <>
                     <Avatar src={p.avatarUrl} username={p.username} size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
-                        {isMe ? (
-                          <span className="text-white text-xs font-semibold truncate">{p.username}</span>
-                        ) : (
-                          <Link
-                            to={`/player/${p.userId}`}
-                            className="text-white text-xs font-semibold truncate hover:text-brand-400 transition-colors"
-                          >
-                            {p.username}
-                          </Link>
-                        )}
+                        <span className="text-white text-xs font-semibold truncate">{p.username}</span>
                         {isMe && <span className="text-[9px] text-brand-400 font-bold">{t('gameDetail.you')}</span>}
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
@@ -384,7 +367,33 @@ export default function GameDetailPage() {
                         </span>
                       </div>
                     </div>
-                  </div>
+                  </>
+                )
+
+                const baseCls = 'flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors'
+
+                if (isMe) {
+                  return (
+                    <div
+                      key={p.userId}
+                      className={[baseCls, 'border-brand-800/50 bg-brand-950/20'].join(' ')}
+                    >
+                      {inner}
+                    </div>
+                  )
+                }
+
+                return (
+                  <Link
+                    key={p.userId}
+                    to={`/player/${p.userId}`}
+                    className={[
+                      baseCls,
+                      'border-neutral-800 bg-neutral-900/40 hover:border-brand-700/60 hover:bg-neutral-800/60 cursor-pointer',
+                    ].join(' ')}
+                  >
+                    {inner}
+                  </Link>
                 )
               })}
             </div>
