@@ -238,19 +238,6 @@ export function ReferralCard() {
         </button>
       </div>
 
-      {/* Shareable link */}
-      {inviteUrl && (
-        <button
-          onClick={() => copy(inviteUrl, 'link')}
-          className="w-full text-left text-xs text-neutral-500 hover:text-neutral-300 transition-colors truncate px-3 py-2 rounded-xl bg-neutral-900/40 border border-neutral-800"
-          title={inviteUrl}
-        >
-          {copied === 'link'
-            ? t('profile.copied', { defaultValue: 'Copied ✓' })
-            : inviteUrl}
-        </button>
-      )}
-
       {/* Share on social media — one-time +N ⭐ reward */}
       {inviteUrl && (
         <div className="pt-3 border-t border-neutral-800 space-y-2">
