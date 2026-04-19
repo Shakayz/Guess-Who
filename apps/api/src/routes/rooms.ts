@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
 import { generateRoomCode } from '@red-handed/shared'
-import { DAILY_COST } from '../services/dailyRewards'
 
 const createRoomSchema = z.object({
   settings: z.object({
@@ -14,8 +13,8 @@ const createRoomSchema = z.object({
     wordPackId:           z.string().default('default'),
     isPrivate:            z.boolean().default(false),
     // Discoverability toggle for Custom Lobbies. When true, the room appears
-    // in the public-lobby browser. Has NO effect on pricing — the host still
-    // pays the same 10 ⭐ commitment fee either way (see charging logic below).
+    // in the public-lobby browser. Has no effect on pricing — the host is
+    // only charged when the game actually starts (see startGameForRoom).
     isPublic:             z.boolean().default(false),
     language:             z.enum(['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de', 'ru', 'hi']).default('en'),
     categories:           z.array(z.string()).default([]),
@@ -109,12 +108,9 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     req.log.info({ userId: payload.sub, gameMode: settings?.gameMode, isPrivate: settings?.isPrivate }, 'creating room')
     const host = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { locale: true, premiumUntil: true },
+      select: { locale: true },
     })
     const code = generateRoomCode()
-    // Premium subscribers play without paying the entry fee — this is the
-    // "Unlimited Games" perk advertised on the Premium page.
-    const isHostPremium = !!(host?.premiumUntil && host.premiumUntil.getTime() > Date.now())
 
     // Ranked games are locked at 10 players / 3 redHanded, regardless of
     // what the client sends. All other modes honour the submitted values.
@@ -122,56 +118,27 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     const rankedMaxPlayers    = 10
     const rankedRedHandedCount = 3
 
-    // Private lobbies: the host pays 10 ⭐ at creation as a commitment fee, which
-    // covers the FIRST game only. Subsequent games in the same private lobby are
-    // charged at game start (see startGameForRoom in socket/handlers/room.ts) —
-    // this closes an infinite-replay farming exploit where one 10 ⭐ fee used to
-    // cover unlimited games. Premium hosts are exempt from this fee entirely.
-    //
-    // The debit and the Room row are created in a single transaction so a failed
-    // room.create can never leave the host with coins deducted and no room —
-    // both operations succeed together or the whole thing rolls back.
     const isPrivateLobby = settings?.isPrivate === true
-    const shouldChargeHost = isPrivateLobby && !isHostPremium
-    let room
-    try {
-      room = await prisma.$transaction(async (tx) => {
-        if (shouldChargeHost) {
-          const debit = await tx.user.updateMany({
-            where: { id: payload.sub, starCoins: { gte: DAILY_COST } },
-            data:  { starCoins: { decrement: DAILY_COST } },
-          })
-          if (debit.count === 0) {
-            throw new Error('INSUFFICIENT_STARS')
-          }
-        }
-        return tx.room.create({
-          data: {
-            code,
-            hostId: payload.sub,
-            maxPlayers:           isRanked ? rankedMaxPlayers    : (settings?.maxPlayers ?? 10),
-            redHandedCount:       isRanked ? rankedRedHandedCount : (settings?.redHandedCount ?? 2),
-            speakingTimeSeconds:  settings?.speakingTimeSeconds ?? 30,
-            votingTimeSeconds:    settings?.votingTimeSeconds ?? 30,
-            wordPackId:           settings?.wordPackId ?? 'default',
-            isPrivate:            settings?.isPrivate ?? false,
-            // Ranked matchmaking rooms can never be public; only Custom
-            // Lobbies (isPrivate=true) opt in to the public browser.
-            isPublic:             !isRanked && isPrivateLobby && (settings?.isPublic ?? false),
-            language:             settings?.language ?? host?.locale ?? 'en',
-          },
-        })
-      })
-    } catch (err) {
-      if (err instanceof Error && err.message === 'INSUFFICIENT_STARS') {
-        req.log.warn({ userId: payload.sub }, 'lobby creation refused: insufficient stars')
-        return reply.status(402).send({ error: 'INSUFFICIENT_STARS', required: DAILY_COST })
-      }
-      // Anything else (DB connection drop, unique-code collision, etc.)
-      // rolls the whole $transaction back — no orphaned debit to refund.
-      req.log.error({ err, userId: payload.sub }, 'lobby creation failed — charges rolled back')
-      throw err
-    }
+    // No coin charge at lobby creation — the host is only billed when the game
+    // actually starts (see startGameForRoom in socket/handlers/room.ts). This
+    // way a host who creates a lobby but never gets enough players — or simply
+    // backs out — never loses coins for a game that didn't happen.
+    const room = await prisma.room.create({
+      data: {
+        code,
+        hostId: payload.sub,
+        maxPlayers:           isRanked ? rankedMaxPlayers    : (settings?.maxPlayers ?? 10),
+        redHandedCount:       isRanked ? rankedRedHandedCount : (settings?.redHandedCount ?? 2),
+        speakingTimeSeconds:  settings?.speakingTimeSeconds ?? 30,
+        votingTimeSeconds:    settings?.votingTimeSeconds ?? 30,
+        wordPackId:           settings?.wordPackId ?? 'default',
+        isPrivate:            settings?.isPrivate ?? false,
+        // Ranked matchmaking rooms can never be public; only Custom
+        // Lobbies (isPrivate=true) opt in to the public browser.
+        isPublic:             !isRanked && isPrivateLobby && (settings?.isPublic ?? false),
+        language:             settings?.language ?? host?.locale ?? 'en',
+      },
+    })
     // Ranked never uses vocal mode — it's typed-clue only.
     const vocalMode = !isRanked && (settings?.vocalMode ?? false)
     const vocalSpeakingTimeSeconds = Math.min(60, Math.max(5, settings?.vocalSpeakingTimeSeconds ?? 10))
@@ -183,13 +150,6 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
       gameMode: settings?.gameMode ?? 'normal',
       vocalMode,
       vocalSpeakingTimeSeconds,
-      // Private lobbies: the host already paid 10 ⭐ at creation. This flag is
-      // consumed by startGameForRoom for the host's FIRST game in this room.
-      // It is intentionally NOT re-set by buildResetState, so the host is
-      // charged again for every subsequent game (prevents infinite-replay
-      // farming on a single 10 ⭐ fee). Premium hosts bypass the fee entirely,
-      // so the prepaid flag is only set when an actual debit happened.
-      hostPrepaid: shouldChargeHost,
     }), 'EX', 21600)
     req.log.info({ userId: payload.sub, roomId: room.id, roomCode: room.code }, 'room created')
     return reply.status(201).send(room)

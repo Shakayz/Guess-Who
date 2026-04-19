@@ -155,9 +155,9 @@ export default function HomePage() {
         navigate(`/lobby/${room.code}?mode=${lobbyGameMode}`)
       } catch (err: any) {
         log.error('lobby creation failed', { error: err.message })
-        // The API returns 402 { error: 'INSUFFICIENT_STARS', required } when
-        // the host can't afford to create the lobby. Both public and private
-        // Custom Lobbies cost the host 10 ⭐.
+        // Lobby creation itself is free — the host is only charged when the
+        // game actually starts. Kept here as a defensive fallback in case the
+        // server ever re-introduces an up-front cost.
         if (err?.data?.error === 'INSUFFICIENT_STARS') {
           setInsufficientCoinsRequired(err.data.required ?? 10)
         } else {

@@ -139,15 +139,6 @@ async function startGameForRoom(
     // so the host can retry.
     const previousStatus: string = state.status
     state.status = 'starting'
-    // We also consume `hostPrepaid` here when it applies — atomically with
-    // the status pin so concurrent `game:start` calls cannot double-spend
-    // the prepayment from POST /rooms. The actual *charge* happens inside
-    // the big $transaction further down; this flag just tracks whether the
-    // host owes money for this specific start.
-    const consumedHostPrepaid = room.isPrivate === true && state.hostPrepaid === true
-    if (consumedHostPrepaid) {
-      state.hostPrepaid = false
-    }
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
     // Assign roles
@@ -312,28 +303,22 @@ async function startGameForRoom(
     }
 
     // ── Atomic: charge 10 ⭐ per game + create Game/Round/GameParticipation in
-    // ONE transaction. Before this change the debit and the game-creation
-    // lived in TWO separate transactions with ~150 lines of logic between
-    // them; if the second transaction failed, coins had already committed
-    // and players lost 10 ⭐ with no game. Now any failure — insufficient
-    // stars, DB error during game create, anything — rolls the entire thing
-    // back so no one is ever charged for a game that didn't start.
+    // ONE transaction. Any failure — insufficient stars, DB error during game
+    // create, anything — rolls the entire thing back so no one is ever
+    // charged for a game that didn't start.
     //
-    // Three charging cases:
+    // Two charging cases:
     //   1. Public/matchmade room → every player pays 10 ⭐ at every start.
-    //   2. Private lobby, FIRST game → `state.hostPrepaid` flag (set at POST
-    //      /rooms) covers it; we already consumed the flag above when pinning
-    //      status to 'starting'.
-    //   3. Private lobby, subsequent game → charge the host 10 ⭐. The flag
-    //      is never re-set (buildResetState drops it), so the host cannot
-    //      farm unlimited games on a single 10 ⭐ commitment fee.
+    //   2. Private lobby → charge the host 10 ⭐ at every start. Nothing is
+    //      charged at lobby creation, so a host who never starts a game
+    //      never loses coins.
     // Premium subscribers play for free — the "Unlimited Games" perk.
     // Resolve premium status for every user who might be charged in this
     // transaction so we can skip their debit without an extra round-trip
     // inside the $transaction.
     const chargeableUserIds = room.isPrivate === false
       ? players.map((p: any) => p.userId as string)
-      : (!consumedHostPrepaid ? [room.hostId] : [])
+      : [room.hostId]
     const premiumRows = chargeableUserIds.length === 0
       ? []
       : await prisma.user.findMany({
@@ -365,8 +350,8 @@ async function startGameForRoom(
               throw err
             }
           }
-        } else if (!consumedHostPrepaid && !premiumUserIds.has(room.hostId)) {
-          // Case 3 — subsequent private-lobby game, charge host (free for premium)
+        } else if (!premiumUserIds.has(room.hostId)) {
+          // Case 2 — private lobby, charge host every start (free for premium).
           const debit = await tx.user.updateMany({
             where: { id: room.hostId, starCoins: { gte: DAILY_COST } },
             data:  { starCoins: { decrement: DAILY_COST } },
@@ -377,7 +362,6 @@ async function startGameForRoom(
             throw err
           }
         }
-        // Case 2 — prepaid, nothing to debit. Flag was already consumed above.
         const game = await tx.game.create({
           data: {
             roomId,
@@ -399,13 +383,8 @@ async function startGameForRoom(
       game = result.game
       round = result.round
     } catch (err: any) {
-      // Rewind Redis state on failure — put the status back AND restore the
-      // hostPrepaid flag we consumed speculatively, so the host can retry
-      // without losing their commitment fee.
+      // Rewind Redis state on failure so the host can retry.
       state.status = previousStatus
-      if (consumedHostPrepaid) {
-        state.hostPrepaid = true
-      }
       await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
       if (err?.message === 'INSUFFICIENT_STARS') {
         log.warn({ roomId, failedUserId: err.failedUserId }, 'game start refused: insufficient stars (charges rolled back)')
