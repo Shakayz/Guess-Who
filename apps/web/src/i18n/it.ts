@@ -733,7 +733,7 @@ export default {
     redHandedWord: 'Parola impostore',
     gameChat: 'Chat di gioco',
     redHandedRole: '🎭 Impostore',
-    villagerRole: '👤 Villager',
+    villagerRole: '🏠 Villager',
     min: '{{count}} min',
   },
   leaderboard: {

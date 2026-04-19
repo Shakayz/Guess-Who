@@ -730,7 +730,7 @@ export default {
     redHandedWord: 'Слово самозванца',
     gameChat: 'Игровой чат',
     redHandedRole: '🎭 Самозванец',
-    villagerRole: '👤 Житель',
+    villagerRole: '🏠 Житель',
     min: '{{count}} мин',
   },
   leaderboard: {

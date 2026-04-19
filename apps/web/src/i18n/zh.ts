@@ -733,7 +733,7 @@ export default {
     redHandedWord: '内奸词语',
     gameChat: '游戏聊天',
     redHandedRole: '🎭 内奸',
-    villagerRole: '👤 村民',
+    villagerRole: '🏠 村民',
     min: '{{count}} 分钟',
   },
   leaderboard: {

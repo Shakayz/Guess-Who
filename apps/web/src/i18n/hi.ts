@@ -740,7 +740,7 @@ export default {
     redHandedWord: 'इम्पोस्टर शब्द',
     gameChat: 'गेम चैट',
     redHandedRole: '🎭 इम्पोस्टर',
-    villagerRole: '👤 ग्रामीण',
+    villagerRole: '🏠 ग्रामीण',
     min: '{{count}} मिनट',
   },
   leaderboard: {

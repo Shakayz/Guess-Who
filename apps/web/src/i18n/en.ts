@@ -783,7 +783,7 @@ export default {
     redHandedWord: 'Imposter Word',
     gameChat: 'Game Chat',
     redHandedRole: '🎭 Imposter',
-    villagerRole: '👤 Villager',
+    villagerRole: '🏠 Villager',
     min: '{{count}} min',
   },
   leaderboard: {

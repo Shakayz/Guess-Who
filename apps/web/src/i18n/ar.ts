@@ -737,7 +737,7 @@ export default {
     redHandedWord: 'كلمة المتسلل',
     gameChat: 'دردشة اللعبة',
     redHandedRole: '🎭 متسلل',
-    villagerRole: '👤 قروي',
+    villagerRole: '🏠 قروي',
     min: '{{count}} دقيقة',
   },
   leaderboard: {

@@ -278,7 +278,7 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
                 💀 <span className="font-semibold text-white">{eliminated.username}</span>
                 {' '}
                 <span className="text-neutral-500 text-xs">
-                  ({round.eliminatedRole === 'red_handed' ? `🎭 ${t('game.roleRedHanded', 'Imposter')}` : round.eliminatedRole === 'double_agent' ? `🕵️ ${t('game.roleDoubleAgent', 'Double Agent')}` : round.eliminatedRole === 'detective' ? `🔍 ${t('game.roleDetective', 'Detective')}` : `👤 ${t('game.roleVillager', 'Villager')}`})
+                  ({round.eliminatedRole === 'red_handed' ? `🎭 ${t('game.roleRedHanded', 'Imposter')}` : round.eliminatedRole === 'double_agent' ? `🕵️ ${t('game.roleDoubleAgent', 'Double Agent')}` : round.eliminatedRole === 'detective' ? `🔍 ${t('game.roleDetective', 'Detective')}` : `🏠 ${t('game.roleVillager', 'Villager')}`})
                 </span>
               </span>
             ) : (
