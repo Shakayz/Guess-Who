@@ -297,6 +297,7 @@ function EmotesTab({ starCoins }: { starCoins: number }) {
   const queryClient = useQueryClient()
   const emotesStore = useEmotesStore()
   const [notice, setNotice] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null)
+  const [confirming, setConfirming] = useState<CatalogEmote | null>(null)
 
   // Prime the store on mount so the loadout/owned set is current before the
   // user buys anything. fetchMe is a no-op if already in flight.
@@ -364,6 +365,13 @@ function EmotesTab({ starCoins }: { starCoins: number }) {
       return
     }
     if (buy.isPending) return
+    setConfirming(em)
+  }
+
+  const confirmPurchase = () => {
+    if (!confirming) return
+    const em = confirming
+    setConfirming(null)
     buy.mutate(em.id)
   }
 
@@ -435,6 +443,75 @@ function EmotesTab({ starCoins }: { starCoins: number }) {
           )
         })
       )}
+
+      {confirming && (
+        <ConfirmPurchaseModal
+          emote={confirming}
+          starCoins={starCoins}
+          onCancel={() => setConfirming(null)}
+          onConfirm={confirmPurchase}
+        />
+      )}
+    </div>
+  )
+}
+
+function ConfirmPurchaseModal({
+  emote,
+  starCoins,
+  onCancel,
+  onConfirm,
+}: {
+  emote: CatalogEmote
+  starCoins: number
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const canAfford = starCoins >= emote.price
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-neutral-900 border border-neutral-800 p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-center mb-4">
+          <p className="text-5xl mb-2" aria-hidden>{emote.emoji}</p>
+          <h3 className="text-lg font-extrabold text-white">Unlock {emote.name}?</h3>
+          <p className="text-sm text-neutral-400 mt-1">
+            This will spend <span className="font-semibold text-white">{emote.price.toLocaleString()} ⭐</span> from your balance.
+          </p>
+          <p className="text-xs text-neutral-500 mt-2">
+            Balance: {starCoins.toLocaleString()} ⭐
+            {canAfford && (
+              <> → {(starCoins - emote.price).toLocaleString()} ⭐ after</>
+            )}
+          </p>
+          {!canAfford && (
+            <p className="text-xs text-red-400 mt-2">
+              Not enough coins — short by {(emote.price - starCoins).toLocaleString()} ⭐.
+            </p>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-sm font-semibold transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!canAfford}
+            className="flex-1 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white text-sm font-bold transition-colors"
+          >
+            Confirm · {emote.price.toLocaleString()} ⭐
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

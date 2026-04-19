@@ -437,18 +437,7 @@ function EmotesTab({
     return byRarity
   }, [])
 
-  const handleBuy = async (em: Emote) => {
-    if (ownedSet.has(em.id) || em.rarity === 'free') return
-    if (starCoins < em.price) {
-      Alert.alert(
-        t('shop.emoteInsufficientTitle', { defaultValue: 'Not enough ⭐' }),
-        t('shop.emoteInsufficientBody', {
-          defaultValue: 'You need {{price}} ⭐ to buy this emote.',
-          price: em.price.toLocaleString(),
-        }),
-      )
-      return
-    }
+  const runPurchase = async (em: Emote) => {
     HapticManager.medium()
     SoundManager.play('click')
     setBusyId(em.id)
@@ -465,6 +454,44 @@ function EmotesTab({
     } finally {
       setBusyId(null)
     }
+  }
+
+  const handleBuy = (em: Emote) => {
+    if (ownedSet.has(em.id) || em.rarity === 'free') return
+    if (starCoins < em.price) {
+      Alert.alert(
+        t('shop.emoteInsufficientTitle', { defaultValue: 'Not enough ⭐' }),
+        t('shop.emoteInsufficientBody', {
+          defaultValue: 'You need {{price}} ⭐ to buy this emote.',
+          price: em.price.toLocaleString(),
+        }),
+      )
+      return
+    }
+    HapticManager.selection()
+    // Confirmation — don't spend coins on an accidental tap.
+    Alert.alert(
+      t('shop.emoteConfirmTitle', {
+        defaultValue: 'Unlock {{name}}?',
+        name: em.name,
+      }),
+      t('shop.emoteConfirmBody', {
+        defaultValue: 'This will spend {{price}} ⭐ from your balance ({{balance}} ⭐).',
+        price: em.price.toLocaleString(),
+        balance: starCoins.toLocaleString(),
+      }),
+      [
+        { text: t('common.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+        {
+          text: t('shop.emoteConfirmBuy', {
+            defaultValue: 'Buy · {{price}} ⭐',
+            price: em.price.toLocaleString(),
+          }),
+          style: 'default',
+          onPress: () => void runPurchase(em),
+        },
+      ],
+    )
   }
 
   return (
