@@ -19,8 +19,9 @@ import * as ImagePicker from 'expo-image-picker'
 import { useAuthStore } from '../../../store/auth'
 import { api } from '../../../lib/api'
 import { ReferralCard } from '../../../components/ReferralCard'
-import { RANK_CONFIG, LEVEL_CAP, EMAIL_VERIFICATION_REWARD, SOCIAL_SHARE_REWARD } from '@red-handed/shared'
+import { RANK_CONFIG, LEVEL_CAP, EMAIL_VERIFICATION_REWARD, SOCIAL_SHARE_REWARD, USERNAME_CHANGE_COST } from '@red-handed/shared'
 import type { RankTier } from '@red-handed/shared'
+import InsufficientCoinsModal from '../../../components/InsufficientCoinsModal'
 import i18n from '../../../i18n'
 import { LANGUAGES } from '../../../i18n/languages'
 import { useResponsive } from '../../../lib/responsive'
@@ -105,6 +106,10 @@ export default function ProfileScreen() {
   const [editingName, setEditingName] = useState(false)
   const [draftName, setDraftName] = useState('')
   const [savingName, setSavingName] = useState(false)
+  // Drives the shared InsufficientCoinsModal when a rename is blocked by
+  // the USERNAME_CHANGE_COST check. Same UX used for lobby/emote failures —
+  // every coin-gated action in the app funnels through this one modal.
+  const [renameShort, setRenameShort] = useState(false)
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [statsTab, setStatsTab] = useState<'unranked' | 'ranked'>('unranked')
@@ -158,13 +163,26 @@ export default function ProfileScreen() {
       setEditingName(false)
       return
     }
+    // Client-side short-circuit — surface the "Get coins" modal before the
+    // network round-trip when we already know the wallet is short.
+    if ((profile?.starCoins ?? 0) < USERNAME_CHANGE_COST) {
+      setRenameShort(true)
+      return
+    }
     setSavingName(true)
     try {
       await api.patch('/users/me', { username: trimmed })
       setProfile((prev) => (prev ? { ...prev, username: trimmed } : prev))
       setEditingName(false)
     } catch (err: any) {
-      setError(err.message)
+      // Stale-balance race: server rejected the rename for insufficient
+      // coins. Swap the raw toast for the shared modal so the user gets a
+      // path to the shop instead of a dead-end error.
+      if (err?.message === 'not_enough_coins') {
+        setRenameShort(true)
+      } else {
+        setError(err.message)
+      }
     } finally {
       setSavingName(false)
     }
@@ -939,6 +957,12 @@ export default function ProfileScreen() {
         </View>
         </View>
       </ScrollView>
+
+      <InsufficientCoinsModal
+        visible={renameShort}
+        required={USERNAME_CHANGE_COST}
+        onClose={() => setRenameShort(false)}
+      />
     </SafeAreaView>
   )
 }

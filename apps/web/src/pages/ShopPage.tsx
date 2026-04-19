@@ -8,6 +8,7 @@ import { api } from '../lib/api'
 import { usePremium } from '../lib/usePremium'
 import { EmoteTile } from '../components/emotes/EmoteTile'
 import { useEmotesStore } from '../store/emotes'
+import { InsufficientCoinsModal } from '../components/InsufficientCoinsModal'
 import type { EmoteRarity } from '@red-handed/shared'
 
 // Premium prices shown on the plan selector. Source of truth for the actual
@@ -128,7 +129,7 @@ export default function ShopPage() {
           <GiftsInbox />
 
           {tab === 'coins' && <CoinsTab onPlayClick={() => navigate('/')} />}
-          {tab === 'emotes' && <EmotesTab starCoins={starCoins} />}
+          {tab === 'emotes' && <EmotesTab starCoins={starCoins} onGoToCoins={() => setTab('coins')} />}
           {tab === 'premium' && <PremiumTab />}
         </div>
       </main>
@@ -293,11 +294,15 @@ const RARITY_LABEL: Record<EmoteRarity, string> = {
   free: 'Free',
 }
 
-function EmotesTab({ starCoins }: { starCoins: number }) {
+function EmotesTab({ starCoins, onGoToCoins }: { starCoins: number; onGoToCoins: () => void }) {
   const queryClient = useQueryClient()
   const emotesStore = useEmotesStore()
   const [notice, setNotice] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null)
   const [confirming, setConfirming] = useState<CatalogEmote | null>(null)
+  // Tracks the emote whose purchase was blocked by insufficient ⭐. Drives the
+  // "Get coins" modal — same component the lobby uses — so every coin-gated
+  // action in the app shares a single "suggest buying coins" flow.
+  const [shortOn, setShortOn] = useState<CatalogEmote | null>(null)
 
   // Prime the store on mount so the loadout/owned set is current before the
   // user buys anything. fetchMe is a no-op if already in flight.
@@ -328,13 +333,21 @@ function EmotesTab({ starCoins }: { starCoins: number }) {
       )
       setNotice({ kind: 'ok', text: 'Unlocked! Equip it in Profile → Emotes.' })
     },
-    onError: (err) => {
+    onError: (err, id) => {
       const msg = err.message || ''
+      // Server confirmed the wallet is short — swap the inline toast for the
+      // shared InsufficientCoinsModal so the user gets a "Get coins" CTA that
+      // flips the shop to the coins tab.
+      if (msg.includes('insufficient_coins')) {
+        const em = (catalog?.emotes ?? []).find((e) => e.id === id)
+        if (em) {
+          setShortOn(em)
+          return
+        }
+      }
       setNotice({
         kind: 'error',
-        text: msg.includes('insufficient_coins')
-          ? 'Not enough coins.'
-          : msg.includes('already_owned')
+        text: msg.includes('already_owned')
           ? 'You already own this emote.'
           : msg || 'Purchase failed. Please try again.',
       })
@@ -365,6 +378,13 @@ function EmotesTab({ starCoins }: { starCoins: number }) {
       return
     }
     if (buy.isPending) return
+    // Client-side affordability short-circuit — skip the confirm step and
+    // jump straight to the "Get coins" modal so the user doesn't have to
+    // click through a confirm only to be rejected on the next screen.
+    if (starCoins < em.price) {
+      setShortOn(em)
+      return
+    }
     setConfirming(em)
   }
 
@@ -450,6 +470,17 @@ function EmotesTab({ starCoins }: { starCoins: number }) {
           starCoins={starCoins}
           onCancel={() => setConfirming(null)}
           onConfirm={confirmPurchase}
+        />
+      )}
+
+      {shortOn && (
+        <InsufficientCoinsModal
+          required={shortOn.price}
+          onGetCoins={() => {
+            setShortOn(null)
+            onGoToCoins()
+          }}
+          onClose={() => setShortOn(null)}
         />
       )}
     </div>

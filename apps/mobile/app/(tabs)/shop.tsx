@@ -27,6 +27,7 @@ import {
 import { PopIn, SlideUp, GlowPulse, Shimmer, FloatSoft, Breathe } from '../../components/anim/AnimatedViews'
 import { EmoteTile } from '../../components/emotes/EmoteTile'
 import { useEmotesStore } from '../../store/emotes'
+import InsufficientCoinsModal from '../../components/InsufficientCoinsModal'
 
 const log = createLogger('shop')
 
@@ -198,6 +199,7 @@ export default function ShopScreen() {
             fontScale={fontScale}
             starCoins={starCoins}
             onPurchased={fetchMe}
+            onGoToCoins={() => switchTab('coins')}
           />
         )}
         {tab === 'premium' && (
@@ -414,14 +416,20 @@ function EmotesTab({
   fontScale,
   starCoins,
   onPurchased,
+  onGoToCoins,
 }: {
   fontScale: number
   starCoins: number
   onPurchased: () => void
+  onGoToCoins: () => void
 }) {
   const { t } = useTranslation()
   const store = useEmotesStore()
   const [busyId, setBusyId] = useState<string | null>(null)
+  // Drives the shared InsufficientCoinsModal — same component the lobby uses
+  // — so every coin-gated action in the app surfaces the same "Get coins"
+  // CTA instead of a dead-end Alert.
+  const [shortOn, setShortOn] = useState<Emote | null>(null)
 
   useEffect(() => {
     store.fetchMe()
@@ -447,10 +455,18 @@ function EmotesTab({
       SoundManager.play('success')
       onPurchased()
     } catch (err) {
-      Alert.alert(
-        t('shop.emoteBuyErrorTitle', { defaultValue: 'Purchase failed' }),
-        (err as Error)?.message ?? 'Please try again.',
-      )
+      const msg = (err as Error)?.message ?? ''
+      // Stale client balance racing the server: show the shared
+      // InsufficientCoinsModal instead of a dead-end Alert so the user gets
+      // a "Get coins" CTA that flips the shop to the coins tab.
+      if (msg === 'insufficient_coins') {
+        setShortOn(em)
+      } else {
+        Alert.alert(
+          t('shop.emoteBuyErrorTitle', { defaultValue: 'Purchase failed' }),
+          msg || 'Please try again.',
+        )
+      }
     } finally {
       setBusyId(null)
     }
@@ -459,13 +475,8 @@ function EmotesTab({
   const handleBuy = (em: Emote) => {
     if (ownedSet.has(em.id) || em.rarity === 'free') return
     if (starCoins < em.price) {
-      Alert.alert(
-        t('shop.emoteInsufficientTitle', { defaultValue: 'Not enough ⭐' }),
-        t('shop.emoteInsufficientBody', {
-          defaultValue: 'You need {{price}} ⭐ to buy this emote.',
-          price: em.price.toLocaleString(),
-        }),
-      )
+      // Skip the confirm step and jump straight to the "Get coins" modal.
+      setShortOn(em)
       return
     }
     HapticManager.selection()
@@ -543,6 +554,16 @@ function EmotesTab({
           </View>
         )
       })}
+
+      <InsufficientCoinsModal
+        visible={shortOn !== null}
+        required={shortOn?.price ?? 0}
+        onGetCoins={() => {
+          setShortOn(null)
+          onGoToCoins()
+        }}
+        onClose={() => setShortOn(null)}
+      />
     </View>
   )
 }
