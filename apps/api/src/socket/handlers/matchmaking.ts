@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io'
-import { generateRoomCode, MATCHMAKING_CONFIG } from '@red-handed/shared'
+import { generateRoomCode, MATCHMAKING_CONFIG, SUPPORTED_LOCALES } from '@red-handed/shared'
 import type { MatchmakingStatus } from '@red-handed/shared'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
@@ -439,20 +439,25 @@ export function registerMatchmakingHandlers(
 ) {
   const userId: string = (socket as any).userId
 
-  socket.on('matchmaking:join', async (data: { gameMode: string; categories: string[]; vocalMode?: boolean; vocalSpeakingTimeSeconds?: number }) => {
+  socket.on('matchmaking:join', async (data: { gameMode: string; categories: string[]; vocalMode?: boolean; vocalSpeakingTimeSeconds?: number; locale?: string }) => {
     const gameMode = data?.gameMode ?? 'normal'
     // Vocal mode is only valid for unranked queues (normal/special). Ranked is
     // always text-only to keep competitive integrity — mirror the lobby rule.
     const vocalMode = gameMode !== 'ranked' && !!data?.vocalMode
     const vocalSpeakingTimeSeconds = Math.max(5, Math.min(60, Number(data?.vocalSpeakingTimeSeconds) || 10))
 
-    // Fetch user's locale + balance from DB — the queue is language-scoped
-    // and we want to bounce broke players before they enter the queue.
+    // Fetch user's stored locale + balance from DB. The DB locale is a fallback
+    // only — we prefer the language the user has actively selected in the UI
+    // header (sent on the join payload) so flag changes group players together
+    // immediately instead of waiting for the DB write to round-trip.
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { locale: true, starCoins: true },
     })
-    const locale = user?.locale ?? 'en'
+    const requestedLocale = typeof data?.locale === 'string' ? data.locale.split('-')[0].toLowerCase() : ''
+    const locale = (SUPPORTED_LOCALES as readonly string[]).includes(requestedLocale)
+      ? requestedLocale
+      : (user?.locale ?? 'en')
 
     // Preventive insufficient-stars check — saves the player from waiting in
     // queue only to be kicked out of startGameForRoom with INSUFFICIENT_STARS.
@@ -474,9 +479,15 @@ export function registerMatchmakingHandlers(
       : `matchmaking:${gameMode}:${locale}`
     log.info({ userId, gameMode, locale, vocalMode, queueKey }, 'matchmaking:join')
 
-    // Remove stale entry in BOTH partitions (user may have flipped the toggle
-    // across a reconnect/re-queue — don't leave a ghost in the other queue).
-    for (const key of [queueKey, `matchmaking:${gameMode}:${locale}`, `matchmaking:${gameMode}:${locale}:v1`]) {
+    // Remove stale entries across every supported-locale partition (text +
+    // vocal). The user may have switched the language flag or vocal toggle
+    // since their last join, and we never want a ghost entry to keep them
+    // double-counted in another bucket.
+    const staleKeys = SUPPORTED_LOCALES.flatMap((loc) => [
+      `matchmaking:${gameMode}:${loc}`,
+      `matchmaking:${gameMode}:${loc}:v1`,
+    ])
+    for (const key of staleKeys) {
       const current = await redis.lrange(key, 0, -1)
       for (const entry of current) {
         try {
@@ -535,15 +546,15 @@ export function registerMatchmakingHandlers(
 
   socket.on('matchmaking:leave', async (data: { gameMode?: string }) => {
     const gameMode = data?.gameMode ?? 'normal'
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
-    const locale = user?.locale ?? 'en'
-    // The client doesn't track which partition it joined, so clear both the
-    // text-only and vocal-mode queues for this (gameMode, locale) pair.
-    const queueKeys = [
-      `matchmaking:${gameMode}:${locale}`,
-      `matchmaking:${gameMode}:${locale}:v1`,
-    ]
-    log.info({ userId, gameMode, locale }, 'matchmaking:leave')
+    // We can't trust user.locale from the DB anymore — joins now key on the
+    // UI-selected language, which may differ from the stored locale. Scan
+    // every supported-locale partition (text + vocal) so we never leave a
+    // ghost entry behind. The list is small (~10) so it's cheap.
+    const queueKeys = SUPPORTED_LOCALES.flatMap((loc) => [
+      `matchmaking:${gameMode}:${loc}`,
+      `matchmaking:${gameMode}:${loc}:v1`,
+    ])
+    log.info({ userId, gameMode }, 'matchmaking:leave')
     for (const queueKey of queueKeys) {
       const current = await redis.lrange(queueKey, 0, -1)
       for (const entry of current) {

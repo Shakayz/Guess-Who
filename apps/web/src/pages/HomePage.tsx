@@ -186,6 +186,7 @@ export default function HomePage() {
       categories,
       vocalMode: wantVocal,
       vocalSpeakingTimeSeconds: 10,
+      locale: i18n.language.split('-')[0],
     })
   }
 
