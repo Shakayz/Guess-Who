@@ -74,7 +74,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function GlobalSocketListeners() {
   const token = useAuthStore((s) => s.token)
-  const { setPendingInvite, setPendingFriendRequest, incrementUnread, pushAchievementToast } = useSocialStore()
+  const { setPendingInvite, setPendingFriendRequest, incrementUnread, pushAchievementToast, pushFriendAcceptedToast } = useSocialStore()
 
   useEffect(() => {
     if (!token) return
@@ -94,6 +94,14 @@ function GlobalSocketListeners() {
       })
     })
 
+    socket.on('friend:accepted' as any, (data: any) => {
+      const { pendingFriendRequest } = useSocialStore.getState()
+      if (pendingFriendRequest?.friendshipId === data.friendshipId) {
+        setPendingFriendRequest(null)
+      }
+      pushFriendAcceptedToast(data.by?.username ?? data.byUsername ?? 'Someone')
+    })
+
     socket.on('dm:receive' as any, (data: any) => {
       incrementUnread(data.senderId)
     })
@@ -111,6 +119,7 @@ function GlobalSocketListeners() {
     return () => {
       socket.off('room:invited' as any)
       socket.off('friend:request' as any)
+      socket.off('friend:accepted' as any)
       socket.off('dm:receive' as any)
       socket.off('achievement:unlocked' as any)
     }

@@ -161,6 +161,11 @@ interface FriendRequestEvent {
   from: { id: string; username: string }
 }
 
+interface FriendAcceptedEvent {
+  friendshipId: string
+  by: { id: string; username: string }
+}
+
 function GlobalSocketListeners() {
   const token = useAuthStore((s) => s.token)
   const activeDm = useSocialStore((s) => s.activeDm)
@@ -194,6 +199,16 @@ function GlobalSocketListeners() {
 
     const handleFriendRequest = (data: FriendRequestEvent) => {
       setPendingFriendRequest({ friendshipId: data.friendshipId, fromId: data.from.id, fromUsername: data.from.username })
+    }
+
+    const handleFriendAccepted = (data: FriendAcceptedEvent) => {
+      // Clear any lingering request popup for the same friendship and drop
+      // a small "now friends" toast. FriendsPage fetches on mount so no
+      // separate cache invalidation is needed here.
+      if (useSocialStore.getState().pendingFriendRequest?.friendshipId === data.friendshipId) {
+        setPendingFriendRequest(null)
+      }
+      useSocialStore.getState().pushFriendAcceptedToast(data.by?.username ?? 'Someone')
     }
 
     // Global game:finished listener — catches game end even if the player
@@ -239,6 +254,7 @@ function GlobalSocketListeners() {
     sock.on('dm:receive', handleDmReceive)
     sock.on('room:invited', handleRoomInvited)
     sock.on('friend:request', handleFriendRequest)
+    sock.on('friend:accepted', handleFriendAccepted)
     sock.on('game:finished', handleGameFinished)
     sock.on('achievement:unlocked', handleAchievementUnlocked)
 
@@ -246,6 +262,7 @@ function GlobalSocketListeners() {
       sock.off('dm:receive', handleDmReceive)
       sock.off('room:invited', handleRoomInvited)
       sock.off('friend:request', handleFriendRequest)
+      sock.off('friend:accepted', handleFriendAccepted)
       sock.off('game:finished', handleGameFinished)
       sock.off('achievement:unlocked', handleAchievementUnlocked)
     }
@@ -297,6 +314,47 @@ function FriendRequestBanner() {
         </button>
       </div>
     </div>
+  )
+}
+
+function FriendAcceptedToastStack() {
+  const toasts = useSocialStore((s) => s.friendAcceptedToasts)
+  if (toasts.length === 0) return null
+  return (
+    <div className="fixed bottom-24 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+      {toasts.map((toast, i) => (
+        <FriendAcceptedToastItem key={toast.id} id={toast.id} username={toast.username} index={i} />
+      ))}
+    </div>
+  )
+}
+
+function FriendAcceptedToastItem({ id, username, index }: { id: string; username: string; index: number }) {
+  const navigate = useNavigate()
+  const dismiss = useSocialStore((s) => s.dismissFriendAcceptedToast)
+
+  useEffect(() => {
+    const timer = setTimeout(() => dismiss(id), 5000)
+    return () => clearTimeout(timer)
+  }, [id, dismiss])
+
+  return (
+    <button
+      onClick={() => {
+        dismiss(id)
+        navigate('/friends')
+      }}
+      style={{ animationDelay: `${index * 60}ms` }}
+      className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl border border-emerald-600/60 bg-brand-950/95 backdrop-blur shadow-2xl text-sm animate-slide-up hover:scale-[1.02] transition-transform"
+    >
+      <span className="text-xl">🤝</span>
+      <div className="text-left">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Friend added</p>
+        <p className="text-white font-semibold">
+          You and <span className="text-emerald-400">{username}</span> are now friends!
+        </p>
+      </div>
+    </button>
   )
 }
 
@@ -465,6 +523,7 @@ export default function App() {
       <AuthenticatedConnectionStatus />
       <InviteBanner />
       <FriendRequestBanner />
+      <FriendAcceptedToastStack />
       <AchievementToastBanner />
       <MatchmakingBanner />
       <GlobalMatchmakingModals />

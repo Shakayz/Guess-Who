@@ -131,13 +131,13 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     // doesn't poison the successful create — the DB row is already committed
     // and the client should get its 201 back regardless.
     try {
-      const targetSocketId = (fastify as any).onlineUsers?.get(target.id)
-      if (targetSocketId) {
-        const io = (fastify as any).io
-        if (io) {
-          const requester = await prisma.user.findUnique({ where: { id: userId }, select: { username: true, avatarUrl: true } })
-          io.to(targetSocketId).emit('friend:request', { friendshipId: friendship.id, from: { id: userId, ...requester } })
-        }
+      const io = (fastify as any).io
+      if (io) {
+        const requester = await prisma.user.findUnique({ where: { id: userId }, select: { username: true, avatarUrl: true } })
+        // Emit to the target's per-user room so every tab/device gets the
+        // incoming-request popup — not just the most recently connected socket
+        // (same multi-tab reasoning as commit 256a8fb for game events).
+        io.to(`user:${target.id}`).emit('friend:request', { friendshipId: friendship.id, from: { id: userId, ...requester } })
       }
 
       if (target.pushToken) {
@@ -167,16 +167,18 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     const updated = await prisma.friendship.update({ where: { id }, data: { status: 'accepted' } })
     req.log.info({ userId, friendshipId: id, requesterId: f.requesterId }, 'friend request accepted')
 
-    // Notify requester
+    // Notify requester (every tab/device) AND echo to the accepter's own tabs
+    // so both sides' friend lists can refresh and a "now friends" toast can
+    // fire on whichever surface the user happens to be looking at.
     const accepter = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } })
-    const requesterSocketId = (fastify as any).onlineUsers?.get(f.requesterId)
-    if (requesterSocketId) {
-      const io = (fastify as any).io
-      io?.to(requesterSocketId).emit('friend:accepted', { friendshipId: id, by: { id: userId, username: accepter?.username } })
+    const requester = await prisma.user.findUnique({ where: { id: f.requesterId }, select: { username: true, pushToken: true } })
+    const io = (fastify as any).io
+    if (io) {
+      io.to(`user:${f.requesterId}`).emit('friend:accepted', { friendshipId: id, by: { id: userId, username: accepter?.username } })
+      io.to(`user:${userId}`).emit('friend:accepted', { friendshipId: id, by: { id: f.requesterId, username: requester?.username } })
     }
 
     // Push notification to requester
-    const requester = await prisma.user.findUnique({ where: { id: f.requesterId }, select: { pushToken: true } })
     if (requester?.pushToken) {
       sendPushNotification(
         requester.pushToken,
@@ -187,10 +189,9 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     // Fire friend_added achievement event for BOTH sides of the new friendship.
-    const io = (fastify as any).io ?? null
     await Promise.all([
-      evaluateEvent(io, 'friend_added', { userId, otherUserId: f.requesterId }),
-      evaluateEvent(io, 'friend_added', { userId: f.requesterId, otherUserId: userId }),
+      evaluateEvent(io ?? null, 'friend_added', { userId, otherUserId: f.requesterId }),
+      evaluateEvent(io ?? null, 'friend_added', { userId: f.requesterId, otherUserId: userId }),
     ]).catch(() => {})
 
     return reply.send({ friendship: { id: updated.id, status: updated.status } })

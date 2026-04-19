@@ -20,6 +20,11 @@ export interface AchievementToast {
   starsReward: number
 }
 
+export interface FriendAcceptedToast {
+  id: string
+  username: string
+}
+
 interface SocialStore {
   activeDm: ActiveDm | null
   setActiveDm: (dm: ActiveDm | null) => void
@@ -33,6 +38,9 @@ interface SocialStore {
   achievementToasts: AchievementToast[]
   pushAchievementToast: (data: Omit<AchievementToast, 'id'>) => void
   dismissAchievementToast: (id: string) => void
+  friendAcceptedToasts: FriendAcceptedToast[]
+  pushFriendAcceptedToast: (username: string) => void
+  dismissFriendAcceptedToast: (id: string) => void
 }
 
 export const useSocialStore = create<SocialStore>((set) => ({
@@ -66,5 +74,17 @@ export const useSocialStore = create<SocialStore>((set) => ({
   dismissAchievementToast: (id) =>
     set((s) => ({
       achievementToasts: s.achievementToasts.filter((t) => t.id !== id),
+    })),
+  friendAcceptedToasts: [],
+  pushFriendAcceptedToast: (username) =>
+    set((s) => ({
+      friendAcceptedToasts: [
+        ...s.friendAcceptedToasts,
+        { id: `fa-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, username },
+      ],
+    })),
+  dismissFriendAcceptedToast: (id) =>
+    set((s) => ({
+      friendAcceptedToasts: s.friendAcceptedToasts.filter((t) => t.id !== id),
     })),
 }))
