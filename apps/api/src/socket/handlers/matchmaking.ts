@@ -18,8 +18,7 @@ const RANKED_LP_THRESHOLDS = [
   { after:  0, lpRange:  50 },   // 0-15s: ±50 LP
   { after: 15, lpRange: 100 },   // 15-30s: ±100 LP
   { after: 30, lpRange: 200 },   // 30-45s: ±200 LP
-  { after: 45, lpRange: 400 },   // 45-60s: ±400 LP
-  { after: 60, lpRange: Infinity }, // 60s+: match anyone
+  { after: 45, lpRange: 400 },   // 45s+: ±400 LP (cap)
 ]
 
 function getRankedLPRange(elapsedSeconds: number): number {
