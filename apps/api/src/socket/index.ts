@@ -152,7 +152,12 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         io.to(`user:${socket.data.userId}`).emit('dm:receive' as any, payload)
         // Fire dm_sent achievement event
         await evaluateEvent(io, 'dm_sent', { userId: socket.data.userId, otherUserId: data.toUserId }).catch(() => {})
-      } catch {}
+      } catch (err) {
+        // Don't swallow silently — a missing column/table (e.g. the
+        // direct_messages self-heal not having run on staging yet) used to
+        // make every DM vanish with no trace in the logs.
+        log.error({ err, senderId: socket.data.userId, toUserId: data.toUserId }, 'dm:send failed')
+      }
     })
 
     // Room invite: invite an online user to a room
