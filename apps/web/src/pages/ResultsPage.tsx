@@ -523,17 +523,22 @@ export default function ResultsPage() {
     getSocket().emit('honor:give' as any, { targetUserId, honorType })
   }
 
+  // Defers `reset()` until *just before* `navigate()` runs so we don't clear
+  // the game store while the ResultsPage is still mounted — otherwise the
+  // `!result` guard below kicks in and strands the user on the "No game data
+  // available" fallback (the AdInterstitialModal lives in the main return
+  // path and would never mount).
   const navigateWithAd = (dest: string) => {
     if (shouldShowAd({ level: meQuery.data?.level, isPremium: meQuery.data?.isPremium })) {
       setPendingAdNav(dest)
     } else {
+      reset()
       navigate(dest)
     }
   }
 
   const handlePlayAgain = () => {
     const roomCode = code ?? room?.code   // route param is most reliable
-    reset()
     navigateWithAd(roomCode ? `/lobby/${roomCode}` : '/')
   }
 
@@ -950,7 +955,7 @@ export default function ResultsPage() {
               {t('results.playAgain')}
             </button>
             <button
-              onClick={() => { reset(); navigateWithAd('/') }}
+              onClick={() => navigateWithAd('/')}
               className="px-5 py-3.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold transition-colors"
             >
               {t('results.exit', 'Exit')}
@@ -964,7 +969,10 @@ export default function ResultsPage() {
         onClose={() => {
           const dest = pendingAdNav
           setPendingAdNav(null)
-          if (dest) navigate(dest)
+          if (dest) {
+            reset()
+            navigate(dest)
+          }
         }}
       />
     </div>
