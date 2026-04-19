@@ -187,9 +187,22 @@ export default function HistoryPage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-white font-semibold text-sm group-hover:text-brand-400 transition-colors">
-                            {formatDate(game.startedAt)}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-white font-semibold text-sm group-hover:text-brand-400 transition-colors">
+                              {formatDate(game.startedAt)}
+                            </p>
+                            <span
+                              className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-300 bg-neutral-800/60 inline-flex items-center gap-1.5"
+                              title={t('lobby.roomLanguage', 'Room language') as string}
+                            >
+                              <img
+                                src={`https://flagcdn.com/w20/${langInfo.country}.png`}
+                                alt=""
+                                className="w-3.5 h-2.5 object-cover rounded-sm"
+                              />
+                              <span>{languageName(langInfo.code)}</span>
+                            </span>
+                          </div>
                           <p className="text-neutral-500 text-xs mt-0.5">
                             {game.players.length} player{game.players.length !== 1 ? 's' : ''} · {game.roundCount} round{game.roundCount !== 1 ? 's' : ''}
                           </p>
@@ -207,17 +220,6 @@ export default function HistoryPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-2 mt-3">
-                        <span
-                          className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-300 bg-neutral-800/60 inline-flex items-center gap-1.5"
-                          title={t('lobby.roomLanguage', 'Room language') as string}
-                        >
-                          <img
-                            src={`https://flagcdn.com/w20/${langInfo.country}.png`}
-                            alt=""
-                            className="w-3.5 h-2.5 object-cover rounded-sm"
-                          />
-                          <span>{languageName(langInfo.code)}</span>
-                        </span>
                         <span
                           className={[
                             'text-xs font-semibold px-2 py-0.5 rounded-full border',
