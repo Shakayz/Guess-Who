@@ -1,6 +1,6 @@
 // ─── User & Auth ────────────────────────────────────────────────────────────
 
-export type Locale = 'en' | 'fr' | 'ar' | 'es' | 'it' | 'pt' | 'zh' | 'de'
+export type Locale = 'en' | 'fr' | 'ar' | 'es' | 'it' | 'pt' | 'zh' | 'de' | 'ru' | 'hi'
 
 export interface User {
   id: string

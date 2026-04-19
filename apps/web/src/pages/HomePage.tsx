@@ -3,11 +3,12 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { NavBar } from '../components/NavBar'
-import { WORD_CATEGORIES, MATCHMAKING_CONFIG, TUTORIAL_COMPLETION_REWARD } from '@red-handed/shared'
-import type { WordCategory, MatchmakingStatus } from '@red-handed/shared'
+import { WORD_CATEGORIES, TUTORIAL_COMPLETION_REWARD } from '@red-handed/shared'
+import type { WordCategory } from '@red-handed/shared'
 import { connectSocket, getSocket } from '../lib/socket'
 import { useGameStore } from '../store/game'
 import { useAuthStore } from '../store/auth'
+import { useMatchmakingStore } from '../store/matchmaking'
 import { createLogger } from '../lib/logger'
 import { SoundManager } from '../lib/sounds'
 import { OnboardingTutorial, hasTutorialCompleted } from '../components/OnboardingTutorial'
@@ -17,6 +18,9 @@ const log = createLogger('home')
 
 type HomeMode = 'normal' | 'ranked' | 'lobby' | 'offline'
 type SubGameMode = 'normal' | 'special'
+// Custom Lobby is a two-step flow: first the player picks Create vs Join,
+// then either configures the new lobby or browses the public list.
+type LobbyAction = 'create' | 'join'
 
 export default function HomePage() {
   const { t, i18n } = useTranslation()
@@ -44,6 +48,15 @@ export default function HomePage() {
   const [selectedMode, setSelectedMode] = useState<HomeMode | null>(null)
   const [unrankedSubMode, setUnrankedSubMode] = useState<SubGameMode>('normal')
   const [lobbyGameMode, setSubGameMode] = useState<SubGameMode>('normal')
+  // Which Custom Lobby action the player picked after opening the Lobby card.
+  // Null = still on the Create/Join chooser; 'create' reveals the settings
+  // form below, 'join' navigates away to the public browser.
+  const [lobbyAction, setLobbyAction] = useState<LobbyAction | null>(null)
+  // Public vs private toggle for Custom Lobby creation. Public lobbies are
+  // listed in the public browser (GET /rooms/public) with live player count
+  // and the category / audio-mode badges; private lobbies stay code-only.
+  // Both cost the host 10 ⭐.
+  const [lobbyPublic, setLobbyPublic] = useState(false)
   const [categories, setCategories] = useState<WordCategory[]>([])
   // Vocal-mode preference for unranked matchmaking. Defaults off. When on, the
   // server partitions the queue so we only match with other vocal-opt-in
@@ -56,18 +69,29 @@ export default function HomePage() {
   // replaces the tiny inline red alert whenever the server signals that the
   // viewer is short on ⭐. `null` = hidden; number = DAILY_COST from server.
   const [insufficientCoinsRequired, setInsufficientCoinsRequired] = useState<number | null>(null)
-  const [matchmaking, setMatchmaking] = useState(false)
-  const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({
-    queueSize: 1, needed: MATCHMAKING_CONFIG.IDEAL_PLAYERS, elapsed: 0,
-    maxWait: MATCHMAKING_CONFIG.MAX_WAIT_SECONDS, idealPlayers: MATCHMAKING_CONFIG.IDEAL_PLAYERS,
-  })
 
+  // Matchmaking state lives in a global store so the search survives
+  // navigation — the floating MatchmakingBanner and the global socket listener
+  // in App.tsx both read / drive the same state.
+  const matchmaking = useMatchmakingStore((s) => s.isSearching)
+  const matchStatus = useMatchmakingStore((s) => s.status)
+  const startSearch = useMatchmakingStore((s) => s.startSearch)
+  const stopSearch = useMatchmakingStore((s) => s.stopSearch)
+  const mmRequiredStars = useMatchmakingStore((s) => s.requiredStars)
+  const setMmRequiredStars = useMatchmakingStore((s) => s.setRequiredStars)
+  const mmErrorMessage = useMatchmakingStore((s) => s.errorMessage)
+  const setMmErrorMessage = useMatchmakingStore((s) => s.setErrorMessage)
+
+  // Lobby settings (sub-mode, categories, vocal toggle, public/private) only
+  // appear once the player has picked "Create lobby" from the Custom Lobby
+  // chooser — before that we only show the two big Create/Join cards.
+  const showLobbyForm = selectedMode === 'lobby' && lobbyAction === 'create'
   // Categories only apply in "Special" sub-mode — the Normal game runs on the
   // full word pool. Ranked has no sub-mode and never exposes categories.
   const hasCategories =
     (selectedMode === 'normal' && unrankedSubMode === 'special') ||
-    (selectedMode === 'lobby' && lobbyGameMode === 'special')
-  const hasSubMode = selectedMode === 'normal' || selectedMode === 'lobby'
+    (showLobbyForm && lobbyGameMode === 'special')
+  const hasSubMode = selectedMode === 'normal' || showLobbyForm
 
   // Keep state in sync with visibility: clear any stale picks whenever the
   // category UI is hidden, so switching Special → Normal doesn't silently
@@ -77,51 +101,25 @@ export default function HomePage() {
   }, [hasCategories, categories.length])
   // 'offline' mode navigates directly to /offline, so it never reaches the create button
 
+  // The socket listeners, navigation on :found, error routing, and the
+  // connection-sanity heartbeat all live globally in App.tsx's
+  // `MatchmakingManager` so the search keeps running while the player browses
+  // other pages. HomePage just starts / cancels the search via the store.
+
+  // Surface matchmaking errors raised by the global manager inside HomePage's
+  // existing UI (red alert + insufficient-coins modal) while the user is here.
   useEffect(() => {
-    if (!matchmaking) return
-    connectSocket()
-    const sock = getSocket() as any
-    const handleStatus = (d: MatchmakingStatus) => setMatchStatus(d)
-    const handleFound = (d: { roomCode: string }) => {
-      setMatchmaking(false)
-      navigate(`/lobby/${d.roomCode}`)
+    if (mmRequiredStars !== null) {
+      setInsufficientCoinsRequired(mmRequiredStars)
+      setMmRequiredStars(null)
     }
-    const handleError = (d: { reason?: string; required?: number; message?: string }) => {
-      setMatchmaking(false)
-      if (d?.reason === 'INSUFFICIENT_STARS') {
-        // Show the dedicated modal with a "Get coins" CTA instead of a red line
-        setInsufficientCoinsRequired(d.required ?? 10)
-      } else {
-        setError(d?.message ?? t('common.error'))
-      }
+  }, [mmRequiredStars, setMmRequiredStars])
+  useEffect(() => {
+    if (mmErrorMessage) {
+      setError(mmErrorMessage)
+      setMmErrorMessage(null)
     }
-    sock.on('matchmaking:status', handleStatus)
-    sock.on('matchmaking:found', handleFound)
-    sock.on('matchmaking:error', handleError)
-
-    // ── Connection sanity heartbeat ──────────────────────────────────────────
-    // Every 5 seconds, if the socket got wedged (disconnected silently), kick
-    // the reconnection. On successful reconnect, the server re-tracks the
-    // user in `onlineUsers` so `matchmaking:status` broadcasts resume. We do
-    // NOT re-emit `matchmaking:join` here — that would reset the user's queue
-    // position and wait time. The server's internal tick already broadcasts
-    // status every 1-2s to every online user in the queue, so a healthy
-    // socket is all we need.
-    const heartbeat = setInterval(() => {
-      const s = getSocket()
-      if (!s.connected) {
-        log.info('matchmaking heartbeat: socket disconnected, reconnecting')
-        connectSocket()
-      }
-    }, 5000)
-
-    return () => {
-      clearInterval(heartbeat)
-      sock.off('matchmaking:status', handleStatus)
-      sock.off('matchmaking:found', handleFound)
-      sock.off('matchmaking:error', handleError)
-    }
-  }, [matchmaking, t])
+  }, [mmErrorMessage, setMmErrorMessage])
 
   const toggleCategory = (key: WordCategory) => {
     setCategories((prev) =>
@@ -135,17 +133,25 @@ export default function HomePage() {
 
     if (selectedMode === 'lobby') {
       setLoading(true)
-      log.info('creating private lobby', { categories, language: i18n.language })
+      log.info('creating custom lobby', { categories, vocalMode, isPublic: lobbyPublic, gameMode: lobbyGameMode, language: i18n.language })
       try {
         const room = await api.post<{ code: string }>('/rooms', {
-          settings: { categories, isPrivate: true, language: i18n.language.split('-')[0] },
+          settings: {
+            gameMode: lobbyGameMode,
+            categories: lobbyGameMode === 'special' ? categories : [],
+            isPrivate: true,
+            isPublic: lobbyPublic,
+            vocalMode,
+            language: i18n.language.split('-')[0],
+          },
         })
-        log.info('lobby created', { code: room.code })
+        log.info('lobby created', { code: room.code, isPublic: lobbyPublic })
         navigate(`/lobby/${room.code}?mode=${lobbyGameMode}`)
       } catch (err: any) {
         log.error('lobby creation failed', { error: err.message })
         // The API returns 402 { error: 'INSUFFICIENT_STARS', required } when
-        // the host can't afford to create a private lobby.
+        // the host can't afford to create the lobby. Both public and private
+        // Custom Lobbies cost the host 10 ⭐.
         if (err?.data?.error === 'INSUFFICIENT_STARS') {
           setInsufficientCoinsRequired(err.data.required ?? 10)
         } else {
@@ -158,17 +164,18 @@ export default function HomePage() {
     }
 
     connectSocket()
-    setMatchStatus({
-      queueSize: 1, needed: MATCHMAKING_CONFIG.IDEAL_PLAYERS, elapsed: 0,
-      maxWait: MATCHMAKING_CONFIG.MAX_WAIT_SECONDS, idealPlayers: MATCHMAKING_CONFIG.IDEAL_PLAYERS,
-    })
-    setMatchmaking(true)
     // For unranked (selectedMode === 'normal'), use the sub-mode (normal/special)
     const actualGameMode = selectedMode === 'normal' ? unrankedSubMode : selectedMode
     // Vocal mode is unranked-only — server also enforces this, but we avoid
     // sending a stray flag for ranked queue-joins.
     const wantVocal = selectedMode === 'normal' && vocalMode
     log.info('joining matchmaking', { mode: actualGameMode, categories, vocalMode: wantVocal })
+    startSearch({
+      topMode: selectedMode as 'normal' | 'ranked',
+      gameMode: actualGameMode as 'normal' | 'special' | 'ranked',
+      categories,
+      vocalMode: wantVocal,
+    })
     getSocket().emit('matchmaking:join' as any, {
       gameMode: actualGameMode,
       categories,
@@ -179,7 +186,7 @@ export default function HomePage() {
 
   const cancelMatchmaking = () => {
     log.info('leaving matchmaking')
-    setMatchmaking(false)
+    stopSearch()
     getSocket().emit('matchmaking:leave' as any, { gameMode: selectedMode })
   }
 
@@ -211,8 +218,8 @@ export default function HomePage() {
     {
       id: 'lobby',
       icon: '🚪',
-      labelKey: 'home.lobbyLabel',
-      descKey: 'home.lobbyDesc',
+      labelKey: 'home.customLobbyLabel',
+      descKey: 'home.customLobbyDesc',
       color: 'border-violet-700/60 bg-violet-950/50 text-violet-400 shadow-md shadow-violet-950/50 ring-1 ring-violet-600/20',
       inactive: 'border-neutral-800 hover:border-violet-800/50 hover:-translate-y-0.5 hover:shadow-md hover:shadow-neutral-950/60',
       shadow: 'shadow-violet-950/50',
@@ -440,6 +447,10 @@ export default function HomePage() {
                       setSelectedMode(active ? null : mode.id)
                       setCategories([])
                       setError(null)
+                      // Reset the Custom Lobby sub-action so switching modes
+                      // (or re-opening it) always lands on the Create/Join
+                      // chooser rather than a stale settings view.
+                      setLobbyAction(null)
                     }}
                     aria-label={t(mode.labelKey)}
                     aria-pressed={active}
@@ -459,7 +470,57 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Game mode sub-selector — shown for Unranked and Lobby */}
+          {/* Custom Lobby chooser — two big cards (Create / Join) shown right
+              after the player opens the Lobby mode. We deliberately surface
+              this before any settings card so the player can pick an
+              intention first. */}
+          {selectedMode === 'lobby' && !lobbyAction && (
+            <div className="card animate-slide-up space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                {t('home.customLobbyChooserLabel')}
+              </p>
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  onClick={() => {
+                    SoundManager.play('click')
+                    setLobbyAction('create')
+                    setError(null)
+                  }}
+                  className="flex flex-col items-center gap-1.5 p-4 rounded-2xl border bg-violet-950/40 border-violet-800/50 text-violet-300 hover:border-violet-600/70 hover:bg-violet-950/60 transition-all active:scale-[0.97]"
+                >
+                  <span className="text-2xl md:text-3xl">🛠️</span>
+                  <span className="text-sm md:text-base font-bold">{t('home.lobbyCreateLabel')}</span>
+                  <span className="text-[10px] text-center leading-tight opacity-80">{t('home.lobbyCreateDesc')}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    SoundManager.play('click')
+                    navigate('/lobbies/public')
+                  }}
+                  className="flex flex-col items-center gap-1.5 p-4 rounded-2xl border bg-indigo-950/40 border-indigo-800/50 text-indigo-300 hover:border-indigo-600/70 hover:bg-indigo-950/60 transition-all active:scale-[0.97]"
+                >
+                  <span className="text-2xl md:text-3xl">🔍</span>
+                  <span className="text-sm md:text-base font-bold">{t('home.lobbyJoinLabel')}</span>
+                  <span className="text-[10px] text-center leading-tight opacity-80">{t('home.lobbyJoinDesc')}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Back link — while the player is inside "Create lobby", give them
+              a clear way out to the chooser without resetting the whole mode
+              selection. */}
+          {selectedMode === 'lobby' && lobbyAction === 'create' && (
+            <button
+              onClick={() => { setLobbyAction(null); setError(null) }}
+              className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors flex items-center gap-1"
+            >
+              ← {t('home.lobbyBackToChooser')}
+            </button>
+          )}
+
+          {/* Game mode sub-selector — shown for Unranked and Lobby (after the
+              player chose "Create lobby" for the Custom Lobby flow). */}
           {hasSubMode && (
             <div className="card animate-slide-up space-y-2">
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">{t('home.gameModeLabel')}</p>
@@ -489,6 +550,77 @@ export default function HomePage() {
                     </button>
                   )
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Custom Lobby — visibility + audio mode toggles. The visibility
+              toggle controls whether the lobby shows up in the public browser;
+              pricing is identical for both (10 ⭐ host fee). */}
+          {showLobbyForm && (
+            <div className="card animate-slide-up space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white flex items-center gap-2">
+                    <span>{lobbyPublic ? '🌐' : '🔒'}</span>
+                    <span>{lobbyPublic ? t('home.lobbyPublicLabel') : t('home.lobbyPrivateLabel')}</span>
+                  </p>
+                  <p className="text-[11px] text-neutral-500 mt-0.5">
+                    {lobbyPublic ? t('home.lobbyPublicDesc') : t('home.lobbyPrivateDesc')}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={lobbyPublic}
+                  aria-label={t('home.lobbyPublicLabel')}
+                  onClick={() => setLobbyPublic((v) => !v)}
+                  className={[
+                    'relative w-11 h-6 rounded-full transition-colors shrink-0',
+                    lobbyPublic ? 'bg-indigo-500' : 'bg-neutral-800',
+                  ].join(' ')}
+                >
+                  <span
+                    className={[
+                      'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform',
+                      lobbyPublic ? 'translate-x-5' : 'translate-x-0',
+                    ].join(' ')}
+                  />
+                </button>
+              </div>
+
+              <div className="h-px bg-neutral-800/60" />
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white flex items-center gap-2">
+                    <span>{vocalMode ? '🎙️' : '⌨️'}</span>
+                    <span>{vocalMode ? t('lobby.vocalMode', 'Vocal mode') : t('home.lobbyTypingMode')}</span>
+                  </p>
+                  <p className="text-[11px] text-neutral-500 mt-0.5">
+                    {vocalMode
+                      ? t('lobby.vocalModeDesc', 'Each player speaks out loud on their turn — no typing.')
+                      : t('home.lobbyTypingModeDesc')}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={vocalMode}
+                  aria-label={t('lobby.vocalMode', 'Vocal mode')}
+                  onClick={() => setVocalMode((v) => !v)}
+                  className={[
+                    'relative w-11 h-6 rounded-full transition-colors shrink-0',
+                    vocalMode ? 'bg-brand-600' : 'bg-neutral-800',
+                  ].join(' ')}
+                >
+                  <span
+                    className={[
+                      'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform',
+                      vocalMode ? 'translate-x-5' : 'translate-x-0',
+                    ].join(' ')}
+                  />
+                </button>
               </div>
             </div>
           )}
@@ -667,8 +799,10 @@ export default function HomePage() {
             )
           })()}
 
-          {/* Create button */}
-          {selectedMode && !matchmaking && (
+          {/* Create button — hidden while the player is still on the Custom
+              Lobby chooser (Create vs Join); shown once they've committed to
+              "Create lobby" or picked another mode entirely. */}
+          {selectedMode && !matchmaking && (selectedMode !== 'lobby' || lobbyAction === 'create') && (
             <button
               onClick={handleCreate}
               disabled={loading || !!isBlockedFromNewGame}

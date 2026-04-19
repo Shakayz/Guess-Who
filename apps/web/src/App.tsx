@@ -5,11 +5,16 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from './store/auth'
 import { useSocialStore } from './store/social'
 import { useGameStore } from './store/game'
+import { useMatchmakingStore } from './store/matchmaking'
 import { getSocket, connectSocket, disconnectSocket } from './lib/socket'
 import { api } from './lib/api'
 import { BottomNav } from './components/BottomNav'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { AchievementToastBanner } from './components/achievements/AchievementToastBanner'
+import { MatchmakingBanner } from './components/MatchmakingBanner'
+import type { MatchmakingStatus } from '@red-handed/shared'
+import { InsufficientCoinsModal } from './components/InsufficientCoinsModal'
+import { useTranslation } from 'react-i18next'
 import { createLogger } from './lib/logger'
 import { lazyWithRetry } from './lib/lazyWithRetry'
 
@@ -21,6 +26,7 @@ const log = createLogger('app')
 // user. See apps/web/src/lib/lazyWithRetry.ts for details.
 const HomePage        = lazyWithRetry(() => import('./pages/HomePage'))
 const LobbyPage       = lazyWithRetry(() => import('./pages/LobbyPage'))
+const PublicLobbiesPage = lazyWithRetry(() => import('./pages/PublicLobbiesPage'))
 const GamePage        = lazyWithRetry(() => import('./pages/GamePage'))
 const ProfilePage     = lazyWithRetry(() => import('./pages/ProfilePage'))
 const LeaderboardPage = lazyWithRetry(() => import('./pages/LeaderboardPage'))
@@ -342,6 +348,90 @@ function AuthenticatedConnectionStatus() {
 }
 
 /**
+ * Global matchmaking manager — listens for the matchmaking:status / :found /
+ * :error socket events whenever the store reports an active search, so the
+ * user can navigate between pages (leaderboard, friends, history, …) without
+ * losing their place in the queue. When the server finds a game it navigates
+ * to the lobby and clears the search state.
+ */
+function MatchmakingManager() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const token = useAuthStore((s) => s.token)
+  const isSearching = useMatchmakingStore((s) => s.isSearching)
+  const setStatus = useMatchmakingStore((s) => s.setStatus)
+  const stopSearch = useMatchmakingStore((s) => s.stopSearch)
+  const setRequiredStars = useMatchmakingStore((s) => s.setRequiredStars)
+  const setErrorMessage = useMatchmakingStore((s) => s.setErrorMessage)
+
+  // Logging out drops us from the server queue (via socket disconnect); make
+  // sure the client state doesn't linger.
+  useEffect(() => {
+    if (!token && isSearching) stopSearch()
+  }, [token, isSearching, stopSearch])
+
+  useEffect(() => {
+    if (!isSearching) return
+    connectSocket()
+    const sock = getSocket() as any
+
+    const handleStatus = (d: MatchmakingStatus) => setStatus(d)
+    const handleFound = (d: { roomCode: string }) => {
+      stopSearch()
+      navigate(`/lobby/${d.roomCode}`)
+    }
+    const handleError = (d: { reason?: string; required?: number; message?: string }) => {
+      stopSearch()
+      if (d?.reason === 'INSUFFICIENT_STARS') {
+        setRequiredStars(d.required ?? 10)
+      } else {
+        setErrorMessage(d?.message ?? t('common.error'))
+      }
+    }
+
+    sock.on('matchmaking:status', handleStatus)
+    sock.on('matchmaking:found', handleFound)
+    sock.on('matchmaking:error', handleError)
+
+    // Same connection-sanity heartbeat the HomePage used to run — keeps the
+    // socket alive across idle navigations so status broadcasts keep flowing.
+    const heartbeat = setInterval(() => {
+      const s = getSocket()
+      if (!s.connected) {
+        log.info('matchmaking heartbeat: socket disconnected, reconnecting')
+        connectSocket()
+      }
+    }, 5000)
+
+    return () => {
+      clearInterval(heartbeat)
+      sock.off('matchmaking:status', handleStatus)
+      sock.off('matchmaking:found', handleFound)
+      sock.off('matchmaking:error', handleError)
+    }
+  }, [isSearching, t, navigate, setStatus, stopSearch, setRequiredStars, setErrorMessage])
+
+  return null
+}
+
+/**
+ * Surfaces the INSUFFICIENT_STARS modal globally so a matchmaking error can
+ * still reach the user if they navigated away from the home page before the
+ * server replied.
+ */
+function GlobalMatchmakingModals() {
+  const requiredStars = useMatchmakingStore((s) => s.requiredStars)
+  const setRequiredStars = useMatchmakingStore((s) => s.setRequiredStars)
+  if (requiredStars === null) return null
+  return (
+    <InsufficientCoinsModal
+      required={requiredStars}
+      onClose={() => setRequiredStars(null)}
+    />
+  )
+}
+
+/**
  * Listens for 402 Payment Required responses from the API and redirects the
  * user to the Shop's Premium tab so they can upgrade. Skips redirect if
  * already on the shop or auth pages.
@@ -371,10 +461,13 @@ export default function App() {
       <GlobalSocketListeners />
       <ActiveGameGuard />
       <PremiumRequiredRedirector />
+      <MatchmakingManager />
       <AuthenticatedConnectionStatus />
       <InviteBanner />
       <FriendRequestBanner />
       <AchievementToastBanner />
+      <MatchmakingBanner />
+      <GlobalMatchmakingModals />
       <BottomNav />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
@@ -389,6 +482,7 @@ export default function App() {
         <Route path="/tutorial" element={<ProtectedRoute><TutorialPage /></ProtectedRoute>} />
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
         <Route path="/lobby/:code" element={<ProtectedRoute><LobbyPage /></ProtectedRoute>} />
+        <Route path="/lobbies/public" element={<ProtectedRoute><PublicLobbiesPage /></ProtectedRoute>} />
         <Route path="/game/:code" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
         <Route path="/results/:code" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
         <Route path="/profile/:id?" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />

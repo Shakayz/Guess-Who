@@ -724,7 +724,7 @@ export function registerRoomHandlers(
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
     // Persist numeric and language settings to Prisma
-    const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de']
+    const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de', 'ru', 'hi']
     const dbUpdate: Record<string, number | string> = {}
     // Min 3 players (was incorrectly clamped to 4 here, even though the rest
     // of the codebase advertises 3 as the minimum).

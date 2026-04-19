@@ -28,6 +28,7 @@ import { PopIn, FloatSoft } from '../../components/anim/AnimatedViews'
 
 type GameMode = 'normal' | 'ranked' | 'lobby'
 type SubGameMode = 'normal' | 'special'
+type LobbyAction = 'create' | 'join'
 
 const HOW_TO_PLAY = [
   { icon: '🎭', title: 'Get your role', desc: 'Villager or Imposter — each gets a different word.' },
@@ -37,9 +38,9 @@ const HOW_TO_PLAY = [
 ]
 
 const MODES: { id: GameMode; icon: string; labelKey: string; descKey: string }[] = [
-  { id: 'normal', icon: '🎲', labelKey: 'home.normalLabel', descKey: 'home.normalDesc' },
-  { id: 'ranked', icon: '🏆', labelKey: 'home.rankedLabel', descKey: 'home.rankedDesc' },
-  { id: 'lobby',  icon: '🚪', labelKey: 'home.lobbyLabel',  descKey: 'home.lobbyDesc' },
+  { id: 'normal', icon: '🎲', labelKey: 'home.normalLabel',       descKey: 'home.normalDesc' },
+  { id: 'ranked', icon: '🏆', labelKey: 'home.rankedLabel',       descKey: 'home.rankedDesc' },
+  { id: 'lobby',  icon: '🚪', labelKey: 'home.customLobbyLabel',  descKey: 'home.customLobbyDesc' },
 ]
 
 export default function HomeScreen() {
@@ -67,10 +68,17 @@ export default function HomeScreen() {
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
   const [unrankedSubMode, setUnrankedSubMode] = useState<SubGameMode>('normal')
   const [lobbyGameMode, setLobbyGameMode] = useState<SubGameMode>('normal')
+  // Custom Lobby chooser state — null means the player is on the Create/Join
+  // card; 'create' reveals the settings form, 'join' navigates to the browser.
+  const [lobbyAction, setLobbyAction] = useState<LobbyAction | null>(null)
+  // Public vs private visibility for Custom Lobby. Public lobbies show up in
+  // the public browser; both cost the host 10 ⭐.
+  const [lobbyPublic, setLobbyPublic] = useState(false)
   const [categories, setCategories] = useState<WordCategory[]>([])
-  // Vocal-mode preference for unranked matchmaking. Server partitions the
-  // queue so vocal-opt-in players only match with each other. Per-turn length
-  // is fixed at 10s for unranked; lobbies customize it.
+  // Vocal-mode preference. For unranked matchmaking: server partitions the
+  // queue so vocal-opt-in players only match with each other. For Custom
+  // Lobbies: stored in the lobby's initial settings so the public browser
+  // can show an audio/typing badge before anyone joins.
   const [vocalMode, setVocalMode] = useState(false)
   const [roomCode, setRoomCode] = useState('')
   const [showTutorial, setShowTutorial] = useState(false)
@@ -123,12 +131,15 @@ export default function HomeScreen() {
     maxWait: MATCHMAKING_CONFIG.MAX_WAIT_SECONDS, idealPlayers: MATCHMAKING_CONFIG.IDEAL_PLAYERS,
   })
 
+  // Lobby settings (sub-mode, categories, toggles) only appear once the
+  // player has picked "Create lobby" from the Custom Lobby chooser.
+  const showLobbyForm = selectedMode === 'lobby' && lobbyAction === 'create'
   // Categories only apply in "Special" sub-mode — the Normal game runs on the
   // full word pool. Ranked has no sub-mode and never exposes categories.
   const hasCategories =
     (selectedMode === 'normal' && unrankedSubMode === 'special') ||
-    (selectedMode === 'lobby' && lobbyGameMode === 'special')
-  const hasSubMode = selectedMode === 'normal' || selectedMode === 'lobby'
+    (showLobbyForm && lobbyGameMode === 'special')
+  const hasSubMode = selectedMode === 'normal' || showLobbyForm
 
   // Keep state in sync with visibility: clear any stale picks whenever the
   // category UI is hidden, so switching Special → Normal doesn't silently
@@ -211,11 +222,14 @@ export default function HomeScreen() {
         : selectedMode === 'lobby'
           ? lobbyGameMode
           : unrankedSubMode
+      const isLobby = selectedMode === 'lobby'
       const room = await api.post<{ code: string }>('/rooms', {
         settings: {
           gameMode: initialMode,
           categories: selectedMode === 'ranked' ? [] : categories,
-          isPrivate: selectedMode === 'lobby',
+          isPrivate: isLobby,
+          isPublic: isLobby ? lobbyPublic : false,
+          vocalMode: isLobby ? vocalMode : undefined,
           language: i18n.language.split('-')[0],
         },
       })
@@ -353,6 +367,10 @@ export default function HomeScreen() {
                         setSelectedMode(active ? null : mode.id)
                         setCategories([])
                         setError(null)
+                        // Reset Custom Lobby sub-action whenever the top-level
+                        // mode is toggled so re-opening always shows the
+                        // Create/Join chooser first.
+                        setLobbyAction(null)
                       }}
                       className={[
                         'items-center gap-1.5 rounded-2xl border overflow-hidden',
@@ -403,6 +421,59 @@ export default function HomeScreen() {
                 })}
               </View>
             </View>
+
+            {/* Custom Lobby chooser — Create vs Join cards shown right
+                after the player opens the Lobby mode. */}
+            {selectedMode === 'lobby' && !lobbyAction && (
+              <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-3">
+                <Text className="font-semibold uppercase tracking-widest text-neutral-500" style={{ fontSize: 12 * fontScale }}>
+                  {t('home.customLobbyChooserLabel')}
+                </Text>
+                <View className="flex-row gap-2">
+                  <TouchableOpacity
+                    onPress={() => { setLobbyAction('create'); setError(null) }}
+                    className="flex-1 items-center gap-1 rounded-xl border bg-violet-950/50 border-violet-800/50"
+                    style={{ paddingVertical: isTablet ? 16 : 14, paddingHorizontal: 8 }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ fontSize: 22 }}>🛠️</Text>
+                    <Text className="font-semibold text-violet-200" style={{ fontSize: 13 * fontScale }}>
+                      {t('home.lobbyCreateLabel')}
+                    </Text>
+                    <Text className="text-center leading-tight text-neutral-400" style={{ fontSize: 10 * fontScale }}>
+                      {t('home.lobbyCreateDesc')}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => router.push('/lobbies/public')}
+                    className="flex-1 items-center gap-1 rounded-xl border bg-indigo-950/50 border-indigo-800/50"
+                    style={{ paddingVertical: isTablet ? 16 : 14, paddingHorizontal: 8 }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ fontSize: 22 }}>🔍</Text>
+                    <Text className="font-semibold text-indigo-200" style={{ fontSize: 13 * fontScale }}>
+                      {t('home.lobbyJoinLabel')}
+                    </Text>
+                    <Text className="text-center leading-tight text-neutral-400" style={{ fontSize: 10 * fontScale }}>
+                      {t('home.lobbyJoinDesc')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Back link — out of the Create form to the Create/Join chooser. */}
+            {selectedMode === 'lobby' && lobbyAction === 'create' && (
+              <TouchableOpacity
+                onPress={() => { setLobbyAction(null); setError(null) }}
+                activeOpacity={0.7}
+                className="self-start"
+              >
+                <Text className="text-neutral-500" style={{ fontSize: 12 * fontScale }}>
+                  ← {t('home.lobbyBackToChooser')}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             {/* Sub-mode selector — Normal + Special (both unranked and lobby) */}
             {hasSubMode && (() => {
@@ -461,6 +532,75 @@ export default function HomeScreen() {
                 </View>
               )
             })()}
+
+            {/* Custom Lobby — visibility + audio/typing mode toggles. */}
+            {showLobbyForm && (
+              <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-3">
+                <View className="flex-row items-center justify-between gap-3">
+                  <View className="flex-1 pr-2">
+                    <View className="flex-row items-center gap-1.5">
+                      <Text className="text-sm">{lobbyPublic ? '🌐' : '🔒'}</Text>
+                      <Text className="text-white font-semibold" style={{ fontSize: 14 * fontScale }}>
+                        {lobbyPublic ? t('home.lobbyPublicLabel') : t('home.lobbyPrivateLabel')}
+                      </Text>
+                    </View>
+                    <Text className="text-neutral-500 mt-0.5" style={{ fontSize: 11 * fontScale }}>
+                      {lobbyPublic ? t('home.lobbyPublicDesc') : t('home.lobbyPrivateDesc')}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setLobbyPublic((v) => !v)}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: lobbyPublic }}
+                    accessibilityLabel={t('home.lobbyPublicLabel')}
+                    className={[
+                      'w-11 h-6 rounded-full relative',
+                      lobbyPublic ? 'bg-indigo-500' : 'bg-neutral-700',
+                    ].join(' ')}
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      className="absolute top-0.5 w-5 h-5 rounded-full bg-white"
+                      style={{ left: lobbyPublic ? 22 : 2 }}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <View className="h-px bg-neutral-800" />
+
+                <View className="flex-row items-center justify-between gap-3">
+                  <View className="flex-1 pr-2">
+                    <View className="flex-row items-center gap-1.5">
+                      <Text className="text-sm">{vocalMode ? '🎙️' : '⌨️'}</Text>
+                      <Text className="text-white font-semibold" style={{ fontSize: 14 * fontScale }}>
+                        {vocalMode ? t('lobby.vocalMode', 'Vocal mode') : t('home.lobbyTypingMode')}
+                      </Text>
+                    </View>
+                    <Text className="text-neutral-500 mt-0.5" style={{ fontSize: 11 * fontScale }}>
+                      {vocalMode
+                        ? t('lobby.vocalModeDesc', 'Each player speaks out loud on their turn — no typing.')
+                        : t('home.lobbyTypingModeDesc')}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setVocalMode((v) => !v)}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: vocalMode }}
+                    accessibilityLabel={t('lobby.vocalMode', 'Vocal mode')}
+                    className={[
+                      'w-11 h-6 rounded-full relative',
+                      vocalMode ? 'bg-violet-600' : 'bg-neutral-700',
+                    ].join(' ')}
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      className="absolute top-0.5 w-5 h-5 rounded-full bg-white"
+                      style={{ left: vocalMode ? 22 : 2 }}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             {/* Vocal mode toggle — unranked matchmaking only. Mirrors the
                 private-lobby toggle; server partitions the queue so vocal
@@ -579,8 +719,9 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {/* Create / Find button */}
-            {selectedMode && !inQueue && (
+            {/* Create / Find button — hidden while the player is still on the
+                Custom Lobby Create/Join chooser. */}
+            {selectedMode && !inQueue && (selectedMode !== 'lobby' || lobbyAction === 'create') && (
               <View className="gap-2">
                 <TouchableOpacity
                   onPress={selectedMode === 'lobby' ? handleCreate : handleMatchmaking}

@@ -114,7 +114,14 @@
       "Bash(pnpm --filter \"@red-handed/shared\" build)",
       "Bash(pnpm --filter \"@red-handed/ui\" build)",
       "Bash(pnpm --filter @red-handed/api typecheck)",
-      "Bash(git log *)"
+      "Bash(git log *)",
+      "Bash(git ls-tree *)",
+      "Bash(curl -sf --max-time 2 http://localhost:14740/ -o /dev/null)",
+      "Bash(curl -sf --max-time 2 http://localhost:5175/ -o /dev/null)",
+      "Bash(curl -s -o /dev/null -w \"14740:%{http_code}\\\\n\" http://localhost:14740/)",
+      "Bash(curl -s -o /dev/null -w \"5175:%{http_code}\\\\n\" http://localhost:5175/)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(grep -E \"\\\\.\\(tsx?|prisma\\)$\")"
     ]
   }
 }

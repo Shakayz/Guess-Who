@@ -13,7 +13,11 @@ const createRoomSchema = z.object({
     votingTimeSeconds:    z.number().min(15).max(120).default(30),
     wordPackId:           z.string().default('default'),
     isPrivate:            z.boolean().default(false),
-    language:             z.enum(['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de']).default('en'),
+    // Discoverability toggle for Custom Lobbies. When true, the room appears
+    // in the public-lobby browser. Has NO effect on pricing — the host still
+    // pays the same 10 ⭐ commitment fee either way (see charging logic below).
+    isPublic:             z.boolean().default(false),
+    language:             z.enum(['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de', 'ru', 'hi']).default('en'),
     categories:           z.array(z.string()).default([]),
     gameMode:             z.enum(['normal', 'special', 'ranked']).default('normal'),
     // Vocal mode: per-player speak-out-loud turns (unranked only). Ranked is
@@ -150,6 +154,9 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
             votingTimeSeconds:    settings?.votingTimeSeconds ?? 30,
             wordPackId:           settings?.wordPackId ?? 'default',
             isPrivate:            settings?.isPrivate ?? false,
+            // Ranked matchmaking rooms can never be public; only Custom
+            // Lobbies (isPrivate=true) opt in to the public browser.
+            isPublic:             !isRanked && isPrivateLobby && (settings?.isPublic ?? false),
             language:             settings?.language ?? host?.locale ?? 'en',
           },
         })
@@ -185,6 +192,58 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     }), 'EX', 21600)
     req.log.info({ userId: payload.sub, roomId: room.id, roomCode: room.code }, 'room created')
     return reply.status(201).send(room)
+  })
+
+  // ── Public lobby browser ─────────────────────────────────────────────
+  // Lists every Custom Lobby whose host has opted in to discovery
+  // (isPublic=true) and is still in the `waiting` phase. Live player counts
+  // come from Redis (the Postgres Room row has no `players` column — it only
+  // stores the host-set config).
+  fastify.get('/public', async (_req, reply) => {
+    const rooms = await prisma.room.findMany({
+      where: { isPublic: true, isPrivate: true, status: 'waiting' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: { host: { select: { id: true, username: true } } },
+    })
+
+    if (rooms.length === 0) {
+      return reply.send({ lobbies: [] })
+    }
+
+    // Batch the Redis reads — one round-trip instead of N.
+    const stateKeys = rooms.map((r) => `room:${r.id}:state`)
+    const stateRaws = await redis.mget(...stateKeys)
+    const lobbies = rooms
+      .map((room, idx) => {
+        const raw = stateRaws[idx]
+        const state = raw ? JSON.parse(raw) : null
+        // Drop stale rows where Redis has evicted the state or the game has
+        // already advanced past `waiting` — prevents the browser from
+        // surfacing lobbies the host abandoned.
+        if (!state || state.status !== 'waiting') return null
+        const players = Array.isArray(state.players) ? state.players : []
+        return {
+          code: room.code,
+          host: room.host,
+          playerCount: players.length,
+          maxPlayers: room.maxPlayers,
+          gameMode: state.gameMode ?? 'normal',
+          categories: state.categories ?? [],
+          vocalMode: !!state.vocalMode,
+          language: room.language,
+          createdAt: room.createdAt.toISOString(),
+        }
+      })
+      .filter((l): l is NonNullable<typeof l> => l !== null)
+      // Full lobbies last — they're not joinable but worth showing as social proof.
+      .sort((a, b) => {
+        const aFull = a.playerCount >= a.maxPlayers ? 1 : 0
+        const bFull = b.playerCount >= b.maxPlayers ? 1 : 0
+        return aFull - bFull
+      })
+
+    return reply.send({ lobbies })
   })
 
   fastify.get('/:code', async (req, reply) => {

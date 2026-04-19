@@ -100,6 +100,12 @@ model Room {
   votingTimeSeconds   Int      @default(30)
   wordPackId          String   @default("default")
   isPrivate           Boolean  @default(false)
+  // Discoverability flag for Custom Lobbies: when true, the lobby is surfaced
+  // in the "Join Public Lobby" browser. Pricing is unaffected — a public
+  // Custom Lobby still has isPrivate=true (the host pays the commitment fee
+  // and per-game fees, players play free). Only ranked matchmaking rooms set
+  // isPrivate=false, which keeps the host-vs-player charging logic untouched.
+  isPublic            Boolean  @default(false)
   language            String   @default("en") @db.VarChar(5)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -107,6 +113,7 @@ model Room {
   host  User   @relation(fields: [hostId], references: [id])
   games Game[]
 
+  @@index([isPublic, status])
   @@map("rooms")
 }
 
