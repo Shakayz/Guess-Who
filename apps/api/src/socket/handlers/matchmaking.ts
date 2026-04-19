@@ -30,6 +30,67 @@ function getRankedLPRange(elapsedSeconds: number): number {
   return range
 }
 
+// ── Room creation ─────────────────────────────────────────────────────────────
+// Dedicated helper so both unranked and ranked matchmaking go through the same
+// error-surfacing + retry path. The previous inline `.catch(() => null)` ate
+// every Prisma error (unique-constraint collisions, missing columns from a
+// half-applied migration, FK violations) and surfaced a generic "Failed to
+// create room" to clients with no way to diagnose in the logs.
+//
+// Behaviour:
+//   • Logs the real Prisma error (name + message + code, not the whole stack
+//     so prod logs stay readable).
+//   • Retries up to 3 times on the unique-constraint path so a rare 6-char
+//     code collision doesn't kill a match.
+//   • Returns null on terminal failure so callers can bounce players back.
+
+type RoomCreateInput = {
+  hostId: string
+  maxPlayers: number
+  redHandedCount: number
+  isPrivate: boolean
+  language: string
+}
+
+async function createRoomWithRetry(input: RoomCreateInput, ctx: { queueKey: string }) {
+  let lastErr: unknown = null
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await prisma.room.create({
+        data: {
+          code: generateRoomCode(),
+          hostId: input.hostId,
+          maxPlayers: input.maxPlayers,
+          redHandedCount: input.redHandedCount,
+          speakingTimeSeconds: 30,
+          votingTimeSeconds: 30,
+          isPrivate: input.isPrivate,
+          language: input.language,
+        },
+      })
+    } catch (err: any) {
+      lastErr = err
+      // Prisma P2002 = unique-constraint violation. The only unique column on
+      // Room is `code`, so this is always a room-code collision. Retry with a
+      // fresh code; any other error is terminal.
+      if (err?.code === 'P2002') continue
+      break
+    }
+  }
+  const e = lastErr as any
+  log.error(
+    {
+      queueKey: ctx.queueKey,
+      hostId: input.hostId,
+      errorName: e?.name,
+      errorCode: e?.code,
+      errorMessage: e?.message,
+    },
+    'match execute failed: room creation error',
+  )
+  return null
+}
+
 // ── Per-queue matchmaking windows ──────────────────────────────────────────────
 
 interface MatchmakingWindow {
@@ -113,21 +174,15 @@ async function executeMatch(io: Server<any, any>, queueKey: string, count: numbe
     ? Math.max(5, Math.min(60, Number(hostPlayer?.vocalSpeakingTimeSeconds) || 10))
     : 10
 
-  const room = await prisma.room.create({
-    data: {
-      code: generateRoomCode(),
-      hostId: hostPlayer.userId,
-      maxPlayers: IDEAL_PLAYERS,
-      redHandedCount,
-      speakingTimeSeconds: 30,
-      votingTimeSeconds: 30,
-      isPrivate: false,
-      language: locale,
-    },
-  }).catch(() => null)
+  const room = await createRoomWithRetry({
+    hostId: hostPlayer.userId,
+    maxPlayers: IDEAL_PLAYERS,
+    redHandedCount,
+    isPrivate: false,
+    language: locale,
+  }, { queueKey })
 
   if (!room) {
-    log.error({ queueKey, playerCount: players.length }, 'match execute failed: room creation error')
     // Room creation failed — notify all players
     for (const p of players) {
       const sid = onlineUsers.get(p.userId)
@@ -312,21 +367,15 @@ async function executeRankedMatch(io: Server<any, any>, queueKey: string, player
   // Ranked is locked at exactly 7 villagers + 3 redHanded.
   const redHandedCount = 3
 
-  const room = await prisma.room.create({
-    data: {
-      code: generateRoomCode(),
-      hostId: hostPlayer.userId,
-      maxPlayers: RANKED_PLAYERS,
-      redHandedCount,
-      speakingTimeSeconds: 30,
-      votingTimeSeconds: 30,
-      isPrivate: false,
-      language: locale,
-    },
-  }).catch(() => null)
+  const room = await createRoomWithRetry({
+    hostId: hostPlayer.userId,
+    maxPlayers: RANKED_PLAYERS,
+    redHandedCount,
+    isPrivate: false,
+    language: locale,
+  }, { queueKey })
 
   if (!room) {
-    log.error({ queueKey, playerCount: players.length }, 'ranked match failed: room creation error')
     for (const p of players) {
       const sid = onlineUsers.get(p.userId)
       if (sid) io.to(sid).emit('matchmaking:error' as any, { message: 'Failed to create room.' })
