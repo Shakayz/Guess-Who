@@ -1048,6 +1048,21 @@ async function _resolveRound(io: IO, roomId: string) {
       }).catch((err: any) => logger.error('[tie-votes] persist error:', err))
     }
 
+    // If every alive player is tied, no one can vote in a tiebreaker and no
+    // judge override is possible (a judge in the tied set can't save themselves).
+    // Skip the clue phase entirely and proceed to the next round with no elimination.
+    const aliveIds = (state.players as any[]).filter((p) => p.status === 'alive').map((p) => p.userId)
+    const allAliveTied = aliveIds.length > 0 && aliveIds.every((id) => tiedPlayerIds.includes(id))
+    if (allAliveTied) {
+      logger.info(
+        { roomId, round: state.currentRound, tiedPlayerIds },
+        '[resolveRound] all alive players tied — skipping tiebreaker',
+      )
+      await saveState(roomId, state)
+      await resolveRoundNoElimination(io, roomId, state)
+      return
+    }
+
     await saveState(roomId, state)
 
     // Start tiebreaker after a short reveal delay
