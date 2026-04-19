@@ -1356,6 +1356,14 @@ export default function LobbyPage() {
               <span>{settings.redHandedCount} {t('lobby.redHanded').toLowerCase()}</span>
               <span>·</span>
               <span>{settings.maxRounds === 0 ? t('lobby.roundsInfinity') : t('lobby.roundsCount', { count: settings.maxRounds })}</span>
+              <span>·</span>
+              <span
+                className="inline-flex items-center gap-1"
+                title={t('lobby.roomLanguage', 'Room language') as string}
+              >
+                <img src={`https://flagcdn.com/w20/${roomLangInfo.country}.png`} alt="" className="w-3.5 h-2.5 object-cover rounded-sm" />
+                <span>{roomLangInfo.label}</span>
+              </span>
               {settings.gameMode === 'special' && settings.detectiveCount > 0 && (
                 <><span>·</span><span>{settings.detectiveCount} {t('lobby.detectiveCount').toLowerCase()}</span></>
               )}
