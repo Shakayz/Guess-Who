@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
+import { findLanguage } from '../i18n/languages'
 
 type HistoryMode = 'unranked' | 'ranked'
 
@@ -12,6 +13,7 @@ interface GameSummary {
   endedAt: string
   winnerTeam: 'villagers' | 'red_handed'
   gameMode: 'normal' | 'special' | 'ranked'
+  language?: string
   myRole: 'villager' | 'red_handed'
   survived: boolean
   starCoinsEarned: number
@@ -165,6 +167,7 @@ export default function HistoryPage() {
               <div className="space-y-3">
                 {data.games.map((game) => {
                   const won = didWin(game)
+                  const langInfo = findLanguage(game.language)
                   return (
                     <button
                       key={game.id}
@@ -193,6 +196,17 @@ export default function HistoryPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-2 mt-3">
+                        <span
+                          className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-300 bg-neutral-800/60 inline-flex items-center gap-1.5"
+                          title={t('lobby.roomLanguage', 'Room language') as string}
+                        >
+                          <img
+                            src={`https://flagcdn.com/w20/${langInfo.country}.png`}
+                            alt=""
+                            className="w-3.5 h-2.5 object-cover rounded-sm"
+                          />
+                          <span>{langInfo.label}</span>
+                        </span>
                         <span
                           className={[
                             'text-xs font-semibold px-2 py-0.5 rounded-full border',
