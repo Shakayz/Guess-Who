@@ -121,6 +121,16 @@ services:
         # pattern as equippedEmotes above.
         echo "ALTER TABLE \"users\" ADD COLUMN IF NOT EXISTS \"lastDailyBonusAt\" TIMESTAMP(3);" \
           | prisma db execute --stdin --schema prisma/schema.prisma || true
+        # Self-heal for the `friendships` table. The Friendship model lives in
+        # schema.prisma but — same as Gift (see b05fec2) — no migration ever
+        # CREATE TABLEs it. Staging came up from `prisma migrate deploy`, so
+        # the table is absent, and every /api/friends/request, /requests,
+        # /requests/outgoing, and /accept 500s with "relation friendships does
+        # not exist". Idempotent CREATE TABLE IF NOT EXISTS so existing envs
+        # (if any) are untouched. Kept in its own `prisma db execute` so a
+        # failure here can't roll back the users.lastDailyBonusAt ALTER above.
+        echo "CREATE TABLE IF NOT EXISTS \"friendships\" (\"id\" TEXT NOT NULL, \"requesterId\" TEXT NOT NULL, \"addresseeId\" TEXT NOT NULL, \"status\" VARCHAR(20) NOT NULL DEFAULT 'pending', \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT \"friendships_pkey\" PRIMARY KEY (\"id\"), CONSTRAINT \"friendships_requesterId_fkey\" FOREIGN KEY (\"requesterId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE, CONSTRAINT \"friendships_addresseeId_fkey\" FOREIGN KEY (\"addresseeId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE); CREATE UNIQUE INDEX IF NOT EXISTS \"friendships_requesterId_addresseeId_key\" ON \"friendships\"(\"requesterId\", \"addresseeId\"); CREATE INDEX IF NOT EXISTS \"friendships_requesterId_status_idx\" ON \"friendships\"(\"requesterId\", \"status\"); CREATE INDEX IF NOT EXISTS \"friendships_addresseeId_status_idx\" ON \"friendships\"(\"addresseeId\", \"status\");" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
         prisma migrate deploy || echo "[entrypoint] prisma migrate deploy failed; starting API anyway so /health responds (DB-backed routes may 500 until migrations converge)"
         exec node dist/index.js
     depends_on:
