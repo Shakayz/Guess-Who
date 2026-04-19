@@ -78,54 +78,14 @@ function ShareCard() {
     }
   }
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(appUrl).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
   return (
-    <section className="rounded-2xl border border-brand-800/30 bg-gradient-to-br from-brand-950/60 to-neutral-900/60 p-4 relative overflow-hidden">
-      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-brand-600/50 to-transparent" />
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-brand-800/40 border border-brand-700/40 flex items-center justify-center text-xl flex-shrink-0">
-          🎭
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-bold text-sm">{t('friends.inviteTitle')}</p>
-          <p className="text-neutral-400 text-xs mt-0.5 leading-relaxed">
-            {t('friends.inviteDesc')}
-          </p>
-          {/* URL row */}
-          <div className="flex items-center gap-2 mt-3">
-            <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-neutral-800/80 border border-neutral-700/50 min-w-0">
-              <span className="text-neutral-600 text-xs">🔗</span>
-              <span className="text-neutral-300 text-xs font-mono truncate">{appUrl}</span>
-            </div>
-            <button
-              onClick={handleCopy}
-              className={[
-                'px-3 py-2 rounded-xl text-xs font-semibold transition-all flex-shrink-0 border',
-                copied
-                  ? 'bg-emerald-950/60 border-emerald-800/50 text-emerald-400'
-                  : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:text-white hover:bg-neutral-700',
-              ].join(' ')}
-            >
-              {copied ? t('friends.copied') : `📋 ${t('friends.copy')}`}
-            </button>
-          </div>
-        </div>
-      </div>
-      {/* Share button */}
-      <button
-        onClick={handleShare}
-        className="w-full mt-3 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-brand-600/20"
-      >
-        <span>📤</span>
-        {canShare ? t('friends.shareWithFriends') : (copied ? t('friends.linkCopied') : t('friends.copyLink'))}
-      </button>
-    </section>
+    <button
+      onClick={handleShare}
+      className="w-full py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-brand-600/20"
+    >
+      <img src="/masks.png" alt="" className="w-5 h-5 object-contain" />
+      {canShare ? t('friends.shareWithFriends') : (copied ? t('friends.linkCopied') : t('friends.copyLink'))}
+    </button>
   )
 }
 
@@ -191,7 +151,12 @@ export default function FriendsPage() {
       api
         .get<{ users: SearchUser[] }>(`/users/search?q=${encodeURIComponent(searchQuery.trim())}`)
         .then((res) => setSearchResults(res.users))
-        .catch(() => setSearchResults([]))
+        .catch((err) => {
+          // Log the real failure so it shows up in devtools instead of
+          // silently rendering "No users found" for any network/5xx error.
+          console.error('[friends] search failed', err)
+          setSearchResults([])
+        })
         .finally(() => setSearchLoading(false))
     }, 400)
     return () => clearTimeout(timeout)

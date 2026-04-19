@@ -90,6 +90,13 @@ services:
         # does not exist" because Prisma's INSERT references all scalar fields.
         echo "ALTER TABLE \"purchases\" ADD COLUMN IF NOT EXISTS \"giftReceiverId\" TEXT; ALTER TABLE \"purchases\" ADD COLUMN IF NOT EXISTS \"premiumPlanId\" VARCHAR(16); ALTER TABLE \"gifts\" ADD COLUMN IF NOT EXISTS \"premiumPlanId\" VARCHAR(16);" \
           | prisma db execute --stdin --schema prisma/schema.prisma || true
+        # Self-heal for 20260419040000_add_user_emotes. The users.equippedEmotes
+        # column is included in Prisma's default SELECT for any user.findUnique
+        # without an explicit `select` (e.g. the friend-request target lookup),
+        # so a wedged migration 500s every add-friend attempt. user_emotes is
+        # the ownership table the shop emote purchase writes into.
+        echo "ALTER TABLE \"users\" ADD COLUMN IF NOT EXISTS \"equippedEmotes\" TEXT; CREATE TABLE IF NOT EXISTS \"user_emotes\" (\"id\" TEXT PRIMARY KEY, \"userId\" TEXT NOT NULL, \"emoteId\" VARCHAR(40) NOT NULL, \"priceCents\" INTEGER NOT NULL DEFAULT 0, \"starCoins\" INTEGER NOT NULL DEFAULT 0, \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT \"user_emotes_userId_fkey\" FOREIGN KEY (\"userId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE); CREATE UNIQUE INDEX IF NOT EXISTS \"user_emotes_userId_emoteId_key\" ON \"user_emotes\"(\"userId\", \"emoteId\"); CREATE INDEX IF NOT EXISTS \"user_emotes_userId_idx\" ON \"user_emotes\"(\"userId\");" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
         prisma migrate deploy || echo "[entrypoint] prisma migrate deploy failed; starting API anyway so /health responds (DB-backed routes may 500 until migrations converge)"
         exec node dist/index.js
     depends_on:

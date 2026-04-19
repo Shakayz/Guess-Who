@@ -74,9 +74,14 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
 
     req.log.info({ userId, targetUsername: username, targetUserId: toUserId }, 'friend request attempt')
 
+    // Narrow the select to the fields this handler actually uses. Without it,
+    // Prisma generates `SELECT *` which 500s when staging is behind on a
+    // migration that added a User column (same drift class as 7c11906's
+    // shop self-heal). Only `id` and `pushToken` are read below.
+    const targetSelect = { id: true, pushToken: true } as const
     const target = toUserId
-      ? await prisma.user.findUnique({ where: { id: toUserId } })
-      : await prisma.user.findUnique({ where: { username: username! } })
+      ? await prisma.user.findUnique({ where: { id: toUserId }, select: targetSelect })
+      : await prisma.user.findUnique({ where: { username: username! }, select: targetSelect })
     if (!target) {
       req.log.warn({ userId, targetUsername: username, targetUserId: toUserId }, 'friend request failed: user not found')
       return reply.status(404).send({ error: 'User not found' })
