@@ -10,6 +10,9 @@ import { createLogger } from '../lib/logger'
 import { SoundManager } from '../lib/sounds'
 import { VoiceChannel } from '../lib/webrtc'
 import { EliminationReveal } from '../components/EliminationReveal'
+import { FloatingEmote } from '../components/emotes/FloatingEmote'
+import { useEmotesStore } from '../store/emotes'
+import { getEmoteById, DEFAULT_LOADOUT } from '@red-handed/shared'
 // Overlays removed — they blocked gameplay and caused desync between players
 
 const log = createLogger('game-page')
@@ -18,7 +21,6 @@ type Phase = 'clues' | 'voting' | 'reveal'
 
 const PHASE_STEP_IDS: Phase[] = ['clues', 'voting', 'reveal']
 const PHASE_ICONS: Record<Phase, string> = { clues: '✏️', voting: '🗳', reveal: '📋' }
-const EMOTES = ['👍', '😮', '🤔', '😂', '😱']
 
 /** SVG circular countdown timer — visually prominent */
 const CircularTimer = memo(({ seconds, total, phase }: { seconds: number; total: number; phase: Phase }) => {
@@ -327,10 +329,19 @@ export default function GamePage() {
   const [deadChatInput, setDeadChatInput] = useState('')
   const [deadChatMessages, setDeadChatMessages] = useState<{ id: string; userId: string; username: string; text: string }[]>([])
   const [isEliminated, setIsEliminated] = useState(false)
-  const [floatingEmotes, setFloatingEmotes] = useState<{ id: string; emoji: string; username: string; x: number }[]>([])
+  const [floatingEmotes, setFloatingEmotes] = useState<{ id: string; emoteId?: string; emoji: string; username: string; x: number }[]>([])
   const [emoteCooldownUntil, setEmoteCooldownUntil] = useState(0)
   const [emoteNow, setEmoteNow] = useState(0)
   const lastEmoteTime = useRef(0)
+  // Loadout comes from the server (so equipping on Profile takes effect in-game
+  // immediately on next mount). Falls back to the free basics if the fetch
+  // hasn't landed yet — don't want an empty React bar during a live match.
+  const emotesMe = useEmotesStore((s) => s.me)
+  const fetchEmotesMe = useEmotesStore((s) => s.fetchMe)
+  useEffect(() => { fetchEmotesMe() }, [fetchEmotesMe])
+  const activeLoadout = emotesMe?.loadout && emotesMe.loadout.length > 0
+    ? emotesMe.loadout
+    : [...DEFAULT_LOADOUT]
   const [phase, setPhase] = useState<Phase>('clues')
   const [votedFor, setVotedFor] = useState<string | null>(null)
   const [eliminated, setEliminated] = useState<{ username: string; role: string } | null>(null)
@@ -769,10 +780,10 @@ export default function GamePage() {
       if (msg?.userId !== user?.id) SoundManager.play('chat_message')
       addMessage(msg)
     })
-    socket.on('emote:receive' as any, ({ username, emoji }: { username: string; emoji: string }) => {
+    socket.on('emote:receive' as any, ({ username, emoji, emoteId }: { username: string; emoji: string; emoteId?: string }) => {
       const id = `${Date.now()}_${Math.random()}`
       const x = 10 + Math.random() * 80
-      setFloatingEmotes((prev) => prev.length >= 20 ? prev : [...prev, { id, emoji, username, x }])
+      setFloatingEmotes((prev) => prev.length >= 20 ? prev : [...prev, { id, emoteId, emoji, username, x }])
       const tid = setTimeout(() => setFloatingEmotes((prev) => prev.filter((e) => e.id !== id)), 2800)
       timeoutRefs.current.push(tid)
     })
@@ -936,12 +947,12 @@ export default function GamePage() {
     setChatInput('')
   }
 
-  const sendEmote = (emoji: string) => {
+  const sendEmote = (emoteId: string) => {
     const now = Date.now()
     if (now < emoteCooldownUntil) return
     if (now - lastEmoteTime.current < 1000) return
     lastEmoteTime.current = now
-    getSocket().emit('emote:send' as any, { emoji })
+    getSocket().emit('emote:send' as any, { emoteId })
   }
 
   // Tick while a server lockout is active so disabled buttons re-enable.
@@ -1343,16 +1354,17 @@ export default function GamePage() {
       {/* ── Main game area ── */}
       <div className="relative flex-1 flex flex-col p-4 md:p-6 lg:p-8 gap-4 overflow-y-auto">
 
-        {/* Floating emote reactions */}
+        {/* Floating emote reactions — rarity-aware renderer adds halos,
+            entrance animations, and particle bursts based on the emote's
+            catalog entry. See components/emotes/FloatingEmote.tsx. */}
         {floatingEmotes.map((e) => (
-          <div
+          <FloatingEmote
             key={e.id}
-            className="pointer-events-none absolute bottom-20 z-50 flex flex-col items-center animate-float-up"
-            style={{ left: `${e.x}%` }}
-          >
-            <span className="text-3xl drop-shadow-lg">{e.emoji}</span>
-            <span className="text-[10px] text-white/70 font-semibold mt-0.5 bg-black/40 px-1.5 py-0.5 rounded-full">{e.username}</span>
-          </div>
+            emoteId={e.emoteId}
+            emoji={e.emoji}
+            username={e.username}
+            x={e.x}
+          />
         ))}
 
         {/* Detective role reveal — small non-blocking toast */}
@@ -2139,16 +2151,31 @@ export default function GamePage() {
                     )}
                   </div>
                   <div className="flex gap-2 flex-wrap">
-                    {EMOTES.map((emoji) => (
-                      <button
-                        key={emoji}
-                        onClick={() => sendEmote(emoji)}
-                        disabled={locked}
-                        className={`text-2xl w-11 h-11 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/80 hover:scale-110 active:scale-95 transition-all border border-neutral-700/50 ${locked ? 'opacity-40 cursor-not-allowed hover:scale-100' : ''}`}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
+                    {activeLoadout.map((id) => {
+                      const em = getEmoteById(id)
+                      if (!em) return null
+                      const rarityRing =
+                        em.rarity === 'legendary' ? 'border-amber-500/60 hover:border-amber-400/90' :
+                        em.rarity === 'epic'      ? 'border-fuchsia-600/50 hover:border-fuchsia-400/80' :
+                        em.rarity === 'rare'      ? 'border-indigo-600/50 hover:border-indigo-400/80' :
+                        em.rarity === 'common'    ? 'border-sky-700/40 hover:border-sky-500/70' :
+                                                    'border-neutral-700/50 hover:border-neutral-500/70'
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => sendEmote(id)}
+                          disabled={locked}
+                          title={em.name}
+                          className={[
+                            'text-2xl w-11 h-11 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/80 hover:scale-110 active:scale-95 transition-all border',
+                            rarityRing,
+                            locked ? 'opacity-40 cursor-not-allowed hover:scale-100' : '',
+                          ].join(' ')}
+                        >
+                          {em.emoji}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               )

@@ -64,10 +64,19 @@ model User {
   premiumUntil         DateTime?
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?   @unique
+  // ── Emote loadout ───────────────────────────────────────────────────────────
+  // Ordered list of emote ids the player has equipped on their in-game React
+  // bar. Stored as a JSON string so the "equipped" set is one row-read instead
+  // of a join; capped to MAX_LOADOUT_SIZE (10) by the API. Unknown ids and ids
+  // the user no longer owns are filtered out on read — see
+  // apps/api/src/routes/emotes.ts for the resolution logic. Empty/null means
+  // "fall back to DEFAULT_LOADOUT" (the 5 free basics).
+  equippedEmotes String?  @db.Text
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   rooms               Room[]
+  emotes              UserEmote[]
   gameParticipations  GameParticipation[]
   sentHonors          Honor[]             @relation("sender")
   receivedHonors      Honor[]             @relation("receiver")
@@ -459,4 +468,32 @@ model Purchase {
 
   @@index([userId, platform])
   @@map("purchases")
+}
+
+// ─── Emotes (in-game reactions) ───────────────────────────────────────────────
+// The emote catalog itself lives in /shared/constants/emotes.ts — it's static
+// content and keeping it in code (a) lets the client validate locally without
+// a round-trip, and (b) removes a seed step from onboarding.
+//
+// UserEmote only stores *ownership* — which paid emote ids a given user has
+// unlocked. Free emotes (rarity: 'free') are not written here; the resolution
+// layer implicitly grants them. Equipped selection is stored on
+// User.equippedEmotes as a JSON array, not here, because equip/unequip is the
+// hot path and a single column read is cheaper than a join.
+model UserEmote {
+  id         String   @id @default(cuid())
+  userId     String
+  emoteId    String   @db.VarChar(40)
+  priceCents Int      @default(0)
+  // Snapshot of the star-coin price charged at purchase time. The catalog
+  // price can change later (balance patches, sales, etc.); we keep the
+  // original so refunds and analytics have an authoritative source.
+  starCoins  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, emoteId])
+  @@index([userId])
+  @@map("user_emotes")
 }

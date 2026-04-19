@@ -11,6 +11,7 @@ import type { RankTier } from '@red-handed/shared'
 import { api } from '../lib/api'
 import { ReferralCard } from '../components/ReferralCard'
 import { PremiumBadge } from '../components/PremiumBadge'
+import { EmoteLoadoutSection } from '../components/emotes/EmoteLoadoutSection'
 
 const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/gif,image/webp'
 
@@ -591,6 +592,11 @@ export default function ProfilePage() {
 
           {/* Achievements — compact summary chip; full grid lives on /achievements */}
           <AchievementSummaryChip onOpen={() => navigate('/achievements')} />
+
+          {/* Emote loadout — pick which (up to 10) reactions appear on the
+              in-game React bar. Changes persist to the server and take effect
+              on the next game mount. */}
+          <EmoteLoadoutSection onShop={() => navigate('/shop?tab=emotes')} />
 
           {/* Recent games */}
           {(profileStats?.recentGames?.length ?? 0) > 0 && (

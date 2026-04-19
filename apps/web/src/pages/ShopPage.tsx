@@ -6,6 +6,9 @@ import { NavBar } from '../components/NavBar'
 import { PremiumBadge } from '../components/PremiumBadge'
 import { api } from '../lib/api'
 import { usePremium } from '../lib/usePremium'
+import { EmoteTile } from '../components/emotes/EmoteTile'
+import { useEmotesStore } from '../store/emotes'
+import type { EmoteRarity } from '@red-handed/shared'
 
 // Premium prices shown on the plan selector. Source of truth for the actual
 // charge is the Stripe Price referenced by STRIPE_PRICE_ID_PREMIUM_{MONTHLY,YEARLY}
@@ -17,7 +20,7 @@ const PREMIUM_CURRENCY = 'eur'
 
 type PremiumPlanId = 'monthly' | 'yearly'
 
-type Tab = 'coins' | 'premium'
+type Tab = 'coins' | 'emotes' | 'premium'
 
 type Pack = {
   id: string
@@ -69,6 +72,7 @@ export default function ShopPage() {
   const rawInitial = params.get('tab')
   const initial: Tab =
     rawInitial === 'coins' ? 'coins'
+    : rawInitial === 'emotes' ? 'emotes'
     : rawInitial === 'premium' || rawInitial === 'season' ? 'premium'
     : 'coins'
   const [tab, setTabState] = useState<Tab>(initial)
@@ -106,10 +110,11 @@ export default function ShopPage() {
             </div>
           </div>
 
-          {/* Tabs — cosmetics tab was removed from the game design, so the
-              shop now carries only coins + premium. */}
+          {/* Tabs — Emotes sits between Coins and Premium as the "spend your
+              coins on cosmetic extras" destination. */}
           <div className="flex gap-2 mb-6 overflow-x-auto">
             <TabButton active={tab === 'coins'}   onClick={() => setTab('coins')}>{t('shop.tabCoins')}</TabButton>
+            <TabButton active={tab === 'emotes'}  onClick={() => setTab('emotes')}>Emotes</TabButton>
             <TabButton active={tab === 'premium'} onClick={() => setTab('premium')}>{t('shop.tabPremium')}</TabButton>
           </div>
 
@@ -123,6 +128,7 @@ export default function ShopPage() {
           <GiftsInbox />
 
           {tab === 'coins' && <CoinsTab onPlayClick={() => navigate('/')} />}
+          {tab === 'emotes' && <EmotesTab starCoins={starCoins} />}
           {tab === 'premium' && <PremiumTab />}
         </div>
       </main>
@@ -256,6 +262,131 @@ function EarnRow({ icon, text }: { icon: string; text: string }) {
     <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-800">
       <span className="text-xl shrink-0">{icon}</span>
       <p className="text-sm text-neutral-300">{text}</p>
+    </div>
+  )
+}
+
+// ─── Emotes tab ───────────────────────────────────────────────────────────────
+// Browse the emote catalog and spend star coins to unlock new reactions.
+// Catalog comes from /api/emotes/catalog (public, static) and ownership from
+// /api/emotes/me (authed) — rendered together in a single grid grouped by
+// rarity. After a successful purchase we update the local store + React Query
+// `me` cache so the coin balance, in-game React bar, and Profile loadout
+// picker all refresh without a second fetch.
+
+type CatalogEmote = {
+  id: string
+  emoji: string
+  name: string
+  rarity: EmoteRarity
+  price: number
+  animation: string
+  particle: string
+}
+
+const RARITY_ORDER: EmoteRarity[] = ['legendary', 'epic', 'rare', 'common', 'free']
+const RARITY_LABEL: Record<EmoteRarity, string> = {
+  legendary: 'Legendary',
+  epic: 'Epic',
+  rare: 'Rare',
+  common: 'Common',
+  free: 'Free',
+}
+
+function EmotesTab({ starCoins }: { starCoins: number }) {
+  const queryClient = useQueryClient()
+  const emotesStore = useEmotesStore()
+
+  // Prime the store on mount so the loadout/owned set is current before the
+  // user buys anything. fetchMe is a no-op if already in flight.
+  React.useEffect(() => { emotesStore.fetchMe() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { data: catalog, isLoading } = useQuery<{ emotes: CatalogEmote[] }>({
+    queryKey: ['emotes', 'catalog'],
+    queryFn: () => api.get('/emotes/catalog'),
+    retry: false,
+  })
+
+  const buy = useMutation<{ ok: boolean; emoteId: string; starCoins: number }, Error, string>({
+    mutationFn: (id) => api.post(`/emotes/${id}/buy`, {}),
+    onSuccess: (res) => {
+      // Local store — flips the tile to "Owned" and makes the emote pickable
+      // in the Profile loadout screen without waiting on a refetch.
+      emotesStore.markOwned(res.emoteId)
+      // React Query caches that other screens read from.
+      queryClient.setQueryData<{ starCoins?: number }>(['me'], (prev) => ({
+        ...(prev ?? {}),
+        starCoins: res.starCoins,
+      }))
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+    },
+  })
+
+  const owned = new Set(emotesStore.me?.ownedIds ?? [])
+  const emotes = catalog?.emotes ?? []
+
+  // Group by rarity so the grid reads "wow stuff first" → "basics last".
+  const grouped = React.useMemo(() => {
+    const map: Record<EmoteRarity, CatalogEmote[]> = {
+      legendary: [], epic: [], rare: [], common: [], free: [],
+    }
+    for (const em of emotes) map[em.rarity].push(em)
+    return map
+  }, [emotes])
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-xl border border-brand-600/30 bg-brand-950/30 px-4 py-3 text-sm text-brand-200">
+        Unlocked emotes are automatically available for your React bar. Head to{' '}
+        <span className="font-semibold text-white">Profile → Emotes</span> to pick which 10 appear in-game.
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="h-32 rounded-xl bg-neutral-900 animate-pulse" />
+          ))}
+        </div>
+      ) : (
+        RARITY_ORDER.map((rarity) => {
+          const bucket = grouped[rarity]
+          if (bucket.length === 0) return null
+          return (
+            <section key={rarity}>
+              <p className="text-xs text-neutral-500 uppercase tracking-widest font-semibold mb-3">
+                {RARITY_LABEL[rarity]}
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {bucket.map((em) => {
+                  const isOwned = owned.has(em.id) || em.rarity === 'free'
+                  const canAfford = starCoins >= em.price
+                  const disabled = isOwned || !canAfford || em.rarity === 'free'
+                  const busy = buy.isPending && buy.variables === em.id
+                  return (
+                    <EmoteTile
+                      key={em.id}
+                      emoji={em.emoji}
+                      name={em.name}
+                      rarity={em.rarity}
+                      price={em.price}
+                      owned={isOwned}
+                      disabled={disabled}
+                      busy={busy}
+                      onClick={() => !disabled && buy.mutate(em.id)}
+                    />
+                  )
+                })}
+              </div>
+            </section>
+          )
+        })
+      )}
+
+      {buy.isError && (
+        <div className="px-3 py-2.5 rounded-xl bg-red-950/30 border border-red-900/50 text-red-300 text-xs text-center">
+          {buy.error.message.includes('insufficient_coins') ? 'Not enough coins.' : buy.error.message}
+        </div>
+      )}
     </div>
   )
 }

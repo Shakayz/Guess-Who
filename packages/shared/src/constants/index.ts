@@ -1,3 +1,5 @@
+export * from './emotes'
+
 export const RANK_TIERS = ['wooden', 'bronze', 'silver', 'gold', 'diamond', 'master', 'grandmaster'] as const
 
 export const RANK_CONFIG = {

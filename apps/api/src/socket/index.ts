@@ -12,6 +12,8 @@ import { registerMatchmakingHandlers, cleanupEmptyQueue } from './handlers/match
 import { registerVoiceHandlers, leaveVoiceChannel } from './handlers/voice'
 import { sendPushNotification } from '../services/push'
 import { evaluateEvent } from '../services/achievements'
+import { EMOTES_BY_ID } from '@red-handed/shared'
+import { getUserLoadout } from '../routes/emotes'
 
 const log = childLogger('socket')
 
@@ -243,25 +245,57 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     // Anti-spam: 1s min between emotes, plus a 5-in-10s burst cap that
     // triggers a 10s lockout. Sender gets `emote:cooldown` with a retry
     // timestamp so the UI can disable buttons.
-    socket.on('emote:send' as any, (data: { emoji: string }) => {
+    //
+    // Accepts either `{ emoteId }` (preferred — catalog id, validates against
+    // the sender's loadout) or legacy `{ emoji }` (unicode glyph — resolved
+    // back to the matching free-tier emote id so pre-update clients keep
+    // working). Anything the sender doesn't have equipped is rejected.
+    socket.on('emote:send' as any, async (data: { emoteId?: string; emoji?: string }) => {
       if (!socket.data.userId) return
       const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
       if (!roomKey) return
-      const allowed = ['👍', '😮', '🤔', '😂', '😱']
-      if (!allowed.includes(data.emoji)) {
-        log.warn({ userId: socket.data.userId, emoji: data.emoji }, 'emote:send rejected: invalid emoji')
+
+      // Resolve id — prefer the explicit emoteId, fall back to matching the
+      // legacy emoji against the catalog so older clients stay functional.
+      let emoteId = data.emoteId
+      if (!emoteId && data.emoji) {
+        const hit = Object.values(EMOTES_BY_ID).find((e) => e.emoji === data.emoji)
+        emoteId = hit?.id
+      }
+      if (!emoteId || !EMOTES_BY_ID[emoteId]) {
+        log.warn({ userId: socket.data.userId, data }, 'emote:send rejected: unknown id')
         return
       }
+
+      // Loadout check — server-authoritative so a patched client can't send
+      // unlocked-but-not-equipped content (or content they haven't paid for).
+      let loadout: string[]
+      try {
+        const res = await getUserLoadout(socket.data.userId as string)
+        loadout = res.loadout
+      } catch (err) {
+        log.error({ err, userId: socket.data.userId }, 'emote:send: loadout lookup failed')
+        return
+      }
+      if (!loadout.includes(emoteId)) {
+        log.warn({ userId: socket.data.userId, emoteId }, 'emote:send rejected: not in loadout')
+        return
+      }
+
       const spam = checkEmoteSpam(socket)
       if (!spam.allowed) {
         socket.emit('emote:cooldown' as any, { until: Date.now() + spam.retryAfter!, reason: spam.reason })
         return
       }
-      log.info({ userId: socket.data.userId, emoji: data.emoji, room: roomKey }, 'emote:send')
+
+      const emote = EMOTES_BY_ID[emoteId]
+      log.info({ userId: socket.data.userId, emoteId, room: roomKey }, 'emote:send')
       io.to(roomKey).emit('emote:receive' as any, {
         userId: socket.data.userId,
         username: socket.data.username,
-        emoji: data.emoji,
+        // Legacy field for older clients that still key off the raw glyph.
+        emoji: emote.emoji,
+        emoteId,
       })
     })
 

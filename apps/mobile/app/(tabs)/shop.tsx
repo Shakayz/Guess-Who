@@ -16,8 +16,17 @@ import {
   IAPNotImplementedError,
   IAPCancelledError,
 } from '../../lib/iap'
-import { PREMIUM_PLANS, type CoinPack, type PremiumPlan } from '@red-handed/shared'
+import {
+  PREMIUM_PLANS,
+  EMOTE_CATALOG,
+  type CoinPack,
+  type PremiumPlan,
+  type Emote,
+  type EmoteRarity,
+} from '@red-handed/shared'
 import { PopIn, SlideUp, GlowPulse, Shimmer, FloatSoft, Breathe } from '../../components/anim/AnimatedViews'
+import { EmoteTile } from '../../components/emotes/EmoteTile'
+import { useEmotesStore } from '../../store/emotes'
 
 const log = createLogger('shop')
 
@@ -30,7 +39,7 @@ const log = createLogger('shop')
 // mobile (Apple/Google policy). Phase B has iap stubbed; Phase C wires the
 // native StoreKit 2 / Play Billing flow.
 
-type Tab = 'coins' | 'premium'
+type Tab = 'coins' | 'emotes' | 'premium'
 type PlanId = PremiumPlan['id']
 
 type Pack = CoinPack
@@ -98,6 +107,7 @@ export default function ShopScreen() {
   // legacy deep links from the InsufficientCoinsModal.
   const initial: Tab =
     params.tab === 'coins' ? 'coins'
+    : params.tab === 'emotes' ? 'emotes'
     : params.tab === 'premium' || params.tab === 'season' ? 'premium'
     : 'coins'
   const [tab, setTab] = useState<Tab>(initial)
@@ -158,6 +168,12 @@ export default function ShopScreen() {
             fontScale={fontScale}
           />
           <TabButton
+            active={tab === 'emotes'}
+            onPress={() => switchTab('emotes')}
+            label={t('shop.tabEmotes', { defaultValue: '😂 Emotes' })}
+            fontScale={fontScale}
+          />
+          <TabButton
             active={tab === 'premium'}
             onPress={() => switchTab('premium')}
             label={t('shop.tabPremium', { defaultValue: '👑 Premium' })}
@@ -175,6 +191,13 @@ export default function ShopScreen() {
               HapticManager.selection()
               router.push('/')
             }}
+          />
+        )}
+        {tab === 'emotes' && (
+          <EmotesTab
+            fontScale={fontScale}
+            starCoins={starCoins}
+            onPurchased={fetchMe}
           />
         )}
         {tab === 'premium' && (
@@ -372,6 +395,127 @@ function CoinsTab({
           </Text>
         </TouchableOpacity>
       </View>
+    </View>
+  )
+}
+
+// ─── Emotes tab ───────────────────────────────────────────────────────────────
+
+const RARITY_ORDER: EmoteRarity[] = ['legendary', 'epic', 'rare', 'common', 'free']
+const RARITY_LABEL: Record<EmoteRarity, string> = {
+  legendary: 'Legendary',
+  epic: 'Epic',
+  rare: 'Rare',
+  common: 'Common',
+  free: 'Free',
+}
+
+function EmotesTab({
+  fontScale,
+  starCoins,
+  onPurchased,
+}: {
+  fontScale: number
+  starCoins: number
+  onPurchased: () => void
+}) {
+  const { t } = useTranslation()
+  const store = useEmotesStore()
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  useEffect(() => {
+    store.fetchMe()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const ownedSet = new Set(store.me?.ownedIds ?? [])
+
+  const grouped = React.useMemo(() => {
+    const byRarity: Record<EmoteRarity, Emote[]> = {
+      legendary: [], epic: [], rare: [], common: [], free: [],
+    }
+    for (const em of EMOTE_CATALOG) byRarity[em.rarity].push(em)
+    return byRarity
+  }, [])
+
+  const handleBuy = async (em: Emote) => {
+    if (ownedSet.has(em.id) || em.rarity === 'free') return
+    if (starCoins < em.price) {
+      Alert.alert(
+        t('shop.emoteInsufficientTitle', { defaultValue: 'Not enough ⭐' }),
+        t('shop.emoteInsufficientBody', {
+          defaultValue: 'You need {{price}} ⭐ to buy this emote.',
+          price: em.price.toLocaleString(),
+        }),
+      )
+      return
+    }
+    HapticManager.medium()
+    SoundManager.play('click')
+    setBusyId(em.id)
+    try {
+      await api.post(`/emotes/${em.id}/buy`, {})
+      store.markOwned(em.id)
+      SoundManager.play('success')
+      onPurchased()
+    } catch (err) {
+      Alert.alert(
+        t('shop.emoteBuyErrorTitle', { defaultValue: 'Purchase failed' }),
+        (err as Error)?.message ?? 'Please try again.',
+      )
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <View style={{ gap: 20 }}>
+      <View style={{ gap: 6 }}>
+        <Text
+          className="text-neutral-500 font-semibold uppercase"
+          style={{ fontSize: 10 * fontScale, letterSpacing: 1 }}
+        >
+          {t('shop.emotesTitle', { defaultValue: 'In-Game Reactions' })}
+        </Text>
+        <Text className="text-neutral-500" style={{ fontSize: 11 * fontScale }}>
+          {t('shop.emotesSubtitle', {
+            defaultValue: 'Buy emotes to equip them in your React bar. Free emotes are always available.',
+          })}
+        </Text>
+      </View>
+
+      {RARITY_ORDER.map((rarity) => {
+        const list = grouped[rarity]
+        if (list.length === 0) return null
+        return (
+          <View key={rarity} style={{ gap: 8 }}>
+            <Text
+              className="text-neutral-400 font-bold uppercase"
+              style={{ fontSize: 10 * fontScale, letterSpacing: 1 }}
+            >
+              {RARITY_LABEL[rarity]}
+            </Text>
+            <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+              {list.map((em) => {
+                const owned = em.rarity === 'free' || ownedSet.has(em.id)
+                return (
+                  <View key={em.id} style={{ width: '31%' }}>
+                    <EmoteTile
+                      emoji={em.emoji}
+                      name={em.name}
+                      rarity={em.rarity}
+                      price={em.price}
+                      owned={owned}
+                      busy={busyId === em.id}
+                      disabled={owned || busyId !== null}
+                      onPress={() => handleBuy(em)}
+                    />
+                  </View>
+                )
+              })}
+            </View>
+          </View>
+        )
+      })}
     </View>
   )
 }

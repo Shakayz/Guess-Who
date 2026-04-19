@@ -27,12 +27,22 @@ import { SoundManager } from '../../lib/sounds'
 import { UrgentPulse, Heartbeat } from '../../components/anim/AnimatedViews'
 import { Wordmark } from '../../components/Wordmark'
 import { VoiceChannel } from '../../lib/voice'
+import { FloatingEmote } from '../../components/emotes/FloatingEmote'
+import { useEmotesStore } from '../../store/emotes'
+import { getEmoteById, DEFAULT_LOADOUT, type EmoteRarity } from '@red-handed/shared'
 
 const log = createLogger('game-screen')
 
 type Phase = 'speaking' | 'voting' | 'reveal'
 
-const EMOTES = ['👍', '😮', '🤔', '😂', '😱']
+// Rarity-tinted border for the React bar buttons — mirrors the web game page.
+const RARITY_BORDER: Record<EmoteRarity, string> = {
+  free:      'border-neutral-700/50',
+  common:    'border-sky-700/50',
+  rare:      'border-indigo-600/50',
+  epic:      'border-fuchsia-600/60',
+  legendary: 'border-amber-500/70',
+}
 
 // ─── CountdownBar ─────────────────────────────────────────────────────────────
 
@@ -283,7 +293,7 @@ export default function GameScreen() {
   >([])
   const [isEliminated, setIsEliminated] = useState(false)
   const [floatingEmotes, setFloatingEmotes] = useState<
-    { id: string; emoji: string; username: string }[]
+    { id: string; emoteId?: string; emoji: string; username: string }[]
   >([])
   const [phase, setPhase] = useState<Phase>('speaking')
   const [votedFor, setVotedFor] = useState<string | null>(null)
@@ -659,9 +669,9 @@ export default function GameScreen() {
     socket.on('chat:message', addMessage)
     socket.on(
       'emote:receive' as any,
-      ({ username, emoji }: { username: string; emoji: string }) => {
+      ({ username, emoji, emoteId }: { username: string; emoji: string; emoteId?: string }) => {
         const id = `${Date.now()}_${Math.random()}`
-        setFloatingEmotes((prev) => (prev.length >= 10 ? prev : [...prev, { id, emoji, username }]))
+        setFloatingEmotes((prev) => (prev.length >= 10 ? prev : [...prev, { id, emoteId, emoji, username }]))
         const tid = setTimeout(
           () => setFloatingEmotes((prev) => prev.filter((e) => e.id !== id)),
           2800
@@ -756,13 +766,22 @@ export default function GameScreen() {
     setDeadChatInput('')
   }
 
-  const sendEmote = (emoji: string) => {
+  const sendEmote = (emoteId: string) => {
     const now = Date.now()
     if (now < emoteCooldownUntil) return
     if (now - lastEmoteTime.current < 1000) return
     lastEmoteTime.current = now
-    getSocket().emit('emote:send' as any, { emoji })
+    getSocket().emit('emote:send' as any, { emoteId })
   }
+
+  // Loadout — falls back to free basics while the store is still fetching so
+  // the React bar never shows up empty mid-match.
+  const emotesMe = useEmotesStore((s) => s.me)
+  const fetchEmotesMe = useEmotesStore((s) => s.fetchMe)
+  useEffect(() => { fetchEmotesMe() }, [fetchEmotesMe])
+  const activeLoadout = emotesMe?.loadout && emotesMe.loadout.length > 0
+    ? emotesMe.loadout
+    : [...DEFAULT_LOADOUT]
 
   // Tick once per second while a server lockout is active so buttons
   // re-enable when the cooldown expires.
@@ -838,16 +857,12 @@ export default function GameScreen() {
         onClose={() => setClueHistoryPlayer(null)}
       />
 
-      {/* Floating emote reactions */}
+      {/* Floating emote reactions — rarity-aware renderer with halo +
+          particle bursts. See components/emotes/FloatingEmote.tsx. */}
       {floatingEmotes.length > 0 && (
         <View className="absolute top-20 left-0 right-0 z-50 items-center" pointerEvents="none">
           {floatingEmotes.map((e) => (
-            <View key={e.id} className="items-center mb-2">
-              <Text className="text-3xl">{e.emoji}</Text>
-              <View className="bg-black/50 px-2 py-0.5 rounded-full mt-1">
-                <Text className="text-[10px] text-white/70 font-semibold">{e.username}</Text>
-              </View>
-            </View>
+            <FloatingEmote key={e.id} emoteId={e.emoteId} emoji={e.emoji} username={e.username} />
           ))}
         </View>
       )}
@@ -1545,18 +1560,22 @@ export default function GameScreen() {
                     </Text>
                   )}
                 </View>
-                <View className="flex-row gap-2">
-                  {EMOTES.map((emoji) => (
-                    <TouchableOpacity
-                      key={emoji}
-                      onPress={() => sendEmote(emoji)}
-                      disabled={locked}
-                      className={`w-11 h-11 rounded-xl bg-neutral-800/60 border border-neutral-700/50 items-center justify-center ${locked ? 'opacity-40' : ''}`}
-                      activeOpacity={0.7}
-                    >
-                      <Text className="text-2xl">{emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <View className="flex-row flex-wrap gap-2">
+                  {activeLoadout.map((id) => {
+                    const em = getEmoteById(id)
+                    if (!em) return null
+                    return (
+                      <TouchableOpacity
+                        key={id}
+                        onPress={() => sendEmote(id)}
+                        disabled={locked}
+                        className={`w-11 h-11 rounded-xl bg-neutral-800/60 border items-center justify-center ${RARITY_BORDER[em.rarity]} ${locked ? 'opacity-40' : ''}`}
+                        activeOpacity={0.7}
+                      >
+                        <Text className="text-2xl">{em.emoji}</Text>
+                      </TouchableOpacity>
+                    )
+                  })}
                 </View>
               </View>
             )

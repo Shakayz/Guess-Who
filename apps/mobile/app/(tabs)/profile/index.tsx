@@ -24,6 +24,7 @@ import type { RankTier } from '@red-handed/shared'
 import i18n from '../../../i18n'
 import { LANGUAGES } from '../../../i18n/languages'
 import { useResponsive } from '../../../lib/responsive'
+import { EmoteLoadoutSection } from '../../../components/emotes/EmoteLoadoutSection'
 
 interface UserProfile {
   id: string
@@ -739,6 +740,12 @@ export default function ProfileScreen() {
             <Text className="text-neutral-600" style={{ fontSize: 18 }}>›</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Emote loadout — pick which reactions appear in the in-game React bar */}
+        <EmoteLoadoutSection
+          onShop={() => router.push('/shop?tab=emotes')}
+          fontScale={fontScale}
+        />
 
         {/* Invite a friend */}
         <ReferralCard />
