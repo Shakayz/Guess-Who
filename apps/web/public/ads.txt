@@ -1,0 +1,5 @@
+# Replace pub-0000000000000000 with your AdSense publisher ID (the digits after
+# "ca-pub-" in your VITE_ADSENSE_CLIENT). AdSense requires this file at the
+# domain root to verify that you authorize Google to sell ads on this site.
+# Without a correct ads.txt, payouts can be withheld.
+google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0

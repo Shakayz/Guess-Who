@@ -1,6 +1,10 @@
 import '../global.css'
 import React, { useEffect, useCallback } from 'react'
 import { View, Text, TouchableOpacity, useWindowDimensions, LogBox } from 'react-native'
+import * as SplashScreen from 'expo-splash-screen'
+import { useBrandFonts } from '../lib/fonts'
+
+SplashScreen.preventAutoHideAsync().catch(() => {})
 
 // Suppress noisy socket reconnection logs in dev LogBox
 LogBox.ignoreLogs([
@@ -21,16 +25,36 @@ import { ErrorBoundary } from '../components/ErrorBoundary'
 import { ConnectionStatus } from '../components/ConnectionStatus'
 import { AchievementToastBanner } from '../components/achievements/AchievementToast'
 import { api } from '../lib/api'
+import { initAds, setAdsUserMeta } from '../lib/ads'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+})
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
+  const setUserMeta = useAuthStore((s) => s.setUserMeta)
   const segments = useSegments()
 
   useEffect(() => {
-    if (token) {
-      registerForPushNotifications().catch(() => {})
-    }
-  }, [token])
+    initAds().catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!token) return
+    registerForPushNotifications().catch(() => {})
+    let cancelled = false
+    api
+      .get<{ level?: number; premiumUntil?: string | null; isPremium?: boolean }>('/auth/me')
+      .then((me) => {
+        if (cancelled) return
+        setUserMeta({ level: me.level, premiumUntil: me.premiumUntil ?? null })
+        setAdsUserMeta({ level: me.level ?? 0, isPremium: !!me.isPremium })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [token, setUserMeta])
 
   const inPublicRoute = segments[0] === 'auth' || segments[0] === 'offline' || segments[0] === 'how-to-play'
 
@@ -237,8 +261,19 @@ function FriendRequestBanner() {
 }
 
 export default function RootLayout() {
+  const { loaded: fontsLoaded } = useBrandFonts()
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync().catch(() => {})
+    }
+  }, [fontsLoaded])
+
+  if (!fontsLoaded) return null
+
   return (
     <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
       <StatusBar style="light" />
       <AuthGuard>
         <DeepLinkHandler />
@@ -266,6 +301,7 @@ export default function RootLayout() {
           <Stack.Screen name="results/[code]" options={{ title: 'Results' }} />
         </Stack>
       </AuthGuard>
+      </QueryClientProvider>
     </ErrorBoundary>
   )
 }

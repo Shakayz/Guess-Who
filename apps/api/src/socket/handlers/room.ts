@@ -232,13 +232,34 @@ async function startGameForRoom(
     //   3. Private lobby, subsequent game → charge the host 10 ⭐. The flag
     //      is never re-set (buildResetState drops it), so the host cannot
     //      farm unlimited games on a single 10 ⭐ commitment fee.
+    // Premium subscribers play for free — the "Unlimited Games" perk.
+    // Resolve premium status for every user who might be charged in this
+    // transaction so we can skip their debit without an extra round-trip
+    // inside the $transaction.
+    const chargeableUserIds = room.isPrivate === false
+      ? players.map((p: any) => p.userId as string)
+      : (!consumedHostPrepaid ? [room.hostId] : [])
+    const premiumRows = chargeableUserIds.length === 0
+      ? []
+      : await prisma.user.findMany({
+          where: { id: { in: chargeableUserIds } },
+          select: { id: true, premiumUntil: true },
+        })
+    const now = Date.now()
+    const premiumUserIds = new Set(
+      premiumRows
+        .filter((u) => u.premiumUntil && u.premiumUntil.getTime() > now)
+        .map((u) => u.id),
+    )
+
     let game: { id: string }
     let round: { id: string; roundNumber: number }
     try {
       const result = await prisma.$transaction(async (tx) => {
         if (room.isPrivate === false) {
-          // Case 1 — charge everyone
+          // Case 1 — charge everyone except premium subscribers
           for (const p of players) {
+            if (premiumUserIds.has(p.userId)) continue
             const debit = await tx.user.updateMany({
               where: { id: p.userId, starCoins: { gte: DAILY_COST } },
               data:  { starCoins: { decrement: DAILY_COST } },
@@ -249,8 +270,8 @@ async function startGameForRoom(
               throw err
             }
           }
-        } else if (!consumedHostPrepaid) {
-          // Case 3 — subsequent private-lobby game, charge host
+        } else if (!consumedHostPrepaid && !premiumUserIds.has(room.hostId)) {
+          // Case 3 — subsequent private-lobby game, charge host (free for premium)
           const debit = await tx.user.updateMany({
             where: { id: room.hostId, starCoins: { gte: DAILY_COST } },
             data:  { starCoins: { decrement: DAILY_COST } },

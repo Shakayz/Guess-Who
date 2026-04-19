@@ -49,6 +49,26 @@ const envSchema = z.object({
   // subscription). Defaults to the Premium page so the returning user lands on
   // a meaningful screen.
   STRIPE_PORTAL_RETURN_URL: z.string().default('http://localhost:5173/premium'),
+
+  // ── Apple in-app purchase (App Store Server API) ─────────────────────────
+  // Used to verify signed JWS transactions the mobile client sends after a
+  // StoreKit 2 purchase, and to process App Store Server Notifications v2.
+  // All optional so the API boots without IAP configured; the iOS verify
+  // endpoint returns 503 if APPLE_IAP_BUNDLE_ID is missing.
+  APPLE_IAP_BUNDLE_ID:   z.string().optional(),                         // e.g. com.redhanded.game
+  APPLE_IAP_ISSUER_ID:   z.string().optional(),                         // App Store Connect team issuer UUID
+  APPLE_IAP_KEY_ID:      z.string().optional(),                         // in-app purchase P8 key id (10 chars)
+  APPLE_IAP_PRIVATE_KEY: z.string().optional(),                         // PEM contents of the P8 key (newlines allowed)
+  APPLE_IAP_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
+
+  // ── Google Play billing (Google Play Developer API) ───────────────────────
+  // Used to verify purchase tokens via purchases.products.get and
+  // purchases.subscriptions.get, and to handle Real-Time Developer
+  // Notifications. Service account must have "View financial data" on the
+  // linked Play Console app. JSON is the full service-account credential
+  // file contents (stringified); parsed lazily in the verifier.
+  GOOGLE_PLAY_PACKAGE_NAME:         z.string().optional(),              // e.g. com.redhanded.game
+  GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: z.string().optional(),
 })
 
 export const env = envSchema.parse(process.env)

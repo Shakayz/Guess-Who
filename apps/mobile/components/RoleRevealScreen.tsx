@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { Modal, View, Text, Animated, Easing, useWindowDimensions } from 'react-native'
+import { ConfettiRain, ScreenFlash } from './anim/AnimatedViews'
 
 interface RoleRevealScreenProps {
   visible: boolean
@@ -183,11 +184,23 @@ export default function RoleRevealScreen({
     outputRange: [0, 1],
   })
 
+  // Friendly roles (villager, detective) get a confetti celebration on flip;
+  // impostor roles get a brief red screen flash to punch the reveal.
+  const isFriendly = role === 'villager' || role === 'detective'
+  const flashColor = isFriendly ? '#fbbf24' : '#ef4444'
+  const flashTrigger = visible ? 1 : 0
+
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <Animated.View style={{ flex: 1, opacity: fade }}>
         {/* Black backdrop */}
         <View style={{ ...StyleAbsFill, backgroundColor: 'rgba(0,0,0,0.85)' }} />
+
+        {/* Screen flash at the moment of the flip */}
+        <ScreenFlash trigger={flashTrigger} color={flashColor} />
+
+        {/* Confetti for friendly roles only */}
+        {isFriendly && visible && <ConfettiRain count={50} trigger={flashTrigger} />}
 
         {/* Breathing glow behind the card */}
         <Animated.View

@@ -17,6 +17,7 @@ import { useResponsive } from '../../lib/responsive'
 import { HapticManager } from '../../lib/haptics'
 import { SoundManager } from '../../lib/sounds'
 import { CoinsRevealCard } from '../../components/CoinsRevealCard'
+import { showInterstitialBetweenGames } from '../../lib/ads'
 import { BounceIn, PopIn, SlideUp, StampIn, ConfettiRain, CoinRain, GlowPulse, FloatSoft, Shimmer } from '../../components/anim/AnimatedViews'
 
 const HONOR_OPTIONS: { type: HonorType; label: string; icon: string }[] = [
@@ -74,8 +75,14 @@ export default function ResultsScreen() {
     getSocket().emit('honor:give', { targetPlayerId: targetUserId, honorType })
   }
 
-  const handlePlayAgain = () => {
+  const handlePlayAgain = async () => {
     reset()
+    await showInterstitialBetweenGames()
+    router.replace('/')
+  }
+
+  const handleGoHome = async () => {
+    await showInterstitialBetweenGames()
     router.replace('/')
   }
 
@@ -414,7 +421,7 @@ export default function ResultsScreen() {
           </TouchableOpacity>
           </GlowPulse>
           <TouchableOpacity
-            onPress={() => router.replace('/')}
+            onPress={handleGoHome}
             className="px-6 rounded-2xl bg-neutral-800 border border-neutral-700 items-center justify-center"
             activeOpacity={0.8}
             style={{ paddingVertical: isTablet ? 18 : 15 }}

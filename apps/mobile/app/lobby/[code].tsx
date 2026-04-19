@@ -18,7 +18,6 @@ import { connectSocket, getSocket } from '../../lib/socket'
 import { api } from '../../lib/api'
 import {
   WORD_CATEGORIES,
-  ZERO_SPECIAL_COUNTS,
   autoReduceOverflow,
   clampRedHandedCount,
   computeMaxRoleCounts,
@@ -31,6 +30,7 @@ import { createLogger } from '../../lib/logger'
 import { SoundManager } from '../../lib/sounds'
 import { HapticManager } from '../../lib/haptics'
 import InsufficientCoinsModal from '../../components/InsufficientCoinsModal'
+import { BounceIn, GlowPulse, Heartbeat, SlideUp } from '../../components/anim/AnimatedViews'
 
 const log = createLogger('lobby-screen')
 
@@ -285,65 +285,61 @@ function SettingsPanel({
         Room Settings
       </Text>
 
-      {/* Game Mode */}
+      {/* Game Mode — ranked lobbies are created by matchmaking, so hosts can
+          only flip between Normal / Special here (mirrors web). When a ranked
+          room somehow lands in the lobby screen, show a read-only locked label. */}
       <View>
         <Text className="text-xs text-neutral-500 mb-2">Game Mode</Text>
-        <View className="flex-row gap-2">
-          {(['normal', 'special', 'ranked'] as const).map((mode) => (
-            <TouchableOpacity
-              key={mode}
-              onPress={() => {
-                // Reset all role counts when leaving special mode.
-                const reset = mode === 'special' ? {} : { ...ZERO_SPECIAL_COUNTS }
-                onChange({
-                  ...settings,
-                  gameMode: mode,
-                  categories: mode === 'ranked' ? [] : settings.categories,
-                  detectiveCount:   mode === 'special' ? settings.detectiveCount   : 0,
-                  doubleAgentCount: mode === 'special' ? settings.doubleAgentCount : 0,
-                  guardianCount:    mode === 'special' ? settings.guardianCount    : 0,
-                  mayorCount:       mode === 'special' ? settings.mayorCount       : 0,
-                  judgeCount:       mode === 'special' ? settings.judgeCount       : 0,
-                  revenantCount:    mode === 'special' ? settings.revenantCount    : 0,
-                  infiltratorCount: mode === 'special' ? settings.infiltratorCount : 0,
-                  jesterCount:      mode === 'special' ? settings.jesterCount      : 0,
-                  kamikazeCount:    mode === 'special' ? settings.kamikazeCount    : 0,
-                  corruptorCount:   mode === 'special' ? settings.corruptorCount   : 0,
-                  inverterCount:    mode === 'special' ? settings.inverterCount    : 0,
-                  evilTwinsEnabled: mode === 'special' ? settings.evilTwinsEnabled : 0,
-                  // Ranked cannot use vocal mode — force-disable when switching.
-                  vocalMode: mode === 'ranked' ? false : settings.vocalMode,
-                })
-                void reset
-              }}
-              className={[
-                'flex-1 py-2.5 rounded-xl items-center border',
-                settings.gameMode === mode
-                  ? mode === 'ranked'
-                    ? 'bg-amber-950 border-amber-700'
-                    : mode === 'special'
-                    ? 'bg-cyan-950 border-cyan-700'
-                    : 'bg-violet-950 border-violet-700'
-                  : 'bg-neutral-800 border-neutral-700',
-              ].join(' ')}
-            >
-              <Text
+        {settings.gameMode === 'ranked' ? (
+          <View className="py-2.5 rounded-xl items-center border bg-amber-950 border-amber-700">
+            <Text className="text-xs font-semibold text-amber-400">🏆 Ranked (locked)</Text>
+          </View>
+        ) : (
+          <View className="flex-row gap-2">
+            {(['normal', 'special'] as const).map((mode) => (
+              <TouchableOpacity
+                key={mode}
+                onPress={() => {
+                  onChange({
+                    ...settings,
+                    gameMode: mode,
+                    detectiveCount:   mode === 'special' ? settings.detectiveCount   : 0,
+                    doubleAgentCount: mode === 'special' ? settings.doubleAgentCount : 0,
+                    guardianCount:    mode === 'special' ? settings.guardianCount    : 0,
+                    mayorCount:       mode === 'special' ? settings.mayorCount       : 0,
+                    judgeCount:       mode === 'special' ? settings.judgeCount       : 0,
+                    revenantCount:    mode === 'special' ? settings.revenantCount    : 0,
+                    infiltratorCount: mode === 'special' ? settings.infiltratorCount : 0,
+                    jesterCount:      mode === 'special' ? settings.jesterCount      : 0,
+                    kamikazeCount:    mode === 'special' ? settings.kamikazeCount    : 0,
+                    corruptorCount:   mode === 'special' ? settings.corruptorCount   : 0,
+                    inverterCount:    mode === 'special' ? settings.inverterCount    : 0,
+                    evilTwinsEnabled: mode === 'special' ? settings.evilTwinsEnabled : 0,
+                  })
+                }}
                 className={[
-                  'text-xs font-semibold',
+                  'flex-1 py-2.5 rounded-xl items-center border',
                   settings.gameMode === mode
-                    ? mode === 'ranked'
-                      ? 'text-amber-400'
-                      : mode === 'special'
-                      ? 'text-cyan-400'
-                      : 'text-violet-400'
-                    : 'text-neutral-400',
+                    ? mode === 'special'
+                      ? 'bg-cyan-950 border-cyan-700'
+                      : 'bg-violet-950 border-violet-700'
+                    : 'bg-neutral-800 border-neutral-700',
                 ].join(' ')}
               >
-                {mode === 'ranked' ? '🏆 Ranked' : mode === 'special' ? '🔮 Special' : '🎮 Normal'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+                <Text
+                  className={[
+                    'text-xs font-semibold',
+                    settings.gameMode === mode
+                      ? mode === 'special' ? 'text-cyan-400' : 'text-violet-400'
+                      : 'text-neutral-400',
+                  ].join(' ')}
+                >
+                  {mode === 'special' ? '🔮 Special' : '🎮 Normal'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
         <Text className="text-xs text-neutral-600 mt-1.5">
           {settings.gameMode === 'ranked'
             ? 'All categories — affects LP'
@@ -563,6 +559,22 @@ function SettingsPanel({
 
       {/* Numeric settings */}
       <View className="gap-3 pt-2 border-t border-neutral-800">
+        {settings.gameMode === 'ranked' ? (
+          <View className="rounded-xl border border-amber-700/40 bg-amber-950/30 p-3 gap-1">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-xs text-neutral-400">Max Players</Text>
+              <Text className="text-xs font-mono font-semibold text-amber-300">10</Text>
+            </View>
+            <View className="flex-row items-center justify-between">
+              <Text className="text-xs text-neutral-400">Imposters</Text>
+              <Text className="text-xs font-mono font-semibold text-amber-300">3</Text>
+            </View>
+            <Text className="text-[10px] text-neutral-500 pt-1">
+              Ranked games always have 7 villagers and 3 imposters.
+            </Text>
+          </View>
+        ) : (
+        <>
         <NumStepper
           label="Max Players"
           value={settings.maxPlayers}
@@ -611,6 +623,8 @@ function SettingsPanel({
             })
           }}
         />
+        </>
+        )}
         <NumStepper
           label="Max Rounds"
           value={settings.maxRounds}
@@ -726,7 +740,7 @@ const DEFAULT_SETTINGS: Settings = {
 }
 
 export default function LobbyScreen() {
-  const { code } = useLocalSearchParams<{ code: string }>()
+  const { code, mode } = useLocalSearchParams<{ code: string; mode?: string }>()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const { room, setRoom, setRoleAndWord, setRound } = useGameStore()
@@ -839,6 +853,14 @@ export default function LobbyScreen() {
     connectSocket()
     const socket = getSocket()
     socket.emit('room:join', { roomCode: code })
+
+    // Apply initial game mode from ?mode= query param (set when the host
+    // picked Normal / Special on the home screen before creating the lobby).
+    if (mode === 'normal' || mode === 'special') {
+      setTimeout(() => {
+        getSocket().emit('room:settings' as any, { gameMode: mode })
+      }, 500)
+    }
 
     socket.on('room:updated', (r) => {
       log.debug('room updated', { players: r.players?.length, status: (r as any).status })
@@ -992,6 +1014,8 @@ export default function LobbyScreen() {
 
 
         {/* Room code + share */}
+        <BounceIn>
+        <GlowPulse style={{ borderRadius: 16 }}>
         <TouchableOpacity
           onPress={copyRoomCode}
           className="bg-neutral-900 border-2 border-violet-800/50 rounded-2xl items-center overflow-hidden"
@@ -1003,7 +1027,18 @@ export default function LobbyScreen() {
           {/* Subtle bg glow */}
           <View className="absolute inset-0 bg-violet-950/20" />
           <Text className="font-bold uppercase tracking-[0.2em] text-violet-500 mb-3" style={{ fontSize: 11 * fontScale }}>Room Code</Text>
-          <Text className="font-black font-mono text-white" style={{ fontSize: (isTablet ? 56 : 46), letterSpacing: 10 }}>{code}</Text>
+          <Text
+            className="font-black font-mono text-white"
+            style={{
+              fontSize: (isTablet ? 56 : 46),
+              letterSpacing: 10,
+              textShadowColor: 'rgba(139,92,246,0.55)',
+              textShadowOffset: { width: 0, height: 0 },
+              textShadowRadius: 16,
+            }}
+          >
+            {code}
+          </Text>
           <View
             className={[
               'flex-row items-center gap-1.5 mt-3 px-3 py-1 rounded-full border',
@@ -1015,6 +1050,8 @@ export default function LobbyScreen() {
             </Text>
           </View>
         </TouchableOpacity>
+        </GlowPulse>
+        </BounceIn>
 
         {/* Share button */}
         <TouchableOpacity
@@ -1038,11 +1075,12 @@ export default function LobbyScreen() {
             <View className="items-center py-10">
               <View className="flex-row gap-2 mb-4">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <View
-                    key={i}
-                    className="rounded-full bg-neutral-800/60 border-2 border-dashed border-neutral-700/60"
-                    style={{ width: 36, height: 36 }}
-                  />
+                  <Heartbeat key={i}>
+                    <View
+                      className="rounded-full bg-neutral-800/60 border-2 border-dashed border-neutral-700/60"
+                      style={{ width: 36, height: 36 }}
+                    />
+                  </Heartbeat>
                 ))}
               </View>
               <Text className="text-neutral-400 font-semibold" style={{ fontSize: 14 * fontScale }}>Waiting for players...</Text>
@@ -1050,12 +1088,12 @@ export default function LobbyScreen() {
             </View>
           ) : (
             <View className="gap-2">
-              {players.map((p) => {
+              {players.map((p, i) => {
                 const isReady = p.isReady || p.isHost
                 const isMe = p.userId === user?.id
                 return (
+                  <SlideUp key={p.id} delay={40 * i}>
                   <View
-                    key={p.id}
                     className={[
                       'flex-row items-center gap-3 px-3 py-3 rounded-xl border overflow-hidden',
                       isMe
@@ -1119,6 +1157,7 @@ export default function LobbyScreen() {
                       </Text>
                     </View>
                   </View>
+                  </SlideUp>
                 )
               })}
             </View>

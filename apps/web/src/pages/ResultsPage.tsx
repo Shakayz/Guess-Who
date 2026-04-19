@@ -11,6 +11,10 @@ import { getSocket } from '../lib/socket'
 import { SoundManager } from '../lib/sounds'
 import { PlayerActionMenu } from '../components/PlayerActionMenu'
 import { CoinsRevealCard } from '../components/CoinsRevealCard'
+import { AdInterstitialModal } from '../components/AdInterstitialModal'
+import { shouldShowAd } from '../lib/ads'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../lib/api'
 
 /** Full-screen cinematic intro overlay that auto-dismisses */
 const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: () => void }) => {
@@ -401,6 +405,12 @@ export default function ResultsPage() {
   const [showCinematic, setShowCinematic] = useState(true)
   const [honorGiven, setHonorGiven] = useState<Record<string, HonorType>>({})
   const [honorTarget, setHonorTarget] = useState<string | null>(null)
+  const [pendingAdNav, setPendingAdNav] = useState<string | null>(null)
+  const meQuery = useQuery<{ level?: number; isPremium?: boolean }>({
+    queryKey: ['me'],
+    queryFn: () => api.get('/auth/me'),
+    retry: false,
+  })
   const hasGivenHonor = Object.keys(honorGiven).length > 0
   const [rankUp, setRankUp] = useState<{ oldTier: RankTier; newTier: RankTier; newLP: number } | null>(null)
   const [showRankCelebration, setShowRankCelebration] = useState(false)
@@ -513,10 +523,18 @@ export default function ResultsPage() {
     getSocket().emit('honor:give' as any, { targetUserId, honorType })
   }
 
+  const navigateWithAd = (dest: string) => {
+    if (shouldShowAd({ level: meQuery.data?.level, isPremium: meQuery.data?.isPremium })) {
+      setPendingAdNav(dest)
+    } else {
+      navigate(dest)
+    }
+  }
+
   const handlePlayAgain = () => {
     const roomCode = code ?? room?.code   // route param is most reliable
     reset()
-    navigate(roomCode ? `/lobby/${roomCode}` : '/')
+    navigateWithAd(roomCode ? `/lobby/${roomCode}` : '/')
   }
 
   // Guard: if no game result data, show fallback
@@ -932,7 +950,7 @@ export default function ResultsPage() {
               {t('results.playAgain')}
             </button>
             <button
-              onClick={() => { reset(); navigate('/') }}
+              onClick={() => { reset(); navigateWithAd('/') }}
               className="px-5 py-3.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold transition-colors"
             >
               {t('results.exit', 'Exit')}
@@ -941,6 +959,14 @@ export default function ResultsPage() {
 
         </div>
       </main>
+      <AdInterstitialModal
+        open={!!pendingAdNav}
+        onClose={() => {
+          const dest = pendingAdNav
+          setPendingAdNav(null)
+          if (dest) navigate(dest)
+        }}
+      />
     </div>
   )
 }

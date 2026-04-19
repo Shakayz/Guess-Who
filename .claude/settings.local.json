@@ -113,7 +113,8 @@
       "Bash(pnpm --filter @red-handed/shared build)",
       "Bash(pnpm --filter \"@red-handed/shared\" build)",
       "Bash(pnpm --filter \"@red-handed/ui\" build)",
-      "Bash(pnpm --filter @red-handed/api typecheck)"
+      "Bash(pnpm --filter @red-handed/api typecheck)",
+      "Bash(git log *)"
     ]
   }
 }

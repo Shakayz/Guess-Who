@@ -229,6 +229,9 @@ export default function HomePage() {
   // then disappear for returning players.
   const [walkthroughCompleted, setWalkthroughCompleted] = useState(true)
   const [hasPlayedGame, setHasPlayedGame] = useState(true)
+  // Premium status controls whether the "Costs 10 ⭐" hint appears on the
+  // Find / Create button. Premium subscribers play for free server-side.
+  const [isPremium, setIsPremium] = useState(false)
   useEffect(() => {
     let cancelled = false
     api.get<{ completed: boolean; hasPlayedGame?: boolean }>('/tutorial/status')
@@ -242,6 +245,9 @@ export default function HomePage() {
         setWalkthroughCompleted(false)
         setHasPlayedGame(false)
       })
+    api.get<{ isPremium?: boolean }>('/auth/me')
+      .then((me) => { if (!cancelled) setIsPremium(!!me.isPremium) })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [])
 
@@ -679,11 +685,13 @@ export default function HomePage() {
                     {selectedMode === 'ranked' && t('home.findRanked')}
                     {selectedMode === 'lobby' && t('home.createLobby')}
                   </span>
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-white/70">
-                    {selectedMode === 'lobby'
-                      ? t('home.costHintHost', { cost: 10 })
-                      : t('home.costHint', { cost: 10 })}
-                  </span>
+                  {!isPremium && (
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-white/70">
+                      {selectedMode === 'lobby'
+                        ? t('home.costHintHost', { cost: 10 })
+                        : t('home.costHint', { cost: 10 })}
+                    </span>
+                  )}
                 </span>
               )}
             </button>

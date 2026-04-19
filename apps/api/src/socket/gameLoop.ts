@@ -474,6 +474,19 @@ async function finishGameWithWinner(
   }).catch(() => null)
   const roomIsPrivate = roomRow?.isPrivate ?? false
   const roomHostId = roomRow?.hostId ?? null
+  // Premium subscribers play for free (see rooms.ts + handlers/room.ts). Snapshot
+  // each player's premium status so the Results breakdown reports 0 entry fee
+  // instead of the 10 ⭐ everyone else paid.
+  const premiumUsers = await prisma.user.findMany({
+    where: { id: { in: state.players.map((p: any) => p.userId as string) } },
+    select: { id: true, premiumUntil: true },
+  }).catch(() => [] as { id: string; premiumUntil: Date | null }[])
+  const nowMs = Date.now()
+  const premiumUserIds = new Set(
+    premiumUsers
+      .filter((u) => u.premiumUntil && u.premiumUntil.getTime() > nowMs)
+      .map((u) => u.id),
+  )
   await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
 
   const finishedGame = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
@@ -588,6 +601,8 @@ async function finishGameWithWinner(
   // screen can display the full net breakdown (base reward, bonuses, and
   // the entry fee that was debited at start / lobby creation).
   const costForPlayer = (userId: string): number => {
+    // Premium subscribers never pay the entry fee.
+    if (premiumUserIds.has(userId)) return 0
     if (roomIsPrivate) {
       // Private lobby: host paid 10 ⭐ at POST /rooms, joiners played free.
       return userId === roomHostId ? DAILY_COST : 0

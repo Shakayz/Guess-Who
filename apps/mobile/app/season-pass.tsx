@@ -6,6 +6,7 @@ import { useResponsive } from '../lib/responsive'
 import { HapticManager } from '../lib/haptics'
 import { SoundManager } from '../lib/sounds'
 import { api } from '../lib/api'
+import { PopIn, SlideUp, FloatSoft, GlowPulse, Breathe, BounceIn } from '../components/anim/AnimatedViews'
 
 // Mobile mirror of the web SeasonPassPage. Uses the same /season-pass/current
 // endpoint so both platforms show the exact same user state and can claim
@@ -62,7 +63,7 @@ export default function SeasonPassScreen() {
   async function claim(tier: SeasonTier) {
     if (!tier.unlocked || tier.claimed || claimingId) return
     HapticManager.medium()
-    SoundManager.play('success')
+    SoundManager.play('coin')
     setClaimingId(tier.id)
     try {
       await api.post(`/season-pass/claim/${tier.id}`, {})
@@ -93,10 +94,14 @@ export default function SeasonPassScreen() {
         contentContainerStyle={{ paddingHorizontal: px, paddingVertical: 20, paddingBottom: 48, gap: 16 }}
         showsVerticalScrollIndicator={false}
       >
+        <BounceIn>
+        <GlowPulse style={{ borderRadius: 16 }}>
         <View className="rounded-2xl border border-violet-600/30 bg-neutral-900 overflow-hidden">
           <View className="h-[2] bg-violet-500/60" />
           <View className="p-6 items-center gap-2">
-            <Text style={{ fontSize: 44 }}>🎫</Text>
+            <FloatSoft>
+              <Text style={{ fontSize: 52, textShadowColor: 'rgba(139,92,246,0.55)', textShadowRadius: 18, textShadowOffset: { width: 0, height: 0 } }}>🎫</Text>
+            </FloatSoft>
             <Text className="text-white font-extrabold" style={{ fontSize: 24 * fontScale }}>
               Season Pass
             </Text>
@@ -133,15 +138,18 @@ export default function SeasonPassScreen() {
             )}
           </View>
         </View>
+        </GlowPulse>
+        </BounceIn>
 
         {season?.tiers?.length ? (
           <View className="gap-2">
             <Text className="text-neutral-500 font-semibold uppercase tracking-widest" style={{ fontSize: 10 * fontScale }}>
               Tiers
             </Text>
-            {season.tiers.map((tier) => (
+            {season.tiers.map((tier, i) => {
+              const isClaimable = tier.unlocked && !tier.claimed
+              const row = (
               <View
-                key={tier.id}
                 className={[
                   'flex-row items-center gap-3 px-3 py-3 rounded-xl border',
                   tier.claimed
@@ -169,27 +177,35 @@ export default function SeasonPassScreen() {
                     CLAIMED
                   </Text>
                 ) : tier.unlocked ? (
-                  <TouchableOpacity
-                    onPress={() => claim(tier)}
-                    disabled={claimingId === tier.id}
-                    className="px-3 py-1.5 rounded-lg bg-violet-600"
-                    activeOpacity={0.8}
-                  >
-                    {claimingId === tier.id ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text className="text-white font-semibold" style={{ fontSize: 11 * fontScale }}>
-                        Claim
-                      </Text>
-                    )}
-                  </TouchableOpacity>
+                  <Breathe>
+                    <TouchableOpacity
+                      onPress={() => claim(tier)}
+                      disabled={claimingId === tier.id}
+                      className="px-3 py-1.5 rounded-lg bg-violet-600"
+                      activeOpacity={0.8}
+                    >
+                      {claimingId === tier.id ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text className="text-white font-semibold" style={{ fontSize: 11 * fontScale }}>
+                          Claim
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </Breathe>
                 ) : (
                   <Text className="text-neutral-600 font-semibold" style={{ fontSize: 11 * fontScale }}>
                     🔒
                   </Text>
                 )}
               </View>
-            ))}
+              )
+              return (
+                <SlideUp key={tier.id} delay={80 + i * 55}>
+                  {isClaimable ? <GlowPulse style={{ borderRadius: 12 }}>{row}</GlowPulse> : row}
+                </SlideUp>
+              )
+            })}
           </View>
         ) : null}
       </ScrollView>

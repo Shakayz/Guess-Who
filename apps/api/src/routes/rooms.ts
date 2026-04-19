@@ -102,8 +102,14 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     const { settings } = createRoomSchema.parse(req.body)
     const payload = req.user as { sub: string }
     req.log.info({ userId: payload.sub, gameMode: settings?.gameMode, isPrivate: settings?.isPrivate }, 'creating room')
-    const host = await prisma.user.findUnique({ where: { id: payload.sub }, select: { locale: true } })
+    const host = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { locale: true, premiumUntil: true },
+    })
     const code = generateRoomCode()
+    // Premium subscribers play without paying the entry fee — this is the
+    // "Unlimited Games" perk advertised on the Premium page.
+    const isHostPremium = !!(host?.premiumUntil && host.premiumUntil.getTime() > Date.now())
 
     // Ranked games are locked at 10 players / 3 redHanded, regardless of
     // what the client sends. All other modes honour the submitted values.
@@ -115,16 +121,17 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     // covers the FIRST game only. Subsequent games in the same private lobby are
     // charged at game start (see startGameForRoom in socket/handlers/room.ts) —
     // this closes an infinite-replay farming exploit where one 10 ⭐ fee used to
-    // cover unlimited games.
+    // cover unlimited games. Premium hosts are exempt from this fee entirely.
     //
     // The debit and the Room row are created in a single transaction so a failed
     // room.create can never leave the host with coins deducted and no room —
     // both operations succeed together or the whole thing rolls back.
     const isPrivateLobby = settings?.isPrivate === true
+    const shouldChargeHost = isPrivateLobby && !isHostPremium
     let room
     try {
       room = await prisma.$transaction(async (tx) => {
-        if (isPrivateLobby) {
+        if (shouldChargeHost) {
           const debit = await tx.user.updateMany({
             where: { id: payload.sub, starCoins: { gte: DAILY_COST } },
             data:  { starCoins: { decrement: DAILY_COST } },
@@ -172,8 +179,9 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
       // consumed by startGameForRoom for the host's FIRST game in this room.
       // It is intentionally NOT re-set by buildResetState, so the host is
       // charged again for every subsequent game (prevents infinite-replay
-      // farming on a single 10 ⭐ fee).
-      hostPrepaid: isPrivateLobby,
+      // farming on a single 10 ⭐ fee). Premium hosts bypass the fee entirely,
+      // so the prepaid flag is only set when an actual debit happened.
+      hostPrepaid: shouldChargeHost,
     }), 'EX', 21600)
     req.log.info({ userId: payload.sub, roomId: room.id, roomCode: room.code }, 'room created')
     return reply.status(201).send(room)

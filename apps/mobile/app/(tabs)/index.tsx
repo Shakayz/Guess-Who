@@ -225,7 +225,10 @@ export default function HomeScreen() {
     }
   }
 
-  const showCostHint = selectedMode === 'ranked' || selectedMode === 'lobby'
+  // Premium subscribers play for free (see api/routes/rooms.ts and
+  // api/socket/handlers/room.ts), so the 10 ⭐ hint shouldn't appear for them.
+  const isPremium = !!(user?.premiumUntil && Date.parse(user.premiumUntil) > Date.now())
+  const showCostHint = !isPremium && (selectedMode === 'ranked' || selectedMode === 'lobby')
 
   const handleJoin = () => {
     const code = roomCode.trim().toUpperCase()
@@ -346,7 +349,7 @@ export default function HomeScreen() {
                           ? activeStyle
                           : 'border-neutral-800 bg-neutral-900',
                       ].join(' ')}
-                      style={{ padding: isTablet ? 16 : 12 }}
+                      style={{ flex: 1, padding: isTablet ? 16 : 12 }}
                       activeOpacity={0.8}
                     >
                       {/* Active top accent bar */}

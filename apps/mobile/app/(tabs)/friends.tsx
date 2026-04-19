@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Share,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTranslation } from 'react-i18next'
@@ -15,7 +16,6 @@ import { api } from '../../lib/api'
 import { getSocket } from '../../lib/socket'
 import { useAuthStore } from '../../store/auth'
 import { useSocialStore } from '../../store/social'
-import * as Sharing from 'expo-sharing'
 import { useResponsive } from '../../lib/responsive'
 import DmChatModal from '../../components/DmChatModal'
 
@@ -181,16 +181,17 @@ export default function FriendsScreen() {
   )
 
   const handleShareInvite = useCallback(async () => {
-    const available = await Sharing.isAvailableAsync()
-    if (!available) {
-      Alert.alert('Sharing not available on this device')
-      return
+    const url = 'https://redhanded.game'
+    const message = `Join me in Red Handed ! — the real-time social deduction game. Deceive. Detect. Dominate.\n${url}`
+    try {
+      await Share.share(
+        { message, url, title: 'Red Handed !' },
+        { dialogTitle: 'Invite friends to Red Handed !' },
+      )
+    } catch (err: any) {
+      Alert.alert(t('common.error'), err?.message ?? 'Unable to share')
     }
-    // Share a generic invite link
-    await Sharing.shareAsync('https://redhanded.game/invite', {
-      dialogTitle: 'Invite friends to Red Handed !',
-    }).catch(() => {})
-  }, [])
+  }, [t])
 
   /* ---------- Render helpers ---------- */
 

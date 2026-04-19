@@ -105,6 +105,12 @@ export const SOCIAL_SHARE_REWARD = 50
  * read from env vars (STRIPE_PRICE_ID_PACK_*) at checkout time so test/live
  * modes can carry different IDs without a rebuild. `bonus` is additive — a
  * purchase credits `amount + bonus` star coins.
+ *
+ * `iosProductId` / `androidProductId` are the native IAP SKUs declared in App
+ * Store Connect and Google Play Console. They must match the strings used
+ * server-side when verifying receipts (see /api/shop/iap/*). Kept in /shared
+ * so the mobile client (requestPurchase) and the API (verify handler) resolve
+ * the same mapping.
  */
 export type CoinPack = {
   id: string
@@ -112,12 +118,17 @@ export type CoinPack = {
   priceCents: number
   currency: string
   bonus: number
+  iosProductId: string
+  androidProductId: string
 }
 
 export const COIN_PACKS: readonly CoinPack[] = [
-  { id: 'pack_500',  amount: 500,  priceCents: 199,  currency: 'eur', bonus: 0 },
-  { id: 'pack_1500', amount: 1500, priceCents: 499,  currency: 'eur', bonus: 150 },
-  { id: 'pack_5000', amount: 5000, priceCents: 1499, currency: 'eur', bonus: 750 },
+  { id: 'pack_500',  amount: 500,  priceCents: 199,  currency: 'eur', bonus: 0,
+    iosProductId: 'com.redhanded.game.pack_500',  androidProductId: 'pack_500' },
+  { id: 'pack_1500', amount: 1500, priceCents: 499,  currency: 'eur', bonus: 150,
+    iosProductId: 'com.redhanded.game.pack_1500', androidProductId: 'pack_1500' },
+  { id: 'pack_5000', amount: 5000, priceCents: 1499, currency: 'eur', bonus: 750,
+    iosProductId: 'com.redhanded.game.pack_5000', androidProductId: 'pack_5000' },
 ] as const
 
 /**
@@ -125,18 +136,58 @@ export const COIN_PACKS: readonly CoinPack[] = [
  * `current_period_end` math; the actual price comes from Stripe (per-env Price
  * IDs via STRIPE_PRICE_ID_PREMIUM_MONTHLY / _YEARLY). A user is premium iff
  * `User.premiumUntil > now()` — see apps/api/prisma/schema.prisma.
+ *
+ * `iosProductId` / `androidProductId` are the native subscription SKUs. On
+ * Android, a single subscription product can have multiple "base plans" — we
+ * use `androidBasePlanId` so the client can pass the right offer token to
+ * Play Billing while still sharing one product across monthly/yearly.
  */
 export type PremiumPlan = {
   id: 'monthly' | 'yearly'
   interval: 'month' | 'year'
   priceCents: number
   currency: string
+  iosProductId: string
+  androidProductId: string
+  androidBasePlanId: string
 }
 
 export const PREMIUM_PLANS: readonly PremiumPlan[] = [
-  { id: 'monthly', interval: 'month', priceCents: 499,  currency: 'eur' },
-  { id: 'yearly',  interval: 'year',  priceCents: 4990, currency: 'eur' },
+  { id: 'monthly', interval: 'month', priceCents: 499,  currency: 'eur',
+    iosProductId: 'com.redhanded.game.premium.monthly',
+    androidProductId: 'premium', androidBasePlanId: 'monthly' },
+  { id: 'yearly',  interval: 'year',  priceCents: 4990, currency: 'eur',
+    iosProductId: 'com.redhanded.game.premium.yearly',
+    androidProductId: 'premium', androidBasePlanId: 'yearly' },
 ] as const
+
+/**
+ * Resolve a native IAP SKU (Apple/Google product id) back to the shop entity
+ * it represents. Used by the API when verifying a receipt — the mobile client
+ * only sends the platform's product id + transaction proof, and the server
+ * needs to know which coin pack to credit or which plan's interval to apply.
+ */
+export function resolveCoinPackByProductId(
+  platform: 'ios' | 'android',
+  productId: string,
+): CoinPack | undefined {
+  const key = platform === 'ios' ? 'iosProductId' : 'androidProductId'
+  return COIN_PACKS.find((p) => p[key] === productId)
+}
+
+export function resolvePremiumPlanByProductId(
+  platform: 'ios' | 'android',
+  productId: string,
+  basePlanId?: string,
+): PremiumPlan | undefined {
+  if (platform === 'ios') {
+    return PREMIUM_PLANS.find((p) => p.iosProductId === productId)
+  }
+  // Android: same product id covers both intervals, disambiguate by base plan.
+  return PREMIUM_PLANS.find(
+    (p) => p.androidProductId === productId && p.androidBasePlanId === basePlanId,
+  )
+}
 
 export const LP_DECAY = {
   /** Days of inactivity before decay begins */

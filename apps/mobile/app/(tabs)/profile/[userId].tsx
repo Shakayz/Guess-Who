@@ -42,6 +42,8 @@ export default function PlayerProfileScreen() {
   const { t } = useTranslation()
   const router = useRouter()
   const { userId } = useLocalSearchParams<{ userId: string }>()
+  const { isTablet, px } = useResponsive()
+  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
   const [profile, setProfile] = useState<PlayerProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -150,9 +152,6 @@ export default function PlayerProfileScreen() {
       </SafeAreaView>
     )
   }
-
-  const { isTablet, px } = useResponsive()
-  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
   if (!profile) return null
 

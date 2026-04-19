@@ -8,6 +8,7 @@ import {
   Animated,
   Easing,
   Dimensions,
+  Image,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -443,10 +444,14 @@ function SetupPhase({
           <View className="self-end">
             <LanguagePicker />
           </View>
-          <Text style={{ fontSize: isTablet ? 36 : 30 }}>🎭</Text>
+          <Image
+            source={require('../assets/masks.png')}
+            style={{ width: isTablet ? 96 : 80, height: isTablet ? 96 : 80, marginBottom: 12 }}
+            resizeMode="contain"
+          />
           <Text
-            className="font-extrabold text-white tracking-tight mt-1"
-            style={{ fontSize: (isTablet ? 26 : 22) * fontScale }}
+            className="font-extrabold text-white tracking-tight"
+            style={{ fontSize: (isTablet ? 30 : 26) * fontScale }}
           >
             {t('offline.title', { defaultValue: 'Offline Mode' })}
           </Text>
@@ -1274,7 +1279,10 @@ function SpeakingTimer({ isTablet, fontScale }: { isTablet: boolean; fontScale: 
           }
           // Last-5-second countdown ticks — subtle tick + tactile tap
           // so players feel the pressure even when looking at the room.
-          if (s <= 6) {
+          if (s <= 4) {
+            SoundManager.play('countdown_final')
+            HapticManager.selection()
+          } else if (s <= 6) {
             SoundManager.play('timer_tick')
             HapticManager.selection()
           }
