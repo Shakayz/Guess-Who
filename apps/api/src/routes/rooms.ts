@@ -223,6 +223,9 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
         // surfacing lobbies the host abandoned.
         if (!state || state.status !== 'waiting') return null
         const players = Array.isArray(state.players) ? state.players : []
+        // Defensive: empty lobbies are closed by the leave/disconnect handlers,
+        // but filter here too so any pre-existing stale row never surfaces.
+        if (players.length === 0) return null
         return {
           code: room.code,
           host: room.host,

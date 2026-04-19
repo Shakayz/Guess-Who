@@ -497,6 +497,17 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
           state.players = state.players.filter((p: any) => p.userId !== userId)
         }
 
+        if (!wasInGame && state.players.length === 0) {
+          // Last player out — tear the lobby down so it disappears from the browser.
+          await redis.del(`room:${roomId}:state`)
+          await prisma.room.update({
+            where: { id: roomId },
+            data:  { status: 'closed' },
+          }).catch(() => {})
+          io.to(roomKey).emit('player:left', socket.id)
+          continue
+        }
+
         // ── Host reassignment ───────────────────────────────────────────────
         // Only reassign host if game is in waiting state (mid-game host loss is cosmetic only)
         if (!wasInGame && state.players.length > 0) {

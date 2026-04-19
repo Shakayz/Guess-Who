@@ -1177,26 +1177,37 @@ export function registerRoomHandlers(
         if (isInGame) {
           // Voluntary leave during game = forfeit (guaranteed LP loss)
           await forfeitPlayer(io, roomId, userId)
+          await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+          io.to(roomKey).emit('player:left', socket.id)
         } else {
           // In lobby: remove the player entirely
           state.players = state.players.filter((p: any) => p.userId !== userId)
 
-          // ── Host reassignment ─────────────────────────────────────────────
-          const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
-          if (room && room.hostId === userId && state.players.length > 0) {
-            const newHost = state.players[0]
-            newHost.isHost  = true
-            newHost.isReady = true
+          if (state.players.length === 0) {
+            // Last player out — tear the lobby down so it disappears from the browser.
+            await redis.del(`room:${roomId}:state`)
             await prisma.room.update({
               where: { id: roomId },
-              data:  { hostId: newHost.userId },
+              data:  { status: 'closed' },
             }).catch(() => {})
-            io.to(roomKey).emit('room:host-changed' as any, { newHostId: newHost.userId, newHostUsername: newHost.username })
+            io.to(roomKey).emit('player:left', socket.id)
+          } else {
+            // ── Host reassignment ───────────────────────────────────────────
+            const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
+            if (room && room.hostId === userId) {
+              const newHost = state.players[0]
+              newHost.isHost  = true
+              newHost.isReady = true
+              await prisma.room.update({
+                where: { id: roomId },
+                data:  { hostId: newHost.userId },
+              }).catch(() => {})
+              io.to(roomKey).emit('room:host-changed' as any, { newHostId: newHost.userId, newHostUsername: newHost.username })
+            }
+            await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+            io.to(roomKey).emit('player:left', socket.id)
           }
         }
-
-        await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
-        io.to(roomKey).emit('player:left', socket.id)
       }
       await socket.leave(roomKey)
     }
