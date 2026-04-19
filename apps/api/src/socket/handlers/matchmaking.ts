@@ -140,7 +140,11 @@ async function executeMatch(io: Server<any, any>, queueKey: string, count: numbe
 
   log.info({ queueKey, roomId: room.id, roomCode: room.code, playerCount: players.length }, 'match found')
 
-  const matchedCategories: string[] = hostPlayer.categories ?? []
+  // Unranked (normal/special) plays across ALL categories combined, matching
+  // ranked. Category filtering is reserved for create-lobby and offline, which
+  // are the customizable modes. Queue entries may still carry `categories`
+  // from older clients — we intentionally ignore them here.
+  const matchedCategories: string[] = []
 
   await redis.set(`room:${room.id}:state`, JSON.stringify({
     status: 'waiting',
