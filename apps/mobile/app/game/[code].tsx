@@ -1477,6 +1477,7 @@ export default function GameScreen() {
                 const isForfeited = p.status === ('forfeited' as any)
                 const isMe = p.userId === user?.id
                 const canViewHistory = !isMe && (hasSubmittedClue || phase !== 'speaking')
+                const isSpeakingNow = isAlive && vocalMode && phase === 'speaking' && vocalSpeakerId === p.userId
                 return (
                   <TouchableOpacity
                     key={p.id}
@@ -1484,7 +1485,9 @@ export default function GameScreen() {
                     activeOpacity={canViewHistory ? 0.7 : 1}
                     className={[
                       'flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-xl border',
-                      isAlive && isMe
+                      isSpeakingNow
+                        ? 'bg-brand-900/60 border-brand-500/70'
+                        : isAlive && isMe
                         ? 'bg-violet-950/40 border-violet-700/50'
                         : isAlive
                         ? 'bg-neutral-800/70 border-neutral-700/50'
@@ -1496,7 +1499,7 @@ export default function GameScreen() {
                     <View
                       className={[
                         'w-1.5 h-1.5 rounded-full',
-                        isAlive ? (isMe ? 'bg-violet-400' : 'bg-emerald-400') : isForfeited ? 'bg-orange-600' : 'bg-neutral-700',
+                        isSpeakingNow ? 'bg-brand-400' : isAlive ? (isMe ? 'bg-violet-400' : 'bg-emerald-400') : isForfeited ? 'bg-orange-600' : 'bg-neutral-700',
                       ].join(' ')}
                     />
                     <View style={{ opacity: isAlive ? 1 : 0.4 }}>
@@ -1505,11 +1508,14 @@ export default function GameScreen() {
                     <Text
                       className={[
                         'text-xs font-semibold',
-                        isAlive ? (isMe ? 'text-violet-200' : 'text-white') : 'text-neutral-600',
+                        isSpeakingNow ? 'text-brand-100' : isAlive ? (isMe ? 'text-violet-200' : 'text-white') : 'text-neutral-600',
                       ].join(' ')}
                     >
                       {p.username}
                     </Text>
+                    {isSpeakingNow && (
+                      <Text className="text-[10px]">🎤</Text>
+                    )}
                     {!isAlive && !isForfeited && (
                       <Text className="text-[9px] text-neutral-700">☠</Text>
                     )}

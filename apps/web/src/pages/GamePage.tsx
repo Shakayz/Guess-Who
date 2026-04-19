@@ -1991,7 +1991,7 @@ export default function GamePage() {
             {players.map((p) => {
               const canReveal = myRole === 'detective' && !detectiveRevealUsed && p.userId !== user?.id && p.status === 'alive' && (phase === 'clues' || phase === 'voting')
               const canProtect = myRole === 'guardian' && !guardianProtectUsed && p.status === 'alive' && phase === 'voting'
-              const isSpeakingNow = currentSpeakerId === p.userId && phase === 'clues'
+              const isSpeakingNow = phase === 'clues' && (vocalMode ? vocalSpeakerId === p.userId : currentSpeakerId === p.userId)
               return (
                 <div
                   key={p.id}
