@@ -495,12 +495,19 @@ export const shopRoutes: FastifyPluginAsync = async (fastify) => {
           const giftMessage = (session.metadata?.giftMessage as string | undefined) || undefined
           const created = await creditPurchase(req.log, session.id, giftMessage)
           if (created) {
-            // Best-effort socket push to the receiver. Offline receivers see
-            // the gift in /api/gifts/inbox on next app open.
+            // Best-effort socket push to the receiver. Coins/premium are
+            // already credited server-side; this just lets the client show a
+            // toast and refresh the balance without waiting for the next /me.
             const io = (fastify as unknown as { io?: { to: (id: string) => { emit: (ev: string, data: unknown) => void } } }).io
             const receiverSocketId = onlineUsers.get(created.receiverId)
             if (io && receiverSocketId) {
-              io.to(receiverSocketId).emit('gift:received', { giftId: created.giftId })
+              io.to(receiverSocketId).emit('gift:received', {
+                giftId: created.giftId,
+                from: { id: created.senderId, username: created.senderUsername },
+                coinAmount: created.coinAmount,
+                premiumPlanId: created.premiumPlanId,
+                message: created.message,
+              })
             }
           }
         }
@@ -1125,16 +1132,24 @@ async function applySubscription(log: FastifyBaseLogger, sub: Stripe.Subscriptio
 // Stripe on network blips. Uses a transaction so the balance update and the
 // status flip land atomically.
 //
-// Gift path: when `giftReceiverId` is set on the Purchase, we DO NOT credit
-// the buyer. Instead we create a Gift row for the receiver (carrying either
-// coins or a premium plan id) and mark the Purchase completed. The receiver
-// opts in to the entitlement via /api/gifts/:id/claim. Returns the created
-// Gift id so the webhook can push a socket notification.
+// Gift path: when `giftReceiverId` is set on the Purchase, we credit the
+// RECEIVER directly (coins or premium extension) and record a Gift row as
+// `claimed: true` for history. Earlier versions stored gifts as unclaimed and
+// required the receiver to click Claim, but that was invisible on mobile and
+// easy to miss on web — we now deliver immediately and push a socket toast.
 async function creditPurchase(
   log: { info: (o: unknown, m?: string) => void; warn: (o: unknown, m?: string) => void },
   sessionId: string,
   giftMessage?: string,
-): Promise<{ giftId: string; receiverId: string } | null> {
+): Promise<{
+  giftId: string
+  receiverId: string
+  senderId: string
+  senderUsername: string
+  coinAmount: number
+  premiumPlanId: string | null
+  message: string | null
+} | null> {
   return prisma.$transaction(async (tx) => {
     const purchase = await tx.purchase.findUnique({ where: { stripeSessionId: sessionId } })
     if (!purchase) {
@@ -1147,13 +1162,54 @@ async function creditPurchase(
     }
 
     if (purchase.giftReceiverId) {
+      const premiumPlan = purchase.premiumPlanId
+        ? PREMIUM_PLANS.find((p) => p.id === purchase.premiumPlanId)
+        : undefined
+      if (purchase.premiumPlanId && !premiumPlan) {
+        log.warn({ sessionId, planId: purchase.premiumPlanId }, 'gift purchase references unknown premium plan — skipping')
+        return null
+      }
+
+      const coinAmount = purchase.premiumPlanId ? 0 : purchase.starCoins
+      const sender = await tx.user.findUnique({
+        where: { id: purchase.userId },
+        select: { username: true },
+      })
+
+      if (coinAmount > 0) {
+        await tx.user.update({
+          where: { id: purchase.giftReceiverId },
+          data: { starCoins: { increment: coinAmount } },
+        })
+      }
+      if (premiumPlan) {
+        // Mirror /api/gifts/:id/claim: extend premiumUntil monotonically so
+        // recipients with existing premium get time added instead of clamped.
+        const receiver = await tx.user.findUnique({
+          where: { id: purchase.giftReceiverId },
+          select: { premiumUntil: true },
+        })
+        const now = Date.now()
+        const base = Math.max(receiver?.premiumUntil?.getTime() ?? 0, now)
+        const extended = new Date(
+          premiumPlan.interval === 'year'
+            ? base + 365 * 24 * 60 * 60 * 1000
+            : base + 30  * 24 * 60 * 60 * 1000,
+        )
+        await tx.user.update({
+          where: { id: purchase.giftReceiverId },
+          data: { premiumUntil: extended },
+        })
+      }
+
       const gift = await tx.gift.create({
         data: {
           senderId: purchase.userId,
           receiverId: purchase.giftReceiverId,
-          coinAmount: purchase.premiumPlanId ? 0 : purchase.starCoins,
+          coinAmount,
           premiumPlanId: purchase.premiumPlanId,
           message: giftMessage,
+          claimed: true,
         },
       })
       await tx.purchase.update({
@@ -1166,11 +1222,20 @@ async function creditPurchase(
           senderId: purchase.userId,
           receiverId: purchase.giftReceiverId,
           giftId: gift.id,
+          coinAmount,
           premiumPlanId: purchase.premiumPlanId,
         },
-        'gift purchase credited',
+        'gift purchase credited to receiver',
       )
-      return { giftId: gift.id, receiverId: gift.receiverId }
+      return {
+        giftId: gift.id,
+        receiverId: gift.receiverId,
+        senderId: purchase.userId,
+        senderUsername: sender?.username ?? 'Someone',
+        coinAmount,
+        premiumPlanId: purchase.premiumPlanId,
+        message: giftMessage ?? null,
+      }
     }
 
     await tx.user.update({

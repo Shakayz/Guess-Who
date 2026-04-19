@@ -32,6 +32,14 @@ export interface DmToast {
   text: string
 }
 
+export interface GiftToast {
+  id: string
+  senderUsername: string
+  coinAmount: number
+  premiumPlanId: string | null
+  message: string | null
+}
+
 interface SocialStore {
   activeDm: ActiveDm | null
   setActiveDm: (dm: ActiveDm | null) => void
@@ -51,6 +59,9 @@ interface SocialStore {
   dmToasts: DmToast[]
   pushDmToast: (data: Omit<DmToast, 'id'>) => void
   dismissDmToast: (id: string) => void
+  giftToasts: GiftToast[]
+  pushGiftToast: (data: Omit<GiftToast, 'id'>) => void
+  dismissGiftToast: (id: string) => void
 }
 
 export const useSocialStore = create<SocialStore>((set) => ({
@@ -108,5 +119,17 @@ export const useSocialStore = create<SocialStore>((set) => ({
   dismissDmToast: (id) =>
     set((s) => ({
       dmToasts: s.dmToasts.filter((t) => t.id !== id),
+    })),
+  giftToasts: [],
+  pushGiftToast: (data) =>
+    set((s) => ({
+      giftToasts: [
+        ...s.giftToasts,
+        { ...data, id: `gift-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` },
+      ],
+    })),
+  dismissGiftToast: (id) =>
+    set((s) => ({
+      giftToasts: s.giftToasts.filter((t) => t.id !== id),
     })),
 }))

@@ -170,6 +170,14 @@ interface FriendAcceptedEvent {
   by: { id: string; username: string }
 }
 
+interface GiftReceivedEvent {
+  giftId: string
+  from: { id: string; username: string }
+  coinAmount: number
+  premiumPlanId: string | null
+  message: string | null
+}
+
 function GlobalSocketListeners() {
   const token = useAuthStore((s) => s.token)
   const activeDm = useSocialStore((s) => s.activeDm)
@@ -260,12 +268,26 @@ function GlobalSocketListeners() {
       })
     }
 
+    // Coins/premium are already credited server-side before this fires — the
+    // refetch just pulls the new starCoins so the header chip updates without
+    // waiting for the next query interval.
+    const handleGiftReceived = (data: GiftReceivedEvent) => {
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+      useSocialStore.getState().pushGiftToast({
+        senderUsername: data.from?.username ?? 'Someone',
+        coinAmount: data.coinAmount,
+        premiumPlanId: data.premiumPlanId ?? null,
+        message: data.message ?? null,
+      })
+    }
+
     sock.on('dm:receive', handleDmReceive)
     sock.on('room:invited', handleRoomInvited)
     sock.on('friend:request', handleFriendRequest)
     sock.on('friend:accepted', handleFriendAccepted)
     sock.on('game:finished', handleGameFinished)
     sock.on('achievement:unlocked', handleAchievementUnlocked)
+    sock.on('gift:received', handleGiftReceived)
 
     return () => {
       sock.off('dm:receive', handleDmReceive)
@@ -274,6 +296,7 @@ function GlobalSocketListeners() {
       sock.off('friend:accepted', handleFriendAccepted)
       sock.off('game:finished', handleGameFinished)
       sock.off('achievement:unlocked', handleAchievementUnlocked)
+      sock.off('gift:received', handleGiftReceived)
     }
   }, [token, activeDm, incrementUnread, setPendingInvite, setPendingFriendRequest, navigate, queryClient])
 
@@ -393,6 +416,98 @@ function DmToastItem({
       <button
         type="button"
         onClick={() => dismiss(id)}
+        aria-label="Dismiss"
+        className="shrink-0 text-neutral-500 hover:text-white transition-colors text-lg leading-none"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
+function GiftToastStack() {
+  const toasts = useSocialStore((s) => s.giftToasts)
+  const navigate = useNavigate()
+  const dismiss = useSocialStore((s) => s.dismissGiftToast)
+
+  if (toasts.length === 0) return null
+  return (
+    <div className="fixed bottom-24 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+      {toasts.map((toast, i) => {
+        const describe = toast.premiumPlanId
+          ? toast.premiumPlanId === 'yearly'
+            ? 'Premium · 1 year'
+            : 'Premium · 1 month'
+          : `${toast.coinAmount.toLocaleString()} ⭐`
+        return (
+          <GiftToastItem
+            key={toast.id}
+            id={toast.id}
+            senderUsername={toast.senderUsername}
+            describe={describe}
+            message={toast.message}
+            index={i}
+            onOpen={() => {
+              dismiss(toast.id)
+              navigate('/shop')
+            }}
+            onDismiss={() => dismiss(toast.id)}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+function GiftToastItem({
+  id,
+  senderUsername,
+  describe,
+  message,
+  index,
+  onOpen,
+  onDismiss,
+}: {
+  id: string
+  senderUsername: string
+  describe: string
+  message: string | null
+  index: number
+  onOpen: () => void
+  onDismiss: () => void
+}) {
+  const dismiss = useSocialStore((s) => s.dismissGiftToast)
+  useEffect(() => {
+    const timer = setTimeout(() => dismiss(id), 6000)
+    return () => clearTimeout(timer)
+  }, [id, dismiss])
+
+  return (
+    <div
+      style={{ animationDelay: `${index * 60}ms` }}
+      className="pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-2xl border border-amber-600/60 bg-brand-950/95 backdrop-blur shadow-2xl text-sm animate-slide-up hover:scale-[1.02] transition-transform"
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex items-start gap-3 text-left flex-1 min-w-0"
+      >
+        <span className="text-xl">🎁</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-amber-300">Gift received</p>
+          <p className="text-white font-semibold truncate">
+            <span className="text-amber-400">{senderUsername}</span>
+            <span className="text-neutral-300"> sent you </span>
+            <span className="font-bold">{describe}</span>
+          </p>
+          {message && (
+            <p className="text-neutral-300 text-xs italic truncate">"{message}"</p>
+          )}
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={onDismiss}
         aria-label="Dismiss"
         className="shrink-0 text-neutral-500 hover:text-white transition-colors text-lg leading-none"
       >
@@ -630,6 +745,7 @@ export default function App() {
       <FriendRequestBanner />
       <FriendAcceptedToastStack />
       <DmToastStack />
+      <GiftToastStack />
       <AchievementToastBanner />
       <MatchmakingBanner />
       <ActiveLobbyBanner />

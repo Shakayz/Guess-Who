@@ -60,18 +60,22 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const gift = await prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: senderId }, data: { starCoins: { decrement: body.coinAmount } } })
+      // Auto-credit the receiver. Gift is recorded `claimed: true` for
+      // history; we no longer require the recipient to open the inbox.
+      await tx.user.update({ where: { id: receiver.id }, data: { starCoins: { increment: body.coinAmount } } })
       return tx.gift.create({
         data: {
           senderId,
           receiverId: receiver.id,
           coinAmount: body.coinAmount,
           message: body.message,
+          claimed: true,
         },
         include: { sender: { select: { id: true, username: true, avatarUrl: true } } },
       })
     })
 
-    req.log.info({ senderId, receiverId: receiver.id, giftId: gift.id, coinAmount: body.coinAmount }, 'gift sent')
+    req.log.info({ senderId, receiverId: receiver.id, giftId: gift.id, coinAmount: body.coinAmount }, 'gift sent and credited')
 
     // Notify receiver if online
     const io = (fastify as any).io
@@ -81,6 +85,7 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
         giftId: gift.id,
         from: gift.sender,
         coinAmount: gift.coinAmount,
+        premiumPlanId: null,
         message: gift.message,
       })
     }

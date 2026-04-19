@@ -24,6 +24,7 @@ import { registerForPushNotifications } from '../lib/notifications'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { ConnectionStatus } from '../components/ConnectionStatus'
 import { AchievementToastBanner } from '../components/achievements/AchievementToast'
+import { GiftToastBanner } from '../components/GiftToast'
 import { api } from '../lib/api'
 import { initAds, setAdsUserMeta } from '../lib/ads'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -74,7 +75,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function GlobalSocketListeners() {
   const token = useAuthStore((s) => s.token)
-  const { setPendingInvite, setPendingFriendRequest, incrementUnread, pushAchievementToast, pushFriendAcceptedToast } = useSocialStore()
+  const { setPendingInvite, setPendingFriendRequest, incrementUnread, pushAchievementToast, pushFriendAcceptedToast, pushGiftToast } = useSocialStore()
 
   useEffect(() => {
     if (!token) return
@@ -116,12 +117,25 @@ function GlobalSocketListeners() {
       })
     })
 
+    // Coins/premium are already credited server-side; the toast just
+    // acknowledges delivery. Each tab's Shop/Home re-fetches /auth/me on
+    // focus, so the balance will refresh as soon as the user navigates.
+    socket.on('gift:received' as any, (data: any) => {
+      pushGiftToast({
+        senderUsername: data.from?.username ?? 'Someone',
+        coinAmount: data.coinAmount ?? 0,
+        premiumPlanId: data.premiumPlanId ?? null,
+        message: data.message ?? null,
+      })
+    })
+
     return () => {
       socket.off('room:invited' as any)
       socket.off('friend:request' as any)
       socket.off('friend:accepted' as any)
       socket.off('dm:receive' as any)
       socket.off('achievement:unlocked' as any)
+      socket.off('gift:received' as any)
     }
   }, [token])
 
@@ -291,6 +305,7 @@ export default function RootLayout() {
         <InviteBanner />
         <FriendRequestBanner />
         <AchievementToastBanner />
+        <GiftToastBanner />
         <Stack
           screenOptions={{
             headerStyle: { backgroundColor: '#09090b' },
