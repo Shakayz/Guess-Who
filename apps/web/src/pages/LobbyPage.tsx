@@ -6,10 +6,10 @@ import { useAuthStore } from '../store/auth'
 import { useGameStore } from '../store/game'
 import { connectSocket, getSocket } from '../lib/socket'
 import { api } from '../lib/api'
-import { RoomCodeDisplay, PlayerCard } from '@red-handed/ui'
+import { RoomCodeDisplay, PlayerCard, Avatar } from '@red-handed/ui'
 import { NavBar } from '../components/NavBar'
 import { WORD_CATEGORIES } from '@red-handed/shared'
-import type { Room, GameMode, WordCategory } from '@red-handed/shared'
+import type { Room, GameMode, WordCategory, Player } from '@red-handed/shared'
 import { createLogger } from '../lib/logger'
 import { SoundManager } from '../lib/sounds'
 import { InsufficientCoinsModal } from '../components/InsufficientCoinsModal'
@@ -619,6 +619,91 @@ function SettingsPanel({
   )
 }
 
+/**
+ * Modal that appears when a player row is tapped in the lobby. Surfaces the
+ * "view profile" action to everyone, and "kick" to the host for non-host
+ * non-self rows. Rendered as a centered dialog over a dimmed backdrop so it
+ * works well on both desktop and mobile (no hover-only menus).
+ */
+function PlayerActionModal({
+  player, isHost, isSelf, onViewProfile, onKick, onTransferHost, onClose,
+}: {
+  player: Player
+  isHost: boolean
+  isSelf: boolean
+  onViewProfile: () => void
+  onKick: () => void
+  onTransferHost: () => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const canKick = isHost && !isSelf && !player.isHost
+  const canTransferHost = isHost && !isSelf && !player.isHost
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-neutral-900 border border-neutral-800 shadow-2xl p-5 space-y-4 animate-slide-up"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3">
+          <Avatar src={player.avatarUrl} username={player.username} size="lg" />
+          <div className="flex-1 min-w-0">
+            <p className="text-base font-bold text-white truncate flex items-center gap-1.5">
+              <span className="truncate">{player.username}</span>
+              {player.isPremium && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">👑</span>
+              )}
+            </p>
+            {player.isHost && (
+              <p className="text-xs text-amber-400 font-semibold mt-0.5">{t('lobby.hostBadge')}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={onViewProfile}
+            className="w-full px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-semibold transition-colors"
+          >
+            {t('lobby.viewProfile')}
+          </button>
+          {canTransferHost && (
+            <button
+              type="button"
+              onClick={onTransferHost}
+              className="w-full px-4 py-2.5 rounded-xl bg-amber-900/40 hover:bg-amber-800/60 text-amber-200 text-sm font-semibold transition-colors border border-amber-800/40"
+            >
+              {t('lobby.giveHost')}
+            </button>
+          )}
+          {canKick && (
+            <button
+              type="button"
+              onClick={onKick}
+              className="w-full px-4 py-2.5 rounded-xl bg-red-900/60 hover:bg-red-800/80 text-red-200 text-sm font-semibold transition-colors border border-red-800/40"
+            >
+              {t('lobby.kickPlayer')}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full px-4 py-2 rounded-xl text-neutral-400 hover:text-white text-sm font-medium transition-colors"
+          >
+            {t('lobby.cancel')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function LobbyPage() {
   const { code } = useParams<{ code: string }>()
   const [searchParams] = useSearchParams()
@@ -655,6 +740,8 @@ export default function LobbyPage() {
   const [friends, setFriends] = useState<Friend[]>([])
   const [friendSearch, setFriendSearch] = useState('')
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
+  const [kickedToast, setKickedToast] = useState<string | null>(null)
   const [settings, setSettings] = useState<Settings>({
     maxPlayers: 10,
     redHandedCount: 2,
@@ -835,12 +922,28 @@ export default function LobbyPage() {
       navigate(`/game/${code}`)
     })
     socket.on('error', (err) => {
-      const msg = (err as any).code === 'LANGUAGE_MISMATCH'
+      const code = (err as any).code
+      const msg = code === 'LANGUAGE_MISMATCH'
         ? t('room.languageMismatch')
+        : code === 'KICKED_FROM_ROOM'
+        ? t('lobby.kickedFromLobby')
         : err.message
-      log.warn('socket error', { code: (err as any).code, message: err.message })
+      log.warn('socket error', { code, message: err.message })
+      if (code === 'KICKED_FROM_ROOM') {
+        setKickedToast(msg)
+        setTimeout(() => navigate('/', { replace: true }), 2000)
+        return
+      }
       setSocketError(msg)
       setTimeout(() => setSocketError(null), 4000)
+    })
+    socket.on('room:kicked', (data: { byUsername?: string }) => {
+      log.info('room:kicked received', { byUsername: data?.byUsername })
+      const msg = data?.byUsername
+        ? t('lobby.kickedByHost', { name: data.byUsername })
+        : t('lobby.kickedFromLobby')
+      setKickedToast(msg)
+      setTimeout(() => navigate('/', { replace: true }), 2000)
     })
     // Game start was refused because at least one player can't afford the
     // entry cost. Stays non-blocking: everyone stays in the lobby. We read the
@@ -869,6 +972,7 @@ export default function LobbyPage() {
       socket.off('room:updated')
       socket.off('game:started')
       socket.off('error')
+      socket.off('room:kicked')
       socket.off('game:start:failed' as any)
     }
   }, [code])
@@ -955,6 +1059,39 @@ export default function LobbyPage() {
         </div>
       )}
 
+      {kickedToast && (
+        <div role="alert" className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-red-950/90 border border-red-700/60 text-sm text-red-300 font-semibold shadow-xl animate-slide-up flex items-center gap-2">
+          <span>🚫</span>
+          {kickedToast}
+        </div>
+      )}
+
+      {selectedPlayer && (
+        <PlayerActionModal
+          player={selectedPlayer}
+          isHost={isHost}
+          isSelf={selectedPlayer.userId === user?.id}
+          onViewProfile={() => {
+            const uid = selectedPlayer.userId
+            setSelectedPlayer(null)
+            navigate(`/player/${uid}`)
+          }}
+          onKick={() => {
+            const uid = selectedPlayer.userId
+            log.info('kicking player', { targetUserId: uid })
+            getSocket().emit('room:kick-player', { targetUserId: uid })
+            setSelectedPlayer(null)
+          }}
+          onTransferHost={() => {
+            const uid = selectedPlayer.userId
+            log.info('transferring host', { targetUserId: uid })
+            getSocket().emit('room:transfer-host', { targetUserId: uid })
+            setSelectedPlayer(null)
+          }}
+          onClose={() => setSelectedPlayer(null)}
+        />
+      )}
+
       {insufficientCoins && (
         <InsufficientCoinsModal
           required={insufficientCoins.required}
@@ -1015,9 +1152,15 @@ export default function LobbyPage() {
               </div>
             ) : (
               players.map((p) => (
-                <div key={p.id} className="transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-neutral-950/40">
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedPlayer(p as Player)}
+                  className="w-full text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-neutral-950/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 rounded-2xl"
+                  aria-label={t('lobby.openPlayerMenu', { name: (p as any).username }) as string}
+                >
                   <PlayerCard player={p} isCurrentUser={p.userId === user?.id} />
-                </div>
+                </button>
               ))
             )}
           </div>

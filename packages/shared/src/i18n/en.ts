@@ -353,6 +353,13 @@ export default {
     waitingAllReady: 'Waiting for all players to be ready',
     saved: '✓ Saved',
     joinedRoom: '{{name}} joined the room!',
+    openPlayerMenu: 'Open actions for {{name}}',
+    viewProfile: 'View profile',
+    kickPlayer: 'Kick from lobby',
+    cancel: 'Cancel',
+    hostBadge: 'Host',
+    kickedByHost: 'You were removed from the lobby by {{name}}',
+    kickedFromLobby: 'You were removed from this lobby',
   },
   rank: {
     wooden: 'Wooden',

@@ -157,6 +157,24 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     // Room invite: invite an online user to a room
     socket.on('room:invite' as any, async (data: { toUserId: string; roomCode: string }) => {
       if (!socket.data.userId || !data.toUserId || !data.roomCode) return
+
+      // Re-inviting a previously kicked player clears their ban on the target
+      // room, so the invite they receive actually works. Only the host is
+      // allowed to do this — everyone else's invite is just a notification.
+      try {
+        const targetRoom = await prisma.room.findUnique({ where: { code: data.roomCode } })
+        if (targetRoom && targetRoom.hostId === socket.data.userId) {
+          const stateRaw = await redis.get(`room:${targetRoom.id}:state`)
+          if (stateRaw) {
+            const state = JSON.parse(stateRaw)
+            if (Array.isArray(state.bannedUserIds) && state.bannedUserIds.includes(data.toUserId)) {
+              state.bannedUserIds = state.bannedUserIds.filter((u: string) => u !== data.toUserId)
+              await redis.set(`room:${targetRoom.id}:state`, JSON.stringify(state), 'EX', 21600)
+            }
+          }
+        }
+      } catch {}
+
       const targetSocketId = onlineUsers.get(data.toUserId)
       if (targetSocketId) {
         io.to(targetSocketId).emit('room:invited' as any, {

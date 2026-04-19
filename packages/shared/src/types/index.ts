@@ -255,6 +255,7 @@ export interface ServerToClientEvents {
   'player:joined': (player: Player) => void
   'player:left': (playerId: string) => void
   'player:ready': (data: { playerId: string; isReady: boolean }) => void
+  'room:kicked': (data: { byUsername?: string }) => void
   'chat:message': (message: ChatMessage) => void
   'achievement:unlocked': (data: { key: string; name: string; icon: string; difficulty: string; category: string; starsReward: number; xpReward: number }) => void
   // ── Voice (WebRTC) signaling — vocal mode mic streaming ────────────────────
@@ -272,6 +273,8 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   'room:join': (data: { roomCode: string }) => void
   'room:leave': () => void
+  'room:kick-player': (data: { targetUserId: string }) => void
+  'room:transfer-host': (data: { targetUserId: string }) => void
   'player:ready': (isReady: boolean) => void
   'game:start': () => void
   'game:forfeit': () => void

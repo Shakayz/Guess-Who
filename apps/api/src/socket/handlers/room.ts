@@ -616,6 +616,15 @@ export function registerRoomHandlers(
         state = stateRaw ? JSON.parse(stateRaw) : { players: [], status: 'waiting' }
         const alreadyIn = state.players.find((p: any) => p.userId === userId)
 
+        // ── Block kicked players from rejoining this lobby ──────────────────────
+        // Host can re-invite to clear the ban (see room:invite handler).
+        const bannedList: string[] = Array.isArray(state.bannedUserIds) ? state.bannedUserIds : []
+        if (!alreadyIn && room.hostId !== userId && bannedList.includes(userId)) {
+          socket.emit('error', { code: 'KICKED_FROM_ROOM', message: 'You were removed from this lobby by the host' })
+          await socket.leave(`room:${room.id}`)
+          return
+        }
+
         // ── Block forfeited players from rejoining the same game ────────────────
         if (alreadyIn && alreadyIn.status === 'forfeited') {
           socket.emit('error', { code: 'PLAYER_FORFEITED', message: 'You forfeited this game and cannot rejoin' })
@@ -1267,6 +1276,157 @@ export function registerRoomHandlers(
       }
     } catch (err) {
       log.error({ err, userId }, 'game:leave-eliminated error')
+    }
+  })
+
+  socket.on('room:transfer-host', async ({ targetUserId }) => {
+    try {
+      if (!targetUserId || targetUserId === userId) return
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const room = await prisma.room.findUnique({ where: { id: roomId } })
+      if (!room || room.hostId !== userId) return
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      // Host transfer is only meaningful before the game starts — role
+      // assignments bake in the current host during game:start.
+      if (state.status !== 'waiting') return
+
+      const target = state.players.find((p: any) => p.userId === targetUserId)
+      if (!target) return
+
+      state.players.forEach((p: any) => {
+        p.isHost = p.userId === targetUserId
+        if (p.userId === targetUserId) p.isReady = true
+      })
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+      await prisma.room.update({ where: { id: roomId }, data: { hostId: targetUserId } }).catch(() => {})
+
+      io.to(roomKey).emit('room:host-changed' as any, {
+        newHostId:       targetUserId,
+        newHostUsername: target.username,
+      })
+
+      const roomPayload = {
+        id: room.id, code: room.code, hostId: targetUserId,
+        status: state.status, players: state.players,
+        currentRound: state.currentRound ?? 0,
+        maxRounds: state.maxRounds ?? 0,
+        createdAt: room.createdAt.toISOString(),
+        settings: {
+          maxPlayers: room.maxPlayers, minPlayers: 3, redHandedCount: room.redHandedCount,
+          speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
+          wordPackId: room.wordPackId, isPrivate: room.isPrivate, isPublic: room.isPublic, language: room.language as any,
+          gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
+          detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
+          doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
+          guardianCount: state.guardianCount ?? 0,
+          mayorCount: state.mayorCount ?? 0,
+          infiltratorCount: state.infiltratorCount ?? 0,
+          jesterCount: state.jesterCount ?? 0,
+          judgeCount: state.judgeCount ?? 0,
+          revenantCount: state.revenantCount ?? 0,
+          kamikazeCount: state.kamikazeCount ?? 0,
+          corruptorCount: state.corruptorCount ?? 0,
+          inverterCount: state.inverterCount ?? 0,
+          evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
+          vocalMode: state.vocalMode ?? false,
+          vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+          isMatchmade: state.isMatchmade ?? false,
+        },
+      }
+      io.to(roomKey).emit('room:updated', roomPayload as any)
+      log.info({ userId, roomId, targetUserId }, 'room:transfer-host succeeded')
+    } catch (err) {
+      log.error({ err, userId, targetUserId }, 'room:transfer-host error')
+    }
+  })
+
+  socket.on('room:kick-player', async ({ targetUserId }) => {
+    try {
+      if (!targetUserId || targetUserId === userId) return
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const room = await prisma.room.findUnique({ where: { id: roomId } })
+      if (!room || room.hostId !== userId) return
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      // Kicks only make sense in the waiting lobby. Once the game has started,
+      // player removal flows through forfeit instead.
+      if (state.status !== 'waiting') return
+
+      const target = state.players.find((p: any) => p.userId === targetUserId)
+      if (!target) return
+      // Host cannot kick themselves through this path (defense-in-depth).
+      if (target.isHost) return
+
+      state.players = state.players.filter((p: any) => p.userId !== targetUserId)
+      const banned: string[] = Array.isArray(state.bannedUserIds) ? state.bannedUserIds : []
+      if (!banned.includes(targetUserId)) banned.push(targetUserId)
+      state.bannedUserIds = banned
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+
+      // Boot the target's socket from the room channel and notify them.
+      const targetSocketId = target.id as string | undefined
+      if (targetSocketId) {
+        const targetSocket = io.sockets.sockets.get(targetSocketId)
+        if (targetSocket) {
+          targetSocket.emit('room:kicked', { byUsername: username })
+          await targetSocket.leave(roomKey)
+        } else {
+          io.to(targetSocketId).emit('room:kicked', { byUsername: username })
+        }
+      }
+      // Also notify the user anywhere else they may be connected (different tab).
+      const liveSocketId = onlineUsers.get(targetUserId)
+      if (liveSocketId && liveSocketId !== targetSocketId) {
+        io.to(liveSocketId).emit('room:kicked', { byUsername: username })
+      }
+
+      io.to(roomKey).emit('player:left', targetSocketId ?? '')
+
+      const roomPayload = {
+        id: room.id, code: room.code, hostId: room.hostId,
+        status: state.status, players: state.players,
+        currentRound: state.currentRound ?? 0,
+        maxRounds: state.maxRounds ?? 0,
+        createdAt: room.createdAt.toISOString(),
+        settings: {
+          maxPlayers: room.maxPlayers, minPlayers: 3, redHandedCount: room.redHandedCount,
+          speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
+          wordPackId: room.wordPackId, isPrivate: room.isPrivate, isPublic: room.isPublic, language: room.language as any,
+          gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
+          detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
+          doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
+          guardianCount: state.guardianCount ?? 0,
+          mayorCount: state.mayorCount ?? 0,
+          infiltratorCount: state.infiltratorCount ?? 0,
+          jesterCount: state.jesterCount ?? 0,
+          judgeCount: state.judgeCount ?? 0,
+          revenantCount: state.revenantCount ?? 0,
+          kamikazeCount: state.kamikazeCount ?? 0,
+          corruptorCount: state.corruptorCount ?? 0,
+          inverterCount: state.inverterCount ?? 0,
+          evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
+          vocalMode: state.vocalMode ?? false,
+          vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+          isMatchmade: state.isMatchmade ?? false,
+        },
+      }
+      io.to(roomKey).emit('room:updated', roomPayload as any)
+      log.info({ userId, roomId, targetUserId }, 'room:kick-player succeeded')
+    } catch (err) {
+      log.error({ err, userId, targetUserId }, 'room:kick-player error')
     }
   })
 

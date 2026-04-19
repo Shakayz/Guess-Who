@@ -7,6 +7,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Modal,
+  Pressable,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -24,7 +26,7 @@ import {
   isNeutralUnlocked,
   maxRedHandedFor,
 } from '@red-handed/shared'
-import type { Room, GameMode, WordCategory, SpecialRoleCounts } from '@red-handed/shared'
+import type { Room, GameMode, WordCategory, SpecialRoleCounts, Player } from '@red-handed/shared'
 import { useResponsive } from '../../lib/responsive'
 import { createLogger } from '../../lib/logger'
 import { SoundManager } from '../../lib/sounds'
@@ -705,6 +707,111 @@ function SettingsPanel({
   )
 }
 
+// ─── PlayerActionModal ───────────────────────────────────────────────────────
+// Centered modal that opens when a player row is tapped. Surfaces "view
+// profile" to everyone and "kick" to the host (non-host, non-self targets).
+// Mirrors the web `PlayerActionModal` in LobbyPage.tsx.
+
+function PlayerActionModal({
+  player,
+  isHost,
+  isSelf,
+  onViewProfile,
+  onKick,
+  onClose,
+}: {
+  player: Player
+  isHost: boolean
+  isSelf: boolean
+  onViewProfile: () => void
+  onKick: () => void
+  onClose: () => void
+}) {
+  const canKick = isHost && !isSelf && !player.isHost
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable
+        onPress={onClose}
+        className="flex-1 items-center justify-center px-4"
+        style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+      >
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          className="w-full max-w-sm rounded-2xl bg-neutral-900 border border-neutral-800 p-5"
+          style={{ gap: 16 }}
+        >
+          <View className="flex-row items-center gap-3">
+            <View
+              className={[
+                'rounded-full items-center justify-center border',
+                player.isHost
+                  ? 'bg-amber-800/60 border-amber-700/50'
+                  : 'bg-neutral-700 border-neutral-600/50',
+              ].join(' ')}
+              style={{ width: 44, height: 44 }}
+            >
+              <Text className="text-white font-bold" style={{ fontSize: 16 }}>
+                {player.username.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View className="flex-1">
+              <View className="flex-row items-center gap-1.5 flex-wrap">
+                <Text className="text-white font-bold" style={{ fontSize: 16 }} numberOfLines={1}>
+                  {player.username}
+                </Text>
+                {player.isPremium && (
+                  <View className="px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30">
+                    <Text className="text-amber-300" style={{ fontSize: 10 }}>👑</Text>
+                  </View>
+                )}
+              </View>
+              {player.isHost && (
+                <Text className="text-amber-400 font-semibold mt-0.5" style={{ fontSize: 11 }}>
+                  Host
+                </Text>
+              )}
+            </View>
+          </View>
+
+          <View style={{ gap: 8 }}>
+            <TouchableOpacity
+              onPress={onViewProfile}
+              className="w-full px-4 py-3 rounded-xl bg-neutral-800"
+              activeOpacity={0.8}
+            >
+              <Text className="text-white font-semibold text-center" style={{ fontSize: 14 }}>
+                View profile
+              </Text>
+            </TouchableOpacity>
+
+            {canKick && (
+              <TouchableOpacity
+                onPress={onKick}
+                className="w-full px-4 py-3 rounded-xl bg-red-900/60 border border-red-800/40"
+                activeOpacity={0.8}
+              >
+                <Text className="text-red-200 font-semibold text-center" style={{ fontSize: 14 }}>
+                  Kick from lobby
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              onPress={onClose}
+              className="w-full px-4 py-2.5 rounded-xl"
+              activeOpacity={0.7}
+            >
+              <Text className="text-neutral-400 font-medium text-center" style={{ fontSize: 14 }}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  )
+}
+
 // ─── Friend invite types ─────────────────────────────────────────────────────
 
 interface Friend {
@@ -764,6 +871,10 @@ export default function LobbyScreen() {
   const [friendsLoading, setFriendsLoading] = useState(false)
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
   const [showFriends, setShowFriends] = useState(false)
+
+  // Player action modal + kick toast — mirrors web LobbyPage.
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
+  const [kickedToast, setKickedToast] = useState<string | null>(null)
 
   // ─── Settings change ────────────────────────────────────────────────────
 
@@ -930,7 +1041,23 @@ export default function LobbyScreen() {
       log.info('matchmaking cancelled')
     })
 
-    socket.on('error', (err) => log.error('socket error', { message: (err as any)?.message }))
+    socket.on('error', (err) => {
+      const code = (err as any)?.code
+      log.error('socket error', { code, message: (err as any)?.message })
+      if (code === 'KICKED_FROM_ROOM') {
+        setKickedToast('You were removed from this lobby')
+        setTimeout(() => router.replace('/'), 2000)
+      }
+    })
+
+    socket.on('room:kicked' as any, (data: { byUsername?: string }) => {
+      log.info('room:kicked received', { byUsername: data?.byUsername })
+      const msg = data?.byUsername
+        ? `You were removed from the lobby by ${data.byUsername}`
+        : 'You were removed from this lobby'
+      setKickedToast(msg)
+      setTimeout(() => router.replace('/'), 2000)
+    })
 
     return () => {
       socket.off('room:updated')
@@ -938,6 +1065,7 @@ export default function LobbyScreen() {
       socket.off('matchmaking:found' as any)
       socket.off('matchmaking:cancelled' as any)
       socket.off('error')
+      socket.off('room:kicked' as any)
       socket.off('game:start:failed' as any)
     }
   }, [code])
@@ -956,6 +1084,13 @@ export default function LobbyScreen() {
   const handleLeave = () => {
     getSocket().emit('room:leave')
     router.replace('/')
+  }
+
+  const kickPlayer = (targetUserId: string) => {
+    log.info('kicking player', { targetUserId })
+    HapticManager.light()
+    getSocket().emit('room:kick-player' as any, { targetUserId })
+    setSelectedPlayer(null)
   }
 
   // ─── Derived state ─────────────────────────────────────────────────────
@@ -1022,6 +1157,32 @@ export default function LobbyScreen() {
           blockedUsername={insufficientCoins?.blockedUsername}
           onClose={() => setInsufficientCoins(null)}
         />
+
+        {/* Kicked toast — shown briefly before navigating home */}
+        {kickedToast && (
+          <View
+            accessibilityRole="alert"
+            className="flex-row items-center gap-2 px-3 py-2.5 rounded-xl bg-red-950 border border-red-800 mb-2"
+          >
+            <Text className="text-red-300 text-xs flex-1">🚫 {kickedToast}</Text>
+          </View>
+        )}
+
+        {/* Player action modal (view profile / kick) */}
+        {selectedPlayer && (
+          <PlayerActionModal
+            player={selectedPlayer}
+            isHost={room?.hostId === user?.id}
+            isSelf={selectedPlayer.userId === user?.id}
+            onViewProfile={() => {
+              const uid = selectedPlayer.userId
+              setSelectedPlayer(null)
+              router.push(`/profile/${uid}` as any)
+            }}
+            onKick={() => kickPlayer(selectedPlayer.userId)}
+            onClose={() => setSelectedPlayer(null)}
+          />
+        )}
 
 
         {/* Room code + share */}
@@ -1104,7 +1265,14 @@ export default function LobbyScreen() {
                 const isMe = p.userId === user?.id
                 return (
                   <SlideUp key={p.id} delay={40 * i}>
-                  <View
+                  <TouchableOpacity
+                    onPress={() => {
+                      HapticManager.selection()
+                      setSelectedPlayer(p as Player)
+                    }}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open actions for ${p.username}`}
                     className={[
                       'flex-row items-center gap-3 px-3 py-3 rounded-xl border overflow-hidden',
                       isMe
@@ -1167,7 +1335,7 @@ export default function LobbyScreen() {
                         {isReady ? 'Ready' : 'Waiting'}
                       </Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                   </SlideUp>
                 )
               })}
