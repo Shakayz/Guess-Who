@@ -883,11 +883,11 @@ export default function GamePage() {
     if (room?.status === 'finished' || room?.status === 'waiting') stopVoice()
   }, [room?.status, stopVoice])
 
-  // Auto-mute the local mic when it's not our turn to speak. The user can
-  // override via the mute button (`voiceMutedManually`), in which case their
-  // explicit choice wins. We only enforce the auto behaviour during the
-  // vocal clue phase — at all other times the mic stays open so peers can
-  // still hear ambient reactions during voting / reveal.
+  // Auto-mute the local mic based on game phase in vocal mode. Players can
+  // only speak when it's their turn during clues, and during the reveal
+  // (end-of-round result). Voting keeps every mic muted so players can't
+  // influence each other. The manual mute button always wins — players can
+  // silence themselves at any time regardless of the auto state.
   useEffect(() => {
     const vc = voiceChannelRef.current
     if (!vc || voiceStatus !== 'connected') return
@@ -895,9 +895,14 @@ export default function GamePage() {
       vc.setMicEnabled(false)
       return
     }
-    if (phase === 'clues' && vocalMode && vocalSpeakerId) {
-      const isMyTurn = vocalSpeakerId === user?.id
-      vc.setMicEnabled(isMyTurn)
+    if (vocalMode) {
+      if (phase === 'clues') {
+        vc.setMicEnabled(!!vocalSpeakerId && vocalSpeakerId === user?.id)
+      } else if (phase === 'voting') {
+        vc.setMicEnabled(false)
+      } else {
+        vc.setMicEnabled(true)
+      }
     } else {
       vc.setMicEnabled(true)
     }
@@ -1004,6 +1009,103 @@ export default function GamePage() {
     twin_red_handed: { icon: '👯', label: t('game.roleTwinRedHanded', 'Evil Twin (Imposter)'), color: 'text-purple-400',  bg: 'from-purple-900/40' },
   }
   const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
+
+  // Mic controls shown inside the vocal clue card and as a standalone banner
+  // during voting / reveal so players can always mute themselves.
+  const voiceControlsBlock = (
+    <>
+      {voiceStatus === 'idle' && (
+        <button
+          type="button"
+          onClick={startVoice}
+          className="w-full px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+        >
+          <span>🎙️</span>
+          <span>{t('game.voiceEnable', 'Enable microphone')}</span>
+        </button>
+      )}
+      {voiceStatus === 'requesting' && (
+        <p className="text-xs text-neutral-400 text-center py-2">
+          {t('game.voiceRequesting', 'Requesting microphone permission...')}
+        </p>
+      )}
+      {voiceStatus === 'denied' && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-amber-400 flex-1">
+            {t('game.voiceDenied', 'Mic permission denied. Allow it in your browser settings, then retry.')}
+          </p>
+          <button
+            type="button"
+            onClick={startVoice}
+            className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
+          >
+            {t('game.voiceRetry', 'Retry')}
+          </button>
+        </div>
+      )}
+      {voiceStatus === 'unsupported' && (
+        <p className="text-xs text-neutral-500 text-center py-1">
+          {t('game.voiceUnsupported', 'Audio streaming is not supported in this browser.')}
+        </p>
+      )}
+      {voiceStatus === 'error' && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-red-400 flex-1">
+            {t('game.voiceError', 'Microphone capture failed.')}
+          </p>
+          <button
+            type="button"
+            onClick={startVoice}
+            className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
+          >
+            {t('game.voiceRetry', 'Retry')}
+          </button>
+        </div>
+      )}
+      {voiceStatus === 'connected' && (() => {
+        const autoMicLive = !voiceMutedManually && (
+          vocalMode
+            ? phase === 'clues'
+              ? !!vocalSpeakerId && vocalSpeakerId === user?.id
+              : phase !== 'voting'
+            : true
+        )
+        return (
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-neutral-400">
+              <span className={[
+                'w-2 h-2 rounded-full',
+                autoMicLive ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-600',
+              ].join(' ')} />
+              <span>
+                {autoMicLive
+                  ? t('game.voiceMicLive', 'Mic live')
+                  : t('game.voiceMicMuted', 'Mic muted')}
+              </span>
+              <span className="text-neutral-600">·</span>
+              <span>
+                {t('game.voicePeerCount', '{{count}} connected', { count: voicePeerCount })}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setVoiceMutedManually((m) => !m)}
+              aria-pressed={voiceMutedManually}
+              aria-label={voiceMutedManually ? 'Unmute microphone' : 'Mute microphone'}
+              className={[
+                'px-2 py-1 rounded text-xs font-medium transition-colors',
+                voiceMutedManually
+                  ? 'bg-red-600/20 text-red-300 hover:bg-red-600/30'
+                  : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700',
+              ].join(' ')}
+            >
+              {voiceMutedManually ? t('game.voiceUnmute', 'Unmute') : t('game.voiceMute', 'Mute')}
+            </button>
+          </div>
+        )
+      })()}
+    </>
+  )
 
   return (
     <div id="main-content" role="main" className="min-h-screen flex flex-col md:flex-row">
@@ -1469,94 +1571,7 @@ export default function GamePage() {
                 )}
                 {/* ── Microphone controls (real audio streaming) ───────── */}
                 <div className="mt-3 mb-3 pt-3 border-t border-neutral-800/60">
-                  {voiceStatus === 'idle' && (
-                    <button
-                      type="button"
-                      onClick={startVoice}
-                      className="w-full px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <span>🎙️</span>
-                      <span>{t('game.voiceEnable', 'Enable microphone')}</span>
-                    </button>
-                  )}
-                  {voiceStatus === 'requesting' && (
-                    <p className="text-xs text-neutral-400 text-center py-2">
-                      {t('game.voiceRequesting', 'Requesting microphone permission...')}
-                    </p>
-                  )}
-                  {voiceStatus === 'denied' && (
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-amber-400 flex-1">
-                        {t('game.voiceDenied', 'Mic permission denied. Allow it in your browser settings, then retry.')}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={startVoice}
-                        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
-                      >
-                        {t('game.voiceRetry', 'Retry')}
-                      </button>
-                    </div>
-                  )}
-                  {voiceStatus === 'unsupported' && (
-                    <p className="text-xs text-neutral-500 text-center py-1">
-                      {t('game.voiceUnsupported', 'Audio streaming is not supported in this browser.')}
-                    </p>
-                  )}
-                  {voiceStatus === 'error' && (
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-red-400 flex-1">
-                        {t('game.voiceError', 'Microphone capture failed.')}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={startVoice}
-                        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
-                      >
-                        {t('game.voiceRetry', 'Retry')}
-                      </button>
-                    </div>
-                  )}
-                  {voiceStatus === 'connected' && (() => {
-                    // Mic is "live" when track is enabled. We mirror the same
-                    // logic the auto-mute effect uses to decide what to show.
-                    const autoMicLive = !voiceMutedManually && (
-                      !(phase === 'clues' && vocalMode && vocalSpeakerId) || vocalSpeakerId === user?.id
-                    )
-                    return (
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-xs text-neutral-400">
-                          <span className={[
-                            'w-2 h-2 rounded-full',
-                            autoMicLive ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-600',
-                          ].join(' ')} />
-                          <span>
-                            {autoMicLive
-                              ? t('game.voiceMicLive', 'Mic live')
-                              : t('game.voiceMicMuted', 'Mic muted')}
-                          </span>
-                          <span className="text-neutral-600">·</span>
-                          <span>
-                            {t('game.voicePeerCount', '{{count}} connected', { count: voicePeerCount })}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setVoiceMutedManually((m) => !m)}
-                          aria-pressed={voiceMutedManually}
-                          aria-label={voiceMutedManually ? 'Unmute microphone' : 'Mute microphone'}
-                          className={[
-                            'px-2 py-1 rounded text-xs font-medium transition-colors',
-                            voiceMutedManually
-                              ? 'bg-red-600/20 text-red-300 hover:bg-red-600/30'
-                              : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700',
-                          ].join(' ')}
-                        >
-                          {voiceMutedManually ? t('game.voiceUnmute', 'Unmute') : t('game.voiceMute', 'Mute')}
-                        </button>
-                      </div>
-                    )
-                  })()}
+                  {voiceControlsBlock}
                 </div>
                 {isMyTurn && (
                   <button
@@ -1608,6 +1623,14 @@ export default function GamePage() {
                 </button>
               </form>
             )}
+          </div>
+        )}
+
+        {/* Mic controls during voting / reveal (vocal mode) — lets players
+            see their auto-mute state and manually toggle their own mic. */}
+        {vocalMode && (phase === 'voting' || phase === 'reveal') && !isEliminated && (
+          <div className="card">
+            {voiceControlsBlock}
           </div>
         )}
 
