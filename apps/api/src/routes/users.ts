@@ -534,7 +534,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       computeHonorBuckets(),
       prisma.gameParticipation.findMany({
         where: { userId: id },
-        take: 8,
+        take: 3,
         orderBy: { game: { startedAt: 'desc' } },
         include: {
           game: {
