@@ -83,7 +83,10 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     }
     if (target.id === userId) return reply.status(400).send({ error: 'Cannot add yourself' })
 
-    // Check existing
+    // Check existing — covers either direction. Any row (regardless of its
+    // status string) means we already have a relationship on file, so returning
+    // a clean 400 beats falling through and blowing up on the unique index
+    // with a Prisma P2002 that Fastify surfaces as a 500.
     const existing = await prisma.friendship.findFirst({
       where: {
         OR: [
@@ -95,33 +98,54 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     if (existing) {
       if (existing.status === 'accepted') return reply.status(400).send({ error: 'Already friends' })
       if (existing.status === 'pending') return reply.status(400).send({ error: 'Request already sent' })
+      // Any other lingering status (legacy 'declined', etc.) — don't fall
+      // through to create() and blow up on the unique index.
+      return reply.status(409).send({ error: 'Existing relationship', status: existing.status })
     }
 
-    const friendship = await prisma.friendship.create({
-      data: { requesterId: userId, addresseeId: target.id, status: 'pending' },
-    })
+    let friendship
+    try {
+      friendship = await prisma.friendship.create({
+        data: { requesterId: userId, addresseeId: target.id, status: 'pending' },
+      })
+    } catch (err: any) {
+      // P2002 = unique constraint violation on (requesterId, addresseeId).
+      // Can happen if two requests race past the existence check above; treat
+      // it as "already sent" rather than 500 so the UI can show a useful msg.
+      if (err?.code === 'P2002') {
+        req.log.warn({ userId, targetUserId: target.id }, 'friend request race: duplicate')
+        return reply.status(400).send({ error: 'Request already sent' })
+      }
+      req.log.error({ err, userId, targetUserId: target.id }, 'friend request: create failed')
+      throw err
+    }
 
     req.log.info({ userId, targetUserId: target.id, friendshipId: friendship.id }, 'friend request sent')
 
-    // Real-time notification via socket if target is online
-    const targetSocketId = (fastify as any).onlineUsers?.get(target.id)
-    if (targetSocketId) {
-      const io = (fastify as any).io
-      if (io) {
-        const requester = await prisma.user.findUnique({ where: { id: userId }, select: { username: true, avatarUrl: true } })
-        io.to(targetSocketId).emit('friend:request', { friendshipId: friendship.id, from: { id: userId, ...requester } })
+    // Side-effects (socket + push). Wrapped so a transient failure in either
+    // doesn't poison the successful create — the DB row is already committed
+    // and the client should get its 201 back regardless.
+    try {
+      const targetSocketId = (fastify as any).onlineUsers?.get(target.id)
+      if (targetSocketId) {
+        const io = (fastify as any).io
+        if (io) {
+          const requester = await prisma.user.findUnique({ where: { id: userId }, select: { username: true, avatarUrl: true } })
+          io.to(targetSocketId).emit('friend:request', { friendshipId: friendship.id, from: { id: userId, ...requester } })
+        }
       }
-    }
 
-    // Push notification to target user
-    if (target.pushToken) {
-      const requesterUser = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } })
-      sendPushNotification(
-        target.pushToken,
-        'New Friend Request',
-        `${requesterUser?.username ?? 'Someone'} sent you a friend request`,
-        { type: 'friend_request', friendshipId: friendship.id },
-      ).catch((err) => req.log.error({ err }, 'push: friend request notification error'))
+      if (target.pushToken) {
+        const requesterUser = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } })
+        sendPushNotification(
+          target.pushToken,
+          'New Friend Request',
+          `${requesterUser?.username ?? 'Someone'} sent you a friend request`,
+          { type: 'friend_request', friendshipId: friendship.id },
+        ).catch((err) => req.log.error({ err }, 'push: friend request notification error'))
+      }
+    } catch (err) {
+      req.log.error({ err, friendshipId: friendship.id }, 'friend request: side-effect failed (continuing)')
     }
 
     return reply.status(201).send({ friendship: { id: friendship.id, status: friendship.status } })
