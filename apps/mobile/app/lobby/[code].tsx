@@ -1025,10 +1025,10 @@ export default function LobbyScreen() {
       }
     })
 
-    socket.on('game:started', ({ round, yourWord, yourRole }) => {
+    socket.on('game:started', ({ round, yourWord, yourRole, yourVillagerWord, yourCategory }) => {
       log.info('game started', { role: yourRole, roundId: (round as any)?.id })
       SoundManager.play('game_start')
-      setRoleAndWord(yourRole, yourWord)
+      setRoleAndWord(yourRole, yourWord, yourVillagerWord, yourCategory)
       setRound(round as any)
       router.replace(`/game/${code}`)
     })

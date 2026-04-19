@@ -201,6 +201,9 @@ export interface Vote {
 export interface WordReveal {
   villagerWord: string
   redHandedWord: string
+  /** Category key the pair was drawn from (e.g. 'food', 'movies'). Optional
+   *  for backwards compatibility with older payloads. */
+  category?: WordCategory
 }
 
 // ─── Word Packs ───────────────────────────────────────────────────────────────
@@ -228,7 +231,7 @@ export interface WordPair {
 
 export interface ServerToClientEvents {
   'room:updated': (room: Room) => void
-  'game:started': (data: { round: Round; yourWord: string; yourRole: PlayerRole; yourVillagerWord?: string }) => void
+  'game:started': (data: { round: Round; yourWord: string; yourRole: PlayerRole; yourVillagerWord?: string; yourCategory?: WordCategory }) => void
   'detective:result': (data: { targetUserId: string; targetUsername: string; role: PlayerRole }) => void
   'round:speaking-turn': (data: { playerId: string | null; timeSeconds: number; speakingOrder: string[] }) => void
   'round:clue-submitted': (clue: Clue) => void

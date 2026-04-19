@@ -29,7 +29,7 @@ import { Wordmark } from '../../components/Wordmark'
 import { VoiceChannel } from '../../lib/voice'
 import { FloatingEmote } from '../../components/emotes/FloatingEmote'
 import { useEmotesStore } from '../../store/emotes'
-import { getEmoteById, DEFAULT_LOADOUT, type EmoteRarity } from '@red-handed/shared'
+import { getEmoteById, DEFAULT_LOADOUT, WORD_CATEGORIES, type EmoteRarity, type WordCategory } from '@red-handed/shared'
 
 const log = createLogger('game-screen')
 
@@ -42,6 +42,23 @@ const RARITY_BORDER: Record<EmoteRarity, string> = {
   rare:      'border-indigo-600/50',
   epic:      'border-fuchsia-600/60',
   legendary: 'border-amber-500/70',
+}
+
+// Small pill that labels the word reveal with its category — gives players the
+// theme (Food, Movies, …) so ambiguous words like "Crane" land correctly.
+function CategoryBadge({ categoryKey }: { categoryKey: WordCategory | null | undefined }) {
+  const { t } = useTranslation()
+  if (!categoryKey) return null
+  const cat = WORD_CATEGORIES.find((c) => c.key === categoryKey)
+  if (!cat) return null
+  return (
+    <View className="self-start flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-violet-950/60 border border-violet-700/40">
+      <Text className="text-[10px]">{cat.icon}</Text>
+      <Text className="text-[10px] font-bold uppercase tracking-widest text-violet-300">
+        {t(`home.cat.${cat.key}`, cat.label)}
+      </Text>
+    </View>
+  )
 }
 
 // ─── CountdownBar ─────────────────────────────────────────────────────────────
@@ -262,6 +279,7 @@ export default function GameScreen() {
     myRole,
     myWord,
     myVillagerWord,
+    myCategory,
     detectiveRevealUsed,
     revealedPlayer,
     twinPartner,
@@ -442,10 +460,10 @@ export default function GameScreen() {
     }
 
     // game:started — reset all state for new game
-    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
+    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord, yourCategory }: any) => {
       log.info('game started', { role: yourRole })
       SoundManager.play('game_start')
-      setRoleAndWord(yourRole, yourWord, yourVillagerWord)
+      setRoleAndWord(yourRole, yourWord, yourVillagerWord, yourCategory)
       setClues([])
       setHasSubmittedClue(false)
       setVotedFor(null)
@@ -830,6 +848,7 @@ export default function GameScreen() {
         role={myRole ?? 'villager'}
         word={myWord ?? '???'}
         villagerWord={myVillagerWord ?? undefined}
+        category={myCategory}
         onDismiss={() => setShowRoleReveal(false)}
       />
 
@@ -955,6 +974,9 @@ export default function GameScreen() {
                   Double Agent
                 </Text>
               </View>
+              <View className="mb-2">
+                <CategoryBadge categoryKey={myCategory} />
+              </View>
               <View className="flex-row gap-2">
                 <View className="flex-1 rounded-xl bg-emerald-950/50 border border-emerald-700/50 p-3">
                   <Text className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-1.5">
@@ -1014,6 +1036,11 @@ export default function GameScreen() {
                       ? 'You are the Detective'
                       : 'You are a Villager'}
                   </Text>
+                  {myCategory ? (
+                    <View className="mb-1">
+                      <CategoryBadge categoryKey={myCategory} />
+                    </View>
+                  ) : null}
                   <Text
                     className={[
                       'font-extrabold tracking-tight',
@@ -1382,16 +1409,19 @@ export default function GameScreen() {
               )}
               {/* Word reveal */}
               {wordReveal && (
-                <View className="flex-row gap-3 mt-4 w-full">
-                  <View className="flex-1 rounded-xl bg-violet-950/50 border border-violet-700/50 p-3 items-center">
-                    <Text className="text-[10px] font-bold uppercase tracking-widest text-violet-500 mb-1">Villager Word</Text>
-                    <Text className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</Text>
-                  </View>
-                  <View className="flex-1 rounded-xl bg-amber-950/50 border border-amber-700/50 p-3 items-center">
-                    <Text className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-1">Imposter Word</Text>
-                    <Text className="text-amber-300 font-extrabold text-xl">
-                      {wordReveal.redHandedWord}
-                    </Text>
+                <View className="mt-4 w-full items-center gap-2">
+                  <CategoryBadge categoryKey={((wordReveal as any).category as WordCategory | undefined) ?? myCategory} />
+                  <View className="flex-row gap-3 w-full">
+                    <View className="flex-1 rounded-xl bg-violet-950/50 border border-violet-700/50 p-3 items-center">
+                      <Text className="text-[10px] font-bold uppercase tracking-widest text-violet-500 mb-1">Villager Word</Text>
+                      <Text className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</Text>
+                    </View>
+                    <View className="flex-1 rounded-xl bg-amber-950/50 border border-amber-700/50 p-3 items-center">
+                      <Text className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-1">Imposter Word</Text>
+                      <Text className="text-amber-300 font-extrabold text-xl">
+                        {wordReveal.redHandedWord}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               )}

@@ -22990,7 +22990,7 @@ export function pickRandomWordPair(
   categories: WordCategory[],
   shuffleFn: <T>(arr: T[]) => T[],
   locale?: string,
-): OfflineWordPair {
+): OfflineWordPair & { category: WordCategory } {
   const localeKey = locale?.substring(0, 2) ?? 'en'
   const pairsMap = OFFLINE_WORD_PAIRS_BY_LOCALE[localeKey] ?? OFFLINE_WORD_PAIRS
   const keys =
@@ -23001,5 +23001,5 @@ export function pickRandomWordPair(
   const category = shuffledKeys[0]
   const pairs = pairsMap[category]
   const shuffledPairs = shuffleFn(pairs)
-  return shuffledPairs[0]
+  return { ...shuffledPairs[0], category }
 }

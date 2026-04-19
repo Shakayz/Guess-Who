@@ -1183,7 +1183,7 @@ async function _resolveRound(io: IO, roomId: string) {
   // Add word reveal from DB
   const dbRound = await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
   currentRound.wordReveal = dbRound
-    ? { villagerWord: dbRound.villagerWord, redHandedWord: dbRound.redHandedWord }
+    ? { villagerWord: dbRound.villagerWord, redHandedWord: dbRound.redHandedWord, category: state.wordCategory }
     : null
 
   // ── Persist votes to RoundVote table ────────────────────────────────────────
@@ -1800,7 +1800,7 @@ async function continueRoundAfterKamikaze(
   // Pull word reveal from DB for game-end payloads
   const dbRound = await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
   currentRound.wordReveal = dbRound
-    ? { villagerWord: dbRound.villagerWord, redHandedWord: dbRound.redHandedWord }
+    ? { villagerWord: dbRound.villagerWord, redHandedWord: dbRound.redHandedWord, category: state.wordCategory }
     : null
 
   // Persist this round's votes (kamikaze elimination came from a vote tally)

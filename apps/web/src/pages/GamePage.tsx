@@ -12,7 +12,7 @@ import { VoiceChannel } from '../lib/webrtc'
 import { EliminationReveal } from '../components/EliminationReveal'
 import { FloatingEmote } from '../components/emotes/FloatingEmote'
 import { useEmotesStore } from '../store/emotes'
-import { getEmoteById, DEFAULT_LOADOUT } from '@red-handed/shared'
+import { getEmoteById, DEFAULT_LOADOUT, WORD_CATEGORIES } from '@red-handed/shared'
 // Overlays removed — they blocked gameplay and caused desync between players
 
 const log = createLogger('game-page')
@@ -317,11 +317,33 @@ const PlayerClueHistoryModal = memo(({
   )
 })
 
+/** Small pill that shows the word's category (icon + localised label). Rendered
+ *  above every secret-word reveal so players know what theme the pair was drawn
+ *  from — otherwise a word like "Crane" could mean the bird or the machine. */
+function CategoryBadge({ categoryKey, className }: { categoryKey: string | null | undefined; className?: string }) {
+  const { t } = useTranslation()
+  if (!categoryKey) return null
+  const cat = WORD_CATEGORIES.find((c) => c.key === categoryKey)
+  if (!cat) return null
+  return (
+    <span
+      className={[
+        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest',
+        'bg-brand-950/60 border border-brand-700/40 text-brand-300',
+        className ?? '',
+      ].join(' ')}
+    >
+      <span>{cat.icon}</span>
+      <span>{t(`home.cat.${cat.key}`, cat.label)}</span>
+    </span>
+  )
+}
+
 export default function GamePage() {
   const { code } = useParams<{ code: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { room, currentRound, completedRounds, myRole, myWord, myVillagerWord, detectiveRevealUsed, guardianProtectUsed, guardianProtectedPlayer, mayorDoubleVoteUsed, mayorDoubleActive, inverterUsed, inverterActive, corruptorTargetUserId, twinPartner, revenantVotesRemaining, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setGuardianProtectUsed, setGuardianProtectedPlayer, setMayorDoubleActive, resetMayorDoubleActive, setInverterActive, resetInverterActive, setCorruptorTarget, setTwinPartner, setRevenantVotesRemaining, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
+  const { room, currentRound, completedRounds, myRole, myWord, myVillagerWord, myCategory, detectiveRevealUsed, guardianProtectUsed, guardianProtectedPlayer, mayorDoubleVoteUsed, mayorDoubleActive, inverterUsed, inverterActive, corruptorTargetUserId, twinPartner, revenantVotesRemaining, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setGuardianProtectUsed, setGuardianProtectedPlayer, setMayorDoubleActive, resetMayorDoubleActive, setInverterActive, resetInverterActive, setCorruptorTarget, setTwinPartner, setRevenantVotesRemaining, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
   const user = useAuthStore((s) => s.user)
   const [clueText, setClueText] = useState('')
   const [clues, setClues] = useState<Clue[]>([])
@@ -471,10 +493,10 @@ export default function GamePage() {
     }
 
     // On game start, reset ALL UI state and set new role/word
-    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
+    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord, yourCategory }: any) => {
       log.info('game started', { role: yourRole })
       SoundManager.play('game_start')
-      setRoleAndWord(yourRole, yourWord, yourVillagerWord)
+      setRoleAndWord(yourRole, yourWord, yourVillagerWord, yourCategory)
       setShowRoleCard(true)
       // Clear all per-round UI state from any previous game
       setClues([])
@@ -1231,7 +1253,8 @@ export default function GamePage() {
                 >
                   {roleInfo.label}
                 </h1>
-                <div className="mt-5" style={{ animation: 'role-rise 0.4s ease 0.75s both' }}>
+                <div className="mt-5 flex flex-col items-center gap-2" style={{ animation: 'role-rise 0.4s ease 0.75s both' }}>
+                  <CategoryBadge categoryKey={myCategory} />
                   {myVillagerWord ? (
                     <div className="flex gap-3 justify-center">
                       <div className="rounded-xl bg-emerald-950/60 border border-emerald-800/40 px-4 py-2 text-center hover:scale-105 transition-transform">
@@ -1470,11 +1493,12 @@ export default function GamePage() {
           {myVillagerWord ? (
             /* Double agent: two word chips */
             <div className="relative">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <span className="text-lg">🎭</span>
                 <p className="text-xs font-semibold uppercase tracking-widest text-orange-500">
                   {t('game.roleDoubleAgent')}
                 </p>
+                <CategoryBadge categoryKey={myCategory} className="ml-auto" />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-xl bg-emerald-950/40 border border-emerald-800/40 p-3 shadow-sm shadow-emerald-950/40">
@@ -1493,10 +1517,13 @@ export default function GamePage() {
               <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl shrink-0 bg-brand-950/50 border border-brand-800/40 shadow-sm shadow-brand-950/40">
                 🔤
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-0.5">
-                  {t('game.yourWordLabel')}
-                </p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                    {t('game.yourWordLabel')}
+                  </p>
+                  <CategoryBadge categoryKey={myCategory} />
+                </div>
                 <p className="text-3xl font-extrabold tracking-tight text-white" style={{ textShadow: '0 0 20px rgba(139,92,246,0.3)' }}>
                   {myWord ?? '???'}
                 </p>
@@ -1813,14 +1840,17 @@ export default function GamePage() {
                 )}
               </div>
               {wordReveal && (
-                <div className="grid grid-cols-2 gap-3 mt-5 relative" style={{ animation: 'role-rise 0.4s ease 0.5s both' }}>
-                  <div className="rounded-xl bg-brand-950/40 border border-brand-800/40 p-3 text-center">
-                    <p className="text-xs text-neutral-500 mb-1">{t('game.villagerWord')}</p>
-                    <p className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</p>
-                  </div>
-                  <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
-                    <p className="text-xs text-neutral-500 mb-1">{t('game.redHandedWord')}</p>
-                    <p className="text-amber-300 font-extrabold text-xl">{wordReveal.redHandedWord}</p>
+                <div className="mt-5 relative flex flex-col items-center gap-2" style={{ animation: 'role-rise 0.4s ease 0.5s both' }}>
+                  <CategoryBadge categoryKey={(wordReveal as any).category ?? myCategory} />
+                  <div className="grid grid-cols-2 gap-3 w-full">
+                    <div className="rounded-xl bg-brand-950/40 border border-brand-800/40 p-3 text-center">
+                      <p className="text-xs text-neutral-500 mb-1">{t('game.villagerWord')}</p>
+                      <p className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</p>
+                    </div>
+                    <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
+                      <p className="text-xs text-neutral-500 mb-1">{t('game.redHandedWord')}</p>
+                      <p className="text-amber-300 font-extrabold text-xl">{wordReveal.redHandedWord}</p>
+                    </div>
                   </div>
                 </div>
               )}
