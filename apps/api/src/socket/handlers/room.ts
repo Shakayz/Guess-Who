@@ -282,6 +282,7 @@ async function startGameForRoom(
     const selectedCategories: string[] = state.categories ?? []
     const roomLocale: string = (room as any).language ?? 'en'
     let wordPair = FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)]
+    let wordCategory: string | undefined
     try {
       if (room.wordPackId && room.wordPackId !== 'default') {
         const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
@@ -292,13 +293,16 @@ async function startGameForRoom(
         if (pack && pack.pairs.length > 0) {
           const pair = pack.pairs[Math.floor(Math.random() * pack.pairs.length)]
           wordPair = { wordA: pair.wordA, wordB: pair.wordB }
+          wordCategory = pair.category
         } else {
           const pair = pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
           wordPair = { wordA: pair.villagerWord, wordB: pair.redHandedWord }
+          wordCategory = pair.category
         }
       } else {
         const pair = pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
         wordPair = { wordA: pair.villagerWord, wordB: pair.redHandedWord }
+        wordCategory = pair.category
       }
     } catch { /* use FALLBACK_WORDS */ }
 
@@ -429,6 +433,7 @@ async function startGameForRoom(
     state.currentRound = 1
     state.villagerWord = wordPair.wordA
     state.redHandedWord = wordPair.wordB
+    state.wordCategory = wordCategory
     state.rounds = [{ id: round.id, roundNumber: 1, votes: [], clues: [],
       speakingOrder: players.map((p: any) => p.userId) }]
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
@@ -481,6 +486,7 @@ async function startGameForRoom(
         yourWord: getsRedHandedWord ? wordPair.wordB : wordPair.wordA,
         yourRole: playerData.role,
         yourVillagerWord: playerData.role === 'double_agent' ? wordPair.wordA : undefined,
+        yourCategory: wordCategory,
       }
       const sid = onlineUsers.get(playerData.userId)
       if (sid) io.to(sid).emit('game:started', payload)
@@ -565,7 +571,13 @@ export function registerRoomHandlers(
         const playerLocale = (joiningUser?.locale ?? 'en').split('-')[0]
         const roomLanguage = room.language.split('-')[0]
         if (roomLanguage !== playerLocale) {
-          socket.emit('error', { code: 'LANGUAGE_MISMATCH', message: 'This room is in a different language. You can only join rooms that match your language.' })
+          socket.emit('error', {
+            code: 'LANGUAGE_MISMATCH',
+            message: 'This room is in a different language. You can only join rooms that match your language.',
+            // Include the room's language so the client can show a CTA
+            // ("Switch to Spanish to join") without guessing.
+            roomLanguage,
+          } as any)
           await socket.leave(`room:${room.id}`)
           return
         }
@@ -684,6 +696,7 @@ export function registerRoomHandlers(
               yourWord: getsRedHandedWord ? state.redHandedWord : state.villagerWord,
               yourRole: alreadyIn.role,
               yourVillagerWord: alreadyIn.role === 'double_agent' ? state.villagerWord : undefined,
+              yourCategory: state.wordCategory,
             })
 
             // Emit full phase sync so reconnecting client can resume at the correct phase

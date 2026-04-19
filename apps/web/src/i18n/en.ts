@@ -548,6 +548,9 @@ export default {
     stillInLobby: 'Still in lobby',
     returnToLobby: 'Tap to return',
     leaveLobby: 'Leave lobby',
+    roomLanguage: 'Room language',
+    roomLanguageHint: 'Players must use this language to join.',
+    switchToRoomLanguage: 'Switch to {{language}}',
   },
   rank: {
     wooden: 'Wooden',

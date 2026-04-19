@@ -8,6 +8,7 @@ import { connectSocket, getSocket } from '../lib/socket'
 import { api } from '../lib/api'
 import { RoomCodeDisplay, PlayerCard, Avatar } from '@red-handed/ui'
 import { NavBar } from '../components/NavBar'
+import { LANGUAGES, findLanguage } from '../i18n/languages'
 import { WORD_CATEGORIES } from '@red-handed/shared'
 import type { Room, GameMode, WordCategory, Player } from '@red-handed/shared'
 import { createLogger } from '../lib/logger'
@@ -195,6 +196,33 @@ function SettingsPanel({
   return (
     <div className="card space-y-4">
       <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">{t('lobby.roomSettings')}</p>
+
+      {/* Room language — controls which locale players must match to join */}
+      <div>
+        <p className="text-xs text-neutral-500 mb-2">{t('lobby.roomLanguage', 'Room language')}</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+          {LANGUAGES.map((lang) => {
+            const selected = settings.language === lang.code
+            return (
+              <button
+                key={lang.code}
+                type="button"
+                onClick={() => onChange({ ...settings, language: lang.code as Locale })}
+                className={[
+                  'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border',
+                  selected
+                    ? 'bg-brand-950/60 border-brand-700/50 text-brand-300'
+                    : 'bg-neutral-900/40 border-neutral-800/40 text-neutral-400 hover:text-white',
+                ].join(' ')}
+              >
+                <img src={`https://flagcdn.com/w20/${lang.country}.png`} alt="" className="w-5 h-3.5 object-cover rounded-sm shrink-0" />
+                <span className="truncate">{lang.label}</span>
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-[10px] text-neutral-600 mt-1.5">{t('lobby.roomLanguageHint', 'Players must use this language to join.')}</p>
+      </div>
 
       {/* Game mode */}
       <div>
@@ -727,6 +755,11 @@ export default function LobbyPage() {
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [joinToast, setJoinToast] = useState<string | null>(null)
   const [socketError, setSocketError] = useState<string | null>(null)
+  // Persistent language-mismatch alert: stays until the user's UI locale
+  // matches the room's language or the host changes the room language. We
+  // track the room's language (from the server error payload) so we can
+  // offer a one-click "switch to X" CTA.
+  const [languageMismatch, setLanguageMismatch] = useState<{ roomLanguage: Locale } | null>(null)
   // Dedicated modal state for INSUFFICIENT_STARS — shows a clear "not enough
   // coins" dialog with a "Get coins" CTA. When the *viewer* is broke the
   // `blockedUsername` field stays undefined; when another player is broke we
@@ -848,6 +881,9 @@ export default function LobbyPage() {
     }
 
     socket.on('room:updated', (r) => {
+      // Any room:updated payload means the server accepted our join — which
+      // implies the language check passed. Clear any sticky mismatch alert.
+      setLanguageMismatch(null)
       // TEMP DEBUG: trace every room:updated payload from the server
       // eslint-disable-next-line no-console
       console.log('[lobby] room:updated ←', {
@@ -915,10 +951,10 @@ export default function LobbyPage() {
         langSyncedRef.current = true
       }
     })
-    socket.on('game:started', ({ round, yourWord, yourRole, yourVillagerWord }) => {
+    socket.on('game:started', ({ round, yourWord, yourRole, yourVillagerWord, yourCategory }) => {
       log.info('game started', { role: yourRole, roundId: (round as any)?.id })
       SoundManager.play('game_start')
-      setRoleAndWord(yourRole, yourWord, yourVillagerWord)
+      setRoleAndWord(yourRole, yourWord, yourVillagerWord, yourCategory)
       setRound(round as any)
       navigate(`/game/${code}`)
     })
@@ -934,6 +970,16 @@ export default function LobbyPage() {
         setKickedToast(msg)
         resetGameStore()
         setTimeout(() => navigate('/', { replace: true }), 2000)
+        return
+      }
+      if (code === 'LANGUAGE_MISMATCH') {
+        // Sticky alert — stays visible until the mismatch is actually
+        // resolved (user switches their locale, or host changes the room
+        // language). The heartbeat retries room:join every 8s, so as soon
+        // as the mismatch clears on one side we get a room:updated which
+        // wipes this state below.
+        const roomLang = ((err as any).roomLanguage ?? 'en') as Locale
+        setLanguageMismatch({ roomLanguage: roomLang })
         return
       }
       setSocketError(msg)
@@ -1038,6 +1084,19 @@ export default function LobbyPage() {
   const isMatchmade = (room?.settings as any)?.isMatchmade ?? false
   const isHost = !isMatchmade && room?.hostId === user?.id
   const players = room?.players ?? []
+
+  // Switch the user's UI locale to match a target language and persist it so
+  // matchmaking + room joining pick it up. Used by the language-mismatch CTA
+  // ("Switch to Spanish") and also ensures the heartbeat's next room:join
+  // will succeed.
+  const switchMyLanguage = (code: string) => {
+    i18n.changeLanguage(code)
+    document.documentElement.dir = code === 'ar' ? 'rtl' : 'ltr'
+    api.patch('/users/me', { locale: code }).catch(() => { /* non-critical */ })
+  }
+
+  const roomLanguage = (room?.settings?.language as Locale | undefined) ?? settings.language
+  const roomLangInfo = findLanguage(roomLanguage)
   const allReady = players.length >= 2 && players.every((p) => p.isReady || p.userId === room?.hostId)
   const minPlayers = 3
   const activeCats = settings.categories.length > 0
@@ -1061,6 +1120,29 @@ export default function LobbyPage() {
           {socketError}
         </div>
       )}
+
+      {languageMismatch && (() => {
+        const langInfo = findLanguage(languageMismatch.roomLanguage)
+        return (
+          <div
+            role="alert"
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,560px)] px-4 py-3 rounded-xl bg-red-950/95 border border-red-700/60 text-sm text-red-200 shadow-xl animate-slide-up"
+          >
+            <div className="flex items-start gap-2 mb-2">
+              <span className="shrink-0">⚠</span>
+              <p className="font-semibold leading-snug">{t('room.languageMismatch')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => switchMyLanguage(languageMismatch.roomLanguage)}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-red-800/60 hover:bg-red-700/80 border border-red-700/60 text-red-100 text-xs font-semibold transition-colors"
+            >
+              <img src={`https://flagcdn.com/w20/${langInfo.country}.png`} alt="" className="w-5 h-3.5 object-cover rounded-sm" />
+              <span>{t('lobby.switchToRoomLanguage', { language: langInfo.label, defaultValue: `Switch to ${langInfo.label}` })}</span>
+            </button>
+          </div>
+        )
+      })()}
 
       {kickedToast && (
         <div role="alert" className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-red-950/90 border border-red-700/60 text-sm text-red-300 font-semibold shadow-xl animate-slide-up flex items-center gap-2">
@@ -1110,15 +1192,25 @@ export default function LobbyPage() {
             <p className="text-xs md:text-sm font-semibold uppercase tracking-widest text-neutral-500 mb-1">{t('room.roomCode')}</p>
             <h1 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-white">{t('lobby.waiting')}</h1>
             <p className="text-neutral-500 text-sm md:text-base mt-1">{t('lobby.shareHint')}</p>
-            {/* Visibility badge: Custom Lobbies only. Makes it obvious at a
-                glance whether this lobby is listed in the public browser, so
-                hosts notice when they forgot to flip the toggle at creation. */}
-            {!isMatchmade && room?.settings?.isPrivate && (
-              <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-neutral-900/60 border-neutral-800 text-neutral-300">
-                <span>{room?.settings?.isPublic ? '🌐' : '🔒'}</span>
-                <span>{room?.settings?.isPublic ? t('home.lobbyPublicLabel') : t('home.lobbyPrivateLabel')}</span>
-              </div>
-            )}
+            {/* Visibility + language badges. All players see the language so
+                they know what locale this room requires before settling in. */}
+            <div className="mt-2 flex items-center justify-center gap-1.5 flex-wrap">
+              {!isMatchmade && room?.settings?.isPrivate && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-neutral-900/60 border-neutral-800 text-neutral-300">
+                  <span>{room?.settings?.isPublic ? '🌐' : '🔒'}</span>
+                  <span>{room?.settings?.isPublic ? t('home.lobbyPublicLabel') : t('home.lobbyPrivateLabel')}</span>
+                </div>
+              )}
+              {room?.settings?.language && (
+                <div
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-neutral-900/60 border-neutral-800 text-neutral-300"
+                  title={t('lobby.roomLanguage', 'Room language') as string}
+                >
+                  <img src={`https://flagcdn.com/w20/${roomLangInfo.country}.png`} alt="" className="w-4 h-3 object-cover rounded-sm" />
+                  <span>{roomLangInfo.label}</span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col items-center gap-3">

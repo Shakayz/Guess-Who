@@ -538,6 +538,9 @@ export default {
     max: 'máx',
     roundsInfinity: '∞ rondas',
     roundsCount: '{{count}} rondas',
+    roomLanguage: 'Idioma de la sala',
+    roomLanguageHint: 'Los jugadores deben usar este idioma para unirse.',
+    switchToRoomLanguage: 'Cambiar a {{language}}',
   },
   rank: {
     wooden: 'Madera',
