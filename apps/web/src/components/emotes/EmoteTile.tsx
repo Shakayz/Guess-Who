@@ -51,7 +51,14 @@ type Props = {
   price: number
   owned: boolean
   equipped?: boolean
+  /** Fully blocks clicks (used for already-owned / free tiles). */
   disabled?: boolean
+  /**
+   * Visually dim the tile but keep it clickable. Used for "can't afford
+   * right now" — the server is authoritative so we still let the click
+   * through and surface the real error instead of silently swallowing it.
+   */
+  dimmed?: boolean
   busy?: boolean
   onClick?: () => void
   /** Show a "Buy" CTA when not owned; hide when this is a loadout picker. */
@@ -59,7 +66,7 @@ type Props = {
 }
 
 export const EmoteTile: React.FC<Props> = ({
-  emoji, name, rarity, price, owned, equipped, disabled, busy, onClick, showPrice = true,
+  emoji, name, rarity, price, owned, equipped, disabled, dimmed, busy, onClick, showPrice = true,
 }) => {
   const r = RARITY_STYLE[rarity]
   const label = rarity === 'free' ? 'FREE' : rarity.toUpperCase()
@@ -71,7 +78,11 @@ export const EmoteTile: React.FC<Props> = ({
       className={[
         'relative p-3 rounded-xl border text-center transition-all',
         r.border, r.bg, r.ring,
-        disabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02] active:scale-[0.98]',
+        disabled
+          ? 'opacity-50 cursor-not-allowed'
+          : dimmed
+          ? 'opacity-70 hover:opacity-100 hover:scale-[1.02] active:scale-[0.98]'
+          : 'hover:scale-[1.02] active:scale-[0.98]',
       ].join(' ')}
     >
       {equipped && (

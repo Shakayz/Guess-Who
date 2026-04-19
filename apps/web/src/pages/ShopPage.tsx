@@ -296,6 +296,7 @@ const RARITY_LABEL: Record<EmoteRarity, string> = {
 function EmotesTab({ starCoins }: { starCoins: number }) {
   const queryClient = useQueryClient()
   const emotesStore = useEmotesStore()
+  const [notice, setNotice] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null)
 
   // Prime the store on mount so the loadout/owned set is current before the
   // user buys anything. fetchMe is a no-op if already in flight.
@@ -319,6 +320,23 @@ function EmotesTab({ starCoins }: { starCoins: number }) {
         starCoins: res.starCoins,
       }))
       queryClient.invalidateQueries({ queryKey: ['me'] })
+      // NavBar keeps its own local state (not react-query). Push the new
+      // balance so the header chip updates immediately.
+      window.dispatchEvent(
+        new CustomEvent('wallet:balance', { detail: { starCoins: res.starCoins } }),
+      )
+      setNotice({ kind: 'ok', text: 'Unlocked! Equip it in Profile → Emotes.' })
+    },
+    onError: (err) => {
+      const msg = err.message || ''
+      setNotice({
+        kind: 'error',
+        text: msg.includes('insufficient_coins')
+          ? 'Not enough coins.'
+          : msg.includes('already_owned')
+          ? 'You already own this emote.'
+          : msg || 'Purchase failed. Please try again.',
+      })
     },
   })
 
@@ -334,12 +352,40 @@ function EmotesTab({ starCoins }: { starCoins: number }) {
     return map
   }, [emotes])
 
+  // Click handler. Never silently swallow the click — if the purchase can't
+  // go through, show why. Client-side affordability is a UX hint only; the
+  // server is authoritative, so we still attempt the request when the client
+  // balance looks low (protects against stale /auth/me caches where the
+  // header chip shows the correct balance but this component read 0).
+  const handleBuy = (em: CatalogEmote) => {
+    setNotice(null)
+    if (em.rarity === 'free' || owned.has(em.id)) {
+      setNotice({ kind: 'ok', text: 'You already have this one.' })
+      return
+    }
+    if (buy.isPending) return
+    buy.mutate(em.id)
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-brand-600/30 bg-brand-950/30 px-4 py-3 text-sm text-brand-200">
         Unlocked emotes are automatically available for your React bar. Head to{' '}
         <span className="font-semibold text-white">Profile → Emotes</span> to pick which 10 appear in-game.
       </div>
+
+      {notice && (
+        <div
+          className={[
+            'px-3 py-2.5 rounded-xl border text-xs text-center',
+            notice.kind === 'error'
+              ? 'bg-red-950/30 border-red-900/50 text-red-300'
+              : 'bg-emerald-950/30 border-emerald-900/50 text-emerald-300',
+          ].join(' ')}
+        >
+          {notice.text}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
@@ -359,8 +405,15 @@ function EmotesTab({ starCoins }: { starCoins: number }) {
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                 {bucket.map((em) => {
                   const isOwned = owned.has(em.id) || em.rarity === 'free'
+                  // Visually dim unaffordable tiles, but still let the click
+                  // through — the server revalidates the balance and the
+                  // onError handler surfaces the real message.
                   const canAfford = starCoins >= em.price
-                  const disabled = isOwned || !canAfford || em.rarity === 'free'
+                  const dimmed = isOwned || em.rarity === 'free' || !canAfford
+                  // Only fully-disable tiles the user already owns or that
+                  // aren't purchasable at all (free tier). Unaffordable tiles
+                  // stay clickable so stale-balance cases don't silently fail.
+                  const hardDisabled = isOwned || em.rarity === 'free'
                   const busy = buy.isPending && buy.variables === em.id
                   return (
                     <EmoteTile
@@ -370,9 +423,10 @@ function EmotesTab({ starCoins }: { starCoins: number }) {
                       rarity={em.rarity}
                       price={em.price}
                       owned={isOwned}
-                      disabled={disabled}
+                      disabled={hardDisabled}
+                      dimmed={dimmed && !hardDisabled}
                       busy={busy}
-                      onClick={() => !disabled && buy.mutate(em.id)}
+                      onClick={() => handleBuy(em)}
                     />
                   )
                 })}
@@ -380,12 +434,6 @@ function EmotesTab({ starCoins }: { starCoins: number }) {
             </section>
           )
         })
-      )}
-
-      {buy.isError && (
-        <div className="px-3 py-2.5 rounded-xl bg-red-950/30 border border-red-900/50 text-red-300 text-xs text-center">
-          {buy.error.message.includes('insufficient_coins') ? 'Not enough coins.' : buy.error.message}
-        </div>
       )}
     </div>
   )
