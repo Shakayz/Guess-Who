@@ -136,7 +136,6 @@ export const OFFLINE_WORD_PAIRS: Record<WordCategory, OfflineWordPair[]> = {
     { villagerWord: 'Anchovy', redHandedWord: 'Sardine' },
     { villagerWord: 'Tahini', redHandedWord: 'Aioli' },
     { villagerWord: 'Clam Chowder', redHandedWord: 'Bouillabaisse' },
-    { villagerWord: 'Churro', redHandedWord: 'Funnel Cake' },
     { villagerWord: 'Saffron', redHandedWord: 'Turmeric' },
     { villagerWord: 'Mayonnaise', redHandedWord: 'Remoulade' },
     { villagerWord: 'Tapenade', redHandedWord: 'Bruschetta' },
@@ -1865,10 +1864,8 @@ export const OFFLINE_WORD_PAIRS: Record<WordCategory, OfflineWordPair[]> = {
     { villagerWord: 'Kurapika', redHandedWord: 'Leorio' },
     { villagerWord: 'Giorno', redHandedWord: 'Jolyne' },
     { villagerWord: 'Byakuya', redHandedWord: 'Toshiro' },
-    { villagerWord: 'Killua', redHandedWord: 'Zoldyck' },
     { villagerWord: 'Gear Third', redHandedWord: 'Gear Second' },
     { villagerWord: 'Rinnegan', redHandedWord: 'Mangekyo' },
-    { villagerWord: 'Urahara', redHandedWord: 'Kisuke' },
     { villagerWord: 'Vinsmoke', redHandedWord: 'Donquixote' },
     { villagerWord: 'Seven Deadly Sins', redHandedWord: 'Fairy Tail' },
     { villagerWord: 'Barakamon', redHandedWord: 'Silver Spoon' },
@@ -1948,9 +1945,11 @@ export const OFFLINE_WORD_PAIRS: Record<WordCategory, OfflineWordPair[]> = {
     { villagerWord: 'Android 17', redHandedWord: 'Android 18' },
     { villagerWord: 'Shikamaru', redHandedWord: 'Temari' },
     { villagerWord: 'Franky', redHandedWord: 'Jinbe' },
+    { villagerWord: 'Urahara', redHandedWord: 'Kisuke' },
     { villagerWord: 'Cowboy Bebop', redHandedWord: 'Samurai Champloo' },
     { villagerWord: 'Neon Genesis', redHandedWord: 'Gurren Lagann' },
     { villagerWord: 'Trafalgar Law', redHandedWord: 'Eustass Kid' },
+    { villagerWord: 'Killua', redHandedWord: 'Zoldyck' },
     { villagerWord: 'Gyomei', redHandedWord: 'Muichiro' },
     { villagerWord: 'Ging', redHandedWord: 'Pariston' },
     { villagerWord: 'Toguro', redHandedWord: 'Sensui' },
@@ -2101,12 +2100,9 @@ export const OFFLINE_WORD_PAIRS: Record<WordCategory, OfflineWordPair[]> = {
     { villagerWord: 'Anne Hathaway', redHandedWord: 'Natalie Portman' },
     { villagerWord: 'Jake Gyllenhaal', redHandedWord: 'Oscar Isaac' },
     { villagerWord: 'Chris Pratt', redHandedWord: 'Chris Pine' },
-    { villagerWord: 'Denzel Washington', redHandedWord: 'Samuel L Jackson' },
-    { villagerWord: 'Eminem', redHandedWord: 'Slim Shady' },
     { villagerWord: 'Travis Kelce', redHandedWord: 'Gronkowski' },
     { villagerWord: 'Djokovic', redHandedWord: 'Murray' },
     { villagerWord: 'Virat Kohli', redHandedWord: 'Sachin Tendulkar' },
-    { villagerWord: 'BTS', redHandedWord: 'BLACKPINK' },
     { villagerWord: 'Burna Boy', redHandedWord: 'Wizkid' },
     { villagerWord: 'Bad Bunny', redHandedWord: 'Daddy Yankee' },
     { villagerWord: 'SZA', redHandedWord: 'H.E.R.' },
@@ -2179,6 +2175,7 @@ export const OFFLINE_WORD_PAIRS: Record<WordCategory, OfflineWordPair[]> = {
     { villagerWord: 'Pogba', redHandedWord: 'Griezmann' },
     { villagerWord: 'De Bruyne', redHandedWord: 'Bernardo Silva' },
     { villagerWord: 'Russell Crowe', redHandedWord: 'Hugh Jackman' },
+    { villagerWord: 'Denzel Washington', redHandedWord: 'Samuel L Jackson' },
     { villagerWord: 'Pedro Almodóvar', redHandedWord: 'Guillermo del Toro' },
     { villagerWord: 'Massimo Bottura', redHandedWord: 'René Redzepi' },
     { villagerWord: 'Tadao Ando', redHandedWord: 'Kengo Kuma' },
@@ -7639,7 +7636,6 @@ const DE_PAIRS: Record<WordCategory, OfflineWordPair[]> = {
     { villagerWord: 'Klavier', redHandedWord: 'Keyboard' },
     { villagerWord: 'Schlagzeug', redHandedWord: 'Trommel' },
     { villagerWord: 'Rock', redHandedWord: 'Pop' },
-    { villagerWord: 'Sänger', redHandedWord: 'Sängerin' },
     { villagerWord: 'Melodie', redHandedWord: 'Rhythmus' },
     { villagerWord: 'Lied', redHandedWord: 'Album' },
     { villagerWord: 'Chor', redHandedWord: 'Solo' },
@@ -22990,7 +22986,7 @@ export function pickRandomWordPair(
   categories: WordCategory[],
   shuffleFn: <T>(arr: T[]) => T[],
   locale?: string,
-): OfflineWordPair & { category: WordCategory } {
+): OfflineWordPair {
   const localeKey = locale?.substring(0, 2) ?? 'en'
   const pairsMap = OFFLINE_WORD_PAIRS_BY_LOCALE[localeKey] ?? OFFLINE_WORD_PAIRS
   const keys =
@@ -23001,5 +22997,5 @@ export function pickRandomWordPair(
   const category = shuffledKeys[0]
   const pairs = pairsMap[category]
   const shuffledPairs = shuffleFn(pairs)
-  return { ...shuffledPairs[0], category }
+  return shuffledPairs[0]
 }
