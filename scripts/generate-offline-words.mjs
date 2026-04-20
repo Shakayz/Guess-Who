@@ -23,6 +23,7 @@ const ROOT = resolve(__dirname, '..')
 const SEED = resolve(ROOT, 'apps/api/prisma/seed.ts')
 const EXTENDED = resolve(ROOT, 'apps/api/prisma/extended-pairs.ts')
 const V2 = resolve(ROOT, 'apps/api/prisma/v2-pairs.ts')
+const V3 = resolve(ROOT, 'apps/api/prisma/v3-pairs.ts')
 const OUT = resolve(ROOT, 'packages/shared/src/offlineWords.ts')
 
 const LOCALES = ['en', 'fr', 'es', 'de', 'ar', 'it', 'pt', 'zh', 'ru', 'hi']
@@ -99,6 +100,13 @@ for (const p of extModule.EXTENDED_PAIRS) {
 // V2 pairs from v2-pairs.ts (dynamic import, --experimental-strip-types)
 const v2Module = await import(pathToFileURL(V2).href)
 for (const p of v2Module.V2_PAIRS) {
+  const slot = bucket[p.locale]?.[p.category]
+  if (slot) pushUnique(slot, p.wordA, p.wordB)
+}
+
+// V3 pairs from v3-pairs.ts (dynamic import, --experimental-strip-types)
+const v3Module = await import(pathToFileURL(V3).href)
+for (const p of v3Module.V3_PAIRS) {
   const slot = bucket[p.locale]?.[p.category]
   if (slot) pushUnique(slot, p.wordA, p.wordB)
 }

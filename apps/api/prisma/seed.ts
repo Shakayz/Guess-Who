@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import { EXTENDED_PAIRS } from './extended-pairs'
 import { V2_PAIRS_BY_LOCALE, ENGLISH_PAIRS, FRENCH_PAIRS, SPANISH_PAIRS, GERMAN_PAIRS, ARABIC_PAIRS, ITALIAN_PAIRS, PORTUGUESE_PAIRS, CHINESE_PAIRS, RUSSIAN_PAIRS, INDIAN_PAIRS } from './v2-pairs'
+import { V3_PAIRS_BY_LOCALE } from './v3-pairs'
 
 const prisma = new PrismaClient()
 
@@ -11170,6 +11171,10 @@ function mergePairs(base: PairData[], loc: string): PairData[] {
     if (!seen.has(k)) { seen.add(k); out.push(p) }
   }
   for (const p of V2_PAIRS_BY_LOCALE[loc] ?? []) {
+    const k = key(p)
+    if (!seen.has(k)) { seen.add(k); out.push(p) }
+  }
+  for (const p of V3_PAIRS_BY_LOCALE[loc] ?? []) {
     const k = key(p)
     if (!seen.has(k)) { seen.add(k); out.push(p) }
   }
