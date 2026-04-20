@@ -9,6 +9,8 @@ import {
   Platform,
   Alert,
   Modal,
+  Animated,
+  Easing,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -264,6 +266,92 @@ function PlayerClueHistoryModal({
         </View>
       </TouchableOpacity>
     </Modal>
+  )
+}
+
+// ─── VoteOption ───────────────────────────────────────────────────────────────
+// Mirrors the web's `animate-jelly` keyframes (see apps/web/tailwind.config.ts)
+// 0%→25%→50%→75%→100%: scale(1,1) → (1.12,0.88) → (0.92,1.08) → (1.04,0.96) → (1,1)
+
+function VoteOption({
+  player,
+  isVotedTarget,
+  hasVoted,
+  disabled,
+  onPress,
+}: {
+  player: { id: string; userId: string; username: string; avatarUrl?: string | null }
+  isVotedTarget: boolean
+  hasVoted: boolean
+  disabled: boolean
+  onPress: () => void
+}) {
+  const scaleX = useRef(new Animated.Value(1)).current
+  const scaleY = useRef(new Animated.Value(1)).current
+  const prevSelected = useRef(isVotedTarget)
+
+  useEffect(() => {
+    if (isVotedTarget && !prevSelected.current) {
+      scaleX.setValue(1)
+      scaleY.setValue(1)
+      const segment = 150 // 0.6s / 4 keyframe segments
+      const ease = Easing.out(Easing.quad)
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(scaleX, { toValue: 1.12, duration: segment, easing: ease, useNativeDriver: true }),
+          Animated.timing(scaleX, { toValue: 0.92, duration: segment, easing: ease, useNativeDriver: true }),
+          Animated.timing(scaleX, { toValue: 1.04, duration: segment, easing: ease, useNativeDriver: true }),
+          Animated.timing(scaleX, { toValue: 1, duration: segment, easing: ease, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(scaleY, { toValue: 0.88, duration: segment, easing: ease, useNativeDriver: true }),
+          Animated.timing(scaleY, { toValue: 1.08, duration: segment, easing: ease, useNativeDriver: true }),
+          Animated.timing(scaleY, { toValue: 0.96, duration: segment, easing: ease, useNativeDriver: true }),
+          Animated.timing(scaleY, { toValue: 1, duration: segment, easing: ease, useNativeDriver: true }),
+        ]),
+      ]).start()
+    }
+    prevSelected.current = isVotedTarget
+  }, [isVotedTarget, scaleX, scaleY])
+
+  return (
+    <Animated.View style={{ transform: [{ scaleX }, { scaleY }] }}>
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled}
+        className={[
+          'flex-row items-center gap-3 px-3 py-3 rounded-xl border overflow-hidden',
+          isVotedTarget
+            ? 'border-amber-600/70 bg-amber-950/40'
+            : hasVoted
+            ? 'border-neutral-800 bg-neutral-900/30 opacity-40'
+            : 'border-neutral-700/60 bg-neutral-800/40',
+        ].join(' ')}
+        activeOpacity={0.7}
+      >
+        {isVotedTarget && (
+          <View className="absolute top-0 left-0 right-0 h-0.5 bg-amber-500" />
+        )}
+        <Avatar
+          url={player.avatarUrl}
+          username={player.username}
+          size={36}
+          borderColor={isVotedTarget ? '#d97706' : undefined}
+        />
+        <Text className={['flex-1 font-semibold text-sm', isVotedTarget ? 'text-amber-200' : 'text-white'].join(' ')}>
+          {player.username}
+        </Text>
+        {isVotedTarget ? (
+          <View className="flex-row items-center gap-1 px-2 py-1 rounded-lg bg-amber-900/60 border border-amber-700/40">
+            <Text className="text-amber-300 text-[10px] font-bold">✓ Your Vote</Text>
+          </View>
+        ) : !hasVoted ? (
+          <View className="px-2.5 py-1 rounded-lg bg-neutral-700/50 border border-neutral-600/40">
+            <Text className="text-neutral-400 text-[10px] font-semibold">Vote</Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    </Animated.View>
   )
 }
 
@@ -1301,42 +1389,14 @@ export default function GameScreen() {
                     const isVotedTarget = votedFor === p.userId
                     const hasVoted = !!votedFor
                     return (
-                      <TouchableOpacity
+                      <VoteOption
                         key={p.id}
-                        onPress={() => vote(p.userId)}
+                        player={p}
+                        isVotedTarget={isVotedTarget}
+                        hasVoted={hasVoted}
                         disabled={hasVoted || isEliminated}
-                        className={[
-                          'flex-row items-center gap-3 px-3 py-3 rounded-xl border overflow-hidden',
-                          isVotedTarget
-                            ? 'border-amber-600/70 bg-amber-950/40'
-                            : hasVoted
-                            ? 'border-neutral-800 bg-neutral-900/30 opacity-40'
-                            : 'border-neutral-700/60 bg-neutral-800/40',
-                        ].join(' ')}
-                        activeOpacity={0.7}
-                      >
-                        {isVotedTarget && (
-                          <View className="absolute top-0 left-0 right-0 h-0.5 bg-amber-500" />
-                        )}
-                        <Avatar
-                          url={p.avatarUrl}
-                          username={p.username}
-                          size={36}
-                          borderColor={isVotedTarget ? '#d97706' : undefined}
-                        />
-                        <Text className={['flex-1 font-semibold text-sm', isVotedTarget ? 'text-amber-200' : 'text-white'].join(' ')}>
-                          {p.username}
-                        </Text>
-                        {isVotedTarget ? (
-                          <View className="flex-row items-center gap-1 px-2 py-1 rounded-lg bg-amber-900/60 border border-amber-700/40">
-                            <Text className="text-amber-300 text-[10px] font-bold">✓ Your Vote</Text>
-                          </View>
-                        ) : !hasVoted ? (
-                          <View className="px-2.5 py-1 rounded-lg bg-neutral-700/50 border border-neutral-600/40">
-                            <Text className="text-neutral-400 text-[10px] font-semibold">Vote</Text>
-                          </View>
-                        ) : null}
-                      </TouchableOpacity>
+                        onPress={() => vote(p.userId)}
+                      />
                     )
                   })}
               </View>
