@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import { redis } from '../config/redis'
 import { generateRoomCode } from '@red-handed/shared'
-import { DAILY_COST } from '../services/dailyRewards'
 
 const createRoomSchema = z.object({
   settings: z.object({
@@ -13,7 +12,11 @@ const createRoomSchema = z.object({
     votingTimeSeconds:    z.number().min(15).max(120).default(30),
     wordPackId:           z.string().default('default'),
     isPrivate:            z.boolean().default(false),
-    language:             z.enum(['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de']).default('en'),
+    // Discoverability toggle for Custom Lobbies. When true, the room appears
+    // in the public-lobby browser. Has no effect on pricing — the host is
+    // only charged when the game actually starts (see startGameForRoom).
+    isPublic:             z.boolean().default(false),
+    language:             z.enum(['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de', 'ru', 'hi']).default('en'),
     categories:           z.array(z.string()).default([]),
     gameMode:             z.enum(['normal', 'special', 'ranked']).default('normal'),
     // Vocal mode: per-player speak-out-loud turns (unranked only). Ranked is
@@ -45,7 +48,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
       include: {
         game: {
           include: {
-            room: { select: { id: true, code: true, hostId: true, maxPlayers: true, redHandedCount: true, speakingTimeSeconds: true, votingTimeSeconds: true, wordPackId: true, isPrivate: true, language: true, createdAt: true } },
+            room: { select: { id: true, code: true, hostId: true, maxPlayers: true, redHandedCount: true, speakingTimeSeconds: true, votingTimeSeconds: true, wordPackId: true, isPrivate: true, isPublic: true, language: true, createdAt: true } },
           },
         },
       },
@@ -86,6 +89,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
           votingTimeSeconds: room.votingTimeSeconds,
           wordPackId: room.wordPackId,
           isPrivate: room.isPrivate,
+          isPublic: room.isPublic,
           language: room.language as any,
           gameMode: state.gameMode ?? 'normal',
           categories: state.categories ?? [],
@@ -102,7 +106,10 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     const { settings } = createRoomSchema.parse(req.body)
     const payload = req.user as { sub: string }
     req.log.info({ userId: payload.sub, gameMode: settings?.gameMode, isPrivate: settings?.isPrivate }, 'creating room')
-    const host = await prisma.user.findUnique({ where: { id: payload.sub }, select: { locale: true } })
+    const host = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { locale: true },
+    })
     const code = generateRoomCode()
 
     // Ranked games are locked at 10 players / 3 redHanded, regardless of
@@ -111,52 +118,27 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     const rankedMaxPlayers    = 10
     const rankedRedHandedCount = 3
 
-    // Private lobbies: the host pays 10 ⭐ at creation as a commitment fee, which
-    // covers the FIRST game only. Subsequent games in the same private lobby are
-    // charged at game start (see startGameForRoom in socket/handlers/room.ts) —
-    // this closes an infinite-replay farming exploit where one 10 ⭐ fee used to
-    // cover unlimited games.
-    //
-    // The debit and the Room row are created in a single transaction so a failed
-    // room.create can never leave the host with coins deducted and no room —
-    // both operations succeed together or the whole thing rolls back.
     const isPrivateLobby = settings?.isPrivate === true
-    let room
-    try {
-      room = await prisma.$transaction(async (tx) => {
-        if (isPrivateLobby) {
-          const debit = await tx.user.updateMany({
-            where: { id: payload.sub, starCoins: { gte: DAILY_COST } },
-            data:  { starCoins: { decrement: DAILY_COST } },
-          })
-          if (debit.count === 0) {
-            throw new Error('INSUFFICIENT_STARS')
-          }
-        }
-        return tx.room.create({
-          data: {
-            code,
-            hostId: payload.sub,
-            maxPlayers:           isRanked ? rankedMaxPlayers    : (settings?.maxPlayers ?? 10),
-            redHandedCount:       isRanked ? rankedRedHandedCount : (settings?.redHandedCount ?? 2),
-            speakingTimeSeconds:  settings?.speakingTimeSeconds ?? 30,
-            votingTimeSeconds:    settings?.votingTimeSeconds ?? 30,
-            wordPackId:           settings?.wordPackId ?? 'default',
-            isPrivate:            settings?.isPrivate ?? false,
-            language:             settings?.language ?? host?.locale ?? 'en',
-          },
-        })
-      })
-    } catch (err) {
-      if (err instanceof Error && err.message === 'INSUFFICIENT_STARS') {
-        req.log.warn({ userId: payload.sub }, 'lobby creation refused: insufficient stars')
-        return reply.status(402).send({ error: 'INSUFFICIENT_STARS', required: DAILY_COST })
-      }
-      // Anything else (DB connection drop, unique-code collision, etc.)
-      // rolls the whole $transaction back — no orphaned debit to refund.
-      req.log.error({ err, userId: payload.sub }, 'lobby creation failed — charges rolled back')
-      throw err
-    }
+    // No coin charge at lobby creation — the host is only billed when the game
+    // actually starts (see startGameForRoom in socket/handlers/room.ts). This
+    // way a host who creates a lobby but never gets enough players — or simply
+    // backs out — never loses coins for a game that didn't happen.
+    const room = await prisma.room.create({
+      data: {
+        code,
+        hostId: payload.sub,
+        maxPlayers:           isRanked ? rankedMaxPlayers    : (settings?.maxPlayers ?? 10),
+        redHandedCount:       isRanked ? rankedRedHandedCount : (settings?.redHandedCount ?? 2),
+        speakingTimeSeconds:  settings?.speakingTimeSeconds ?? 30,
+        votingTimeSeconds:    settings?.votingTimeSeconds ?? 30,
+        wordPackId:           settings?.wordPackId ?? 'default',
+        isPrivate:            settings?.isPrivate ?? false,
+        // Ranked matchmaking rooms can never be public; only Custom
+        // Lobbies (isPrivate=true) opt in to the public browser.
+        isPublic:             !isRanked && isPrivateLobby && (settings?.isPublic ?? false),
+        language:             settings?.language ?? host?.locale ?? 'en',
+      },
+    })
     // Ranked never uses vocal mode — it's typed-clue only.
     const vocalMode = !isRanked && (settings?.vocalMode ?? false)
     const vocalSpeakingTimeSeconds = Math.min(60, Math.max(5, settings?.vocalSpeakingTimeSeconds ?? 10))
@@ -168,15 +150,88 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
       gameMode: settings?.gameMode ?? 'normal',
       vocalMode,
       vocalSpeakingTimeSeconds,
-      // Private lobbies: the host already paid 10 ⭐ at creation. This flag is
-      // consumed by startGameForRoom for the host's FIRST game in this room.
-      // It is intentionally NOT re-set by buildResetState, so the host is
-      // charged again for every subsequent game (prevents infinite-replay
-      // farming on a single 10 ⭐ fee).
-      hostPrepaid: isPrivateLobby,
     }), 'EX', 21600)
     req.log.info({ userId: payload.sub, roomId: room.id, roomCode: room.code }, 'room created')
     return reply.status(201).send(room)
+  })
+
+  // ── Public lobby browser ─────────────────────────────────────────────
+  // Lists every Custom Lobby whose host has opted in to discovery
+  // (isPublic=true) and is still in the `waiting` phase. Live player counts
+  // come from Redis (the Postgres Room row has no `players` column — it only
+  // stores the host-set config).
+  fastify.get('/public', async (_req, reply) => {
+    const rooms = await prisma.room.findMany({
+      where: { isPublic: true, isPrivate: true, status: 'waiting' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: { host: { select: { id: true, username: true } } },
+    })
+
+    if (rooms.length === 0) {
+      return reply.send({ lobbies: [] })
+    }
+
+    // Batch the Redis reads — one round-trip instead of N.
+    const stateKeys = rooms.map((r) => `room:${r.id}:state`)
+    const stateRaws = await redis.mget(...stateKeys)
+
+    // Ghost-lobby reaper: if the socket.io room channel is empty, nobody is
+    // actually connected even though Redis still lists players. This happens
+    // when every occupant's socket died unexpectedly (e.g. the server crashed
+    // mid-lobby and the disconnect handler never ran, or a proxy dropped the
+    // WebSocket without a FIN). Close such rooms on sight so they stop
+    // appearing in the browser.
+    const io = (fastify as any).io as import('socket.io').Server | undefined
+
+    const lobbies = (await Promise.all(rooms.map(async (room, idx) => {
+      const raw = stateRaws[idx]
+      const state = raw ? JSON.parse(raw) : null
+      // Drop stale rows where Redis has evicted the state or the game has
+      // already advanced past `waiting` — prevents the browser from
+      // surfacing lobbies the host abandoned.
+      if (!state || state.status !== 'waiting') return null
+      const players = Array.isArray(state.players) ? state.players : []
+      // Defensive: empty lobbies are closed by the leave/disconnect handlers,
+      // but filter here too so any pre-existing stale row never surfaces.
+      if (players.length === 0) return null
+
+      // Liveness check against the socket.io adapter. If no socket is in the
+      // `room:<id>` channel, the lobby is a ghost — every previous occupant
+      // disconnected without triggering cleanup. Close it and skip.
+      const channelSize = io?.sockets?.adapter?.rooms?.get(`room:${room.id}`)?.size ?? 0
+      if (channelSize === 0) {
+        try {
+          await redis.del(`room:${room.id}:state`)
+          await prisma.room.update({ where: { id: room.id }, data: { status: 'closed' } })
+          fastify.log.info({ roomId: room.id, code: room.code }, 'ghost lobby reaped from /public')
+        } catch (err) {
+          fastify.log.error({ err, roomId: room.id }, 'ghost lobby reap failed')
+        }
+        return null
+      }
+
+      return {
+        code: room.code,
+        host: room.host,
+        playerCount: players.length,
+        maxPlayers: room.maxPlayers,
+        gameMode: state.gameMode ?? 'normal',
+        categories: state.categories ?? [],
+        vocalMode: !!state.vocalMode,
+        language: room.language,
+        createdAt: room.createdAt.toISOString(),
+      }
+    })))
+      .filter((l): l is NonNullable<typeof l> => l !== null)
+      // Full lobbies last — they're not joinable but worth showing as social proof.
+      .sort((a, b) => {
+        const aFull = a.playerCount >= a.maxPlayers ? 1 : 0
+        const bFull = b.playerCount >= b.maxPlayers ? 1 : 0
+        return aFull - bFull
+      })
+
+    return reply.send({ lobbies })
   })
 
   fastify.get('/:code', async (req, reply) => {

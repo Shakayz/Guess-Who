@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
+import { PremiumBadge } from '../components/PremiumBadge'
 import { api } from '../lib/api'
 import { Avatar, Badge } from '@red-handed/ui'
 import { RANK_CONFIG } from '@red-handed/shared'
@@ -15,6 +16,7 @@ interface LeaderboardUser {
   avatarUrl: string | null
   rankTier: RankTier
   rankPoints: number
+  isPremium?: boolean
 }
 
 const MEDAL: Record<number, string> = { 0: '🥇', 1: '🥈', 2: '🥉' }
@@ -96,13 +98,13 @@ function LanguagePicker({ value, onChange, label }: LanguagePickerProps) {
           role="listbox"
           aria-label={label}
           className={[
-            'absolute right-0 mt-2 w-56 z-50',
+            'absolute left-0 sm:left-auto sm:right-0 mt-2 w-[min(14rem,calc(100vw-1.5rem))] z-50',
             'bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl',
-            'overflow-hidden origin-top-right',
+            'overflow-hidden origin-top-left sm:origin-top-right',
             'animate-in fade-in slide-in-from-top-1 duration-150',
           ].join(' ')}
         >
-          <div className="max-h-80 overflow-y-auto py-1">
+          <div className="max-h-[min(20rem,calc(100vh-10rem))] overflow-y-auto py-1">
             {LANGUAGES.map((lang) => {
               const isSelected = lang.code === selected.code
               return (
@@ -221,8 +223,9 @@ export default function LeaderboardPage() {
                   >
                     <span className="text-2xl md:text-3xl leading-none">{MEDAL[realIdx]}</span>
                     <Avatar src={u.avatarUrl} username={u.username} size="md" />
-                    <p className="block w-full text-center text-sm font-semibold text-white truncate px-2">
-                      {u.username}
+                    <p className="block w-full text-center text-sm font-semibold text-white truncate px-2 flex items-center justify-center gap-1">
+                      <span className="truncate">{u.username}</span>
+                      {u.isPremium && <PremiumBadge size="xs" />}
                     </p>
                     <Badge variant="rank" className="text-[10px]">{rank.icon} {rank.label}</Badge>
                     <p className="text-xs text-neutral-500 tabular-nums">{u.rankPoints.toLocaleString()} LP</p>
@@ -257,7 +260,10 @@ export default function LeaderboardPage() {
                         {MEDAL[i] ?? i + 1}
                       </span>
                       <Avatar src={u.avatarUrl} username={u.username} size="sm" />
-                      <span className="flex-1 font-semibold text-white text-sm md:text-base">{u.username}</span>
+                      <span className="flex-1 font-semibold text-white text-sm md:text-base flex items-center gap-1.5 min-w-0">
+                        <span className="truncate">{u.username}</span>
+                        {u.isPremium && <PremiumBadge size="xs" />}
+                      </span>
                       <Badge variant="rank">{rank.icon} {rank.label}</Badge>
                       <span className="text-sm font-mono text-neutral-400 tabular-nums">{u.rankPoints.toLocaleString()} LP</span>
                     </button>

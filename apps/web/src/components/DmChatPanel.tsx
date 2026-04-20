@@ -102,7 +102,7 @@ export function DmChatPanel({ friend, onClose }: DmChatPanelProps) {
     new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 
   return (
-    <div className="fixed bottom-4 right-4 w-80 h-96 flex flex-col rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl z-50 overflow-hidden">
+    <div className="fixed inset-x-3 bottom-20 sm:inset-x-auto sm:right-4 sm:bottom-4 w-auto sm:w-80 h-[70vh] sm:h-96 max-h-[calc(100vh-6rem)] flex flex-col rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl z-50 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800 bg-neutral-900/80">
         <div className="flex items-center gap-2">
@@ -166,6 +166,8 @@ export function DmChatPanel({ friend, onClose }: DmChatPanelProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={() => setTimeout(() => bottomRef.current?.scrollIntoView({ block: 'end' }), 300)}
+          autoComplete="off"
           className="flex-1 px-3 py-1.5 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-sm placeholder-neutral-500 focus:outline-none focus:border-brand-600 transition-colors"
         />
         <button

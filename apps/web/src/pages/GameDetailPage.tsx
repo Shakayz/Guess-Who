@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { useAuthStore } from '../store/auth'
+import { Avatar } from '@red-handed/ui'
 
 interface GameDetailPlayer {
   userId: string
@@ -55,26 +56,15 @@ interface GameDetail {
   chatMessages: ChatMsg[]
 }
 
-function InitialsAvatar({ username, size = 'sm' }: { username: string; size?: 'sm' | 'md' }) {
-  const colors = [
-    'bg-brand-600', 'bg-amber-600', 'bg-emerald-600', 'bg-red-600',
-    'bg-purple-600', 'bg-sky-600', 'bg-pink-600', 'bg-orange-600',
-  ]
-  const idx = username.charCodeAt(0) % colors.length
-  const initials = username.slice(0, 2).toUpperCase()
-  const sizeClass = size === 'md' ? 'w-10 h-10 text-sm' : 'w-8 h-8 text-xs'
-  return (
-    <div className={`${sizeClass} ${colors[idx]} rounded-full flex items-center justify-center font-bold text-white flex-shrink-0`}>
-      {initials}
-    </div>
-  )
-}
-
 function RoundAccordion({ round, players, t }: { round: RoundDetail; players: GameDetailPlayer[]; t: (key: string, opts?: any) => string }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
 
+  const getPlayer = (userId: string) =>
+    players.find((p) => p.userId === userId)
   const getUsername = (userId: string) =>
-    players.find((p) => p.userId === userId)?.username ?? userId.slice(0, 8)
+    getPlayer(userId)?.username ?? userId.slice(0, 8)
+  const getAvatar = (userId: string) =>
+    getPlayer(userId)?.avatarUrl ?? null
 
   const eliminatedPlayer = round.eliminatedId
     ? players.find((p) => p.userId === round.eliminatedId)
@@ -131,13 +121,13 @@ function RoundAccordion({ round, players, t }: { round: RoundDetail; players: Ga
           )}
 
           {/* Clues */}
-          {round.clues.length > 0 && (
+          {round.clues.length > 0 ? (
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">{t('gameDetail.clues')}</p>
               <div className="space-y-2">
                 {round.clues.map((clue, i) => (
                   <div key={i} className="flex items-start gap-2">
-                    <InitialsAvatar username={getUsername(clue.playerId)} size="sm" />
+                    <Avatar src={getAvatar(clue.playerId)} username={getUsername(clue.playerId)} size="sm" />
                     <div className="flex-1 bg-neutral-800/60 rounded-xl px-3 py-2">
                       <p className="text-xs text-neutral-500 mb-0.5">{getUsername(clue.playerId)}</p>
                       <p className="text-white text-sm">{clue.text}</p>
@@ -145,6 +135,11 @@ function RoundAccordion({ round, players, t }: { round: RoundDetail; players: Ga
                   </div>
                 ))}
               </div>
+            </div>
+          ) : (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">{t('gameDetail.clues')}</p>
+              <p className="text-xs text-neutral-600 italic">{t('gameDetail.noClues', 'No clues recorded for this round')}</p>
             </div>
           )}
 
@@ -162,6 +157,7 @@ function RoundAccordion({ round, players, t }: { round: RoundDetail; players: Ga
                   <div className="space-y-1.5 mb-3">
                     {sorted.map(([uid, count]) => (
                       <div key={uid} className="flex items-center gap-2">
+                        <Avatar src={getAvatar(uid)} username={getUsername(uid)} size="xs" />
                         <span className="text-xs text-neutral-400 w-24 truncate">{getUsername(uid)}</span>
                         <div className="flex-1 h-4 bg-neutral-800 rounded-full overflow-hidden">
                           <div
@@ -351,29 +347,12 @@ export default function GameDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {data.participations.map((p) => {
                 const isMe = p.userId === user?.id
-                return (
-                  <div
-                    key={p.userId}
-                    className={[
-                      'flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors',
-                      isMe
-                        ? 'border-brand-800/50 bg-brand-950/20'
-                        : 'border-neutral-800 bg-neutral-900/40',
-                    ].join(' ')}
-                  >
-                    <InitialsAvatar username={p.username} size="sm" />
+                const inner = (
+                  <>
+                    <Avatar src={p.avatarUrl} username={p.username} size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
-                        {isMe ? (
-                          <span className="text-white text-xs font-semibold truncate">{p.username}</span>
-                        ) : (
-                          <Link
-                            to={`/player/${p.userId}`}
-                            className="text-white text-xs font-semibold truncate hover:text-brand-400 transition-colors"
-                          >
-                            {p.username}
-                          </Link>
-                        )}
+                        <span className="text-white text-xs font-semibold truncate">{p.username}</span>
                         {isMe && <span className="text-[9px] text-brand-400 font-bold">{t('gameDetail.you')}</span>}
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
@@ -388,7 +367,33 @@ export default function GameDetailPage() {
                         </span>
                       </div>
                     </div>
-                  </div>
+                  </>
+                )
+
+                const baseCls = 'flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors'
+
+                if (isMe) {
+                  return (
+                    <div
+                      key={p.userId}
+                      className={[baseCls, 'border-brand-800/50 bg-brand-950/20'].join(' ')}
+                    >
+                      {inner}
+                    </div>
+                  )
+                }
+
+                return (
+                  <Link
+                    key={p.userId}
+                    to={`/player/${p.userId}`}
+                    className={[
+                      baseCls,
+                      'border-neutral-800 bg-neutral-900/40 hover:border-brand-700/60 hover:bg-neutral-800/60 cursor-pointer',
+                    ].join(' ')}
+                  >
+                    {inner}
+                  </Link>
                 )
               })}
             </div>
@@ -416,7 +421,7 @@ export default function GameDetailPage() {
                       key={msg.id}
                       className={['flex gap-2', isMe ? 'flex-row-reverse' : 'flex-row'].join(' ')}
                     >
-                      <InitialsAvatar username={msg.username} size="sm" />
+                      <Avatar src={data.participations.find((p) => p.userId === msg.userId)?.avatarUrl ?? null} username={msg.username} size="sm" />
                       <div className={['max-w-[75%]', isMe ? 'items-end' : 'items-start'].join(' ')}>
                         <p className={['text-xs text-neutral-500 mb-0.5', isMe ? 'text-right' : ''].join(' ')}>
                           {msg.username} · {formatTime(msg.createdAt)}

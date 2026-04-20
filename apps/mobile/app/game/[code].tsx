@@ -26,12 +26,42 @@ import { useResponsive } from '../../lib/responsive'
 import { createLogger } from '../../lib/logger'
 import { HapticManager } from '../../lib/haptics'
 import { SoundManager } from '../../lib/sounds'
+import { UrgentPulse, Heartbeat } from '../../components/anim/AnimatedViews'
+import { Wordmark } from '../../components/Wordmark'
+import { VoiceChannel } from '../../lib/voice'
+import { FloatingEmote } from '../../components/emotes/FloatingEmote'
+import { useEmotesStore } from '../../store/emotes'
+import { getEmoteById, DEFAULT_LOADOUT, WORD_CATEGORIES, type EmoteRarity, type WordCategory } from '@red-handed/shared'
 
 const log = createLogger('game-screen')
 
 type Phase = 'speaking' | 'voting' | 'reveal'
 
-const EMOTES = ['👍', '😮', '🤔', '😂', '😱']
+// Rarity-tinted border for the React bar buttons — mirrors the web game page.
+const RARITY_BORDER: Record<EmoteRarity, string> = {
+  free:      'border-neutral-700/50',
+  common:    'border-sky-700/50',
+  rare:      'border-indigo-600/50',
+  epic:      'border-fuchsia-600/60',
+  legendary: 'border-amber-500/70',
+}
+
+// Small pill that labels the word reveal with its category — gives players the
+// theme (Food, Movies, …) so ambiguous words like "Crane" land correctly.
+function CategoryBadge({ categoryKey }: { categoryKey: WordCategory | null | undefined }) {
+  const { t } = useTranslation()
+  if (!categoryKey) return null
+  const cat = WORD_CATEGORIES.find((c) => c.key === categoryKey)
+  if (!cat) return null
+  return (
+    <View className="self-start flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-violet-950/60 border border-violet-700/40">
+      <Text className="text-[10px]">{cat.icon}</Text>
+      <Text className="text-[10px] font-bold uppercase tracking-widest text-violet-300">
+        {t(`home.cat.${cat.key}`, cat.label)}
+      </Text>
+    </View>
+  )
+}
 
 // ─── CountdownBar ─────────────────────────────────────────────────────────────
 
@@ -46,6 +76,27 @@ function CountdownBar({
 }) {
   const pct = Math.max(0, (seconds / total) * 100)
   const urgent = seconds <= 10
+  const critical = seconds <= 3
+
+  const readoutText = (
+    <Text
+      className={[
+        'text-xs font-mono font-semibold w-8 text-right',
+        urgent ? 'text-red-400' : 'text-neutral-400',
+      ].join(' ')}
+      style={
+        urgent
+          ? {
+              textShadowColor: 'rgba(239,68,68,0.65)',
+              textShadowOffset: { width: 0, height: 0 },
+              textShadowRadius: 10,
+            }
+          : undefined
+      }
+    >
+      {seconds}s
+    </Text>
+  )
 
   return (
     <View className="flex-row items-center gap-2">
@@ -59,14 +110,13 @@ function CountdownBar({
           style={{ width: `${pct}%` }}
         />
       </View>
-      <Text
-        className={[
-          'text-xs font-mono font-semibold w-8 text-right',
-          urgent ? 'text-red-400' : 'text-neutral-400',
-        ].join(' ')}
-      >
-        {seconds}s
-      </Text>
+      {critical ? (
+        <UrgentPulse>{readoutText}</UrgentPulse>
+      ) : urgent ? (
+        <Heartbeat>{readoutText}</Heartbeat>
+      ) : (
+        readoutText
+      )}
     </View>
   )
 }
@@ -131,7 +181,7 @@ function PlayerClueHistoryModal({
   onClose,
 }: {
   visible: boolean
-  player: { userId: string; username: string } | null
+  player: { userId: string; username: string; avatarUrl?: string | null } | null
   completedRounds: any[]
   currentClues: any[]
   onClose: () => void
@@ -176,11 +226,7 @@ function PlayerClueHistoryModal({
           {/* Header */}
           <View className="flex-row items-center justify-between px-5 py-3 border-b border-neutral-800">
             <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-full bg-violet-700 items-center justify-center">
-                <Text className="text-white text-sm font-bold">
-                  {player.username.charAt(0).toUpperCase()}
-                </Text>
-              </View>
+              <Avatar url={player.avatarUrl} username={player.username} size={32} />
               <View>
                 <Text className="text-white font-bold text-base">{player.username}</Text>
                 <Text className="text-neutral-500 text-xs">Clue history</Text>
@@ -234,7 +280,7 @@ function VoteOption({
   disabled,
   onPress,
 }: {
-  player: { id: string; userId: string; username: string }
+  player: { id: string; userId: string; username: string; avatarUrl?: string | null }
   isVotedTarget: boolean
   hasVoted: boolean
   disabled: boolean
@@ -286,16 +332,12 @@ function VoteOption({
         {isVotedTarget && (
           <View className="absolute top-0 left-0 right-0 h-0.5 bg-amber-500" />
         )}
-        <View
-          className={[
-            'w-9 h-9 rounded-full items-center justify-center',
-            isVotedTarget ? 'bg-amber-800/60' : 'bg-neutral-700',
-          ].join(' ')}
-        >
-          <Text className="text-white text-sm font-bold">
-            {player.username.charAt(0).toUpperCase()}
-          </Text>
-        </View>
+        <Avatar
+          url={player.avatarUrl}
+          username={player.username}
+          size={36}
+          borderColor={isVotedTarget ? '#d97706' : undefined}
+        />
         <Text className={['flex-1 font-semibold text-sm', isVotedTarget ? 'text-amber-200' : 'text-white'].join(' ')}>
           {player.username}
         </Text>
@@ -325,6 +367,7 @@ export default function GameScreen() {
     myRole,
     myWord,
     myVillagerWord,
+    myCategory,
     detectiveRevealUsed,
     revealedPlayer,
     twinPartner,
@@ -356,7 +399,7 @@ export default function GameScreen() {
   >([])
   const [isEliminated, setIsEliminated] = useState(false)
   const [floatingEmotes, setFloatingEmotes] = useState<
-    { id: string; emoji: string; username: string }[]
+    { id: string; emoteId?: string; emoji: string; username: string }[]
   >([])
   const [phase, setPhase] = useState<Phase>('speaking')
   const [votedFor, setVotedFor] = useState<string | null>(null)
@@ -387,7 +430,7 @@ export default function GameScreen() {
   } | null>(null)
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
   const [clueFlagCounts, setClueFlagCounts] = useState<Record<number, number>>({})
-  const [clueHistoryPlayer, setClueHistoryPlayer] = useState<{ userId: string; username: string } | null>(null)
+  const [clueHistoryPlayer, setClueHistoryPlayer] = useState<{ userId: string; username: string; avatarUrl?: string | null } | null>(null)
 
   // ─── Vocal mode ─────────────────────────────────────────────────────────────
   // When the room is in vocal mode, players speak out loud on their turn
@@ -400,6 +443,8 @@ export default function GameScreen() {
   const [vocalTurnIndex, setVocalTurnIndex] = useState(0)
   const [vocalTotalSpeakers, setVocalTotalSpeakers] = useState(0)
   const vocalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const voiceChannelRef = useRef<VoiceChannel | null>(null)
+  const [voiceMicError, setVoiceMicError] = useState<string | null>(null)
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatScrollRef = useRef<ScrollView>(null)
@@ -407,6 +452,8 @@ export default function GameScreen() {
   const phaseRef = useRef<Phase>('speaking')
   const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([])
   const lastEmoteTime = useRef(0)
+  const [emoteCooldownUntil, setEmoteCooldownUntil] = useState(0)
+  const [emoteNow, setEmoteNow] = useState(0)
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -438,8 +485,8 @@ export default function GameScreen() {
   useEffect(() => {
     if (timeLeft <= 0) return
     if (timeLeft <= 3) {
-      SoundManager.play('timer_warning')
-    } else if (timeLeft <= 5) {
+      SoundManager.play('countdown_final')
+    } else if (timeLeft <= 10) {
       SoundManager.play('timer_tick')
     }
   }, [timeLeft])
@@ -451,6 +498,33 @@ export default function GameScreen() {
       setShowRoleReveal(true)
     }
   }, []) // only on mount
+
+  // ─── Voice channel (vocal mode) ────────────────────────────────────────────
+  // When the room is in vocal mode, every player joins a WebRTC mesh for
+  // the whole game — mic is captured once on game start and the audio
+  // tracks stay live throughout. The server-side `round:vocal-turn` event
+  // still dictates *whose* turn it is; this effect just ensures the audio
+  // pipe is open so every speaker can actually be heard.
+  useEffect(() => {
+    if (!vocalMode || !user?.id) return
+    const socket = getSocket()
+    if (!socket) return
+
+    const vc = new VoiceChannel({ socket, selfUserId: user.id })
+    voiceChannelRef.current = vc
+    vc.onMicError = (err) => {
+      log.warn('mic error', { message: err.message })
+      setVoiceMicError(err.message)
+    }
+    vc.start().catch((err) => {
+      log.warn('voice start failed', { message: (err as Error).message })
+    })
+
+    return () => {
+      try { vc.destroy() } catch {}
+      if (voiceChannelRef.current === vc) voiceChannelRef.current = null
+    }
+  }, [vocalMode, user?.id])
 
   // ─── Show elimination overlay ──────────────────────────────────────────────
 
@@ -474,10 +548,10 @@ export default function GameScreen() {
     }
 
     // game:started — reset all state for new game
-    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
+    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord, yourCategory }: any) => {
       log.info('game started', { role: yourRole })
       SoundManager.play('game_start')
-      setRoleAndWord(yourRole, yourWord, yourVillagerWord)
+      setRoleAndWord(yourRole, yourWord, yourVillagerWord, yourCategory)
       setClues([])
       setHasSubmittedClue(false)
       setVotedFor(null)
@@ -701,9 +775,9 @@ export default function GameScreen() {
     socket.on('chat:message', addMessage)
     socket.on(
       'emote:receive' as any,
-      ({ username, emoji }: { username: string; emoji: string }) => {
+      ({ username, emoji, emoteId }: { username: string; emoji: string; emoteId?: string }) => {
         const id = `${Date.now()}_${Math.random()}`
-        setFloatingEmotes((prev) => (prev.length >= 10 ? prev : [...prev, { id, emoji, username }]))
+        setFloatingEmotes((prev) => (prev.length >= 10 ? prev : [...prev, { id, emoteId, emoji, username }]))
         const tid = setTimeout(
           () => setFloatingEmotes((prev) => prev.filter((e) => e.id !== id)),
           2800
@@ -711,6 +785,9 @@ export default function GameScreen() {
         timeoutRefs.current.push(tid)
       }
     )
+    socket.on('emote:cooldown' as any, ({ until }: { until: number }) => {
+      setEmoteCooldownUntil((prev) => (until > prev ? until : prev))
+    })
 
     // Clue flag response
     socket.on('clue:flagged' as any, ({ clueIndex, flagCount }: any) => {
@@ -737,6 +814,7 @@ export default function GameScreen() {
       socket.off('chat:message')
       socket.off('deadchat:message' as any)
       socket.off('emote:receive' as any)
+      socket.off('emote:cooldown' as any)
       socket.off('twin:partner' as any)
       socket.off('detective:result')
       socket.off('round:word-said' as any)
@@ -794,12 +872,30 @@ export default function GameScreen() {
     setDeadChatInput('')
   }
 
-  const sendEmote = (emoji: string) => {
+  const sendEmote = (emoteId: string) => {
     const now = Date.now()
-    if (now - lastEmoteTime.current < 2000) return
+    if (now < emoteCooldownUntil) return
+    if (now - lastEmoteTime.current < 1000) return
     lastEmoteTime.current = now
-    getSocket().emit('emote:send' as any, { emoji })
+    getSocket().emit('emote:send' as any, { emoteId })
   }
+
+  // Loadout — falls back to free basics while the store is still fetching so
+  // the React bar never shows up empty mid-match.
+  const emotesMe = useEmotesStore((s) => s.me)
+  const fetchEmotesMe = useEmotesStore((s) => s.fetchMe)
+  useEffect(() => { fetchEmotesMe() }, [fetchEmotesMe])
+  const activeLoadout = emotesMe?.loadout && emotesMe.loadout.length > 0
+    ? emotesMe.loadout
+    : [...DEFAULT_LOADOUT]
+
+  // Tick once per second while a server lockout is active so buttons
+  // re-enable when the cooldown expires.
+  useEffect(() => {
+    if (emoteCooldownUntil <= Date.now()) return
+    const id = setInterval(() => setEmoteNow(Date.now()), 250)
+    return () => clearInterval(id)
+  }, [emoteCooldownUntil])
 
   const flagClue = (clueIndex: number) => {
     getSocket().emit('clue:flag' as any, { clueIndex })
@@ -840,6 +936,7 @@ export default function GameScreen() {
         role={myRole ?? 'villager'}
         word={myWord ?? '???'}
         villagerWord={myVillagerWord ?? undefined}
+        category={myCategory}
         onDismiss={() => setShowRoleReveal(false)}
       />
 
@@ -867,16 +964,12 @@ export default function GameScreen() {
         onClose={() => setClueHistoryPlayer(null)}
       />
 
-      {/* Floating emote reactions */}
+      {/* Floating emote reactions — rarity-aware renderer with halo +
+          particle bursts. See components/emotes/FloatingEmote.tsx. */}
       {floatingEmotes.length > 0 && (
         <View className="absolute top-20 left-0 right-0 z-50 items-center" pointerEvents="none">
           {floatingEmotes.map((e) => (
-            <View key={e.id} className="items-center mb-2">
-              <Text className="text-3xl">{e.emoji}</Text>
-              <View className="bg-black/50 px-2 py-0.5 rounded-full mt-1">
-                <Text className="text-[10px] text-white/70 font-semibold">{e.username}</Text>
-              </View>
-            </View>
+            <FloatingEmote key={e.id} emoteId={e.emoteId} emoji={e.emoji} username={e.username} />
           ))}
         </View>
       )}
@@ -929,7 +1022,7 @@ export default function GameScreen() {
           <View className="gap-2">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-2">
-                <Text className="text-lg font-extrabold text-white tracking-tight">Red Handed !</Text>
+                <Wordmark size={90} />
                 {code && (
                   <View className="border border-neutral-800 rounded px-2 py-0.5">
                     <Text className="text-xs font-mono text-neutral-500">{code}</Text>
@@ -968,6 +1061,9 @@ export default function GameScreen() {
                 <Text className="text-xs font-bold uppercase tracking-widest text-orange-400">
                   Double Agent
                 </Text>
+              </View>
+              <View className="mb-2">
+                <CategoryBadge categoryKey={myCategory} />
               </View>
               <View className="flex-row gap-2">
                 <View className="flex-1 rounded-xl bg-emerald-950/50 border border-emerald-700/50 p-3">
@@ -1028,6 +1124,11 @@ export default function GameScreen() {
                       ? 'You are the Detective'
                       : 'You are a Villager'}
                   </Text>
+                  {myCategory ? (
+                    <View className="mb-1">
+                      <CategoryBadge categoryKey={myCategory} />
+                    </View>
+                  ) : null}
                   <Text
                     className={[
                       'font-extrabold tracking-tight',
@@ -1185,13 +1286,16 @@ export default function GameScreen() {
                     style={{ width: `${pct * 100}%` }}
                   />
                 </View>
+                {voiceMicError && (
+                  <View className="rounded-xl border border-amber-800 bg-amber-950/40 px-3 py-2 mb-3">
+                    <Text className="text-amber-300 text-xs font-semibold">
+                      Microphone unavailable — other players won't hear you. Enable mic in system settings to join the conversation.
+                    </Text>
+                  </View>
+                )}
                 {speaker ? (
                   <View className="flex-row items-center gap-3 mb-3">
-                    <View className="w-10 h-10 rounded-full bg-neutral-700 items-center justify-center">
-                      <Text className="text-white font-bold">
-                        {(speaker.username ?? '?').charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
+                    <Avatar url={speaker.avatarUrl} username={speaker.username ?? '?'} size={40} />
                     <View className="flex-1">
                       <Text className="text-white font-bold text-base">
                         {isMyTurn
@@ -1365,16 +1469,19 @@ export default function GameScreen() {
               )}
               {/* Word reveal */}
               {wordReveal && (
-                <View className="flex-row gap-3 mt-4 w-full">
-                  <View className="flex-1 rounded-xl bg-violet-950/50 border border-violet-700/50 p-3 items-center">
-                    <Text className="text-[10px] font-bold uppercase tracking-widest text-violet-500 mb-1">Villager Word</Text>
-                    <Text className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</Text>
-                  </View>
-                  <View className="flex-1 rounded-xl bg-amber-950/50 border border-amber-700/50 p-3 items-center">
-                    <Text className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-1">Imposter Word</Text>
-                    <Text className="text-amber-300 font-extrabold text-xl">
-                      {wordReveal.redHandedWord}
-                    </Text>
+                <View className="mt-4 w-full items-center gap-2">
+                  <CategoryBadge categoryKey={((wordReveal as any).category as WordCategory | undefined) ?? myCategory} />
+                  <View className="flex-row gap-3 w-full">
+                    <View className="flex-1 rounded-xl bg-violet-950/50 border border-violet-700/50 p-3 items-center">
+                      <Text className="text-[10px] font-bold uppercase tracking-widest text-violet-500 mb-1">Villager Word</Text>
+                      <Text className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</Text>
+                    </View>
+                    <View className="flex-1 rounded-xl bg-amber-950/50 border border-amber-700/50 p-3 items-center">
+                      <Text className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-1">Imposter Word</Text>
+                      <Text className="text-amber-300 font-extrabold text-xl">
+                        {wordReveal.redHandedWord}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               )}
@@ -1418,10 +1525,8 @@ export default function GameScreen() {
                           : 'bg-neutral-800/30 border-neutral-800/50',
                       ].join(' ')}
                     >
-                      <View className="w-6 h-6 rounded-full bg-neutral-700 items-center justify-center mt-0.5">
-                        <Text className="text-white text-xs font-bold">
-                          {(player?.username ?? '?').charAt(0).toUpperCase()}
-                        </Text>
+                      <View className="mt-0.5">
+                        <Avatar url={player?.avatarUrl} username={player?.username ?? '?'} size={24} />
                       </View>
                       <View className="flex-1">
                         <View className="flex-row items-center gap-1.5 flex-wrap">
@@ -1477,14 +1582,17 @@ export default function GameScreen() {
                 const isForfeited = p.status === ('forfeited' as any)
                 const isMe = p.userId === user?.id
                 const canViewHistory = !isMe && (hasSubmittedClue || phase !== 'speaking')
+                const isSpeakingNow = isAlive && vocalMode && phase === 'speaking' && vocalSpeakerId === p.userId
                 return (
                   <TouchableOpacity
                     key={p.id}
-                    onPress={() => canViewHistory ? setClueHistoryPlayer({ userId: p.userId, username: p.username }) : undefined}
+                    onPress={() => canViewHistory ? setClueHistoryPlayer({ userId: p.userId, username: p.username, avatarUrl: p.avatarUrl }) : undefined}
                     activeOpacity={canViewHistory ? 0.7 : 1}
                     className={[
                       'flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-xl border',
-                      isAlive && isMe
+                      isSpeakingNow
+                        ? 'bg-brand-900/60 border-brand-500/70'
+                        : isAlive && isMe
                         ? 'bg-violet-950/40 border-violet-700/50'
                         : isAlive
                         ? 'bg-neutral-800/70 border-neutral-700/50'
@@ -1496,7 +1604,7 @@ export default function GameScreen() {
                     <View
                       className={[
                         'w-1.5 h-1.5 rounded-full',
-                        isAlive ? (isMe ? 'bg-violet-400' : 'bg-emerald-400') : isForfeited ? 'bg-orange-600' : 'bg-neutral-700',
+                        isSpeakingNow ? 'bg-brand-400' : isAlive ? (isMe ? 'bg-violet-400' : 'bg-emerald-400') : isForfeited ? 'bg-orange-600' : 'bg-neutral-700',
                       ].join(' ')}
                     />
                     <View style={{ opacity: isAlive ? 1 : 0.4 }}>
@@ -1505,11 +1613,14 @@ export default function GameScreen() {
                     <Text
                       className={[
                         'text-xs font-semibold',
-                        isAlive ? (isMe ? 'text-violet-200' : 'text-white') : 'text-neutral-600',
+                        isSpeakingNow ? 'text-brand-100' : isAlive ? (isMe ? 'text-violet-200' : 'text-white') : 'text-neutral-600',
                       ].join(' ')}
                     >
                       {p.username}
                     </Text>
+                    {isSpeakingNow && (
+                      <Text className="text-[10px]">🎤</Text>
+                    )}
                     {!isAlive && !isForfeited && (
                       <Text className="text-[9px] text-neutral-700">☠</Text>
                     )}
@@ -1524,25 +1635,41 @@ export default function GameScreen() {
           </View>
 
           {/* ─── Emote Reactions Bar ───────────────────────────────────────── */}
-          {!isEliminated && (
-            <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3">
-              <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-600 mb-2">
-                React
-              </Text>
-              <View className="flex-row gap-2">
-                {EMOTES.map((emoji) => (
-                  <TouchableOpacity
-                    key={emoji}
-                    onPress={() => sendEmote(emoji)}
-                    className="w-11 h-11 rounded-xl bg-neutral-800/60 border border-neutral-700/50 items-center justify-center"
-                    activeOpacity={0.7}
-                  >
-                    <Text className="text-2xl">{emoji}</Text>
-                  </TouchableOpacity>
-                ))}
+          {!isEliminated && (() => {
+            const cooldownRemaining = Math.max(0, emoteCooldownUntil - (emoteNow || Date.now()))
+            const locked = cooldownRemaining > 0
+            return (
+              <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3">
+                <View className="flex-row items-center justify-between mb-2">
+                  <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-600">
+                    React
+                  </Text>
+                  {locked && (
+                    <Text className="text-[10px] text-amber-500">
+                      Slow down · {Math.ceil(cooldownRemaining / 1000)}s
+                    </Text>
+                  )}
+                </View>
+                <View className="flex-row flex-wrap gap-2">
+                  {activeLoadout.map((id) => {
+                    const em = getEmoteById(id)
+                    if (!em) return null
+                    return (
+                      <TouchableOpacity
+                        key={id}
+                        onPress={() => sendEmote(id)}
+                        disabled={locked}
+                        className={`w-11 h-11 rounded-xl bg-neutral-800/60 border items-center justify-center ${RARITY_BORDER[em.rarity]} ${locked ? 'opacity-40' : ''}`}
+                        activeOpacity={0.7}
+                      >
+                        <Text className="text-2xl">{em.emoji}</Text>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
               </View>
-            </View>
-          )}
+            )
+          })()}
 
           {/* ─── Dead Chat (when eliminated) ───────────────────────────────── */}
           {isEliminated && (

@@ -13,6 +13,13 @@ interface InsufficientCoinsModalProps {
    * instead of "You don't…". Undefined = it's the viewer who is broke.
    */
   blockedUsername?: string
+  /**
+   * Optional override for the "Get coins" CTA. Used when the caller is
+   * already inside /shop (e.g. emote purchase on the emotes tab) — instead
+   * of navigating, switch the tab in-place. When omitted the modal falls
+   * back to navigate('/shop?tab=coins').
+   */
+  onGetCoins?: () => void
   onClose: () => void
 }
 
@@ -28,6 +35,7 @@ interface InsufficientCoinsModalProps {
 export function InsufficientCoinsModal({
   required,
   blockedUsername,
+  onGetCoins,
   onClose,
 }: InsufficientCoinsModalProps) {
   const { t } = useTranslation()
@@ -129,7 +137,8 @@ export function InsufficientCoinsModal({
                 type="button"
                 onClick={() => {
                   onClose()
-                  navigate('/shop?tab=coins')
+                  if (onGetCoins) onGetCoins()
+                  else navigate('/shop?tab=coins')
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-amber-600/20"
               >

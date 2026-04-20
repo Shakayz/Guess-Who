@@ -100,13 +100,8 @@ describe('E2E User Journey', () => {
 
     // Step 3: Create a room
     mockPrismaUser.findUnique.mockResolvedValue({ locale: 'en' })
-    // rooms.ts now wraps the host debit + room.create in prisma.$transaction
-    // (atomic debit + create — see security fix for private-lobby farming).
-    // Pass through the transaction callback with the same user/room mocks.
-    mockPrismaUser.updateMany = vi.fn().mockResolvedValue({ count: 1 })
-    ;(prisma as any).$transaction = vi.fn(async (fn: any) =>
-      fn({ user: mockPrismaUser, room: mockPrismaRoom }),
-    )
+    // Lobby creation no longer debits the host — the 10 ⭐ charge happens at
+    // game start, so a host who backs out never loses coins.
     mockPrismaRoom.create.mockResolvedValue({
       id: 'e2e-room-1',
       code: 'XYZABC',
