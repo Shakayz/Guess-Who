@@ -310,38 +310,42 @@ export function CoinsRevealCard({
 
       {/* Content */}
       <View className="relative items-center px-4 pt-5 pb-4">
-        <Text
-          className="text-amber-300 font-bold uppercase"
-          style={{ fontSize: 10, letterSpacing: 3, marginBottom: 4 }}
-        >
-          {t('results.coinsWon', { defaultValue: 'Coins won' })}
-        </Text>
+        {total > 0 && (
+          <>
+            <Text
+              className="text-amber-300 font-bold uppercase"
+              style={{ fontSize: 10, letterSpacing: 3, marginBottom: 4 }}
+            >
+              {t('results.coinsWon', { defaultValue: 'Coins won' })}
+            </Text>
 
-        {/* Spinning coin + big total */}
-        <View className="flex-row items-center gap-3 mb-3">
-          <Animated.Text
-            style={{
-              fontSize: 34,
-              transform: [{ perspective: 600 }, { rotateY: coinRotate }],
-              textShadowColor: 'rgba(251,191,36,0.55)',
-              textShadowOffset: { width: 0, height: 0 },
-              textShadowRadius: 10,
-            }}
-          >
-            🪙
-          </Animated.Text>
-          <Text
-            className="text-amber-300 font-black tabular-nums"
-            style={{
-              fontSize: 44,
-              textShadowColor: 'rgba(251,191,36,0.5)',
-              textShadowOffset: { width: 0, height: 2 },
-              textShadowRadius: 8,
-            }}
-          >
-            +{animatedTotal}
-          </Text>
-        </View>
+            {/* Spinning coin + big total */}
+            <View className="flex-row items-center gap-3 mb-3">
+              <Animated.Text
+                style={{
+                  fontSize: 34,
+                  transform: [{ perspective: 600 }, { rotateY: coinRotate }],
+                  textShadowColor: 'rgba(251,191,36,0.55)',
+                  textShadowOffset: { width: 0, height: 0 },
+                  textShadowRadius: 10,
+                }}
+              >
+                🪙
+              </Animated.Text>
+              <Text
+                className="text-amber-300 font-black tabular-nums"
+                style={{
+                  fontSize: 44,
+                  textShadowColor: 'rgba(251,191,36,0.5)',
+                  textShadowOffset: { width: 0, height: 2 },
+                  textShadowRadius: 8,
+                }}
+              >
+                +{animatedTotal}
+              </Text>
+            </View>
+          </>
+        )}
 
         {/* Breakdown chips */}
         <View className="flex-row flex-wrap justify-center gap-1.5 mb-1">
