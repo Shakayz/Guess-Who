@@ -813,7 +813,7 @@ export default {
     randomHint: 'हर गेम में यादृच्छिक श्रेणी',
     startGame: 'गेम शुरू करें →',
     needPlayers: 'शुरू करने के लिए कम से कम 3 खिलाड़ी नाम दर्ज करें',
-    needPlayersSpecial: 'स्पेशल मोड के लिए कम से कम 5 खिलाड़ी चाहिए',
+    needPlayersSpecial: 'स्पेशल मोड के लिए कम से कम 6 खिलाड़ी चाहिए',
     // Dealing
     dealingCards: 'कार्ड बाँट रहे हैं',
     passDevice: 'डिवाइस को दें',

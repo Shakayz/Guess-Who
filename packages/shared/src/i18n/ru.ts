@@ -433,7 +433,7 @@ export default {
     randomHint: 'Случайная категория каждой игры',
     startGame: 'Начать игру',
     needPlayers: 'Введите имена минимум 3 игроков для начала',
-    needPlayersSpecial: 'Особый режим требует минимум 5 игроков',
+    needPlayersSpecial: 'Особый режим требует минимум 6 игроков',
     roleGuide: 'Руководство по ролям',
     // Mobile-specific
     suggested: 'авто',

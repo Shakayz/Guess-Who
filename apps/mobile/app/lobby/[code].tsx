@@ -1169,7 +1169,7 @@ export default function LobbyScreen() {
   const isHost = room?.hostId === user?.id
   const players = room?.players ?? []
   const allReady = players.length >= 2 && players.every((p) => p.isReady || p.isHost)
-  const minPlayers = settings.gameMode === 'special' ? 5 : 3
+  const minPlayers = settings.gameMode === 'special' ? 6 : 3
   const activeCats =
     settings.categories.length > 0 ? settings.categories.length : WORD_CATEGORIES.length
   const totalSpecialRoles =

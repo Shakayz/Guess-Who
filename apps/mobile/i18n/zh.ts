@@ -376,7 +376,7 @@ export default {
     randomHint: '每局随机类别',
     startGame: '开始游戏',
     needPlayers: '至少输入3个玩家名称才能开始',
-    needPlayersSpecial: '特殊模式至少需要5名玩家',
+    needPlayersSpecial: '特殊模式至少需要6名玩家',
     roleGuide: '角色指南',
     suggested: '自动',
     teamVillagers: '村民',

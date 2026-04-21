@@ -465,7 +465,7 @@ export default {
     randomHint: 'Catégorie aléatoire à chaque partie',
     startGame: 'Lancer la Partie',
     needPlayers: 'Entrez au moins 3 noms de joueurs pour commencer',
-    needPlayersSpecial: 'Le mode spécial nécessite au moins 5 joueurs',
+    needPlayersSpecial: 'Le mode spécial nécessite au moins 6 joueurs',
     roleGuide: 'Guide des Rôles',
     suggested: 'auto',
     teamVillagers: 'Villageois',

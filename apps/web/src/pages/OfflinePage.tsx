@@ -253,13 +253,13 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
   const [gameMode, setGameMode] = useState<GameMode>(initialSettings?.gameMode ?? 'normal')
 
   const filledCount = names.filter((n) => n.trim().length > 0).length
-  const minPlayers = gameMode === 'special' ? 5 : 3
+  const minPlayers = gameMode === 'special' ? 6 : 3
   const canStart = filledCount >= minPlayers
 
-  // Auto-add player slots when switching to special mode (minimum 5)
+  // Auto-add player slots when switching to special mode (minimum 6)
   useEffect(() => {
-    if (gameMode === 'special' && names.length < 5) {
-      setNames((prev) => [...prev, ...Array(5 - prev.length).fill('')])
+    if (gameMode === 'special' && names.length < 6) {
+      setNames((prev) => [...prev, ...Array(6 - prev.length).fill('')])
     }
   }, [gameMode])
 

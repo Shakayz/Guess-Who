@@ -368,7 +368,7 @@ export default {
     randomHint: 'Categoría aleatoria en cada partida',
     startGame: 'Iniciar Partida',
     needPlayers: 'Ingresa al menos 3 nombres de jugadores para comenzar',
-    needPlayersSpecial: 'El modo especial requiere al menos 5 jugadores',
+    needPlayersSpecial: 'El modo especial requiere al menos 6 jugadores',
     roleGuide: 'Guía de Roles',
     suggested: 'auto',
     teamVillagers: 'Aldeanos',

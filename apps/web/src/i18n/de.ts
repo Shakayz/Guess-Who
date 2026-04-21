@@ -798,7 +798,7 @@ export default {
     randomHint: 'Zufällige Kategorie pro Spiel',
     startGame: 'Spiel starten →',
     needPlayers: 'Gib mindestens 3 Spielernamen ein',
-    needPlayersSpecial: 'Der Spezialmodus erfordert mindestens 5 Spieler',
+    needPlayersSpecial: 'Der Spezialmodus erfordert mindestens 6 Spieler',
     dealingCards: 'Karten verteilen',
     passDevice: 'Gib das Gerät an',
     playerOf: 'Spieler {{current}} von {{total}}',

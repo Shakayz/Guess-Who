@@ -803,7 +803,7 @@ export default {
     randomHint: 'Случайная категория каждую игру',
     startGame: 'Начать игру →',
     needPlayers: 'Введите минимум 3 имени игроков',
-    needPlayersSpecial: 'Специальный режим требует минимум 5 игроков',
+    needPlayersSpecial: 'Специальный режим требует минимум 6 игроков',
     dealingCards: 'Раздача карт',
     passDevice: 'Передайте устройство',
     playerOf: 'Игрок {{current}} из {{total}}',

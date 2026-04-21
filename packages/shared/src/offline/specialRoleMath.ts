@@ -57,7 +57,7 @@ export function maxRedHandedFor(playerCount: number): number {
 
 /** Minimum players required for a given mode. */
 export function minPlayersFor(mode: 'normal' | 'special'): number {
-  return mode === 'special' ? 5 : 3
+  return mode === 'special' ? 6 : 3
 }
 
 /** Counts a single Evil Twins toggle as 1 red-handed-side slot AND 1 villager-side

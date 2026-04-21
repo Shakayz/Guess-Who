@@ -810,7 +810,7 @@ export default {
     randomHint: 'فئة عشوائية في كل لعبة',
     startGame: 'بدء اللعبة →',
     needPlayers: 'أدخل 3 أسماء لاعبين على الأقل للبدء',
-    needPlayersSpecial: 'الوضع الخاص يتطلب 5 لاعبين على الأقل',
+    needPlayersSpecial: 'الوضع الخاص يتطلب 6 لاعبين على الأقل',
     dealingCards: 'توزيع البطاقات',
     passDevice: 'مرر الجهاز إلى',
     playerOf: 'لاعب {{current}} من {{total}}',

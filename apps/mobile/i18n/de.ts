@@ -378,7 +378,7 @@ export default {
     randomHint: 'Zufällige Kategorie in jeder Partie',
     startGame: 'Partie starten',
     needPlayers: 'Gib mindestens 3 Namen ein, um zu beginnen',
-    needPlayersSpecial: 'Der Spezialmodus erfordert mindestens 5 Spieler',
+    needPlayersSpecial: 'Der Spezialmodus erfordert mindestens 6 Spieler',
     roleGuide: 'Rollen-Anleitung',
     suggested: 'auto',
     teamVillagers: 'Dorfbewohner',

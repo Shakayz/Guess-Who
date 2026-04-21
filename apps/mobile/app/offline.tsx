@@ -373,13 +373,13 @@ function SetupPhase({
 
   const filledNames = names.filter((n) => n.trim().length > 0)
   const filledCount = filledNames.length
-  const minPlayers = gameMode === 'special' ? 5 : 3
+  const minPlayers = gameMode === 'special' ? 6 : 3
   const canStart = filledCount >= minPlayers
 
-  // Auto-grow to 5 slots when switching to special mode
+  // Auto-grow to 6 slots when switching to special mode
   useEffect(() => {
-    if (gameMode === 'special' && names.length < 5) {
-      setNames((prev) => [...prev, ...Array(5 - prev.length).fill('')])
+    if (gameMode === 'special' && names.length < 6) {
+      setNames((prev) => [...prev, ...Array(6 - prev.length).fill('')])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameMode])

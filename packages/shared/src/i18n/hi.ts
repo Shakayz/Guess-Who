@@ -433,7 +433,7 @@ export default {
     randomHint: 'हर गेम में यादृच्छिक श्रेणी',
     startGame: 'गेम शुरू करें',
     needPlayers: 'शुरू करने के लिए कम से कम 3 खिलाड़ी नाम दर्ज करें',
-    needPlayersSpecial: 'विशेष मोड के लिए कम से कम 5 खिलाड़ी चाहिए',
+    needPlayersSpecial: 'विशेष मोड के लिए कम से कम 6 खिलाड़ी चाहिए',
     roleGuide: 'भूमिका गाइड',
     // Mobile-specific
     suggested: 'स्वतः',

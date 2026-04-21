@@ -55,8 +55,8 @@ describe('minPlayersFor', () => {
   it('returns 3 for normal mode', () => {
     expect(minPlayersFor('normal')).toBe(3)
   })
-  it('returns 5 for special mode', () => {
-    expect(minPlayersFor('special')).toBe(5)
+  it('returns 6 for special mode', () => {
+    expect(minPlayersFor('special')).toBe(6)
   })
 })
 

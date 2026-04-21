@@ -806,7 +806,7 @@ export default {
     randomHint: 'Categoria casuale ogni partita',
     startGame: 'Inizia Partita →',
     needPlayers: 'Inserisci almeno 3 nomi per iniziare',
-    needPlayersSpecial: 'La modalità speciale richiede almeno 5 giocatori',
+    needPlayersSpecial: 'La modalità speciale richiede almeno 6 giocatori',
     dealingCards: 'Distribuzione Carte',
     passDevice: 'Passa il dispositivo a',
     playerOf: 'Giocatore {{current}} di {{total}}',

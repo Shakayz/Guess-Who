@@ -880,7 +880,7 @@ export default {
     randomHint: 'Random category each game',
     startGame: 'Start Game →',
     needPlayers: 'Enter at least 3 player names to start',
-    needPlayersSpecial: 'Special mode requires at least 5 players',
+    needPlayersSpecial: 'Special mode requires at least 6 players',
     // Dealing
     dealingCards: 'Dealing Cards',
     passDevice: 'Pass the device to',

@@ -376,7 +376,7 @@ export default {
     randomHint: 'Categoria casuale ogni partita',
     startGame: 'Inizia Partita',
     needPlayers: 'Inserisci almeno 3 nomi per iniziare',
-    needPlayersSpecial: 'La modalità speciale richiede almeno 5 giocatori',
+    needPlayersSpecial: 'La modalità speciale richiede almeno 6 giocatori',
     roleGuide: 'Guida ai Ruoli',
     suggested: 'auto',
     teamVillagers: 'Abitanti',
