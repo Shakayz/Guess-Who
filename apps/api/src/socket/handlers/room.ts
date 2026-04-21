@@ -764,7 +764,16 @@ export function registerRoomHandlers(
         } else {
           // Reconnection: update socket.id for the existing player entry
           alreadyIn.id = socket.id
+          const wasDisconnected = alreadyIn.disconnected === true
+          if (wasDisconnected) alreadyIn.disconnected = false
           await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 21600)
+
+          // Notify peers that this player is back so the UI can drop the
+          // disconnected indicator. (Mid-game disconnects mark the player as
+          // eliminated for fairness — that status is preserved on reconnect.)
+          if (wasDisconnected) {
+            io.to(`room:${room.id}`).emit('player:connection-changed', { userId, disconnected: false })
+          }
 
           // Re-send word/role + full phase sync if game is already in progress
           if (state.status === 'in_progress' || state.status === 'voting') {
@@ -1268,6 +1277,30 @@ export function registerRoomHandlers(
       log.info({ userId, roomId, targetUserId }, 'kamikaze:pick-target used')
     } catch (err) {
       log.error({ err, userId }, 'kamikaze:pick-target error')
+    }
+  })
+
+  // ── Kamikaze: actively spare everyone (no second elimination) ────────────────
+  // Same guards as pick-target. Resolves the pending state with null target.
+  socket.on('kamikaze:skip' as any, async () => {
+    try {
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      if (state.kamikazePendingUserId !== userId) return
+      const kamikaze = state.players.find((p: any) => p.userId === userId)
+      if (!kamikaze || kamikaze.role !== 'kamikaze') return
+
+      const { resolveKamikazeSkip } = await import('../gameLoop')
+      await resolveKamikazeSkip(io, roomId, userId)
+      log.info({ userId, roomId }, 'kamikaze:skip used')
+    } catch (err) {
+      log.error({ err, userId }, 'kamikaze:skip error')
     }
   })
 

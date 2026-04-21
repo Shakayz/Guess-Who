@@ -249,8 +249,10 @@ export interface ServerToClientEvents {
   'mayor:double-ack': (data: { userId: string }) => void
   'inverter:activate-ack': (data: { userId: string }) => void
   'corruptor:target-ack': (data: { targetUserId: string; targetUsername: string }) => void
-  'kamikaze:select-prompt': (data: { candidateUserIds: string[]; timeSeconds: number }) => void
-  'kamikaze:target-chosen': (data: { kamikazeUserId: string; targetUserId: string; targetUsername: string }) => void
+  'kamikaze:select-prompt': (data: { candidateUserIds: string[]; kamikazeUserId: string; kamikazeUsername: string; timeSeconds: number }) => void
+  'kamikaze:target-chosen': (data: { kamikazeUserId: string; targetUserId: string | null; targetUsername: string | null }) => void
+  /** Private twin-to-twin message — only delivered to the two Evil Twins. */
+  'twin:message': (data: { id: string; userId: string; username: string; text: string; createdAt: string }) => void
   'judge:decide-prompt': (data: { candidateUserIds: string[]; candidateUsernames: string[]; timeSeconds: number }) => void
   'judge:decided': (data: { judgeUserId: string; targetUserId: string; targetUsername: string }) => void
   'twin:partner': (data: { twinUserId: string; twinUsername: string; twinRole: PlayerRole }) => void
@@ -258,6 +260,7 @@ export interface ServerToClientEvents {
   'round:tiebreaker-voting': (data: { tiedPlayerIds: string[]; timeSeconds: number }) => void
   'game:sync': (data: { phase: 'speaking' | 'voting'; currentSpeakerId: string | null; speakingOrder: string[]; clues: Clue[]; votes: Vote[]; timeRemainingSeconds: number; currentRound: Round | null; tiebreakerActive?: boolean; tiebreakerPlayerIds?: string[]; tiebreakerPhase?: 'clue' | 'vote' }) => void
   'game:player-forfeited': (data: { userId: string; username: string }) => void
+  'player:connection-changed': (data: { userId: string; disconnected: boolean }) => void
   'rank:updated': (data: { oldTier: RankTier; newTier: RankTier; newLP: number; promoted: boolean }) => void
   'player:joined': (player: Player) => void
   'player:left': (playerId: string) => void
@@ -297,7 +300,11 @@ export interface ClientToServerEvents {
   'inverter:activate': () => void
   'corruptor:pick-target': (data: { targetUserId: string }) => void
   'kamikaze:pick-target': (data: { targetUserId: string }) => void
+  /** Kamikaze: actively choose to spare everyone (no second elimination). */
+  'kamikaze:skip': () => void
   'judge:pick-elimination': (data: { targetUserId: string }) => void
+  /** Evil Twin private DM — sends a message to the other twin only. */
+  'twin:send': (data: { text: string }) => void
   // ── Voice (WebRTC) signaling — vocal mode mic streaming ────────────────────
   /** Join the voice channel for the current room. Server replies with `voice:peers`. */
   'voice:join': () => void

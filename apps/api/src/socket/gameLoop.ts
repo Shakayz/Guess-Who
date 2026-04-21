@@ -1163,19 +1163,20 @@ async function _resolveRound(io: IO, roomId: string) {
       .map((p: any) => p.userId)
 
     const KAMIKAZE_PICK_SECONDS = 15
+    const kamikazePlayer = state.players.find((p: any) => p.userId === mostVotedId)
     io.to(`room:${roomId}`).emit('kamikaze:select-prompt' as any, {
       candidateUserIds: candidateIds,
+      kamikazeUserId: mostVotedId,
+      kamikazeUsername: kamikazePlayer?.username ?? '',
       timeSeconds: KAMIKAZE_PICK_SECONDS,
     })
 
-    // Timeout: no choice → auto-pick random candidate (excluding kamikaze itself)
+    // Timeout: silence = mercy. If the kamikaze doesn't decide in time,
+    // spare everyone rather than randomly killing a bystander.
     clearRoomTimer(roomId)
     const t = setTimeout(async () => {
       roomTimers.delete(roomId)
-      const fallback = candidateIds[Math.floor(Math.random() * candidateIds.length)]
-      if (fallback) {
-        await resolveKamikazeSelection(io, roomId, mostVotedId, fallback)
-      }
+      await resolveKamikazeSkip(io, roomId, mostVotedId)
     }, KAMIKAZE_PICK_SECONDS * 1000)
     roomTimers.set(roomId, t)
     return
@@ -1607,16 +1608,18 @@ async function finalizeTiebreakerElimination(
       .filter((p: any) => p.status === 'alive' && p.userId !== eliminatedId)
       .map((p: any) => p.userId)
     const KAMIKAZE_PICK_SECONDS = 15
+    const kamikazePlayer = state.players.find((p: any) => p.userId === eliminatedId)
     io.to(`room:${roomId}`).emit('kamikaze:select-prompt' as any, {
       candidateUserIds: candidateIds,
+      kamikazeUserId: eliminatedId,
+      kamikazeUsername: kamikazePlayer?.username ?? '',
       timeSeconds: KAMIKAZE_PICK_SECONDS,
     })
 
     clearRoomTimer(roomId)
     const t = setTimeout(async () => {
       roomTimers.delete(roomId)
-      const fallback = candidateIds[Math.floor(Math.random() * candidateIds.length)]
-      if (fallback) await resolveKamikazeSelection(io, roomId, eliminatedId, fallback)
+      await resolveKamikazeSkip(io, roomId, eliminatedId)
     }, KAMIKAZE_PICK_SECONDS * 1000)
     roomTimers.set(roomId, t)
     return
@@ -1782,6 +1785,38 @@ export async function resolveKamikazeSelection(
     kamikazeUserId,
     targetUserId,
     targetUsername: target.username,
+  })
+
+  await saveState(roomId, state)
+  await continueRoundAfterKamikaze(io, roomId, state, currentRound)
+}
+
+/**
+ * Called when the kamikaze deliberately spared everyone (or the timeout fired
+ * without a choice — silence is treated as mercy). The kamikaze is already
+ * eliminated; we simply clear pending state and continue the round.
+ */
+export async function resolveKamikazeSkip(
+  io: IO,
+  roomId: string,
+  kamikazeUserId: string,
+): Promise<void> {
+  const state = await getState(roomId)
+  if (!state) return
+  if (state.kamikazePendingUserId !== kamikazeUserId) return
+
+  const currentRound = state.rounds?.[state.currentRound - 1]
+  if (!currentRound) return
+
+  logger.info({ roomId, kamikazeUserId }, '[kamikaze] spared everyone')
+
+  delete state.kamikazePendingUserId
+  delete state.kamikazePendingRoundNumber
+
+  io.to(`room:${roomId}`).emit('kamikaze:target-chosen' as any, {
+    kamikazeUserId,
+    targetUserId: null,
+    targetUsername: null,
   })
 
   await saveState(roomId, state)
@@ -2016,6 +2051,65 @@ async function _forfeitEndGame(
 ): Promise<void> {
   const roundPayload = currentRound ? buildRoundPayload(currentRound) : null
   await finishGameWithWinner(io, roomId, state, winner as Winner, roundPayload)
+}
+
+// ─── Mid-game disconnect ──────────────────────────────────────────────────────
+
+/**
+ * A socket dropped mid-game. Unlike forfeit (voluntary leave → LP penalty),
+ * a disconnect could be a transient network blip so we don't punish the player.
+ * But we must still advance the phase: if a clue/vote is only missing from the
+ * player who just vanished, tryEarlyVoting/tryEarlyResolve would never fire
+ * without this, and the round stalls until the timer expires (or forever, if
+ * the server was restarted and lost its in-memory timer).
+ */
+export async function handleMidGameDisconnect(
+  io: IO,
+  roomId: string,
+  userId: string,
+): Promise<void> {
+  const state = await getState(roomId)
+  if (!state) return
+
+  const phase: string = state.status
+  if (phase !== 'in_progress' && phase !== 'voting') return
+
+  const player = state.players.find((p: any) => p.userId === userId)
+  if (!player) return
+
+  player.disconnected = true
+
+  if (player.status === 'alive') {
+    // Treat an alive-but-disconnected player as eliminated for progression.
+    // No DB update / LP penalty — that's reserved for voluntary forfeit.
+    player.status = 'eliminated'
+    onPlayerEliminated(state, userId)
+
+    const currentRound = state.rounds?.[state.currentRound - 1]
+    if (currentRound && phase === 'in_progress') {
+      const speakingOrder: string[] = currentRound.speakingOrder ?? []
+      currentRound.speakingOrder = speakingOrder.filter((id: string) => id !== userId)
+    }
+  }
+
+  await saveState(roomId, state)
+
+  io.to(`room:${roomId}`).emit('player:connection-changed', { userId, disconnected: true })
+
+  const winner = checkWinCondition(state.players as any)
+  if (winner) {
+    clearRoomTimer(roomId)
+    const currentRound = state.rounds?.[state.currentRound - 1]
+    const game = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
+    await _forfeitEndGame(io, roomId, state, winner, currentRound, game)
+    return
+  }
+
+  if (phase === 'in_progress') {
+    await tryEarlyVoting(io, roomId)
+  } else if (phase === 'voting') {
+    await tryEarlyResolve(io, roomId)
+  }
 }
 
 // ─── Achievement auto-triggers ────────────────────────────────────────────────

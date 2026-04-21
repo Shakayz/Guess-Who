@@ -10,6 +10,7 @@ import { registerGameHandlers } from './handlers/game'
 import { registerChatHandlers } from './handlers/chat'
 import { registerMatchmakingHandlers, cleanupEmptyQueue } from './handlers/matchmaking'
 import { registerVoiceHandlers, leaveVoiceChannel } from './handlers/voice'
+import { handleMidGameDisconnect } from './gameLoop'
 import { sendPushNotification } from '../services/push'
 import { evaluateEvent } from '../services/achievements'
 import { EMOTES_BY_ID } from '@red-handed/shared'
@@ -296,6 +297,39 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       io.to(`dead:${room.id}`).emit('deadchat:message' as any, msg)
     })
 
+    // Twin chat: a private 1:1 channel between the two Evil Twins.
+    // Server validates the sender is in a twin role AND the configured twin
+    // pairing matches the sender's partner — no one else can inject messages
+    // into this channel. Delivered to BOTH twins via their per-user rooms so
+    // every tab/device catches the message.
+    socket.on('twin:send' as any, async (data: { text: string }) => {
+      if (!socket.data.userId || !data.text?.trim() || !socket.data.roomCode) return
+      try {
+        const room = await prisma.room.findUnique({ where: { code: socket.data.roomCode } }).catch(() => null)
+        if (!room) return
+        const stateRaw = await redis.get(`room:${room.id}:state`)
+        if (!stateRaw) return
+        const state = JSON.parse(stateRaw)
+        const sender = state.players.find((p: any) => p.userId === userId)
+        if (!sender || (sender.role !== 'twin_villager' && sender.role !== 'twin_red_handed')) return
+        const partnerRole = sender.role === 'twin_villager' ? 'twin_red_handed' : 'twin_villager'
+        const partner = state.players.find((p: any) => p.role === partnerRole)
+        if (!partner) return
+
+        const msg = {
+          id: `tw_${Date.now()}_${userId}`,
+          userId,
+          username: socket.data.username ?? sender.username ?? 'twin',
+          text: data.text.trim().slice(0, 500),
+          createdAt: new Date().toISOString(),
+        }
+        io.to(`user:${userId}`).emit('twin:message' as any, msg)
+        io.to(`user:${partner.userId}`).emit('twin:message' as any, msg)
+      } catch (err) {
+        log.error({ err, userId }, 'twin:send failed')
+      }
+    })
+
     // Emote: quick reaction broadcast to the room.
     // Anti-spam: 1s min between emotes, plus a 5-in-10s burst cap that
     // triggers a 10s lockout. Sender gets `emote:cooldown` with a retry
@@ -545,13 +579,14 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         const wasInGame = state.status === 'in_progress' || state.status === 'voting'
 
         if (wasInGame) {
-          // Mid-game disconnect: mark as eliminated but keep the player entry
-          // so reconnect can resume correctly. Host-loss here is cosmetic only —
-          // intentionally not reassigning host during an active game.
-          const player = state.players.find((p: any) => p.userId === userId)
-          if (player && player.status === 'alive') player.status = 'eliminated'
-          await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+          // Mid-game disconnect: mark as eliminated + disconnected, broadcast
+          // the status change, and re-check phase progression so the round
+          // doesn't stall waiting for a clue/vote that will never come.
+          // Host-loss here is cosmetic only — not reassigning host mid-game.
           io.to(roomKey).emit('player:left', socket.id)
+          await handleMidGameDisconnect(io, roomId, userId).catch((err) => {
+            log.error({ err, roomId, userId }, 'disconnect: handleMidGameDisconnect failed')
+          })
         } else {
           // Waiting lobby: delegate to the shared helper so the empty→close,
           // host-reassignment, and broadcast paths stay consistent with the

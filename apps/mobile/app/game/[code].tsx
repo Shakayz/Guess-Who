@@ -387,8 +387,22 @@ export default function GameScreen() {
     detectiveRevealUsed,
     revealedPlayer,
     twinPartner,
+    twinMessages,
+    twinUnread,
+    corruptorTargetUserId,
+    kamikazePrompt,
+    mayorDoubleVoteUsed,
+    mayorDoubleActive,
+    inverterUsed,
+    inverterActive,
     messages,
     addMessage,
+    addTwinMessage,
+    clearTwinUnread,
+    setCorruptorTarget,
+    setKamikazePrompt,
+    setMayorDoubleActive,
+    setInverterActive,
     setResult,
     setRound,
     addCompletedRound,
@@ -447,6 +461,17 @@ export default function GameScreen() {
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
   const [clueFlagCounts, setClueFlagCounts] = useState<Record<number, number>>({})
   const [clueHistoryPlayer, setClueHistoryPlayer] = useState<{ userId: string; username: string; avatarUrl?: string | null } | null>(null)
+  // Role-power pickers (any-time usage — banner opens modal, modal emits, closes).
+  const [showCorruptorPicker, setShowCorruptorPicker] = useState(false)
+  const [showDetectivePicker, setShowDetectivePicker] = useState(false)
+  // Evil Twins private DM — mirrors web. Ref keeps the live value in the
+  // socket handler, which closes over mount-time state otherwise.
+  const [twinChatOpen, setTwinChatOpen] = useState(false)
+  const [twinChatInput, setTwinChatInput] = useState('')
+  const twinChatScrollRef = useRef<ScrollView>(null)
+  const twinChatOpenRef = useRef(twinChatOpen)
+  useEffect(() => { twinChatOpenRef.current = twinChatOpen }, [twinChatOpen])
+  const isTwin = myRole === 'twin_villager' || myRole === 'twin_red_handed'
 
   // ─── Vocal mode ─────────────────────────────────────────────────────────────
   // When the room is in vocal mode, players speak out loud on their turn
@@ -776,6 +801,45 @@ export default function GameScreen() {
       useGameStore.getState().setTwinPartner({ twinUserId, twinUsername, twinRole })
     })
 
+    // Evil Twins private DM — server routes only to both twins, never broadcast.
+    socket.on('twin:message' as any, (msg: any) => {
+      const incoming = msg?.userId !== user?.id
+      useGameStore.getState().addTwinMessage(msg, { incrementUnread: incoming && !twinChatOpenRef.current })
+      if (incoming) SoundManager.play('chat_message')
+    })
+
+    // Corruptor target locked in — close the picker modal on ack.
+    socket.on('corruptor:target-ack' as any, ({ targetUserId }: any) => {
+      log.info('corruptor target locked', { targetUserId })
+      useGameStore.getState().setCorruptorTarget(targetUserId)
+      setShowCorruptorPicker(false)
+    })
+
+    // Kamikaze post-death decision prompt (picker for self, waiting for bystanders).
+    socket.on('kamikaze:select-prompt' as any, ({ candidateUserIds, kamikazeUserId, kamikazeUsername, timeSeconds }: any) => {
+      log.info('kamikaze prompt received', { candidateUserIds, kamikazeUserId })
+      useGameStore.getState().setKamikazePrompt({
+        candidateUserIds: candidateUserIds ?? [],
+        kamikazeUserId: kamikazeUserId ?? '',
+        kamikazeUsername: kamikazeUsername ?? '',
+        timeSeconds: timeSeconds ?? 15,
+      })
+    })
+    socket.on('kamikaze:target-chosen' as any, () => {
+      log.info('kamikaze target chosen')
+      useGameStore.getState().setKamikazePrompt(null)
+    })
+
+    // Mayor / Inverter activation acks
+    socket.on('mayor:double-ack' as any, () => {
+      log.info('mayor double vote activated')
+      useGameStore.getState().setMayorDoubleActive()
+    })
+    socket.on('inverter:activate-ack' as any, () => {
+      log.info('inverter activated')
+      useGameStore.getState().setInverterActive()
+    })
+
     // Detective reveal result
     socket.on('detective:result', ({ targetUserId, targetUsername, role }: any) => {
       setDetectiveRevealUsed()
@@ -876,6 +940,12 @@ export default function GameScreen() {
       socket.off('emote:receive' as any)
       socket.off('emote:cooldown' as any)
       socket.off('twin:partner' as any)
+      socket.off('twin:message' as any)
+      socket.off('corruptor:target-ack' as any)
+      socket.off('kamikaze:select-prompt' as any)
+      socket.off('kamikaze:target-chosen' as any)
+      socket.off('mayor:double-ack' as any)
+      socket.off('inverter:activate-ack' as any)
       socket.off('detective:result')
       socket.off('round:word-said' as any)
       socket.off('vote:update' as any)
@@ -1033,6 +1103,313 @@ export default function GameScreen() {
         currentClues={clues}
         onClose={() => setClueHistoryPlayer(null)}
       />
+
+      {/* ── Detective reveal picker modal ─────────────────────────────────
+          Opened from the Detective banner — one-shot reveal server-guarded. */}
+      <Modal
+        visible={showDetectivePicker && myRole === 'detective' && !detectiveRevealUsed}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDetectivePicker(false)}
+      >
+        <View className="flex-1 items-center justify-center bg-black/80 p-4">
+          <View className="w-full max-w-md rounded-2xl bg-neutral-900 border border-blue-800/60 p-5">
+            <View className="items-center mb-4">
+              <Text style={{ fontSize: 40, marginBottom: 6 }}>🔍</Text>
+              <Text className="text-blue-400 font-black text-lg">
+                {t('game.detectiveRevealTitle', 'Reveal an Identity')}
+              </Text>
+              <Text className="text-neutral-500 text-xs text-center mt-1.5">
+                {t('game.detectiveRevealDesc', 'Pick a player — their role will be shown only to you. One-shot.')}
+              </Text>
+            </View>
+            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+              <View className="gap-2">
+                {players
+                  .filter((p) => p.userId !== user?.id && p.status === 'alive')
+                  .map((p) => (
+                    <TouchableOpacity
+                      key={p.userId}
+                      onPress={() => {
+                        log.info('detective revealing', { targetUserId: p.userId })
+                        getSocket().emit('detective:reveal', { targetUserId: p.userId })
+                        setShowDetectivePicker(false)
+                      }}
+                      className="flex-row items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700"
+                      activeOpacity={0.7}
+                    >
+                      <Avatar url={p.avatarUrl} username={p.username} size={24} />
+                      <Text className="text-white font-semibold text-sm">{p.username}</Text>
+                    </TouchableOpacity>
+                  ))}
+              </View>
+            </ScrollView>
+            <TouchableOpacity
+              onPress={() => setShowDetectivePicker(false)}
+              className="mt-3 px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 items-center"
+              activeOpacity={0.7}
+            >
+              <Text className="text-neutral-400 text-xs font-semibold">
+                {t('game.detectiveLater', 'Not yet — decide later')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Corruptor target picker modal ─────────────────────────────────
+          Same pattern as Detective. Pick any time during the game. */}
+      <Modal
+        visible={showCorruptorPicker && myRole === 'corruptor' && !corruptorTargetUserId}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCorruptorPicker(false)}
+      >
+        <View className="flex-1 items-center justify-center bg-black/80 p-4">
+          <View className="w-full max-w-md rounded-2xl bg-neutral-900 border border-orange-800/60 p-5">
+            <View className="items-center mb-4">
+              <Text style={{ fontSize: 40, marginBottom: 6 }}>🕷️</Text>
+              <Text className="text-orange-400 font-black text-lg">
+                {t('game.corruptorPickTitle', 'Pick Your Target')}
+              </Text>
+              <Text className="text-neutral-500 text-xs text-center mt-1.5">
+                {t('game.corruptorPickDesc', 'Their votes will be silently dropped until you die. One-shot — choose wisely.')}
+              </Text>
+            </View>
+            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+              <View className="gap-2">
+                {players
+                  .filter((p) => p.userId !== user?.id && p.status === 'alive')
+                  .map((p) => (
+                    <TouchableOpacity
+                      key={p.userId}
+                      onPress={() => {
+                        log.info('corruptor picking target', { targetUserId: p.userId })
+                        getSocket().emit('corruptor:pick-target' as any, { targetUserId: p.userId })
+                      }}
+                      className="flex-row items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700"
+                      activeOpacity={0.7}
+                    >
+                      <Avatar url={p.avatarUrl} username={p.username} size={24} />
+                      <Text className="text-white font-semibold text-sm">{p.username}</Text>
+                    </TouchableOpacity>
+                  ))}
+              </View>
+            </ScrollView>
+            <TouchableOpacity
+              onPress={() => setShowCorruptorPicker(false)}
+              className="mt-3 px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 items-center"
+              activeOpacity={0.7}
+            >
+              <Text className="text-neutral-400 text-xs font-semibold">
+                {t('game.corruptorLater', 'Not yet — decide later')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Kamikaze post-death modal ──
+          Two branches so bystanders never learn the candidate list:
+            • kamikaze sees the picker + "Spare everyone"
+            • everyone else sees a waiting banner, no names leaked. */}
+      <Modal
+        visible={!!kamikazePrompt && kamikazePrompt?.kamikazeUserId === user?.id}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View className="flex-1 items-center justify-center bg-black/85 p-4">
+          <View className="w-full max-w-md rounded-2xl bg-neutral-900 border border-red-800/60 p-5">
+            <View className="items-center mb-4">
+              <Text style={{ fontSize: 40, marginBottom: 6 }}>💥</Text>
+              <Text className="text-red-400 font-black text-lg">
+                {t('game.kamikazePickTitle', 'Take Someone With You')}
+              </Text>
+              <Text className="text-neutral-500 text-xs text-center mt-1.5">
+                {t('game.kamikazePickDesc', 'Pick a player to eliminate alongside you — or spare them all.')}
+              </Text>
+            </View>
+            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+              <View className="gap-2">
+                {kamikazePrompt && players
+                  .filter((p) => kamikazePrompt.candidateUserIds.includes(p.userId))
+                  .map((p) => (
+                    <TouchableOpacity
+                      key={p.userId}
+                      onPress={() => {
+                        log.info('kamikaze picking target', { targetUserId: p.userId })
+                        getSocket().emit('kamikaze:pick-target' as any, { targetUserId: p.userId })
+                      }}
+                      className="flex-row items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700"
+                      activeOpacity={0.7}
+                    >
+                      <Avatar url={p.avatarUrl} username={p.username} size={24} />
+                      <Text className="text-white font-semibold text-sm">{p.username}</Text>
+                    </TouchableOpacity>
+                  ))}
+              </View>
+            </ScrollView>
+            <TouchableOpacity
+              onPress={() => {
+                log.info('kamikaze sparing everyone')
+                getSocket().emit('kamikaze:skip' as any)
+              }}
+              className="mt-3 px-4 py-2.5 rounded-xl bg-neutral-800 border border-neutral-700 items-center"
+              activeOpacity={0.7}
+            >
+              <Text className="text-neutral-300 text-sm font-semibold">
+                {t('game.kamikazeSkipBtn', 'Spare everyone')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Bystander waiting banner — no candidate names, just a passive heads-up. */}
+      <Modal
+        visible={!!kamikazePrompt && kamikazePrompt?.kamikazeUserId !== user?.id}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View className="flex-1 items-center justify-center bg-black/70 p-4" pointerEvents="box-none">
+          <View className="w-full max-w-md rounded-2xl bg-neutral-900 border border-red-900/60 p-5 items-center">
+            <Text style={{ fontSize: 40, marginBottom: 6 }}>💥</Text>
+            <Text className="text-red-400 font-black text-base text-center">
+              {t('game.kamikazeWaitingTitle', 'The Kamikaze was eliminated')}
+            </Text>
+            <Text className="text-neutral-400 text-xs text-center mt-2">
+              {kamikazePrompt
+                ? t('game.kamikazeWaitingDesc', { name: kamikazePrompt.kamikazeUsername, defaultValue: '{{name}} is deciding whether to take someone with them…' })
+                : ''}
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Evil Twins private DM modal ─────────────────────────────────
+          Server-side: messages routed only to the two twins' user rooms,
+          never broadcast — no eavesdropping surface. */}
+      <Modal
+        visible={isTwin && twinChatOpen && !!twinPartner}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setTwinChatOpen(false)}
+      >
+        <KeyboardAvoidingView
+          className="flex-1 bg-black/40"
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <TouchableOpacity
+            className="flex-1"
+            activeOpacity={1}
+            onPress={() => setTwinChatOpen(false)}
+          />
+          <View
+            className="bg-neutral-950 border-t border-purple-700/60 rounded-t-2xl overflow-hidden"
+            style={{ maxHeight: '80%' }}
+            onStartShouldSetResponder={() => true}
+          >
+            {/* Header */}
+            <View className="flex-row items-center gap-2 px-4 py-3 bg-purple-950/80 border-b border-purple-800/50">
+              <Text style={{ fontSize: 20 }}>👯</Text>
+              <View className="flex-1">
+                <Text className="text-purple-300 text-[10px] font-bold uppercase tracking-wider">
+                  {t('game.twinChatTitle', 'Twin Link')}
+                </Text>
+                <Text className="text-white text-sm font-semibold" numberOfLines={1}>
+                  {twinPartner?.twinUsername}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setTwinChatOpen(false)}
+                className="w-8 h-8 rounded-full bg-neutral-900 items-center justify-center"
+                activeOpacity={0.7}
+              >
+                <Text className="text-neutral-400 text-sm">✕</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Messages */}
+            <ScrollView
+              ref={twinChatScrollRef}
+              className="bg-neutral-950"
+              contentContainerStyle={{ padding: 12, gap: 8 }}
+              showsVerticalScrollIndicator={false}
+              style={{ minHeight: 220, maxHeight: 380 }}
+              onContentSizeChange={() => twinChatScrollRef.current?.scrollToEnd({ animated: true })}
+            >
+              {twinMessages.length === 0 ? (
+                <Text className="text-neutral-600 text-xs italic text-center py-8">
+                  {t('game.twinChatEmpty', 'No messages yet. Coordinate with your twin — stay in sync.')}
+                </Text>
+              ) : (
+                twinMessages.map((m) => {
+                  const mine = m.userId === user?.id
+                  return (
+                    <View
+                      key={m.id}
+                      className={['flex-row', mine ? 'justify-end' : 'justify-start'].join(' ')}
+                    >
+                      <View
+                        className={[
+                          'px-3 py-2 rounded-2xl',
+                          mine
+                            ? 'bg-purple-700/80 rounded-br-sm'
+                            : 'bg-neutral-800 border border-purple-900/40 rounded-bl-sm',
+                        ].join(' ')}
+                        style={{ maxWidth: '75%' }}
+                      >
+                        <Text
+                          className={['text-sm', mine ? 'text-white' : 'text-purple-100'].join(' ')}
+                        >
+                          {m.text}
+                        </Text>
+                      </View>
+                    </View>
+                  )
+                })
+              )}
+            </ScrollView>
+            {/* Input */}
+            <View className="flex-row items-center gap-2 px-3 py-3 bg-neutral-900 border-t border-purple-900/40">
+              <TextInput
+                className="flex-1 px-3 py-2 rounded-xl bg-neutral-800 border border-purple-900/40 text-white text-sm"
+                placeholder={t('game.twinChatPlaceholder', 'Whisper to your twin…')}
+                placeholderTextColor="#525252"
+                value={twinChatInput}
+                onChangeText={setTwinChatInput}
+                maxLength={200}
+                returnKeyType="send"
+                onSubmitEditing={() => {
+                  const text = twinChatInput.trim()
+                  if (!text) return
+                  getSocket().emit('twin:send' as any, { text })
+                  setTwinChatInput('')
+                }}
+              />
+              <TouchableOpacity
+                onPress={() => {
+                  const text = twinChatInput.trim()
+                  if (!text) return
+                  getSocket().emit('twin:send' as any, { text })
+                  setTwinChatInput('')
+                }}
+                disabled={!twinChatInput.trim()}
+                className={[
+                  'px-4 py-2 rounded-xl items-center justify-center',
+                  twinChatInput.trim() ? 'bg-purple-600' : 'bg-neutral-800 opacity-40',
+                ].join(' ')}
+                activeOpacity={0.8}
+              >
+                <Text className="text-white text-sm font-bold">
+                  {t('game.twinChatSend', 'Send')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Floating emote reactions — rarity-aware renderer with halo +
           particle bursts. See components/emotes/FloatingEmote.tsx. */}
@@ -1196,17 +1573,19 @@ export default function GameScreen() {
             </View>
           )}
 
-          {/* ─── Detective Ability Panel ───────────────────────────────────── */}
+          {/* ─── Detective Ability Banner ──────────────────────────────────
+              One-shot reveal is available any time during clues or voting —
+              tapping the button opens the picker modal. Mirrors web pattern. */}
           {myRole === 'detective' && (
             <View
               className={[
-                'rounded-2xl border p-3',
+                'rounded-2xl border p-3 gap-2',
                 detectiveRevealUsed
                   ? 'border-neutral-800 bg-neutral-900/40'
                   : 'border-blue-800/40 bg-blue-950/40',
               ].join(' ')}
             >
-              <View className="flex-row items-center gap-2 mb-2">
+              <View className="flex-row items-center gap-2">
                 <Text className="text-sm">🔍</Text>
                 <Text
                   className={[
@@ -1214,39 +1593,151 @@ export default function GameScreen() {
                     detectiveRevealUsed ? 'text-neutral-600' : 'text-blue-400',
                   ].join(' ')}
                 >
-                  {detectiveRevealUsed ? 'Reveal ability used' : 'Tap a player to reveal their role'}
+                  {detectiveRevealUsed
+                    ? t('game.detectiveUsed', 'Reveal ability used')
+                    : t('game.detectiveAvailable', 'Reveal ready — pick anyone, any time')}
                 </Text>
               </View>
-              {!detectiveRevealUsed && (
-                <View className="flex-row flex-wrap gap-1.5">
-                  {alivePlayers
-                    .filter((p) => p.userId !== user?.id)
-                    .map((p) => (
-                      <TouchableOpacity
-                        key={p.id}
-                        onPress={() =>
-                          getSocket().emit('detective:reveal', { targetUserId: p.userId })
-                        }
-                        className="flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-950/60 border border-blue-800/40"
-                        activeOpacity={0.7}
-                      >
-                        <Text className="text-xs font-semibold text-blue-300">{p.username}</Text>
-                        <Text className="text-[10px] text-blue-500">🔍</Text>
-                      </TouchableOpacity>
-                    ))}
-                </View>
+              {!detectiveRevealUsed && !isEliminated && (phase === 'speaking' || phase === 'voting') && (
+                <TouchableOpacity
+                  onPress={() => setShowDetectivePicker(true)}
+                  className="px-3 py-2 rounded-lg bg-blue-600 items-center"
+                  activeOpacity={0.8}
+                >
+                  <Text className="text-white text-xs font-bold">
+                    {t('game.detectiveRevealOpenBtn', 'Reveal an identity')}
+                  </Text>
+                </TouchableOpacity>
               )}
             </View>
           )}
 
-          {/* ─── Twin partner banner ──────────────────────────────────────── */}
-          {(myRole === 'twin_villager' || myRole === 'twin_red_handed') && twinPartner && (
-            <View className="rounded-xl border border-purple-700/40 bg-purple-900/30 px-4 py-2.5 flex-row items-center gap-2">
-              <Text style={{ fontSize: 14 }}>👯</Text>
-              <Text className="text-purple-300 font-semibold text-xs">
-                {t('game.twinPartnerBanner', { name: twinPartner.twinUsername, defaultValue: 'Your twin: {{name}}' })}
+          {/* ─── Corruptor Ability Banner ──────────────────────────────────
+              Any-time pick — corruptor can wait until they know who to
+              silence. Picker opens on demand from the button. */}
+          {myRole === 'corruptor' && (
+            <View
+              className={[
+                'rounded-2xl border p-3 gap-2',
+                corruptorTargetUserId
+                  ? 'border-orange-800/40 bg-orange-900/30'
+                  : 'border-orange-700/60 bg-orange-950/50',
+              ].join(' ')}
+            >
+              <View className="flex-row items-center gap-2">
+                <Text className="text-sm">🕷️</Text>
+                <Text className="text-orange-300 text-xs font-semibold flex-1">
+                  {corruptorTargetUserId
+                    ? t('game.corruptorTargetLocked', 'Your target is silenced')
+                    : t('game.corruptorAvailableAnyTime', 'Corruption ready — silence anyone, any time')}
+                </Text>
+              </View>
+              {!corruptorTargetUserId && !isEliminated && (
+                <TouchableOpacity
+                  onPress={() => setShowCorruptorPicker(true)}
+                  className="px-3 py-2 rounded-lg bg-orange-600 items-center"
+                  activeOpacity={0.8}
+                >
+                  <Text className="text-white text-xs font-bold">
+                    {t('game.corruptorPickBtn', 'Pick a target')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* ─── Mayor / Inverter status banners ─────────────────────────
+              The *activation buttons* live next to the vote so they surface
+              exactly when actionable. These persistent status pills remind
+              the player what charge they have left. */}
+          {myRole === 'mayor' && (
+            <View
+              className={[
+                'rounded-2xl border px-3 py-2 flex-row items-center gap-2',
+                mayorDoubleActive
+                  ? 'bg-indigo-900/50 border-indigo-600/60'
+                  : mayorDoubleVoteUsed
+                  ? 'bg-neutral-900/40 border-neutral-800'
+                  : 'bg-indigo-950/40 border-indigo-800/40',
+              ].join(' ')}
+            >
+              <Text>⚖️</Text>
+              <Text
+                className={[
+                  'text-xs font-semibold flex-1',
+                  mayorDoubleActive
+                    ? 'text-indigo-300'
+                    : mayorDoubleVoteUsed
+                    ? 'text-neutral-600'
+                    : 'text-indigo-400',
+                ].join(' ')}
+              >
+                {mayorDoubleActive
+                  ? t('game.mayorDoubleVoteActive', 'Double vote active this round')
+                  : mayorDoubleVoteUsed
+                  ? t('game.mayorDoubleVoteUsed', 'Double vote used')
+                  : t('game.mayorAvailable', 'Double vote ready')}
               </Text>
             </View>
+          )}
+          {myRole === 'inverter' && (
+            <View
+              className={[
+                'rounded-2xl border px-3 py-2 flex-row items-center gap-2',
+                inverterActive
+                  ? 'bg-rose-900/50 border-rose-600/60'
+                  : inverterUsed
+                  ? 'bg-neutral-900/40 border-neutral-800'
+                  : 'bg-rose-950/40 border-rose-800/40',
+              ].join(' ')}
+            >
+              <Text>🔄</Text>
+              <Text
+                className={[
+                  'text-xs font-semibold flex-1',
+                  inverterActive
+                    ? 'text-rose-300'
+                    : inverterUsed
+                    ? 'text-neutral-600'
+                    : 'text-rose-400',
+                ].join(' ')}
+              >
+                {inverterActive
+                  ? t('game.inverterActive', 'Vote inversion active this round')
+                  : inverterUsed
+                  ? t('game.inverterUsed', 'Vote inversion used')
+                  : t('game.inverterAvailable', 'Vote inversion ready')}
+              </Text>
+            </View>
+          )}
+
+          {/* ─── Twin partner banner → DM ───────────────────────────────
+              Clickable button with unread badge; opens the twin chat modal. */}
+          {isTwin && twinPartner && (
+            <TouchableOpacity
+              onPress={() => {
+                setTwinChatOpen(true)
+                clearTwinUnread()
+              }}
+              className="rounded-xl border border-purple-800/40 bg-purple-950/40 px-3 py-2 flex-row items-center gap-2"
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 14 }}>👯</Text>
+              <Text className="text-purple-300 font-semibold text-xs flex-1" numberOfLines={1}>
+                {t('game.twinPartnerBanner', { name: twinPartner.twinUsername, defaultValue: 'Your twin: {{name}}' })}
+              </Text>
+              {twinUnread > 0 ? (
+                <View className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 items-center justify-center">
+                  <Text className="text-white text-[10px] font-black">
+                    {twinUnread > 9 ? '9+' : twinUnread}
+                  </Text>
+                </View>
+              ) : (
+                <Text className="text-purple-200/80 text-[10px] font-bold uppercase tracking-wider">
+                  {t('game.twinChatOpen', 'DM')}
+                </Text>
+              )}
+            </TouchableOpacity>
           )}
 
           {/* ─── Speaking phase: clue input (typing mode) ────────────────────── */}
@@ -1410,6 +1901,60 @@ export default function GameScreen() {
                 <View className="flex-row items-center gap-2 px-3 py-2 rounded-xl bg-emerald-950/60 border border-emerald-800/40 mb-3">
                   <Text className="text-sm">✅</Text>
                   <Text className="text-sm font-semibold text-emerald-400">All votes in!</Text>
+                </View>
+              )}
+
+              {/* ── Vote-phase power strip ──
+                  Mayor / Inverter activation buttons surface here so they
+                  can't be missed — mirrors web pattern. */}
+              {!isEliminated && (
+                <View className="mb-3" style={{ gap: 8 }}>
+                  {myRole === 'mayor' && !mayorDoubleVoteUsed && !mayorDoubleActive && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        log.info('mayor activating double vote (vote panel)')
+                        getSocket().emit('mayor:activate-double' as any)
+                      }}
+                      className="flex-row items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 border-2 border-indigo-400/60"
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 18 }}>⚖️</Text>
+                      <Text className="text-white font-black text-sm uppercase tracking-wide">
+                        {t('game.mayorDoubleVoteBtn', 'Double my vote')}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {myRole === 'mayor' && mayorDoubleActive && (
+                    <View className="flex-row items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-900/50 border border-indigo-500/60">
+                      <Text>⚖️</Text>
+                      <Text className="text-indigo-200 text-xs font-bold">
+                        {t('game.mayorDoubleVoteActive', 'Double vote active this round')}
+                      </Text>
+                    </View>
+                  )}
+                  {myRole === 'inverter' && !inverterUsed && !inverterActive && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        log.info('inverter activating (vote panel)')
+                        getSocket().emit('inverter:activate' as any)
+                      }}
+                      className="flex-row items-center justify-center gap-2 px-4 py-3 rounded-xl bg-rose-600 border-2 border-rose-400/60"
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 18 }}>🔄</Text>
+                      <Text className="text-white font-black text-sm uppercase tracking-wide">
+                        {t('game.inverterActivateBtn', 'Invert the vote')}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {myRole === 'inverter' && inverterActive && (
+                    <View className="flex-row items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-900/50 border border-rose-500/60">
+                      <Text>🔄</Text>
+                      <Text className="text-rose-200 text-xs font-bold">
+                        {t('game.inverterActive', 'Vote inversion active this round')}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               )}
 

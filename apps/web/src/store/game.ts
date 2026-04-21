@@ -17,6 +17,14 @@ interface TwinPartner {
   twinRole: string
 }
 
+export interface TwinChatMessage {
+  id: string
+  userId: string
+  username: string
+  text: string
+  createdAt: string
+}
+
 interface RevealedPlayer {
   userId: string
   username: string
@@ -46,6 +54,10 @@ interface GameState {
   corruptorTargetUserId: string | null
   /** Twin partner info (set once at game:started via twin:partner event) */
   twinPartner: TwinPartner | null
+  /** Evil Twins private DM log — stored only for the two twins. */
+  twinMessages: TwinChatMessage[]
+  /** Unread counter for the twin DM — cleared when the twin chat panel opens. */
+  twinUnread: number
   /** Revenant: post-mortem votes remaining (sent by server on elimination) */
   revenantVotesRemaining: number
   revealedPlayer: RevealedPlayer | null
@@ -68,6 +80,8 @@ interface GameState {
   resetInverterActive: () => void
   setCorruptorTarget: (userId: string) => void
   setTwinPartner: (partner: TwinPartner | null) => void
+  addTwinMessage: (msg: TwinChatMessage, opts?: { incrementUnread?: boolean }) => void
+  clearTwinUnread: () => void
   setRevenantVotesRemaining: (n: number) => void
   setRevealedPlayer: (p: RevealedPlayer | null) => void
   addMessage: (msg: ChatMessage) => void
@@ -95,6 +109,8 @@ export const useGameStore = create<GameState>()(
       inverterActive: false,
       corruptorTargetUserId: null,
       twinPartner: null,
+      twinMessages: [],
+      twinUnread: 0,
       revenantVotesRemaining: 0,
       revealedPlayer: null,
       messages: [],
@@ -125,6 +141,16 @@ export const useGameStore = create<GameState>()(
       resetInverterActive: () => set({ inverterActive: false }),
       setCorruptorTarget: (corruptorTargetUserId) => set({ corruptorTargetUserId }),
       setTwinPartner: (twinPartner) => set({ twinPartner }),
+      addTwinMessage: (msg, opts) => set((s) => {
+        const deduped = s.twinMessages.some((m) => m.id === msg.id)
+          ? s.twinMessages
+          : [...s.twinMessages.slice(-199), msg]
+        return {
+          twinMessages: deduped,
+          twinUnread: opts?.incrementUnread ? s.twinUnread + 1 : s.twinUnread,
+        }
+      }),
+      clearTwinUnread: () => set({ twinUnread: 0 }),
       setRevenantVotesRemaining: (revenantVotesRemaining) => set({ revenantVotesRemaining }),
       setRevealedPlayer: (revealedPlayer) => set({ revealedPlayer }),
       addMessage: (msg) => set((s) => {
@@ -140,7 +166,7 @@ export const useGameStore = create<GameState>()(
       setGameFinished: (gameFinished) => set({ gameFinished }),
       reset: () => {
         log.info('game state reset')
-        set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, myCategory: null, detectiveRevealUsed: false, guardianProtectUsed: false, guardianProtectedPlayer: null, mayorDoubleVoteUsed: false, mayorDoubleActive: false, inverterUsed: false, inverterActive: false, corruptorTargetUserId: null, twinPartner: null, revenantVotesRemaining: 0, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() })
+        set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, myCategory: null, detectiveRevealUsed: false, guardianProtectUsed: false, guardianProtectedPlayer: null, mayorDoubleVoteUsed: false, mayorDoubleActive: false, inverterUsed: false, inverterActive: false, corruptorTargetUserId: null, twinPartner: null, twinMessages: [], twinUnread: 0, revenantVotesRemaining: 0, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() })
       },
     }),
     {
@@ -163,7 +189,9 @@ export const useGameStore = create<GameState>()(
         inverterActive: state.inverterActive,
         corruptorTargetUserId: state.corruptorTargetUserId,
         twinPartner: state.twinPartner,
+        twinMessages: state.twinMessages,
         revenantVotesRemaining: state.revenantVotesRemaining,
+        revealedPlayer: state.revealedPlayer,
         result: state.result,
         gameFinished: state.gameFinished,
         lastResetAt: state.lastResetAt,
