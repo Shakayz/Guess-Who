@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../../../lib/api'
 import { useAuthStore } from '../../../store/auth'
 import { useResponsive } from '../../../lib/responsive'
+import { findLanguage } from '../../../i18n/languages'
 
 type HistoryMode = 'unranked' | 'ranked'
 
@@ -23,6 +24,7 @@ interface GameSummary {
   roundCount: number
   players: string[]
   createdAt: string
+  language?: string
 }
 
 interface HistoryResponse {
@@ -111,6 +113,7 @@ export default function HistoryScreen() {
     ({ item }: { item: GameSummary }) => {
       const won = didWin(item.winner, item.myRole)
       const role = ROLE_CONFIG[item.myRole] ?? ROLE_CONFIG.villager
+      const lang = findLanguage(item.language)
 
       return (
         <TouchableOpacity
@@ -129,9 +132,15 @@ export default function HistoryScreen() {
                 {won ? t('results.victory') : t('results.defeat')}
               </Text>
             </View>
-            <Text className="text-neutral-500 text-xs">
-              {dateFormatter.format(new Date(item.createdAt))}
-            </Text>
+            <View className="flex-row items-center gap-2">
+              <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full border border-neutral-700 bg-neutral-800/60">
+                <Text style={{ fontSize: 11 }}>{lang.flag}</Text>
+                <Text className="text-neutral-300 text-[10px] font-semibold">{lang.label}</Text>
+              </View>
+              <Text className="text-neutral-500 text-xs">
+                {dateFormatter.format(new Date(item.createdAt))}
+              </Text>
+            </View>
           </View>
 
           <View className="flex-row items-center justify-between">

@@ -67,7 +67,7 @@ export default {
     catSelected: 'Выбрано {{count}} из {{total}} категорий',
     categories: 'Категории',
     normalLabel: 'Обычный',
-    normalDesc: 'Игра для удовольствия — без LP',
+    normalDesc: 'Игра для удовольствия',
     rankedLabel: 'Рейтинговая',
     rankedDesc: 'Все категории · влияет на LP',
     lobbyLabel: 'Создать лобби',

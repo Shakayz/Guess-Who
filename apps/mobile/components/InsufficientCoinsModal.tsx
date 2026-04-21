@@ -17,6 +17,13 @@ interface InsufficientCoinsModalProps {
    * Undefined = it's the viewer who is broke.
    */
   blockedUsername?: string
+  /**
+   * Optional override for the "Get coins" CTA. Used when the caller is
+   * already inside the Shop screen (emote purchase on the emotes tab) —
+   * instead of routing, switch tabs in-place. When omitted the modal
+   * falls back to router.push('/shop?tab=coins').
+   */
+  onGetCoins?: () => void
   onClose: () => void
 }
 
@@ -33,6 +40,7 @@ export default function InsufficientCoinsModal({
   visible,
   required,
   blockedUsername,
+  onGetCoins,
   onClose,
 }: InsufficientCoinsModalProps) {
   const { t } = useTranslation()
@@ -147,7 +155,8 @@ export default function InsufficientCoinsModal({
                 <TouchableOpacity
                   onPress={() => {
                     onClose()
-                    router.push('/shop?tab=coins')
+                    if (onGetCoins) onGetCoins()
+                    else router.push('/shop?tab=coins')
                   }}
                   className="flex-1 rounded-xl bg-amber-600 items-center py-3"
                   activeOpacity={0.85}

@@ -661,12 +661,12 @@ describe('game:start — full start flow', () => {
   })
 })
 
-// ─── game:start — private-lobby coin charge flow (anti-farming fix) ───────────
+// ─── game:start — private-lobby coin charge flow ─────────────────────────────
 //
-// A private lobby charges the host 10 ⭐ at POST /rooms, but that fee only
-// covers the FIRST game. Subsequent games in the same room must charge the
-// host again — otherwise a single 10 ⭐ fee would let a group farm unlimited
-// star-coin rewards. These tests pin that behaviour down.
+// Lobby creation is free. The host is charged 10 ⭐ every time the game
+// actually starts — so a host who backs out before starting never loses coins,
+// and a host who restarts the same lobby pays per game (no infinite-replay
+// farming).
 
 describe('game:start — private lobby coin charge', () => {
   const privateRoom = { ...defaultRoom, isPrivate: true }
@@ -693,42 +693,12 @@ describe('game:start — private lobby coin charge', () => {
     mockRedis.del.mockResolvedValue(1)
   }
 
-  it('consumes hostPrepaid for the FIRST game and does NOT debit the host', async () => {
+  it('charges ONLY the host 10 ⭐ on every private-lobby start', async () => {
     vi.useFakeTimers()
     const io = makeIo()
     const socket = makeSocket('host-1', 'Host', ['room:room-1'])
 
     mockPrisma.room.findUnique.mockResolvedValue({ ...privateRoom })
-    wireRedisLockAndState(readyState({ hostPrepaid: true }))
-
-    // Track direct prisma.user.updateMany calls — these are charge calls from
-    // startGameForRoom (the game/round $transaction uses its own tx.user).
-    const directUpdateMany = vi.fn()
-    mockPrisma.user.updateMany = directUpdateMany
-
-    registerRoomHandlers(io, socket)
-    await socket._fire('game:start')
-    await vi.advanceTimersByTimeAsync(3100)
-
-    // Prepayment consumed → no direct debit call at all.
-    expect(directUpdateMany).not.toHaveBeenCalled()
-    // The consumed state must be persisted back to Redis with hostPrepaid=false
-    // so a second start will charge the host.
-    const savedStates = (mockRedis.set as any).mock.calls
-      .filter((c: any[]) => typeof c[1] === 'string' && c[1].includes('hostPrepaid'))
-      .map((c: any[]) => c[1] as string)
-    expect(savedStates.some((s) => s.includes('"hostPrepaid":false'))).toBe(true)
-
-    vi.useRealTimers()
-  })
-
-  it('charges ONLY the host 10 ⭐ on subsequent starts (hostPrepaid absent)', async () => {
-    vi.useFakeTimers()
-    const io = makeIo()
-    const socket = makeSocket('host-1', 'Host', ['room:room-1'])
-
-    mockPrisma.room.findUnique.mockResolvedValue({ ...privateRoom })
-    // No hostPrepaid flag — simulates the Redis state after buildResetState().
     wireRedisLockAndState(readyState())
 
     // The debit now lives INSIDE the single charge+create transaction, so we

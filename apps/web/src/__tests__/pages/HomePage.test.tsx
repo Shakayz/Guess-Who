@@ -83,9 +83,7 @@ describe('HomePage', () => {
 
   it('renders without crashing and shows heading', () => {
     render(<HomePage />)
-    // i18n mock returns the raw key — heroTitle2 is the branded span inside
-    // the page's h1 heading.
-    expect(screen.getByText('home.heroTitle2')).toBeInTheDocument()
+    expect(screen.getByAltText('Red Handed !')).toBeInTheDocument()
   })
 
   it('renders the NavBar', () => {
@@ -97,7 +95,7 @@ describe('HomePage', () => {
     render(<HomePage />)
     expect(screen.getByText('home.normalLabel')).toBeInTheDocument()
     expect(screen.getByText('home.rankedLabel')).toBeInTheDocument()
-    expect(screen.getByText('home.lobbyLabel')).toBeInTheDocument()
+    expect(screen.getByText('home.customLobbyLabel')).toBeInTheDocument()
   })
 
   it('shows active game card when player is in an active game', () => {
@@ -176,10 +174,12 @@ describe('HomePage', () => {
     expect(document.body).toBeInTheDocument()
   })
 
-  it('creates a lobby room when lobby mode is selected and Create is clicked', async () => {
+  it('creates a lobby room when lobby mode is selected, Create lobby is chosen, and Create is clicked', async () => {
     vi.mocked(api.post).mockResolvedValueOnce({ code: 'LOBBY1' })
     render(<HomePage />)
-    fireEvent.click(screen.getByText('home.lobbyLabel'))
+    fireEvent.click(screen.getByText('home.customLobbyLabel'))
+    // Custom Lobby now surfaces a Create/Join chooser first; pick Create.
+    fireEvent.click(screen.getByText('home.lobbyCreateLabel'))
     const createBtn = screen.getByText('home.createLobby')
     fireEvent.click(createBtn)
     await waitFor(() => {
@@ -259,9 +259,12 @@ describe('HomePage', () => {
     expect(document.body).toBeInTheDocument()
   })
 
-  it('shows lobby sub-mode selection when lobby mode is selected', () => {
+  it('shows lobby sub-mode selection after picking Create lobby', () => {
     render(<HomePage />)
-    fireEvent.click(screen.getByText('home.lobbyLabel'))
+    fireEvent.click(screen.getByText('home.customLobbyLabel'))
+    // Sub-mode appears only once the player has chosen Create — the bare
+    // Custom Lobby card just shows the Create/Join chooser.
+    fireEvent.click(screen.getByText('home.lobbyCreateLabel'))
     expect(screen.getByText('home.normalGameMode')).toBeInTheDocument()
     expect(screen.getByText('home.specialGameMode')).toBeInTheDocument()
   })
@@ -269,7 +272,8 @@ describe('HomePage', () => {
   it('shows error when create lobby fails', async () => {
     vi.mocked(api.post).mockRejectedValueOnce(new Error('Server error'))
     render(<HomePage />)
-    fireEvent.click(screen.getByText('home.lobbyLabel'))
+    fireEvent.click(screen.getByText('home.customLobbyLabel'))
+    fireEvent.click(screen.getByText('home.lobbyCreateLabel'))
     await act(async () => {
       fireEvent.click(screen.getByText('home.createLobby'))
     })

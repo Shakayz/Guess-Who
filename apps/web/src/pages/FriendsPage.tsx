@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { Avatar } from '@red-handed/ui'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { useSocialStore } from '../store/social'
@@ -40,19 +41,6 @@ interface OutgoingRequest {
   createdAt: string
 }
 
-function InitialsAvatar({ username }: { username: string }) {
-  const colors = [
-    'bg-brand-600', 'bg-amber-600', 'bg-emerald-600', 'bg-red-600',
-    'bg-purple-600', 'bg-sky-600', 'bg-pink-600', 'bg-orange-600',
-  ]
-  const idx = username.charCodeAt(0) % colors.length
-  return (
-    <div className={`w-9 h-9 ${colors[idx]} rounded-full flex items-center justify-center font-bold text-white text-xs flex-shrink-0`}>
-      {username.slice(0, 2).toUpperCase()}
-    </div>
-  )
-}
-
 function ShareCard() {
   const { t } = useTranslation()
   const appUrl = window.location.origin
@@ -78,54 +66,14 @@ function ShareCard() {
     }
   }
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(appUrl).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
   return (
-    <section className="rounded-2xl border border-brand-800/30 bg-gradient-to-br from-brand-950/60 to-neutral-900/60 p-4 relative overflow-hidden">
-      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-brand-600/50 to-transparent" />
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-brand-800/40 border border-brand-700/40 flex items-center justify-center text-xl flex-shrink-0">
-          🎭
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-bold text-sm">{t('friends.inviteTitle')}</p>
-          <p className="text-neutral-400 text-xs mt-0.5 leading-relaxed">
-            {t('friends.inviteDesc')}
-          </p>
-          {/* URL row */}
-          <div className="flex items-center gap-2 mt-3">
-            <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-neutral-800/80 border border-neutral-700/50 min-w-0">
-              <span className="text-neutral-600 text-xs">🔗</span>
-              <span className="text-neutral-300 text-xs font-mono truncate">{appUrl}</span>
-            </div>
-            <button
-              onClick={handleCopy}
-              className={[
-                'px-3 py-2 rounded-xl text-xs font-semibold transition-all flex-shrink-0 border',
-                copied
-                  ? 'bg-emerald-950/60 border-emerald-800/50 text-emerald-400'
-                  : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:text-white hover:bg-neutral-700',
-              ].join(' ')}
-            >
-              {copied ? t('friends.copied') : `📋 ${t('friends.copy')}`}
-            </button>
-          </div>
-        </div>
-      </div>
-      {/* Share button */}
-      <button
-        onClick={handleShare}
-        className="w-full mt-3 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-brand-600/20"
-      >
-        <span>📤</span>
-        {canShare ? t('friends.shareWithFriends') : (copied ? t('friends.linkCopied') : t('friends.copyLink'))}
-      </button>
-    </section>
+    <button
+      onClick={handleShare}
+      className="w-full py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-brand-600/20"
+    >
+      <img src="/masks.png" alt="" className="w-5 h-5 object-contain" />
+      {canShare ? t('friends.shareWithFriends') : (copied ? t('friends.linkCopied') : t('friends.copyLink'))}
+    </button>
   )
 }
 
@@ -191,7 +139,12 @@ export default function FriendsPage() {
       api
         .get<{ users: SearchUser[] }>(`/users/search?q=${encodeURIComponent(searchQuery.trim())}`)
         .then((res) => setSearchResults(res.users))
-        .catch(() => setSearchResults([]))
+        .catch((err) => {
+          // Log the real failure so it shows up in devtools instead of
+          // silently rendering "No users found" for any network/5xx error.
+          console.error('[friends] search failed', err)
+          setSearchResults([])
+        })
         .finally(() => setSearchLoading(false))
     }, 400)
     return () => clearTimeout(timeout)
@@ -305,7 +258,7 @@ export default function FriendsPage() {
               <div className="space-y-2">
                 {outgoing.map((req) => (
                   <div key={req.friendshipId} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40">
-                    <InitialsAvatar username={req.to.username} />
+                    <Avatar src={req.to.avatarUrl} username={req.to.username} size="sm" className="flex-shrink-0" />
                     <button
                       type="button"
                       onClick={() => navigate(`/player/${req.to.id}`)}
@@ -348,7 +301,7 @@ export default function FriendsPage() {
                 <div className="space-y-2">
                   {requests.map((req) => (
                     <div key={req.friendshipId} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40">
-                      <InitialsAvatar username={req.from.username} />
+                      <Avatar src={req.from.avatarUrl} username={req.from.username} size="sm" className="flex-shrink-0" />
                       <button
                         type="button"
                         onClick={() => navigate(`/player/${req.from.id}`)}
@@ -406,7 +359,7 @@ export default function FriendsPage() {
                   return (
                     <div key={f.friendshipId} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40 hover:border-neutral-700 transition-colors">
                       <div className="relative">
-                        <InitialsAvatar username={f.user.username} />
+                        <Avatar src={f.user.avatarUrl} username={f.user.username} size="sm" className="flex-shrink-0" />
                         {unread > 0 && (
                           <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[9px] text-white font-bold">
                             {unread > 9 ? '9+' : unread}
@@ -467,7 +420,7 @@ export default function FriendsPage() {
                   const f = u.friendship
                   return (
                     <div key={u.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40">
-                      <InitialsAvatar username={u.username} />
+                      <Avatar src={u.avatarUrl} username={u.username} size="sm" className="flex-shrink-0" />
                       <button
                         type="button"
                         onClick={() => navigate(`/player/${u.id}`)}

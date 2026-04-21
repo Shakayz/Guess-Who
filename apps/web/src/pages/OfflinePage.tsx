@@ -430,11 +430,15 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
       </div>
 
       {/* Header */}
-      <div className="text-center">
-        <div className="text-5xl mb-3">🎭</div>
+      <div className="text-center flex flex-col items-center">
+        <img
+          src="/masks.png"
+          alt=""
+          aria-hidden="true"
+          className="w-20 h-20 md:w-24 md:h-24 object-contain select-none pointer-events-none mb-3"
+        />
         <h1 className="text-3xl font-extrabold text-white mb-1">{t('offline.title')}</h1>
         <p className="text-brand-400 font-semibold text-lg">{t('offline.passAndPlay')}</p>
-        <p className="text-neutral-500 text-sm mt-2">{t('offline.noInternet')}</p>
       </div>
 
       {/* Game mode selector */}
@@ -826,6 +830,19 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
           {t('offline.howToPlay')}
         </p>
 
+        {/* How it works — shown first so players understand the flow before reading roles */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-neutral-300">{t('offline.htpHowItWorks')}</p>
+          <ol className="space-y-1 ml-1 list-decimal list-inside text-xs text-neutral-500 leading-relaxed">
+            <li>{t('offline.htpStep1')}</li>
+            <li>{t('offline.htpStep2')}</li>
+            <li>{t('offline.htpStep3')}</li>
+            <li>{t('offline.htpStep4')}</li>
+          </ol>
+        </div>
+
+        <div className="border-t border-neutral-800/60" />
+
         {/* Normal mode */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -956,20 +973,30 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
           </div>
         </div>
 
-        <div className="border-t border-neutral-800/60" />
-
-        {/* How it works */}
-        <div className="space-y-1.5">
-          <p className="text-xs font-semibold text-neutral-300">{t('offline.htpHowItWorks')}</p>
-          <ol className="space-y-1 ml-1 list-decimal list-inside text-xs text-neutral-500 leading-relaxed">
-            <li>{t('offline.htpStep1')}</li>
-            <li>{t('offline.htpStep2')}</li>
-            <li>{t('offline.htpStep3')}</li>
-            <li>{t('offline.htpStep4')}</li>
-          </ol>
-        </div>
       </div>
     </div>
+  )
+}
+
+// Small badge shown above every secret-word reveal so players know which
+// category (e.g. Food, Movies) the pair was drawn from — context a lone word
+// can be missing ("Crane" → bird or machine?).
+function CategoryBadge({ categoryKey, className }: { categoryKey: WordCategory | null | undefined; className?: string }) {
+  const { t } = useTranslation()
+  if (!categoryKey) return null
+  const cat = WORD_CATEGORIES.find((c) => c.key === categoryKey)
+  if (!cat) return null
+  return (
+    <span
+      className={[
+        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest',
+        'bg-brand-950/60 border border-brand-700/40 text-brand-300',
+        className ?? '',
+      ].join(' ')}
+    >
+      <span>{cat.icon}</span>
+      <span>{t(`home.cat.${cat.key}`, cat.label)}</span>
+    </span>
   )
 }
 
@@ -978,7 +1005,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
 interface DealingPhaseProps {
   players: PlayerRole[]
   gameMode: GameMode
-  wordPair: { villagerWord: string; redHandedWord: string }
+  wordPair: { villagerWord: string; redHandedWord: string; category?: WordCategory }
   onDone: () => void
 }
 
@@ -1127,6 +1154,7 @@ function DealingPhase({ players, gameMode, wordPair, onDone }: DealingPhaseProps
               })()}
             </div>
 
+            <CategoryBadge categoryKey={wordPair.category} />
             {current.role === 'doubleAgent' ? (
               <div className="space-y-3">
                 <div className={`px-6 py-3 rounded-2xl border bg-emerald-900/30 border-emerald-800/40`}>
@@ -1950,7 +1978,7 @@ function VoteResult({ votes, eliminated, protectedPlayerName, silencedVoterNames
 interface PlayingPhaseProps {
   players: PlayerRole[]
   gameMode: GameMode
-  wordPair: { villagerWord: string; redHandedWord: string }
+  wordPair: { villagerWord: string; redHandedWord: string; category?: WordCategory }
   onRevealRoles: (updatedPlayers: PlayerRole[], manual?: boolean) => void
 }
 
@@ -2358,7 +2386,7 @@ function PlayingPhase({ players: initialPlayers, gameMode, wordPair, onRevealRol
 interface ResultsPhaseProps {
   players: PlayerRole[]
   gameMode: GameMode
-  wordPair: { villagerWord: string; redHandedWord: string }
+  wordPair: { villagerWord: string; redHandedWord: string; category?: WordCategory }
   manualReveal: boolean
   onPlayAgain: () => void
   onHome: () => void
@@ -2445,7 +2473,10 @@ function ResultsPhase({ players, gameMode, wordPair, manualReveal, onPlayAgain, 
 
       {/* Words revealed */}
       <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-3">
-        <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">{t('offline.theWords')}</p>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">{t('offline.theWords')}</p>
+          <CategoryBadge categoryKey={wordPair.category} />
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/30">
             <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-1">{t('offline.villagerWord')}</p>
@@ -2540,7 +2571,7 @@ export default function OfflinePage() {
   const [phase, setPhase] = useState<Phase>('setup')
   const [players, setPlayers] = useState<PlayerRole[]>([])
   const [gameMode, setGameMode] = useState<GameMode>('normal')
-  const [wordPair, setWordPair] = useState<{ villagerWord: string; redHandedWord: string }>({
+  const [wordPair, setWordPair] = useState<{ villagerWord: string; redHandedWord: string; category?: WordCategory }>({
     villagerWord: '',
     redHandedWord: '',
   })
@@ -2579,7 +2610,7 @@ export default function OfflinePage() {
       const rawPair = pickRandomWordPair(categories, shuffleArray, i18n.language)
       // Randomly swap which word goes to villagers vs redHanded
       const pair = Math.random() < 0.5
-        ? { villagerWord: rawPair.redHandedWord, redHandedWord: rawPair.villagerWord }
+        ? { villagerWord: rawPair.redHandedWord, redHandedWord: rawPair.villagerWord, category: rawPair.category }
         : rawPair
       const playerOrder = shuffleArray([...names])
 
@@ -2674,7 +2705,7 @@ export default function OfflinePage() {
   const handlePlayAgain = useCallback(() => {
     setPhase('setup')
     setPlayers([])
-    setWordPair({ villagerWord: '', redHandedWord: '' })
+    setWordPair({ villagerWord: '', redHandedWord: '', category: undefined })
     // lastSettings is preserved so SetupPhase gets initial values
   }, [])
 

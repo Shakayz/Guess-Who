@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
+import { findLanguage } from '../i18n/languages'
 
 type HistoryMode = 'unranked' | 'ranked'
 
@@ -12,6 +13,7 @@ interface GameSummary {
   endedAt: string
   winnerTeam: 'villagers' | 'red_handed'
   gameMode: 'normal' | 'special' | 'ranked'
+  language?: string
   myRole: 'villager' | 'red_handed'
   survived: boolean
   starCoinsEarned: number
@@ -46,8 +48,19 @@ function SkeletonCard() {
 }
 
 export default function HistoryPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
+  const languageName = React.useMemo(() => {
+    try {
+      const dn = new Intl.DisplayNames([i18n.language], { type: 'language' })
+      return (code: string) => {
+        const name = dn.of(code)
+        return name ? name.charAt(0).toUpperCase() + name.slice(1) : code
+      }
+    } catch {
+      return (code: string) => code
+    }
+  }, [i18n.language])
   const [mode, setMode] = useState<HistoryMode>('unranked')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<HistoryResponse | null>(null)
@@ -165,6 +178,7 @@ export default function HistoryPage() {
               <div className="space-y-3">
                 {data.games.map((game) => {
                   const won = didWin(game)
+                  const langInfo = findLanguage(game.language)
                   return (
                     <button
                       key={game.id}
@@ -173,9 +187,22 @@ export default function HistoryPage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-white font-semibold text-sm group-hover:text-brand-400 transition-colors">
-                            {formatDate(game.startedAt)}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-white font-semibold text-sm group-hover:text-brand-400 transition-colors">
+                              {formatDate(game.startedAt)}
+                            </p>
+                            <span
+                              className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-300 bg-neutral-800/60 inline-flex items-center gap-1.5"
+                              title={t('lobby.roomLanguage', 'Room language') as string}
+                            >
+                              <img
+                                src={`https://flagcdn.com/w20/${langInfo.country}.png`}
+                                alt=""
+                                className="w-3.5 h-2.5 object-cover rounded-sm"
+                              />
+                              <span>{languageName(langInfo.code)}</span>
+                            </span>
+                          </div>
                           <p className="text-neutral-500 text-xs mt-0.5">
                             {game.players.length} player{game.players.length !== 1 ? 's' : ''} · {game.roundCount} round{game.roundCount !== 1 ? 's' : ''}
                           </p>
@@ -202,9 +229,6 @@ export default function HistoryPage() {
                           ].join(' ')}
                         >
                           {game.myRole === 'red_handed' ? t('gameDetail.redHandedRole') : t('gameDetail.villagerRole')}
-                        </span>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-400 bg-neutral-800/60">
-                          ⭐ +{game.starCoinsEarned}
                         </span>
                         <span
                           className={[

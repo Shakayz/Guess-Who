@@ -2,7 +2,8 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" href="/masks.png" />
+    <link rel="apple-touch-icon" href="/masks.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Red Handed ! — The ultimate social deduction game" />
     <title>Red Handed !</title>
@@ -14,6 +15,9 @@
          redirect URI tracks window.location.origin (prod vs staging) and the Services
          ID can rotate via VITE_APPLE_CLIENT_ID without a code change. -->
     <script type="text/javascript" src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" async defer></script>
+    <!-- AdSense script is injected at runtime from src/lib/ads.ts only when
+         VITE_ADSENSE_CLIENT is configured, so unset envs never trigger a
+         malformed-URL fetch. -->
   </head>
   <body class="bg-neutral-950 text-white antialiased">
     <div id="root"></div>

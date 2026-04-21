@@ -16,15 +16,36 @@ const createPackSchema = z.object({
   })).min(1).max(100),
 })
 
+// Returns true iff the caller currently holds an active premium subscription.
+// Resolved by reading `premiumUntil` on the user — single source of truth.
+async function isCallerPremium(userId: string): Promise<boolean> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { premiumUntil: true },
+  })
+  return !!(u?.premiumUntil && u.premiumUntil.getTime() > Date.now())
+}
+
 export const wordPacksRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/word-packs — browse public & approved packs
+  //
+  // Premium-flagged packs stay in the listing for everyone (so non-premium
+  // users can see what they'd unlock), but their `locked` flag lets the UI
+  // dim them and route taps to /premium instead of the game. The listing
+  // always includes packs the caller authored, regardless of premium status.
   fastify.get('/', { onRequest: [fastify.authenticate] }, async (req, reply) => {
+    const userId = (req.user as { sub: string }).sub
+    const premium = await isCallerPremium(userId)
     const packs = await prisma.wordPack.findMany({
-      where: { OR: [{ isPublic: true, isApproved: true }, { authorId: (req.user as any).sub }] },
+      where: { OR: [{ isPublic: true, isApproved: true }, { authorId: userId }] },
       include: { _count: { select: { pairs: true } } },
       orderBy: { downloads: 'desc' },
     })
-    return reply.send(packs)
+    const withLockFlag = packs.map((p) => ({
+      ...p,
+      locked: p.isPremium && !premium && p.authorId !== userId,
+    }))
+    return reply.send(withLockFlag)
   })
 
   // GET /api/word-packs/my — own packs
@@ -39,6 +60,11 @@ export const wordPacksRoutes: FastifyPluginAsync = async (fastify) => {
   })
 
   // GET /api/word-packs/:id — get pack + pairs
+  //
+  // Premium-flagged packs return 402 (Payment Required) for non-premium
+  // callers who don't author the pack. The client routes 402 responses to
+  // /premium instead of surfacing a generic error. Owners always get their
+  // own packs regardless of the premium flag so they can edit freely.
   fastify.get('/:id', { onRequest: [fastify.authenticate] }, async (req, reply) => {
     const userId = (req.user as { sub: string }).sub
     const { id } = req.params as { id: string }
@@ -50,6 +76,12 @@ export const wordPacksRoutes: FastifyPluginAsync = async (fastify) => {
     // Only show if public+approved or owned by user
     if (!pack.isApproved && pack.authorId !== userId) {
       return reply.status(403).send({ error: 'Pack not available' })
+    }
+    if (pack.isPremium && pack.authorId !== userId) {
+      const premium = await isCallerPremium(userId)
+      if (!premium) {
+        return reply.status(402).send({ error: 'premium_required' })
+      }
     }
     return reply.send(pack)
   })

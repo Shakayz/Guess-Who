@@ -116,10 +116,46 @@ function buildResetState(state: any): any {
 
 const REDIS_ROOM_TTL = 21600  // 6 hours (was 24h — no game lasts that long)
 
-async function resetRoomAfterGame(roomId: string, state: any): Promise<void> {
+async function resetRoomAfterGame(roomId: string, state: any, io?: IO): Promise<void> {
   const resetState = buildResetState(state)
   await redis.set(`room:${roomId}:state`, JSON.stringify(resetState), 'EX', REDIS_ROOM_TTL)
-  await prisma.room.update({ where: { id: roomId }, data: { status: 'waiting' } }).catch(() => {})
+  const room = await prisma.room.update({ where: { id: roomId }, data: { status: 'waiting' } }).catch(() => null)
+  // Broadcast the reset lobby state so players returning from the Results
+  // screen (including non-hosts) land in a fresh `waiting` lobby instead of
+  // a stale `finished` one. Without this, non-hosts who click "Play Again"
+  // during the short window before anyone re-emits `room:join` see old
+  // player entries / finished status and can't rejoin cleanly.
+  if (io && room) {
+    io.to(`room:${roomId}`).emit('room:updated', {
+      id: room.id,
+      code: room.code,
+      hostId: room.hostId,
+      status: 'waiting',
+      players: [],
+      currentRound: 0,
+      maxRounds: resetState.maxRounds ?? 0,
+      createdAt: room.createdAt.toISOString(),
+      settings: {
+        maxPlayers: room.maxPlayers,
+        minPlayers: 3,
+        redHandedCount: room.redHandedCount,
+        speakingTimeSeconds: room.speakingTimeSeconds,
+        votingTimeSeconds: room.votingTimeSeconds,
+        wordPackId: room.wordPackId,
+        isPrivate: room.isPrivate,
+        isPublic: room.isPublic,
+        language: room.language as any,
+        gameMode: resetState.gameMode ?? 'normal',
+        categories: resetState.categories ?? [],
+        detectiveCount: resetState.detectiveCount ?? 0,
+        doubleAgentCount: resetState.doubleAgentCount ?? 0,
+        guardianCount: resetState.guardianCount ?? 0,
+        mayorCount: resetState.mayorCount ?? 0,
+        infiltratorCount: resetState.infiltratorCount ?? 0,
+        jesterCount: resetState.jesterCount ?? 0,
+      },
+    } as any)
+  }
 }
 
 /** Shared helper to build the round payload sent to clients */
@@ -304,8 +340,7 @@ async function applyRankedLP(
       })
 
       if (tierChanged) {
-        const socketId = onlineUsers.get(player.userId)
-        if (socketId) io.to(socketId).emit('rank:updated' as any, { oldTier, newTier, newLP, promoted })
+        io.to(`user:${player.userId}`).emit('rank:updated' as any, { oldTier, newTier, newLP, promoted })
         // Fire rank_changed for tier-reached achievements
         await evaluateEvent(io, 'rank_changed', { userId: player.userId, newTier })
       }
@@ -416,22 +451,21 @@ async function applyXpAndLevel(
         await creditInviterForFirstGame(user.id).catch(() => null)
       }
 
-      // Notify the player about their XP gain + level progression
-      const socketId = onlineUsers.get(user.id)
-      if (socketId) {
-        const progress = xpProgressInLevel(newXp)
-        io.to(socketId).emit('level:xp' as any, {
-          xpGained:    xpGain,
-          totalXp:     newXp,
-          level:       progress.level,
-          xpInLevel:   progress.current,
-          xpForNext:   progress.needed,
-          leveledUp:   promoted,
-          oldLevel,
-          newLevel,
-          coinsEarned: coinsFromLevelUp,
-        })
-      }
+      // Notify the player about their XP gain + level progression.
+      // Emit to the per-user room so every tab/device of this user updates,
+      // not just the most recently connected one.
+      const progress = xpProgressInLevel(newXp)
+      io.to(`user:${user.id}`).emit('level:xp' as any, {
+        xpGained:    xpGain,
+        totalXp:     newXp,
+        level:       progress.level,
+        xpInLevel:   progress.current,
+        xpForNext:   progress.needed,
+        leveledUp:   promoted,
+        oldLevel,
+        newLevel,
+        coinsEarned: coinsFromLevelUp,
+      })
 
       // Fire level_up event so the achievement evaluator can unlock any
       // level_N thresholds the player just crossed.
@@ -474,6 +508,19 @@ async function finishGameWithWinner(
   }).catch(() => null)
   const roomIsPrivate = roomRow?.isPrivate ?? false
   const roomHostId = roomRow?.hostId ?? null
+  // Premium subscribers play for free (see rooms.ts + handlers/room.ts). Snapshot
+  // each player's premium status so the Results breakdown reports 0 entry fee
+  // instead of the 10 ⭐ everyone else paid.
+  const premiumUsers = await prisma.user.findMany({
+    where: { id: { in: state.players.map((p: any) => p.userId as string) } },
+    select: { id: true, premiumUntil: true },
+  }).catch(() => [] as { id: string; premiumUntil: Date | null }[])
+  const nowMs = Date.now()
+  const premiumUserIds = new Set(
+    premiumUsers
+      .filter((u) => u.premiumUntil && u.premiumUntil.getTime() > nowMs)
+      .map((u) => u.id),
+  )
   await prisma.room.update({ where: { id: roomId }, data: { status: 'finished' } }).catch(() => {})
 
   const finishedGame = await prisma.game.findFirst({ where: { roomId }, orderBy: { startedAt: 'desc' } }).catch(() => null)
@@ -576,7 +623,7 @@ async function finishGameWithWinner(
       newStreakCount: applied.newStreakCount,
     })
     // Fire daily_login achievement event if the streak actually ticked forward.
-    if (applied.dailyBonusEarned > 0) {
+    if (applied.streakTicked) {
       await evaluateEvent(io, 'daily_login', {
         userId: p.userId,
         newStreakCount: applied.newStreakCount,
@@ -588,6 +635,8 @@ async function finishGameWithWinner(
   // screen can display the full net breakdown (base reward, bonuses, and
   // the entry fee that was debited at start / lobby creation).
   const costForPlayer = (userId: string): number => {
+    // Premium subscribers never pay the entry fee.
+    if (premiumUserIds.has(userId)) return 0
     if (roomIsPrivate) {
       // Private lobby: host paid 10 ⭐ at POST /rooms, joiners played free.
       return userId === roomHostId ? DAILY_COST : 0
@@ -596,12 +645,15 @@ async function finishGameWithWinner(
     return DAILY_COST
   }
 
-  setTimeout(async () => { try {
-    // Emit per-socket so each player sees their own bonus breakdown.
+  try {
+    // Emit per-user so each player sees their own bonus breakdown.
+    // We target `user:${userId}` instead of a single socket id so every tab
+    // or device the player has connected receives the navigation signal —
+    // `onlineUsers` only tracks the most recently connected socket per user,
+    // which leaves earlier tabs stuck on the round-reveal screen.
     let emittedToSomeone = false
     for (const p of state.players) {
-      const sid = onlineUsers.get(p.userId)
-      if (!sid) continue
+      if (!onlineUsers.has(p.userId)) continue
       emittedToSomeone = true
       const r = perPlayerRewards.get(p.userId)
       const rewards = {
@@ -615,7 +667,7 @@ async function finishGameWithWinner(
         newStreakCount: r?.newStreakCount ?? 0,
         gameCostPaid: costForPlayer(p.userId),
       }
-      io.to(sid).emit('game:finished', {
+      io.to(`user:${p.userId}`).emit('game:finished', {
         winner: winner as any,
         finalRound: roundPayload as any,
         rewards,
@@ -646,8 +698,12 @@ async function finishGameWithWinner(
         rewards: fallbackRewards,
       })
     }
-    await resetRoomAfterGame(roomId, state)
-  } catch (err) { logger.error({ err }, '[finishGameWithWinner] emit error') } }, 3000)
+    // Reset the room immediately so players clicking "Play Again" land in a
+    // fresh waiting-lobby rather than a stale finished one. The results
+    // screen renders off the `game:finished` payload they just received, so
+    // wiping the Redis state now doesn't affect what they see.
+    await resetRoomAfterGame(roomId, state, io)
+  } catch (err) { logger.error({ err }, '[finishGameWithWinner] emit error') }
 }
 
 // ─── Entry point called after game:start ─────────────────────────────────────
@@ -1048,6 +1104,25 @@ async function _resolveRound(io: IO, roomId: string) {
       }).catch((err: any) => logger.error('[tie-votes] persist error:', err))
     }
 
+    // Skip the tiebreaker when it can't resolve anything:
+    //   (a) no tied players  — nobody voted, or all votes were corruptor-dropped,
+    //       so there's no candidate to eliminate.
+    //   (b) every alive player is tied — no one can vote (tied players can't),
+    //       and a judge in the tied set can't save themselves.
+    // Both cases otherwise idle through the full clue + vote timers (~65s).
+    const aliveIds = (state.players as any[]).filter((p) => p.status === 'alive').map((p) => p.userId)
+    const noTiedPlayers = tiedPlayerIds.length === 0
+    const allAliveTied = aliveIds.length > 0 && aliveIds.every((id) => tiedPlayerIds.includes(id))
+    if (noTiedPlayers || allAliveTied) {
+      logger.info(
+        { roomId, round: state.currentRound, tiedPlayerIds, reason: noTiedPlayers ? 'no-tied' : 'all-alive-tied' },
+        '[resolveRound] tiebreaker unwinnable — skipping to next round',
+      )
+      await saveState(roomId, state)
+      await resolveRoundNoElimination(io, roomId, state)
+      return
+    }
+
     await saveState(roomId, state)
 
     // Start tiebreaker after a short reveal delay
@@ -1108,7 +1183,7 @@ async function _resolveRound(io: IO, roomId: string) {
   // Add word reveal from DB
   const dbRound = await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
   currentRound.wordReveal = dbRound
-    ? { villagerWord: dbRound.villagerWord, redHandedWord: dbRound.redHandedWord }
+    ? { villagerWord: dbRound.villagerWord, redHandedWord: dbRound.redHandedWord, category: state.wordCategory }
     : null
 
   // ── Persist votes to RoundVote table ────────────────────────────────────────
@@ -1198,15 +1273,16 @@ async function _resolveRound(io: IO, roomId: string) {
       }
       const survivalLevelUpRewards = await applyXpAndLevel(io, state.players, 'red_handed', isRankedSurvival)
       const survivalLpChange = isRankedSurvival ? LP_REWARDS.SURVIVAL_VILLAGER_LOSS : 0
-      setTimeout(async () => { try {
-        // Broadcast per-socket so each surviving redHanded sees their own
-        // level-up coin total (level × 10 per level gained).
+      try {
+        // Broadcast per-user so each surviving redHanded sees their own
+        // level-up coin total (level × 10 per level gained). Targeting the
+        // user room (not a single socket) ensures all of the player's tabs
+        // navigate to /results, not just the most recently connected one.
         let emitted = false
         for (const p of state.players as any[]) {
-          const sid = onlineUsers.get(p.userId)
-          if (!sid) continue
+          if (!onlineUsers.has(p.userId)) continue
           emitted = true
-          io.to(sid).emit('game:finished', {
+          io.to(`user:${p.userId}`).emit('game:finished', {
             winner: 'red_handed',
             finalRound: roundPayload as any,
             rewards: {
@@ -1225,8 +1301,9 @@ async function _resolveRound(io: IO, roomId: string) {
             rewards: { starCoinsEarned: 0, xpEarned: 120, lpChange: survivalLpChange, achievements: [], levelUpCoinsEarned: 0 },
           })
         }
-        await resetRoomAfterGame(roomId, state)
-      } catch (err) { logger.error({ err }, '[survival:game:finished] emit error') } }, 3000)
+        // Reset immediately — see finishGameWithWinner comment above.
+        await resetRoomAfterGame(roomId, state, io)
+      } catch (err) { logger.error({ err }, '[survival:game:finished] emit error') }
       return
     }
     const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
@@ -1354,14 +1431,11 @@ async function startTiebreakerVoting(io: IO, roomId: string) {
     const candidateUsernames = tiedPlayerIds.map((id: string) =>
       state.players.find((p: any) => p.userId === id)?.username ?? id,
     )
-    const judgeSocketId = onlineUsers.get(judge.userId)
-    if (judgeSocketId) {
-      io.to(judgeSocketId).emit('judge:decide-prompt' as any, {
-        candidateUserIds: tiedPlayerIds,
-        candidateUsernames,
-        timeSeconds: JUDGE_DECIDE_SECONDS,
-      })
-    }
+    io.to(`user:${judge.userId}`).emit('judge:decide-prompt' as any, {
+      candidateUserIds: tiedPlayerIds,
+      candidateUsernames,
+      timeSeconds: JUDGE_DECIDE_SECONDS,
+    })
     // Timeout: no decision → auto-pick a random tied player
     clearRoomTimer(roomId)
     const t = setTimeout(async () => {
@@ -1726,7 +1800,7 @@ async function continueRoundAfterKamikaze(
   // Pull word reveal from DB for game-end payloads
   const dbRound = await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
   currentRound.wordReveal = dbRound
-    ? { villagerWord: dbRound.villagerWord, redHandedWord: dbRound.redHandedWord }
+    ? { villagerWord: dbRound.villagerWord, redHandedWord: dbRound.redHandedWord, category: state.wordCategory }
     : null
 
   // Persist this round's votes (kamikaze elimination came from a vote tally)

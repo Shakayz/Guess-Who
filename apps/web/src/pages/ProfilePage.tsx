@@ -10,6 +10,8 @@ import { RANK_CONFIG, LEVEL_CAP, USERNAME_CHANGE_COST, EMAIL_VERIFICATION_REWARD
 import type { RankTier } from '@red-handed/shared'
 import { api } from '../lib/api'
 import { ReferralCard } from '../components/ReferralCard'
+import { PremiumBadge } from '../components/PremiumBadge'
+import { EmoteLoadoutSection } from '../components/emotes/EmoteLoadoutSection'
 
 const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/gif,image/webp'
 
@@ -33,6 +35,8 @@ interface MeResponse {
   xpInLevel?: number
   xpForNextLevel?: number
   hasPlayedRanked?: boolean
+  isPremium?: boolean
+  premiumUntil?: string | null
 }
 
 interface UserStats {
@@ -148,19 +152,28 @@ export default function ProfilePage() {
       setConfirmUsernameCost(null)
     },
     onError: (err: any) => {
-      setConfirmUsernameCost(null)
       // The API returns HTTP 402 + { error: 'not_enough_coins', cost, starCoins }
-      // when the player doesn't have USERNAME_CHANGE_COST ⭐. Show that
-      // precisely so the user knows to grind/buy before retrying, instead of
-      // the generic "name taken" message.
+      // when the player doesn't have USERNAME_CHANGE_COST ⭐. Keep the confirm
+      // modal open so the "Get coins" CTA stays visible — closing it would
+      // bury the fix path under a tiny inline error.
       const code = err?.data?.error
       if (code === 'not_enough_coins') {
+        // Pull the authoritative balance from the 402 payload so the modal's
+        // affordability check flips even if the cached /auth/me is stale.
+        const liveBalance = err?.data?.starCoins
+        if (typeof liveBalance === 'number') {
+          queryClient.setQueryData<any>(['me'], (prev: any) => ({
+            ...(prev ?? {}),
+            starCoins: liveBalance,
+          }))
+        }
         setUsernameError(t('profile.notEnoughCoinsForRename', {
           cost: USERNAME_CHANGE_COST,
           defaultValue: 'You need {{cost}} ⭐ to change your username.',
         }))
         return
       }
+      setConfirmUsernameCost(null)
       setUsernameError(t('profile.usernameTaken'))
     },
   })
@@ -309,6 +322,7 @@ export default function ProfilePage() {
                       ) : (
                         <>
                           <h1 className="text-2xl md:text-3xl font-extrabold text-white">{me?.username ?? authUser?.username}</h1>
+                          {me?.isPremium && <PremiumBadge size="sm" />}
                           <button
                             onClick={() => { setEditingUsername(true); setUsernameInput(me?.username ?? '') }}
                             className="text-neutral-600 hover:text-neutral-400 transition-colors text-sm"
@@ -588,6 +602,11 @@ export default function ProfilePage() {
           {/* Achievements — compact summary chip; full grid lives on /achievements */}
           <AchievementSummaryChip onOpen={() => navigate('/achievements')} />
 
+          {/* Emote loadout — pick which (up to 10) reactions appear on the
+              in-game React bar. Changes persist to the server and take effect
+              on the next game mount. */}
+          <EmoteLoadoutSection onShop={() => navigate('/shop?tab=emotes')} />
+
           {/* Recent games */}
           {(profileStats?.recentGames?.length ?? 0) > 0 && (
             <div className="card">
@@ -667,21 +686,33 @@ export default function ProfilePage() {
               >
                 {t('profile.cancel')}
               </button>
-              <button
-                onClick={() => usernameMutation.mutate(confirmUsernameCost)}
-                disabled={
-                  usernameMutation.isPending
-                  || (me?.starCoins ?? 0) < USERNAME_CHANGE_COST
-                }
-                className="flex-1 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
-              >
-                {usernameMutation.isPending
-                  ? t('common.loading')
-                  : t('profile.renameConfirmCta', {
-                      cost: USERNAME_CHANGE_COST,
-                      defaultValue: 'Pay {{cost}} ⭐',
-                    })}
-              </button>
+              {(me?.starCoins ?? 0) < USERNAME_CHANGE_COST ? (
+                // Can't afford — turn the confirm button into a shop link so
+                // the user has a path forward instead of a dead-end greyed
+                // button. Matches the InsufficientCoinsModal flow elsewhere.
+                <button
+                  onClick={() => {
+                    setConfirmUsernameCost(null)
+                    navigate('/shop?tab=coins')
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-amber-600/20"
+                >
+                  {t('insufficientCoins.getCoinsCta', { defaultValue: 'Get coins' })}
+                </button>
+              ) : (
+                <button
+                  onClick={() => usernameMutation.mutate(confirmUsernameCost)}
+                  disabled={usernameMutation.isPending}
+                  className="flex-1 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
+                >
+                  {usernameMutation.isPending
+                    ? t('common.loading')
+                    : t('profile.renameConfirmCta', {
+                        cost: USERNAME_CHANGE_COST,
+                        defaultValue: 'Pay {{cost}} ⭐',
+                      })}
+                </button>
+              )}
             </div>
           </div>
         </div>

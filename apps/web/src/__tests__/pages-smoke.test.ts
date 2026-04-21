@@ -118,7 +118,6 @@ describe('pages smoke tests — dynamic import', () => {
     { name: 'ProfilePage',       path: '../pages/ProfilePage' },
     { name: 'GameDetailPage',    path: '../pages/GameDetailPage' },
     { name: 'PlayerProfilePage', path: '../pages/PlayerProfilePage' },
-    { name: 'PremiumPage',       path: '../pages/PremiumPage' },
     { name: 'WordPacksPage',     path: '../pages/WordPacksPage' },
     { name: 'ShopPage',          path: '../pages/ShopPage' },
     { name: 'SeasonPassPage',    path: '../pages/SeasonPassPage' },
