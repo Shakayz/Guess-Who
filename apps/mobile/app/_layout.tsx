@@ -30,6 +30,7 @@ import { DmToastBanner } from '../components/DmToastBanner'
 import { GlobalDmChatHost } from '../components/GlobalDmChatHost'
 import { MatchmakingManager } from '../components/MatchmakingManager'
 import { MatchmakingBanner } from '../components/MatchmakingBanner'
+import { MenuMusic } from '../components/MenuMusic'
 import { SlideUp } from '../components/anim/AnimatedViews'
 import { api } from '../lib/api'
 import { initAds, setAdsUserMeta } from '../lib/ads'
@@ -374,6 +375,7 @@ export default function RootLayout() {
         <GlobalDmChatHost />
         <MatchmakingManager />
         <MatchmakingBanner />
+        <MenuMusic />
         <Stack
           screenOptions={{
             headerStyle: { backgroundColor: '#09090b' },
