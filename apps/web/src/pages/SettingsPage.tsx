@@ -6,6 +6,8 @@ import { EMAIL_VERIFICATION_REWARD, EMAIL_VERIFICATION_CODE_TTL_MINUTES } from '
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { useAuthStore } from '../store/auth'
+import { SoundManager } from '../lib/sounds'
+import { MusicManager } from '../lib/music'
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
