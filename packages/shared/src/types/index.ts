@@ -194,7 +194,8 @@ export interface Clue {
 
 export interface Vote {
   voterId: string
-  targetId: string
+  // null = skipped / abstained vote — counts toward "has voted" but not toward elimination
+  targetId: string | null
   timestamp: string
 }
 
@@ -285,7 +286,7 @@ export interface ClientToServerEvents {
   'clue:submit': (text: string) => void
   'clue:flag': (data: { cluePlayerId: string }) => void
   'vocal:skip-turn': () => void
-  'vote:cast': (targetPlayerId: string) => void
+  'vote:cast': (targetPlayerId: string | null) => void
   'chat:send': (text: string) => void
   'honor:give': (data: { targetPlayerId: string; honorType: HonorType }) => void
   'detective:reveal': (data: { targetUserId: string }) => void

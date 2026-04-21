@@ -150,6 +150,63 @@ describe('vote:cast — normal vote', () => {
   })
 })
 
+// ─── vote:cast — skip / abstain path ─────────────────────────────────────────
+
+describe('vote:cast — skip vote', () => {
+  it('records skip vote with targetId=null and emits round:vote-cast', async () => {
+    const io = makeIo()
+    const socket = makeSocket('u1', ['room:room-1'])
+    const state = makeGameState()
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    registerGameHandlers(io, socket)
+    await socket._fire('vote:cast', null)
+    expect(mockRedis.set).toHaveBeenCalled()
+    const savedStateArg = (mockRedis.set.mock.calls.at(-1) ?? [])[1] as string
+    const saved = JSON.parse(savedStateArg)
+    expect(saved.rounds[0].votes).toHaveLength(1)
+    expect(saved.rounds[0].votes[0]).toMatchObject({ voterId: 'u1', targetId: null })
+    expect(io._emit).toHaveBeenCalledWith('round:vote-cast', { voterId: 'u1', hasVoted: true })
+  })
+
+  it('ignores duplicate skip from same voter', async () => {
+    const io = makeIo()
+    const socket = makeSocket('u1', ['room:room-1'])
+    const state = makeGameState()
+    state.rounds[0].votes = [{ voterId: 'u1', targetId: null }]
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    registerGameHandlers(io, socket)
+    await socket._fire('vote:cast', null)
+    expect(mockRedis.set).not.toHaveBeenCalled()
+  })
+
+  it('rejects skip vote during tiebreaker phase', async () => {
+    const io = makeIo()
+    const socket = makeSocket('u1', ['room:room-1'])
+    const state = makeGameState({
+      status: 'voting',
+      tiebreakerActive: true,
+      tiebreakerPhase: 'vote',
+      tiebreakerPlayerIds: ['u3', 'u4'],
+      tiebreakerVotes: [],
+    })
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    registerGameHandlers(io, socket)
+    await socket._fire('vote:cast', null)
+    expect(mockRedis.set).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when voter is not alive', async () => {
+    const io = makeIo()
+    const socket = makeSocket('u1', ['room:room-1'])
+    const state = makeGameState()
+    state.players[0].status = 'eliminated'
+    mockRedis.get.mockResolvedValue(JSON.stringify(state))
+    registerGameHandlers(io, socket)
+    await socket._fire('vote:cast', null)
+    expect(mockRedis.set).not.toHaveBeenCalled()
+  })
+})
+
 // ─── vote:cast — tiebreaker path ─────────────────────────────────────────────
 
 describe('vote:cast — tiebreaker vote', () => {

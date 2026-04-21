@@ -31,7 +31,7 @@ import { Wordmark } from '../../components/Wordmark'
 import { VoiceChannel } from '../../lib/voice'
 import { FloatingEmote } from '../../components/emotes/FloatingEmote'
 import { useEmotesStore } from '../../store/emotes'
-import { getEmoteById, DEFAULT_LOADOUT, WORD_CATEGORIES, type EmoteRarity, type WordCategory } from '@red-handed/shared'
+import { getEmoteById, DEFAULT_LOADOUT, WORD_CATEGORIES, isRedHandedSideRole, isVillagerSideRole, isJesterRole, type EmoteRarity, type WordCategory } from '@red-handed/shared'
 
 const log = createLogger('game-screen')
 
@@ -1382,24 +1382,31 @@ export default function GameScreen() {
                   ) : null
                 })()}
 
-              <View className="gap-2">
-                {alivePlayers
-                  .filter((p) => p.userId !== user?.id)
-                  .map((p) => {
-                    const isVotedTarget = votedFor === p.userId
-                    const hasVoted = !!votedFor
-                    return (
-                      <VoteOption
-                        key={p.id}
-                        player={p}
-                        isVotedTarget={isVotedTarget}
-                        hasVoted={hasVoted}
-                        disabled={hasVoted || isEliminated}
-                        onPress={() => vote(p.userId)}
-                      />
-                    )
-                  })}
-              </View>
+              {(() => {
+                const voteCols = alivePlayers.length <= 3 ? 1 : alivePlayers.length > 10 ? 3 : 2
+                const itemWidth = voteCols === 1 ? '100%' : voteCols === 2 ? '49%' : '32%'
+                return (
+                  <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+                    {alivePlayers
+                      .filter((p) => p.userId !== user?.id)
+                      .map((p) => {
+                        const isVotedTarget = votedFor === p.userId
+                        const hasVoted = !!votedFor
+                        return (
+                          <View key={p.id} style={{ width: itemWidth }}>
+                            <VoteOption
+                              player={p}
+                              isVotedTarget={isVotedTarget}
+                              hasVoted={hasVoted}
+                              disabled={hasVoted || isEliminated}
+                              onPress={() => vote(p.userId)}
+                            />
+                          </View>
+                        )
+                      })}
+                  </View>
+                )
+              })()}
             </View>
           )}
 

@@ -77,6 +77,30 @@ export function registerGameHandlers(
     )
     if (!isAliveVoter && !isRevenantVoter) return
 
+    // ── SKIP / ABSTAIN vote path ──────────────────────────────────────────────
+    // Records a vote with targetId=null so the round can early-resolve, but
+    // the tally never counts it toward any elimination. Disallowed during
+    // tiebreaker — the tied set is already small and abstention there would
+    // just deadlock the tiebreaker's own tie-handling logic.
+    if (targetPlayerId === null) {
+      if (state.tiebreakerActive && state.tiebreakerPhase === 'vote') return
+      const existingVote = currentRound.votes?.find((v: any) => v.voterId === userId)
+      if (existingVote) return
+      currentRound.votes = [
+        ...(currentRound.votes ?? []),
+        { voterId: userId, targetId: null, timestamp: new Date().toISOString() },
+      ]
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+      io.to(`room:${roomId}`).emit('round:vote-cast', { voterId: userId, hasVoted: true })
+      const alivePlayers = state.players.filter((p: any) => p.status === 'alive')
+      io.to(`room:${roomId}`).emit('vote:update' as any, {
+        voteCount: currentRound.votes.length,
+        totalVoters: alivePlayers.length,
+      })
+      await tryEarlyResolve(io, roomId)
+      return
+    }
+
     // ── Cannot vote for yourself ──────────────────────────────────────────────
     if (targetPlayerId === userId) return
 

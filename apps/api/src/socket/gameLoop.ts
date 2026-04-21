@@ -1091,11 +1091,12 @@ async function _resolveRound(io: IO, roomId: string) {
     currentRound.eliminatedPlayerId = null
     currentRound.eliminatedRole = null
 
-    // Persist votes to RoundVote table before tiebreaker
+    // Persist votes to RoundVote table before tiebreaker (skip abstain votes)
     const dbRoundForTie = await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
-    if (dbRoundForTie && (currentRound.votes ?? []).length > 0) {
+    const tieVotesToPersist = (currentRound.votes ?? []).filter((v: any) => v.targetId !== null)
+    if (dbRoundForTie && tieVotesToPersist.length > 0) {
       await prisma.roundVote.createMany({
-        data: (currentRound.votes as any[]).map((v: any) => ({
+        data: tieVotesToPersist.map((v: any) => ({
           roundId:  dbRoundForTie.id,
           voterId:  v.voterId,
           targetId: v.targetId,
@@ -1186,10 +1187,11 @@ async function _resolveRound(io: IO, roomId: string) {
     ? { villagerWord: dbRound.villagerWord, redHandedWord: dbRound.redHandedWord, category: state.wordCategory }
     : null
 
-  // ── Persist votes to RoundVote table ────────────────────────────────────────
-  if (dbRound && (currentRound.votes ?? []).length > 0) {
+  // ── Persist votes to RoundVote table (skip abstain votes) ──────────────────
+  const votesToPersist = (currentRound.votes ?? []).filter((v: any) => v.targetId !== null)
+  if (dbRound && votesToPersist.length > 0) {
     await prisma.roundVote.createMany({
-      data: (currentRound.votes as any[]).map((v: any) => ({
+      data: votesToPersist.map((v: any) => ({
         roundId:  dbRound.id,
         voterId:  v.voterId,
         targetId: v.targetId,
@@ -1803,10 +1805,11 @@ async function continueRoundAfterKamikaze(
     ? { villagerWord: dbRound.villagerWord, redHandedWord: dbRound.redHandedWord, category: state.wordCategory }
     : null
 
-  // Persist this round's votes (kamikaze elimination came from a vote tally)
-  if (dbRound && (currentRound.votes ?? []).length > 0) {
+  // Persist this round's votes (kamikaze elimination came from a vote tally; skip abstain votes)
+  const kamikazeVotesToPersist = (currentRound.votes ?? []).filter((v: any) => v.targetId !== null)
+  if (dbRound && kamikazeVotesToPersist.length > 0) {
     await prisma.roundVote.createMany({
-      data: (currentRound.votes as any[]).map((v: any) => ({
+      data: kamikazeVotesToPersist.map((v: any) => ({
         roundId:  dbRound.id,
         voterId:  v.voterId,
         targetId: v.targetId,

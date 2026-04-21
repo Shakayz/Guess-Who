@@ -335,7 +335,11 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
                   <div key={i} className="flex items-center gap-1.5 text-xs">
                     <span className="text-neutral-400">{getName(v.voterId)}</span>
                     <span className="text-neutral-700">→</span>
-                    <span className="text-white font-medium">{getName(v.targetId)}</span>
+                    {v.targetId === null ? (
+                      <span className="text-neutral-500 italic">🚫</span>
+                    ) : (
+                      <span className="text-white font-medium">{getName(v.targetId)}</span>
+                    )}
                   </div>
                 ))}
               </div>

@@ -16,6 +16,7 @@ import {
 } from './lib/tabBadge'
 import { BottomNav } from './components/BottomNav'
 import { ConnectionStatus } from './components/ConnectionStatus'
+import { MenuMusic } from './components/MenuMusic'
 import { AchievementToastBanner } from './components/achievements/AchievementToastBanner'
 import { DmChatPanel } from './components/DmChatPanel'
 import { MatchmakingBanner } from './components/MatchmakingBanner'
@@ -809,6 +810,7 @@ export default function App() {
       <ActiveGameRestorer />
       <GlobalSocketListeners />
       <ActiveGameGuard />
+      <MenuMusic />
       <PremiumRequiredRedirector />
       <MatchmakingManager />
       <AuthenticatedConnectionStatus />

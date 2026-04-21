@@ -12,7 +12,7 @@ import { VoiceChannel } from '../lib/webrtc'
 import { EliminationReveal } from '../components/EliminationReveal'
 import { FloatingEmote } from '../components/emotes/FloatingEmote'
 import { useEmotesStore } from '../store/emotes'
-import { getEmoteById, DEFAULT_LOADOUT, WORD_CATEGORIES } from '@red-handed/shared'
+import { getEmoteById, DEFAULT_LOADOUT, WORD_CATEGORIES, isRedHandedSideRole, isVillagerSideRole, isJesterRole } from '@red-handed/shared'
 // Overlays removed — they blocked gameplay and caused desync between players
 
 const log = createLogger('game-page')
@@ -1043,6 +1043,19 @@ export default function GamePage() {
   }
   const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
 
+  const gameMode = room?.settings?.gameMode ?? 'normal'
+  const showCamp = gameMode !== 'normal'
+  const camp: 'villager' | 'red_handed' | 'jester' | null =
+    myRole && isRedHandedSideRole(myRole as any) ? 'red_handed'
+    : myRole && isVillagerSideRole(myRole as any) ? 'villager'
+    : myRole && isJesterRole(myRole as any) ? 'jester'
+    : null
+  const CAMP_META: Record<'villager' | 'red_handed' | 'jester', { label: string; color: string; ring: string; dot: string }> = {
+    villager:   { label: t('game.campVillager', 'Villagers'),  color: 'text-emerald-400', ring: 'ring-emerald-700/40', dot: 'bg-emerald-500' },
+    red_handed: { label: t('game.campRedHanded', 'Imposters'), color: 'text-red-400',     ring: 'ring-red-700/40',     dot: 'bg-red-500' },
+    jester:     { label: t('game.campJester', 'Solo'),         color: 'text-pink-400',    ring: 'ring-pink-700/40',    dot: 'bg-pink-500' },
+  }
+
   // Mic controls shown inside the vocal clue card and as a standalone banner
   // during voting / reveal so players can always mute themselves.
   const voiceControlsBlock = (
@@ -1519,6 +1532,19 @@ export default function GamePage() {
                   {t('game.yourWordLabel')}
                 </p>
                 <CategoryBadge categoryKey={myCategory} />
+                {myRole && roleInfo && (
+                  <span className={['ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 bg-neutral-900/60', showCamp && camp ? CAMP_META[camp].ring : 'ring-neutral-700/40'].join(' ')}>
+                    {showCamp && camp && (
+                      <>
+                        <span className={['w-1.5 h-1.5 rounded-full', CAMP_META[camp].dot].join(' ')} />
+                        <span className={CAMP_META[camp].color}>{CAMP_META[camp].label}</span>
+                        <span className="text-neutral-600">·</span>
+                      </>
+                    )}
+                    <span>{roleInfo.icon}</span>
+                    <span className={roleInfo.color}>{roleInfo.label}</span>
+                  </span>
+                )}
               </div>
               <p className="text-3xl font-extrabold tracking-tight text-white" style={{ textShadow: '0 0 20px rgba(139,92,246,0.3)' }}>
                 {myWord ?? '???'}
@@ -1714,7 +1740,16 @@ export default function GamePage() {
                 </div>
               ) : null
             })()}
-            <div className="space-y-2">
+            <div
+              className={[
+                'grid gap-2',
+                alivePlayers.length <= 3
+                  ? 'grid-cols-1'
+                  : alivePlayers.length > 10
+                    ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                    : 'grid-cols-1 sm:grid-cols-2',
+              ].join(' ')}
+            >
               {alivePlayers
                 .filter((p) => p.userId !== user?.id && (!tiebreakerActive || tiebreakerPlayerIds.includes(p.userId)))
                 .map((p) => (
