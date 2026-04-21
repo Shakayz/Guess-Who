@@ -12,7 +12,18 @@ export function LobbyChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [collapsed, setCollapsed] = useState(false)
+  const [unread, setUnread] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const collapsedRef = useRef(collapsed)
+  const userIdRef = useRef(user?.id)
+
+  useEffect(() => {
+    collapsedRef.current = collapsed
+  }, [collapsed])
+
+  useEffect(() => {
+    userIdRef.current = user?.id
+  }, [user?.id])
 
   useEffect(() => {
     const sock = getSocket()
@@ -21,6 +32,9 @@ export function LobbyChat() {
         const next = [...prev, msg]
         return next.length > 100 ? next.slice(-100) : next
       })
+      if (collapsedRef.current && msg.senderId !== userIdRef.current) {
+        setUnread((n) => n + 1)
+      }
     }
     sock.on('chat:message', handler)
     return () => {
@@ -52,12 +66,25 @@ export function LobbyChat() {
   return (
     <div className="card space-y-2 border-neutral-800/60 bg-neutral-900/60">
       <button
-        onClick={() => setCollapsed((c) => !c)}
+        onClick={() => {
+          setCollapsed((c) => {
+            if (c) setUnread(0)
+            return !c
+          })
+        }}
         className="w-full flex items-center justify-between text-left"
         aria-expanded={!collapsed}
       >
-        <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
-          💬 {t('lobby.chatTitle', 'Lobby Chat')}
+        <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
+          <span>💬 {t('lobby.chatTitle', 'Lobby Chat')}</span>
+          {collapsed && unread > 0 && (
+            <span
+              aria-label={t('lobby.chatUnread', '{{count}} new messages', { count: unread })}
+              className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full bg-brand-600 text-white text-[10px] font-bold tabular-nums"
+            >
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
         </p>
         <span className="text-neutral-500 text-xs">{collapsed ? '▾' : '▴'}</span>
       </button>
