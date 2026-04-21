@@ -30,6 +30,18 @@ vi.mock('../../socket/handlers/matchmaking', () => ({
   cleanupEmptyQueue: vi.fn().mockResolvedValue(undefined),
 }))
 
+// Mock the emote loadout lookup — by default return the 5 free basics, which
+// is what the handler would see for a brand-new account without a custom
+// loadout persisted yet. Tests that need a custom loadout can override this.
+vi.mock('../../routes/emotes', () => ({
+  getUserLoadout: vi.fn().mockResolvedValue({
+    ownedIds: ['thumbs_up', 'surprise', 'thinking', 'laugh', 'scream'],
+    loadout: ['thumbs_up', 'surprise', 'thinking', 'laugh', 'scream'],
+    maxLoadout: 10,
+  }),
+  emoteRoutes: vi.fn(),
+}))
+
 // Helper to build a mock socket
 function makeSocket(overrides: Partial<any> = {}) {
   const listeners: Record<string, Function> = {}
@@ -239,7 +251,7 @@ describe('emote:send handler', () => {
     io._runMiddleware(socket, next)
     io._fire('connection', socket)
 
-    socket._fire('emote:send', { emoji: '👍' })
+    await socket._fire('emote:send', { emoji: '👍' })
 
     expect(io.to).toHaveBeenCalledWith('room:room-1')
     expect(io._emit).toHaveBeenCalledWith('emote:receive', expect.objectContaining({
@@ -248,7 +260,7 @@ describe('emote:send handler', () => {
     }))
   })
 
-  it('does nothing for invalid emoji', async () => {
+  it('does nothing for an emote that is not in the sender loadout', async () => {
     const { registerSocketHandlers } = await import('../../socket/index')
     const io = makeIo()
     const socket = makeSocket()
@@ -260,7 +272,8 @@ describe('emote:send handler', () => {
     io._runMiddleware(socket, next)
     io._fire('connection', socket)
 
-    socket._fire('emote:send', { emoji: '💀' })
+    // 💀 → `skull` (epic) — not in the default free loadout mocked above.
+    await socket._fire('emote:send', { emoji: '💀' })
     expect(io._emit).not.toHaveBeenCalled()
   })
 
@@ -276,7 +289,7 @@ describe('emote:send handler', () => {
     io._runMiddleware(socket, next)
     io._fire('connection', socket)
 
-    socket._fire('emote:send', { emoji: '😮' })
+    await socket._fire('emote:send', { emoji: '😮' })
     expect(io._emit).not.toHaveBeenCalled()
   })
 })

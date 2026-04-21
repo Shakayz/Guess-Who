@@ -56,16 +56,19 @@ for (const t of RANK_TIERS) {
     xpReward: reward.xp,
     coinReward: reward.stars,
   })
+  // Tier achievements require at least one ranked game played — otherwise the
+  // DB default rankTier='wooden' would unlock the wooden achievement for every
+  // new user before they ever queued ranked.
   tierEvals.push({
     key: t.key,
     event: 'rank_changed',
-    check: (ctx) => (RANK_ORDER[ctx.stats.rankTier] ?? 0) >= (RANK_ORDER[t.tier] ?? 0),
+    check: (ctx) => ctx.stats.rankedGames > 0 && (RANK_ORDER[ctx.stats.rankTier] ?? 0) >= (RANK_ORDER[t.tier] ?? 0),
   })
   // Also fire on game_end so players who earned the tier pre-feature still unlock.
   tierEvals.push({
     key: t.key,
     event: 'game_end',
-    check: (ctx) => (RANK_ORDER[ctx.stats.rankTier] ?? 0) >= (RANK_ORDER[t.tier] ?? 0),
+    check: (ctx) => ctx.stats.rankedGames > 0 && (RANK_ORDER[ctx.stats.rankTier] ?? 0) >= (RANK_ORDER[t.tier] ?? 0),
   })
 }
 

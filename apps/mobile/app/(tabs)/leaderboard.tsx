@@ -16,6 +16,7 @@ import type { RankTier } from '@red-handed/shared'
 import { api } from '../../lib/api'
 import { useResponsive } from '../../lib/responsive'
 import { LANGUAGES, findLanguage } from '../../i18n/languages'
+import { SlideUp, PopIn, BounceIn, GlowPulse, FloatSoft, Shimmer } from '../../components/anim/AnimatedViews'
 
 interface LeaderboardEntry {
   id: string
@@ -115,6 +116,7 @@ export default function LeaderboardScreen() {
     const rankCfg = RANK_CONFIG[item.rank] ?? RANK_CONFIG.wooden
 
     return (
+      <SlideUp delay={Math.min(40 + index * 40, 600)}>
       <TouchableOpacity
         onPress={() => navigateToPlayer(item.id)}
         className="flex-row items-center mb-2 bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden"
@@ -161,6 +163,7 @@ export default function LeaderboardScreen() {
           <Text className="text-violet-600 font-bold" style={{ fontSize: 9 * fontScale }}>LP</Text>
         </View>
       </TouchableOpacity>
+      </SlideUp>
     )
   }
 
@@ -226,10 +229,15 @@ export default function LeaderboardScreen() {
             {/* Podium header — hidden while searching */}
             {!isSearching && (
               <View className="items-center pb-2" style={{ paddingHorizontal: px }}>
-                <View className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-700/40 bg-amber-950/20 mb-1">
+                <PopIn>
+                <GlowPulse style={{ borderRadius: 999 }}>
+                <View className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-700/40 bg-amber-950/20 mb-1 overflow-hidden">
+                  <Shimmer />
                   <Text style={{ fontSize: 12 }}>🏆</Text>
                   <Text className="text-amber-400 font-bold text-xs uppercase tracking-widest">Top Players</Text>
                 </View>
+                </GlowPulse>
+                </PopIn>
               </View>
             )}
 
@@ -248,32 +256,46 @@ export default function LeaderboardScreen() {
                     // Podium platform heights
                     const platformH = isFirst ? 56 : i === 0 ? 40 : 28
 
+                    const podiumDelay = isFirst ? 280 : 120 + i * 80
+                    const avatarInner = (
+                      <View
+                        className="rounded-full items-center justify-center mb-2"
+                        style={{
+                          width: circleSz,
+                          height: circleSz,
+                          backgroundColor: isFirst ? '#4c1d95' : '#1c1c1c',
+                          borderWidth: 2,
+                          borderColor: isFirst ? '#8b5cf6' : i === 0 ? '#92400e' : '#374151',
+                        }}
+                      >
+                        <Text
+                          className="text-white font-bold"
+                          style={{ fontSize: size.font }}
+                        >
+                          {player.username.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )
                     return (
+                      <BounceIn key={player.id} delay={podiumDelay}>
                       <TouchableOpacity
-                        key={player.id}
                         onPress={() => navigateToPlayer(player.id)}
                         className="items-center"
                         style={{ marginBottom: 0, flex: isFirst ? 1.1 : 1 }}
                         activeOpacity={0.7}
                       >
-                        <Text style={{ fontSize: isFirst ? 28 : 22, marginBottom: 4 }}>{medal}</Text>
-                        <View
-                          className="rounded-full items-center justify-center mb-2"
-                          style={{
-                            width: circleSz,
-                            height: circleSz,
-                            backgroundColor: isFirst ? '#4c1d95' : '#1c1c1c',
-                            borderWidth: 2,
-                            borderColor: isFirst ? '#8b5cf6' : i === 0 ? '#92400e' : '#374151',
-                          }}
-                        >
-                          <Text
-                            className="text-white font-bold"
-                            style={{ fontSize: size.font }}
-                          >
-                            {player.username.charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
+                        {isFirst ? (
+                          <FloatSoft>
+                            <Text style={{ fontSize: 28, marginBottom: 4, textShadowColor: 'rgba(251,191,36,0.7)', textShadowRadius: 16, textShadowOffset: { width: 0, height: 0 } }}>{medal}</Text>
+                          </FloatSoft>
+                        ) : (
+                          <Text style={{ fontSize: 22, marginBottom: 4 }}>{medal}</Text>
+                        )}
+                        {isFirst ? (
+                          <GlowPulse style={{ borderRadius: 999 }}>{avatarInner}</GlowPulse>
+                        ) : (
+                          avatarInner
+                        )}
                         <Text
                           className="text-white font-bold text-center"
                           numberOfLines={1}
@@ -307,6 +329,7 @@ export default function LeaderboardScreen() {
                           <Text className="text-neutral-600" style={{ fontSize: 9 }}>LP</Text>
                         </View>
                       </TouchableOpacity>
+                      </BounceIn>
                     )
                   })}
                 </View>

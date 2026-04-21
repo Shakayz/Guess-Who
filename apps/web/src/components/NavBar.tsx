@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
+import { PremiumBadge } from './PremiumBadge'
 import { api } from '../lib/api'
 import { getSocket } from '../lib/socket'
 import { LANGUAGES, findLanguage } from '../i18n/languages'
@@ -25,6 +26,7 @@ export function NavBar() {
   //   3. socket `game:finished` (rewards were just credited)
   const token = useAuthStore((s) => s.token)
   const [starCoins, setStarCoins] = useState(0)
+  const [isPremium, setIsPremium] = useState(false)
   const [streak, setStreak] = useState<{ count: number; lastPlayedAt: string | null }>({
     count: 0,
     lastPlayedAt: null,
@@ -32,16 +34,18 @@ export function NavBar() {
   useEffect(() => {
     if (!token) {
       setStarCoins(0)
+      setIsPremium(false)
       setStreak({ count: 0, lastPlayedAt: null })
       return
     }
     let cancelled = false
     const fetchBalance = () => {
       api
-        .get<{ starCoins?: number; dailyStreakCount?: number; lastPlayedAt?: string | null }>('/auth/me')
+        .get<{ starCoins?: number; dailyStreakCount?: number; lastPlayedAt?: string | null; isPremium?: boolean }>('/auth/me')
         .then((me) => {
           if (cancelled) return
           setStarCoins(me.starCoins ?? 0)
+          setIsPremium(!!me.isPremium)
           setStreak({
             count: me.dailyStreakCount ?? 0,
             lastPlayedAt: me.lastPlayedAt ?? null,
@@ -63,11 +67,20 @@ export function NavBar() {
     if (sock && typeof sock.on === 'function') {
       sock.on('game:finished', fetchBalance)
     }
+    // Other views (e.g. AchievementsPage claim flow) dispatch this after
+    // actions that mutate the wallet, so the chip updates without an F5.
+    const onWallet = (e: Event) => {
+      const next = (e as CustomEvent<{ starCoins?: number }>).detail?.starCoins
+      if (typeof next === 'number') setStarCoins(next)
+      else fetchBalance()
+    }
+    window.addEventListener('wallet:balance', onWallet)
     return () => {
       cancelled = true
       if (sock && typeof sock.off === 'function') {
         sock.off('game:finished', fetchBalance)
       }
+      window.removeEventListener('wallet:balance', onWallet)
     }
   }, [token, location.pathname])
   React.useEffect(() => {
@@ -137,10 +150,10 @@ export function NavBar() {
 
       <div className="flex items-center gap-1">
         {/* Daily streak chip — fire + consecutive-day count (Duolingo-style).
-            Hidden when count is 0. Bright orange when the streak is alive
-            (played today or yesterday UTC); dim when the stored count is
-            stale and will reset on next game. */}
-        {token && streak.count > 0 && (
+            Always visible when logged in: bright orange when the streak is
+            alive (played today or yesterday UTC); dim grey at zero or when
+            the stored count is stale and will reset on next game. */}
+        {token && (
           <span
             aria-label={t('nav.streak', { count: streak.count })}
             title={t('nav.streak', { count: streak.count })}
@@ -212,10 +225,24 @@ export function NavBar() {
 
         <button
           onClick={() => navigate('/profile')}
-          className="px-3 py-1.5 text-sm text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-all font-medium"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-all font-medium"
         >
-          {user?.username}
+          <span>{user?.username}</span>
+          {isPremium && <PremiumBadge size="xs" />}
         </button>
+        {/* Upsell entry-point — only shown to non-premium users. Takes them
+            directly to the Shop's Premium tab. Keeps the crown visible in the
+            top bar without crowding premium users' chrome. */}
+        {token && !isPremium && (
+          <button
+            onClick={() => navigate('/shop?tab=premium')}
+            aria-label="Go Premium"
+            title="Go Premium"
+            className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all"
+          >
+            <span className="text-sm">👑</span>
+          </button>
+        )}
         <button
           onClick={() => navigate('/settings')}
           aria-label={t('nav.settings')}

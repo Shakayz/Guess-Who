@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Room, Round, ChatMessage, RewardSummary } from '@red-handed/shared'
+import type { Room, Round, ChatMessage, RewardSummary, WordCategory } from '@red-handed/shared'
 import { createLogger } from '../lib/logger'
 
 const log = createLogger('game')
@@ -23,6 +23,7 @@ interface GameState {
   myRole: string | null
   myWord: string | null
   myVillagerWord: string | null
+  myCategory: WordCategory | null
   detectiveRevealUsed: boolean
   revealedPlayer: { userId: string; username: string; role: string } | null
   twinPartner: TwinPartner | null
@@ -31,7 +32,7 @@ interface GameState {
   setRoom: (room: Room) => void
   setRound: (round: Round) => void
   addCompletedRound: (round: Round) => void
-  setRoleAndWord: (role: string, word: string, villagerWord?: string) => void
+  setRoleAndWord: (role: string, word: string, villagerWord?: string, category?: WordCategory) => void
   setDetectiveRevealUsed: () => void
   setRevealedPlayer: (player: { userId: string; username: string; role: string } | null) => void
   setTwinPartner: (partner: TwinPartner | null) => void
@@ -47,6 +48,7 @@ export const useGameStore = create<GameState>((set) => ({
   myRole: null,
   myWord: null,
   myVillagerWord: null,
+  myCategory: null,
   detectiveRevealUsed: false,
   revealedPlayer: null,
   twinPartner: null,
@@ -62,9 +64,9 @@ export const useGameStore = create<GameState>((set) => ({
   },
   addCompletedRound: (round) =>
     set((s) => ({ completedRounds: [...s.completedRounds.slice(-19), round] })),
-  setRoleAndWord: (myRole, myWord, myVillagerWord) => {
+  setRoleAndWord: (myRole, myWord, myVillagerWord, myCategory) => {
     log.info('role and word set', { role: myRole })
-    set({ myRole, myWord, myVillagerWord: myVillagerWord ?? null })
+    set({ myRole, myWord, myVillagerWord: myVillagerWord ?? null, myCategory: myCategory ?? null })
   },
   setDetectiveRevealUsed: () => set({ detectiveRevealUsed: true }),
   setRevealedPlayer: (revealedPlayer) => set({ revealedPlayer }),
@@ -87,6 +89,7 @@ export const useGameStore = create<GameState>((set) => ({
       myRole: null,
       myWord: null,
       myVillagerWord: null,
+      myCategory: null,
       detectiveRevealUsed: false,
       revealedPlayer: null,
       twinPartner: null,

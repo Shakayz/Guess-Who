@@ -582,7 +582,7 @@ describe('GamePage', () => {
     const emoteBtn = screen.queryByText('👍')
     if (emoteBtn) {
       fireEvent.click(emoteBtn)
-      expect(mockSocketEmit).toHaveBeenCalledWith('emote:send', { emoji: '👍' })
+      expect(mockSocketEmit).toHaveBeenCalledWith('emote:send', { emoteId: 'thumbs_up' })
     }
     expect(document.body).toBeInTheDocument()
   })

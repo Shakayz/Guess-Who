@@ -23,6 +23,7 @@ const mockGame = {
 // needs a `friendship` model even though no profile-related test exercises it.
 const mockFriendship = {
   findMany: vi.fn().mockResolvedValue([]),
+  findFirst: vi.fn().mockResolvedValue(null),
 }
 ;(prisma as any).gameParticipation = mockGameParticipation
 ;(prisma as any).game = mockGame

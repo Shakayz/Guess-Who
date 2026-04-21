@@ -142,7 +142,7 @@ export function DmChatPanel({ friend, onClose }: DmChatPanelProps) {
     <div
       role="dialog"
       aria-label={`Chat with ${friend.username}`}
-      className="fixed bottom-4 right-4 w-[22rem] max-w-[calc(100vw-2rem)] h-[28rem] max-h-[calc(100vh-6rem)] z-[60] animate-slide-up"
+      className="fixed inset-x-3 bottom-20 sm:inset-x-auto sm:right-4 sm:bottom-4 w-auto sm:w-[22rem] max-w-[calc(100vw-1.5rem)] h-[70vh] sm:h-[28rem] max-h-[calc(100vh-6rem)] z-[60] animate-slide-up"
     >
       {/* Soft outer glow — keeps the panel readable when it floats over a
           busy game board. */}
@@ -277,6 +277,8 @@ export function DmChatPanel({ friend, onClose }: DmChatPanelProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={() => setTimeout(() => bottomRef.current?.scrollIntoView({ block: 'end' }), 300)}
+            autoComplete="off"
             maxLength={500}
             className="flex-1 min-w-0 px-3.5 py-2 rounded-xl bg-neutral-900 border border-neutral-700/80 text-white text-sm placeholder-neutral-500 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-600/30 transition-all"
           />

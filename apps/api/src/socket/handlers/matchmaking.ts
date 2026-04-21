@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io'
-import { generateRoomCode, MATCHMAKING_CONFIG } from '@red-handed/shared'
+import { generateRoomCode, MATCHMAKING_CONFIG, SUPPORTED_LOCALES } from '@red-handed/shared'
 import type { MatchmakingStatus } from '@red-handed/shared'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
@@ -18,8 +18,7 @@ const RANKED_LP_THRESHOLDS = [
   { after:  0, lpRange:  50 },   // 0-15s: ±50 LP
   { after: 15, lpRange: 100 },   // 15-30s: ±100 LP
   { after: 30, lpRange: 200 },   // 30-45s: ±200 LP
-  { after: 45, lpRange: 400 },   // 45-60s: ±400 LP
-  { after: 60, lpRange: Infinity }, // 60s+: match anyone
+  { after: 45, lpRange: 400 },   // 45s+: ±400 LP (cap)
 ]
 
 function getRankedLPRange(elapsedSeconds: number): number {
@@ -28,6 +27,67 @@ function getRankedLPRange(elapsedSeconds: number): number {
     if (elapsedSeconds >= t.after) range = t.lpRange
   }
   return range
+}
+
+// ── Room creation ─────────────────────────────────────────────────────────────
+// Dedicated helper so both unranked and ranked matchmaking go through the same
+// error-surfacing + retry path. The previous inline `.catch(() => null)` ate
+// every Prisma error (unique-constraint collisions, missing columns from a
+// half-applied migration, FK violations) and surfaced a generic "Failed to
+// create room" to clients with no way to diagnose in the logs.
+//
+// Behaviour:
+//   • Logs the real Prisma error (name + message + code, not the whole stack
+//     so prod logs stay readable).
+//   • Retries up to 3 times on the unique-constraint path so a rare 6-char
+//     code collision doesn't kill a match.
+//   • Returns null on terminal failure so callers can bounce players back.
+
+type RoomCreateInput = {
+  hostId: string
+  maxPlayers: number
+  redHandedCount: number
+  isPrivate: boolean
+  language: string
+}
+
+async function createRoomWithRetry(input: RoomCreateInput, ctx: { queueKey: string }) {
+  let lastErr: unknown = null
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await prisma.room.create({
+        data: {
+          code: generateRoomCode(),
+          hostId: input.hostId,
+          maxPlayers: input.maxPlayers,
+          redHandedCount: input.redHandedCount,
+          speakingTimeSeconds: 30,
+          votingTimeSeconds: 30,
+          isPrivate: input.isPrivate,
+          language: input.language,
+        },
+      })
+    } catch (err: any) {
+      lastErr = err
+      // Prisma P2002 = unique-constraint violation. The only unique column on
+      // Room is `code`, so this is always a room-code collision. Retry with a
+      // fresh code; any other error is terminal.
+      if (err?.code === 'P2002') continue
+      break
+    }
+  }
+  const e = lastErr as any
+  log.error(
+    {
+      queueKey: ctx.queueKey,
+      hostId: input.hostId,
+      errorName: e?.name,
+      errorCode: e?.code,
+      errorMessage: e?.message,
+    },
+    'match execute failed: room creation error',
+  )
+  return null
 }
 
 // ── Per-queue matchmaking windows ──────────────────────────────────────────────
@@ -97,29 +157,31 @@ async function executeMatch(io: Server<any, any>, queueKey: string, count: numbe
     return
   }
 
-  // Extract locale from queue key: matchmaking:{gameMode}:{locale}
+  // Extract locale + vocal flag from queue key: matchmaking:{gameMode}:{locale}[:v1]
+  // The trailing `:v1` segment (if present) signals the vocal-mode queue partition.
   const parts = queueKey.split(':')
   const gameMode = parts[1] ?? 'normal'
   const locale = parts[2] ?? 'en'
+  const vocalMode = parts[3] === 'v1'
 
   const hostPlayer = players[0]
   const redHandedCount = computeRedHandedCount(players.length)
+  // Clamp vocal speaking time to the same [5, 60] band the lobby editor uses.
+  // We take the host's preference; everyone in this queue already opted into
+  // vocal mode, so the host sets the exact turn length.
+  const vocalSpeakingTimeSeconds = vocalMode
+    ? Math.max(5, Math.min(60, Number(hostPlayer?.vocalSpeakingTimeSeconds) || 10))
+    : 10
 
-  const room = await prisma.room.create({
-    data: {
-      code: generateRoomCode(),
-      hostId: hostPlayer.userId,
-      maxPlayers: IDEAL_PLAYERS,
-      redHandedCount,
-      speakingTimeSeconds: 30,
-      votingTimeSeconds: 30,
-      isPrivate: false,
-      language: locale,
-    },
-  }).catch(() => null)
+  const room = await createRoomWithRetry({
+    hostId: hostPlayer.userId,
+    maxPlayers: IDEAL_PLAYERS,
+    redHandedCount,
+    isPrivate: false,
+    language: locale,
+  }, { queueKey })
 
   if (!room) {
-    log.error({ queueKey, playerCount: players.length }, 'match execute failed: room creation error')
     // Room creation failed — notify all players
     for (const p of players) {
       const sid = onlineUsers.get(p.userId)
@@ -132,7 +194,11 @@ async function executeMatch(io: Server<any, any>, queueKey: string, count: numbe
 
   log.info({ queueKey, roomId: room.id, roomCode: room.code, playerCount: players.length }, 'match found')
 
-  const matchedCategories: string[] = hostPlayer.categories ?? []
+  // Unranked (normal/special) plays across ALL categories combined, matching
+  // ranked. Category filtering is reserved for create-lobby and offline, which
+  // are the customizable modes. Queue entries may still carry `categories`
+  // from older clients — we intentionally ignore them here.
+  const matchedCategories: string[] = []
 
   await redis.set(`room:${room.id}:state`, JSON.stringify({
     status: 'waiting',
@@ -143,6 +209,8 @@ async function executeMatch(io: Server<any, any>, queueKey: string, count: numbe
     maxRounds: 5,
     isMatchmade: true,
     expectedPlayers: players.length,
+    vocalMode,
+    vocalSpeakingTimeSeconds,
   }), 'EX', 21600)
 
   for (const player of players) {
@@ -258,11 +326,14 @@ async function tickRankedQueue(io: Server<any, any>, queueKey: string, window: M
       const maxLP = group[RANKED_PLAYERS - 1].rankPoints ?? 0
       const lpSpread = maxLP - minLP
 
-      // Use the widest LP window among the group (longest waiter gets priority)
+      // Use the widest LP window among the group (longest waiter gets priority).
+      // Premium players get a +15s "head start" on LP window widening so they
+      // match faster at the edge of their skill band.
       const widestRange = Math.max(
         ...group.map((p: any) => {
           const elapsed = Math.floor((now - (p.joinedAt ?? window.startedAt)) / 1000)
-          return getRankedLPRange(elapsed)
+          const bonus = p.isPremium ? 15 : 0
+          return getRankedLPRange(elapsed + bonus)
         })
       )
 
@@ -295,21 +366,15 @@ async function executeRankedMatch(io: Server<any, any>, queueKey: string, player
   // Ranked is locked at exactly 7 villagers + 3 redHanded.
   const redHandedCount = 3
 
-  const room = await prisma.room.create({
-    data: {
-      code: generateRoomCode(),
-      hostId: hostPlayer.userId,
-      maxPlayers: RANKED_PLAYERS,
-      redHandedCount,
-      speakingTimeSeconds: 30,
-      votingTimeSeconds: 30,
-      isPrivate: false,
-      language: locale,
-    },
-  }).catch(() => null)
+  const room = await createRoomWithRetry({
+    hostId: hostPlayer.userId,
+    maxPlayers: RANKED_PLAYERS,
+    redHandedCount,
+    isPrivate: false,
+    language: locale,
+  }, { queueKey })
 
   if (!room) {
-    log.error({ queueKey, playerCount: players.length }, 'ranked match failed: room creation error')
     for (const p of players) {
       const sid = onlineUsers.get(p.userId)
       if (sid) io.to(sid).emit('matchmaking:error' as any, { message: 'Failed to create room.' })
@@ -373,16 +438,25 @@ export function registerMatchmakingHandlers(
 ) {
   const userId: string = (socket as any).userId
 
-  socket.on('matchmaking:join', async (data: { gameMode: string; categories: string[] }) => {
+  socket.on('matchmaking:join', async (data: { gameMode: string; categories: string[]; vocalMode?: boolean; vocalSpeakingTimeSeconds?: number; locale?: string }) => {
     const gameMode = data?.gameMode ?? 'normal'
+    // Vocal mode is only valid for unranked queues (normal/special). Ranked is
+    // always text-only to keep competitive integrity — mirror the lobby rule.
+    const vocalMode = gameMode !== 'ranked' && !!data?.vocalMode
+    const vocalSpeakingTimeSeconds = Math.max(5, Math.min(60, Number(data?.vocalSpeakingTimeSeconds) || 10))
 
-    // Fetch user's locale + balance from DB — the queue is language-scoped
-    // and we want to bounce broke players before they enter the queue.
+    // Fetch user's stored locale + balance from DB. The DB locale is a fallback
+    // only — we prefer the language the user has actively selected in the UI
+    // header (sent on the join payload) so flag changes group players together
+    // immediately instead of waiting for the DB write to round-trip.
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { locale: true, starCoins: true },
     })
-    const locale = user?.locale ?? 'en'
+    const requestedLocale = typeof data?.locale === 'string' ? data.locale.split('-')[0].toLowerCase() : ''
+    const locale = (SUPPORTED_LOCALES as readonly string[]).includes(requestedLocale)
+      ? requestedLocale
+      : (user?.locale ?? 'en')
 
     // Preventive insufficient-stars check — saves the player from waiting in
     // queue only to be kicked out of startGameForRoom with INSUFFICIENT_STARS.
@@ -396,26 +470,44 @@ export function registerMatchmakingHandlers(
       return
     }
 
-    const queueKey = `matchmaking:${gameMode}:${locale}`
-    log.info({ userId, gameMode, locale, queueKey }, 'matchmaking:join')
+    // Partition vocal-opt-in players into their own queue so they never get
+    // surprised by a silent lobby (and vice versa). The `:v1` suffix is the
+    // signal picked up by executeMatch to flip the room's vocalMode flag.
+    const queueKey = vocalMode
+      ? `matchmaking:${gameMode}:${locale}:v1`
+      : `matchmaking:${gameMode}:${locale}`
+    log.info({ userId, gameMode, locale, vocalMode, queueKey }, 'matchmaking:join')
 
-    // Remove stale entry if any (in case of reconnect)
-    const current = await redis.lrange(queueKey, 0, -1)
-    for (const entry of current) {
-      try {
-        const parsed = JSON.parse(entry)
-        if (parsed.userId === userId) {
-          await redis.lrem(queueKey, 0, entry)
-        }
-      } catch {}
+    // Remove stale entries across every supported-locale partition (text +
+    // vocal). The user may have switched the language flag or vocal toggle
+    // since their last join, and we never want a ghost entry to keep them
+    // double-counted in another bucket.
+    const staleKeys = SUPPORTED_LOCALES.flatMap((loc) => [
+      `matchmaking:${gameMode}:${loc}`,
+      `matchmaking:${gameMode}:${loc}:v1`,
+    ])
+    for (const key of staleKeys) {
+      const current = await redis.lrange(key, 0, -1)
+      for (const entry of current) {
+        try {
+          const parsed = JSON.parse(entry)
+          if (parsed.userId === userId) {
+            await redis.lrem(key, 0, entry)
+          }
+        } catch {}
+      }
     }
 
-    // Fetch rank points for ranked queue
-    const userFull = await prisma.user.findUnique({ where: { id: userId }, select: { rankPoints: true } })
+    // Fetch rank points + premium status for ranked queue
+    const userFull = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { rankPoints: true, premiumUntil: true },
+    })
     const rankPoints = userFull?.rankPoints ?? 0
+    const isPremium = !!(userFull?.premiumUntil && userFull.premiumUntil.getTime() > Date.now())
 
     // Add to queue
-    const entry = JSON.stringify({ userId, socketId: socket.id, categories: data?.categories ?? [], locale, rankPoints, joinedAt: Date.now() })
+    const entry = JSON.stringify({ userId, socketId: socket.id, categories: data?.categories ?? [], locale, rankPoints, isPremium, vocalSpeakingTimeSeconds, joinedAt: Date.now() })
     await redis.rpush(queueKey, entry)
     await redis.expire(queueKey, 300) // 5-min TTL
 
@@ -453,22 +545,31 @@ export function registerMatchmakingHandlers(
 
   socket.on('matchmaking:leave', async (data: { gameMode?: string }) => {
     const gameMode = data?.gameMode ?? 'normal'
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
-    const locale = user?.locale ?? 'en'
-    const queueKey = `matchmaking:${gameMode}:${locale}`
-    log.info({ userId, gameMode, locale, queueKey }, 'matchmaking:leave')
-    const current = await redis.lrange(queueKey, 0, -1)
-    for (const entry of current) {
-      try {
-        if (JSON.parse(entry).userId === userId) {
-          await redis.lrem(queueKey, 0, entry)
-          break
-        }
-      } catch {}
+    // We can't trust user.locale from the DB anymore — joins now key on the
+    // UI-selected language, which may differ from the stored locale. Scan
+    // every supported-locale partition (text + vocal) so we never leave a
+    // ghost entry behind. The list is small (~10) so it's cheap.
+    const queueKeys = SUPPORTED_LOCALES.flatMap((loc) => [
+      `matchmaking:${gameMode}:${loc}`,
+      `matchmaking:${gameMode}:${loc}:v1`,
+    ])
+    log.info({ userId, gameMode }, 'matchmaking:leave')
+    for (const queueKey of queueKeys) {
+      const current = await redis.lrange(queueKey, 0, -1)
+      for (const entry of current) {
+        try {
+          if (JSON.parse(entry).userId === userId) {
+            await redis.lrem(queueKey, 0, entry)
+            break
+          }
+        } catch {}
+      }
     }
     socket.emit('matchmaking:left' as any, {})
 
-    // Clean up window if queue is now empty
-    await cleanupEmptyQueue(queueKey)
+    // Clean up windows if queues are now empty
+    for (const queueKey of queueKeys) {
+      await cleanupEmptyQueue(queueKey)
+    }
   })
 }

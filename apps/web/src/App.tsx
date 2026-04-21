@@ -5,12 +5,18 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from './store/auth'
 import { useSocialStore } from './store/social'
 import { useGameStore } from './store/game'
+import { useMatchmakingStore } from './store/matchmaking'
 import { getSocket, connectSocket, disconnectSocket } from './lib/socket'
 import { api } from './lib/api'
 import { BottomNav } from './components/BottomNav'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { AchievementToastBanner } from './components/achievements/AchievementToastBanner'
 import { DmChatPanel } from './components/DmChatPanel'
+import { MatchmakingBanner } from './components/MatchmakingBanner'
+import { ActiveLobbyBanner } from './components/ActiveLobbyBanner'
+import type { MatchmakingStatus } from '@red-handed/shared'
+import { InsufficientCoinsModal } from './components/InsufficientCoinsModal'
+import { useTranslation } from 'react-i18next'
 import { createLogger } from './lib/logger'
 import { lazyWithRetry } from './lib/lazyWithRetry'
 
@@ -22,9 +28,9 @@ const log = createLogger('app')
 // user. See apps/web/src/lib/lazyWithRetry.ts for details.
 const HomePage        = lazyWithRetry(() => import('./pages/HomePage'))
 const LobbyPage       = lazyWithRetry(() => import('./pages/LobbyPage'))
+const PublicLobbiesPage = lazyWithRetry(() => import('./pages/PublicLobbiesPage'))
 const GamePage        = lazyWithRetry(() => import('./pages/GamePage'))
 const ProfilePage     = lazyWithRetry(() => import('./pages/ProfilePage'))
-// const PremiumPage     = lazyWithRetry(() => import('./pages/PremiumPage'))  // TODO: re-enable when premium is ready
 const LeaderboardPage = lazyWithRetry(() => import('./pages/LeaderboardPage'))
 const ResultsPage     = lazyWithRetry(() => import('./pages/ResultsPage'))
 const AuthPage              = lazyWithRetry(() => import('./pages/AuthPage'))
@@ -116,9 +122,12 @@ function ActiveGameRestorer() {
           log.info('active game detected', { code: data.room.code, status: data.room.status })
           useGameStore.getState().setRoom(data.room)
         } else {
-          // No active game on server — clear any stale client state
+          // No active game on server — clear any stale client state. A
+          // `waiting` lobby is NOT reported as active by /rooms/active (the
+          // endpoint only looks at GameParticipation), so we must preserve
+          // it here or the ActiveLobbyBanner would never survive a refresh.
           const store = useGameStore.getState()
-          if (store.room) {
+          if (store.room && store.room.status !== 'waiting') {
             log.info('clearing stale game state')
             store.reset()
           }
@@ -157,6 +166,19 @@ interface FriendRequestEvent {
   from: { id: string; username: string }
 }
 
+interface FriendAcceptedEvent {
+  friendshipId: string
+  by: { id: string; username: string }
+}
+
+interface GiftReceivedEvent {
+  giftId: string
+  from: { id: string; username: string }
+  coinAmount: number
+  premiumPlanId: string | null
+  message: string | null
+}
+
 function GlobalSocketListeners() {
   const token = useAuthStore((s) => s.token)
   const activeDm = useSocialStore((s) => s.activeDm)
@@ -181,6 +203,11 @@ function GlobalSocketListeners() {
     const handleDmReceive = (data: DmReceiveEvent) => {
       if (!activeDm || activeDm.friendId !== data.senderId) {
         incrementUnread(data.senderId)
+        useSocialStore.getState().pushDmToast({
+          senderId: data.senderId,
+          senderUsername: data.senderUsername,
+          text: data.text,
+        })
       }
     }
 
@@ -190,6 +217,16 @@ function GlobalSocketListeners() {
 
     const handleFriendRequest = (data: FriendRequestEvent) => {
       setPendingFriendRequest({ friendshipId: data.friendshipId, fromId: data.from.id, fromUsername: data.from.username })
+    }
+
+    const handleFriendAccepted = (data: FriendAcceptedEvent) => {
+      // Clear any lingering request popup for the same friendship and drop
+      // a small "now friends" toast. FriendsPage fetches on mount so no
+      // separate cache invalidation is needed here.
+      if (useSocialStore.getState().pendingFriendRequest?.friendshipId === data.friendshipId) {
+        setPendingFriendRequest(null)
+      }
+      useSocialStore.getState().pushFriendAcceptedToast(data.by?.username ?? 'Someone')
     }
 
     // Global game:finished listener — catches game end even if the player
@@ -232,18 +269,35 @@ function GlobalSocketListeners() {
       })
     }
 
+    // Coins/premium are already credited server-side before this fires — the
+    // refetch just pulls the new starCoins so the header chip updates without
+    // waiting for the next query interval.
+    const handleGiftReceived = (data: GiftReceivedEvent) => {
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+      useSocialStore.getState().pushGiftToast({
+        senderUsername: data.from?.username ?? 'Someone',
+        coinAmount: data.coinAmount,
+        premiumPlanId: data.premiumPlanId ?? null,
+        message: data.message ?? null,
+      })
+    }
+
     sock.on('dm:receive', handleDmReceive)
     sock.on('room:invited', handleRoomInvited)
     sock.on('friend:request', handleFriendRequest)
+    sock.on('friend:accepted', handleFriendAccepted)
     sock.on('game:finished', handleGameFinished)
     sock.on('achievement:unlocked', handleAchievementUnlocked)
+    sock.on('gift:received', handleGiftReceived)
 
     return () => {
       sock.off('dm:receive', handleDmReceive)
       sock.off('room:invited', handleRoomInvited)
       sock.off('friend:request', handleFriendRequest)
+      sock.off('friend:accepted', handleFriendAccepted)
       sock.off('game:finished', handleGameFinished)
       sock.off('achievement:unlocked', handleAchievementUnlocked)
+      sock.off('gift:received', handleGiftReceived)
     }
   }, [token, activeDm, incrementUnread, setPendingInvite, setPendingFriendRequest, navigate, queryClient])
 
@@ -273,10 +327,10 @@ function FriendRequestBanner() {
   }
 
   return (
-    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
-      <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-emerald-700/60 bg-brand-950/90 backdrop-blur shadow-2xl text-sm">
+    <div className="fixed top-20 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-50 animate-slide-up">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-2xl border border-emerald-700/60 bg-brand-950/90 backdrop-blur shadow-2xl text-sm">
         <span className="text-lg">👤</span>
-        <span className="text-white font-medium">
+        <span className="text-white font-medium flex-1 min-w-0">
           <span className="text-emerald-400 font-bold">{pendingFriendRequest.fromUsername}</span> sent you a friend request!
         </span>
         <button
@@ -296,6 +350,215 @@ function FriendRequestBanner() {
   )
 }
 
+function DmToastStack() {
+  const toasts = useSocialStore((s) => s.dmToasts)
+  if (toasts.length === 0) return null
+  return (
+    <div className="fixed bottom-24 inset-x-3 sm:inset-x-auto sm:right-4 z-50 flex flex-col gap-2 sm:max-w-sm pointer-events-none">
+      {toasts.map((toast, i) => (
+        <DmToastItem
+          key={toast.id}
+          id={toast.id}
+          senderId={toast.senderId}
+          senderUsername={toast.senderUsername}
+          text={toast.text}
+          index={i}
+        />
+      ))}
+    </div>
+  )
+}
+
+function DmToastItem({
+  id,
+  senderId,
+  senderUsername,
+  text,
+  index,
+}: {
+  id: string
+  senderId: string
+  senderUsername: string
+  text: string
+  index: number
+}) {
+  const dismiss = useSocialStore((s) => s.dismissDmToast)
+  const setActiveDm = useSocialStore((s) => s.setActiveDm)
+  const clearUnread = useSocialStore((s) => s.clearUnread)
+
+  useEffect(() => {
+    const timer = setTimeout(() => dismiss(id), 6000)
+    return () => clearTimeout(timer)
+  }, [id, dismiss])
+
+  return (
+    <div
+      style={{ animationDelay: `${index * 60}ms` }}
+      className="pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-2xl border border-brand-600/60 bg-brand-950/95 backdrop-blur shadow-2xl text-sm animate-slide-up hover:scale-[1.02] transition-transform"
+    >
+      <button
+        type="button"
+        onClick={() => {
+          setActiveDm({ friendId: senderId, friendUsername: senderUsername })
+          clearUnread(senderId)
+          dismiss(id)
+        }}
+        className="flex items-start gap-3 text-left flex-1 min-w-0"
+      >
+        <span className="text-xl">💬</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-brand-300">New message</p>
+          <p className="text-white font-semibold truncate">
+            <span className="text-brand-400">{senderUsername}</span>
+          </p>
+          <p className="text-neutral-300 text-xs truncate">{text}</p>
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={() => dismiss(id)}
+        aria-label="Dismiss"
+        className="shrink-0 text-neutral-500 hover:text-white transition-colors text-lg leading-none"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
+function GiftToastStack() {
+  const toasts = useSocialStore((s) => s.giftToasts)
+  const navigate = useNavigate()
+  const dismiss = useSocialStore((s) => s.dismissGiftToast)
+
+  if (toasts.length === 0) return null
+  return (
+    <div className="fixed bottom-24 inset-x-3 sm:inset-x-auto sm:right-4 z-50 flex flex-col gap-2 sm:max-w-sm pointer-events-none">
+      {toasts.map((toast, i) => {
+        const describe = toast.premiumPlanId
+          ? toast.premiumPlanId === 'yearly'
+            ? 'Premium · 1 year'
+            : 'Premium · 1 month'
+          : `${toast.coinAmount.toLocaleString()} ⭐`
+        return (
+          <GiftToastItem
+            key={toast.id}
+            id={toast.id}
+            senderUsername={toast.senderUsername}
+            describe={describe}
+            message={toast.message}
+            index={i}
+            onOpen={() => {
+              dismiss(toast.id)
+              navigate('/shop')
+            }}
+            onDismiss={() => dismiss(toast.id)}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+function GiftToastItem({
+  id,
+  senderUsername,
+  describe,
+  message,
+  index,
+  onOpen,
+  onDismiss,
+}: {
+  id: string
+  senderUsername: string
+  describe: string
+  message: string | null
+  index: number
+  onOpen: () => void
+  onDismiss: () => void
+}) {
+  const dismiss = useSocialStore((s) => s.dismissGiftToast)
+  useEffect(() => {
+    const timer = setTimeout(() => dismiss(id), 6000)
+    return () => clearTimeout(timer)
+  }, [id, dismiss])
+
+  return (
+    <div
+      style={{ animationDelay: `${index * 60}ms` }}
+      className="pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-2xl border border-amber-600/60 bg-brand-950/95 backdrop-blur shadow-2xl text-sm animate-slide-up hover:scale-[1.02] transition-transform"
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex items-start gap-3 text-left flex-1 min-w-0"
+      >
+        <span className="text-xl">🎁</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-amber-300">Gift received</p>
+          <p className="text-white font-semibold truncate">
+            <span className="text-amber-400">{senderUsername}</span>
+            <span className="text-neutral-300"> sent you </span>
+            <span className="font-bold">{describe}</span>
+          </p>
+          {message && (
+            <p className="text-neutral-300 text-xs italic truncate">"{message}"</p>
+          )}
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        className="shrink-0 text-neutral-500 hover:text-white transition-colors text-lg leading-none"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
+function FriendAcceptedToastStack() {
+  const toasts = useSocialStore((s) => s.friendAcceptedToasts)
+  if (toasts.length === 0) return null
+  return (
+    <div className="fixed bottom-24 inset-x-3 sm:inset-x-auto sm:right-4 z-50 flex flex-col gap-2 sm:max-w-sm pointer-events-none">
+      {toasts.map((toast, i) => (
+        <FriendAcceptedToastItem key={toast.id} id={toast.id} username={toast.username} index={i} />
+      ))}
+    </div>
+  )
+}
+
+function FriendAcceptedToastItem({ id, username, index }: { id: string; username: string; index: number }) {
+  const navigate = useNavigate()
+  const dismiss = useSocialStore((s) => s.dismissFriendAcceptedToast)
+
+  useEffect(() => {
+    const timer = setTimeout(() => dismiss(id), 5000)
+    return () => clearTimeout(timer)
+  }, [id, dismiss])
+
+  return (
+    <button
+      onClick={() => {
+        dismiss(id)
+        navigate('/friends')
+      }}
+      style={{ animationDelay: `${index * 60}ms` }}
+      className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl border border-emerald-600/60 bg-brand-950/95 backdrop-blur shadow-2xl text-sm animate-slide-up hover:scale-[1.02] transition-transform"
+    >
+      <span className="text-xl">🤝</span>
+      <div className="text-left">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Friend added</p>
+        <p className="text-white font-semibold">
+          You and <span className="text-emerald-400">{username}</span> are now friends!
+        </p>
+      </div>
+    </button>
+  )
+}
+
 function InviteBanner() {
   const navigate = useNavigate()
   const pendingInvite = useSocialStore((s) => s.pendingInvite)
@@ -311,10 +574,10 @@ function InviteBanner() {
   }
 
   return (
-    <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
-      <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-brand-700/60 bg-brand-950/90 backdrop-blur shadow-2xl text-sm">
+    <div className="fixed top-16 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-50 animate-slide-up">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-2xl border border-brand-700/60 bg-brand-950/90 backdrop-blur shadow-2xl text-sm">
         <span className="text-lg">📨</span>
-        <span className="text-white font-medium">
+        <span className="text-white font-medium flex-1 min-w-0">
           <span className="text-brand-400 font-bold">{pendingInvite.fromUsername}</span> invited you to a game!
         </span>
         <button
@@ -361,6 +624,130 @@ function GlobalDmPanel() {
   )
 }
 
+/**
+ * Global matchmaking manager — listens for the matchmaking:status / :found /
+ * :error socket events whenever the store reports an active search, so the
+ * user can navigate between pages (leaderboard, friends, history, …) without
+ * losing their place in the queue. When the server finds a game it navigates
+ * to the lobby and clears the search state.
+ */
+function MatchmakingManager() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const token = useAuthStore((s) => s.token)
+  const isSearching = useMatchmakingStore((s) => s.isSearching)
+  const setStatus = useMatchmakingStore((s) => s.setStatus)
+  const stopSearch = useMatchmakingStore((s) => s.stopSearch)
+  const setRequiredStars = useMatchmakingStore((s) => s.setRequiredStars)
+  const setErrorMessage = useMatchmakingStore((s) => s.setErrorMessage)
+
+  // Logging out drops us from the server queue (via socket disconnect); make
+  // sure the client state doesn't linger.
+  useEffect(() => {
+    if (!token && isSearching) stopSearch()
+  }, [token, isSearching, stopSearch])
+
+  useEffect(() => {
+    if (!isSearching) return
+    connectSocket()
+    const sock = getSocket() as any
+
+    const handleStatus = (d: MatchmakingStatus) => setStatus(d)
+    const handleFound = (d: { roomCode: string }) => {
+      stopSearch()
+      navigate(`/lobby/${d.roomCode}`)
+    }
+    const handleError = (d: { reason?: string; required?: number; message?: string }) => {
+      stopSearch()
+      if (d?.reason === 'INSUFFICIENT_STARS') {
+        setRequiredStars(d.required ?? 10)
+      } else {
+        setErrorMessage(d?.message ?? t('common.error'))
+      }
+    }
+    // When the socket drops (tab backgrounded, flaky wifi, language flag
+    // change) the server's disconnect handler evicts us from the Redis queue.
+    // The store still thinks we're searching, so on reconnect we replay the
+    // original join payload to put ourselves back in line — otherwise the
+    // banner shows a ghost queue that never resolves. Ranked users felt this
+    // most because the 90s wait gave disconnects more chances to happen.
+    const handleConnect = () => {
+      const payload = useMatchmakingStore.getState().joinPayload
+      if (!useMatchmakingStore.getState().isSearching || !payload) return
+      log.info('matchmaking: socket reconnected, re-joining queue', { gameMode: payload.gameMode })
+      sock.emit('matchmaking:join', {
+        gameMode: payload.gameMode,
+        categories: payload.categories,
+        vocalMode: payload.vocalMode,
+        vocalSpeakingTimeSeconds: payload.vocalSpeakingTimeSeconds ?? 10,
+        locale: payload.locale,
+      })
+    }
+
+    sock.on('matchmaking:status', handleStatus)
+    sock.on('matchmaking:found', handleFound)
+    sock.on('matchmaking:error', handleError)
+    sock.on('connect', handleConnect)
+
+    // Same connection-sanity heartbeat the HomePage used to run — keeps the
+    // socket alive across idle navigations so status broadcasts keep flowing.
+    const heartbeat = setInterval(() => {
+      const s = getSocket()
+      if (!s.connected) {
+        log.info('matchmaking heartbeat: socket disconnected, reconnecting')
+        connectSocket()
+      }
+    }, 5000)
+
+    return () => {
+      clearInterval(heartbeat)
+      sock.off('matchmaking:status', handleStatus)
+      sock.off('matchmaking:found', handleFound)
+      sock.off('matchmaking:error', handleError)
+      sock.off('connect', handleConnect)
+    }
+  }, [isSearching, t, navigate, setStatus, stopSearch, setRequiredStars, setErrorMessage])
+
+  return null
+}
+
+/**
+ * Surfaces the INSUFFICIENT_STARS modal globally so a matchmaking error can
+ * still reach the user if they navigated away from the home page before the
+ * server replied.
+ */
+function GlobalMatchmakingModals() {
+  const requiredStars = useMatchmakingStore((s) => s.requiredStars)
+  const setRequiredStars = useMatchmakingStore((s) => s.setRequiredStars)
+  if (requiredStars === null) return null
+  return (
+    <InsufficientCoinsModal
+      required={requiredStars}
+      onClose={() => setRequiredStars(null)}
+    />
+  )
+}
+
+/**
+ * Listens for 402 Payment Required responses from the API and redirects the
+ * user to the Shop's Premium tab so they can upgrade. Skips redirect if
+ * already on the shop or auth pages.
+ */
+function PremiumRequiredRedirector() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  useEffect(() => {
+    const handler = () => {
+      const p = location.pathname
+      if (p === '/shop' || p === '/auth') return
+      navigate('/shop?tab=premium&upsell=1', { replace: false })
+    }
+    window.addEventListener('premium-required', handler)
+    return () => window.removeEventListener('premium-required', handler)
+  }, [navigate, location.pathname])
+  return null
+}
+
 export default function App() {
   return (
     <Suspense fallback={<Spinner />}>
@@ -370,14 +757,26 @@ export default function App() {
       <ActiveGameRestorer />
       <GlobalSocketListeners />
       <ActiveGameGuard />
+      <PremiumRequiredRedirector />
+      <MatchmakingManager />
       <AuthenticatedConnectionStatus />
       <InviteBanner />
       <FriendRequestBanner />
+      <FriendAcceptedToastStack />
+      <DmToastStack />
+      <GiftToastStack />
       <AchievementToastBanner />
       <GlobalDmPanel />
+      <MatchmakingBanner />
+      <ActiveLobbyBanner />
+      <GlobalMatchmakingModals />
       <BottomNav />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+        {/* Discord OAuth callback. AuthPage picks up `?code=…` and exchanges
+            it via /auth/discord/verify. Kept as its own path so Discord's
+            redirect_uri registration is a stable, dedicated URL. */}
+        <Route path="/auth/discord/callback" element={<AuthPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/offline" element={<OfflinePage />} />
@@ -385,10 +784,11 @@ export default function App() {
         <Route path="/tutorial" element={<ProtectedRoute><TutorialPage /></ProtectedRoute>} />
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
         <Route path="/lobby/:code" element={<ProtectedRoute><LobbyPage /></ProtectedRoute>} />
+        <Route path="/lobbies/public" element={<ProtectedRoute><PublicLobbiesPage /></ProtectedRoute>} />
         <Route path="/game/:code" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
         <Route path="/results/:code" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
         <Route path="/profile/:id?" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        {/* <Route path="/premium" element={<ProtectedRoute><PremiumPage /></ProtectedRoute>} /> */}
+        <Route path="/premium" element={<Navigate to="/shop?tab=premium" replace />} />
         <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
         <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
         <Route path="/history/:gameId" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />
