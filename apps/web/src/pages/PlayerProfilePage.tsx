@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { NavBar } from '../components/NavBar'
 import { Avatar, Badge } from '@red-handed/ui'
 import { api } from '../lib/api'
+import { formatLastSeen } from '../lib/lastSeen'
 import { RANK_CONFIG, LEVEL_CAP } from '@red-handed/shared'
 import type { RankTier } from '@red-handed/shared'
 import { ReportModal } from '../components/ReportModal'
@@ -133,18 +134,6 @@ export default function PlayerProfilePage() {
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-
-  const formatLastSeen = (iso: string): string => {
-    const diffMs = Date.now() - new Date(iso).getTime()
-    const mins = Math.floor(diffMs / 60_000)
-    if (mins < 1) return t('profile.lastSeenJustNow')
-    if (mins < 60) return t('profile.lastSeenMinutes', { count: mins })
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return t('profile.lastSeenHours', { count: hours })
-    const days = Math.floor(hours / 24)
-    if (days < 30) return t('profile.lastSeenDays', { count: days })
-    return t('profile.lastSeenLongAgo')
-  }
 
   const handleBlock = async () => {
     if (!userId || blocked) return
@@ -275,7 +264,7 @@ export default function PlayerProfilePage() {
                     <span className={profile.isOnline ? 'text-emerald-400' : 'text-neutral-500'}>
                       {profile.isOnline
                         ? t('profile.onlineNow')
-                        : t('profile.lastSeen', { when: formatLastSeen(profile.lastSeenAt!) })}
+                        : t('profile.lastSeen', { when: formatLastSeen(profile.lastSeenAt!, t) })}
                     </span>
                   </p>
                 )}

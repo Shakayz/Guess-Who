@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
+import { formatLastSeen } from '../lib/lastSeen'
 import { getSocket } from '../lib/socket'
 import { useAuthStore } from '../store/auth'
 import { useSocialStore } from '../store/social'
@@ -53,6 +54,7 @@ export function DmChatPanel({ friend, onClose }: DmChatPanelProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [justSent, setJustSent] = useState(false)
+  const [presence, setPresence] = useState<{ isOnline: boolean; lastSeenAt: string | null } | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -64,6 +66,23 @@ export function DmChatPanel({ friend, onClose }: DmChatPanelProps) {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [friend.id, clearUnread])
+
+  useEffect(() => {
+    let cancelled = false
+    api
+      .get<{ isOnline?: boolean; lastSeenAt: string | null }>(`/users/${friend.id}/profile`)
+      .then((res) => {
+        if (cancelled) return
+        setPresence({
+          isOnline: !!res.isOnline,
+          lastSeenAt: res.lastSeenAt ?? null,
+        })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [friend.id])
 
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -164,16 +183,30 @@ export function DmChatPanel({ friend, onClose }: DmChatPanelProps) {
               >
                 {friend.username.slice(0, 2).toUpperCase()}
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-neutral-950" />
+              {presence && (
+                <span
+                  className={[
+                    'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-neutral-950',
+                    presence.isOnline ? 'bg-emerald-500' : 'bg-neutral-500',
+                  ].join(' ')}
+                />
+              )}
             </div>
             <div className="flex flex-col min-w-0">
               <span className="text-white font-semibold text-sm truncate leading-tight">
                 {friend.username}
               </span>
-              <span className="text-emerald-400 text-[10px] font-medium leading-none mt-0.5 flex items-center gap-1">
-                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-                Online
-              </span>
+              {presence?.isOnline ? (
+                <span className="text-emerald-400 text-[10px] font-medium leading-none mt-0.5 flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                  {t('profile.onlineNow')}
+                </span>
+              ) : presence?.lastSeenAt ? (
+                <span className="text-neutral-500 text-[10px] font-medium leading-none mt-0.5 flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-neutral-500" />
+                  {t('profile.lastSeen', { when: formatLastSeen(presence.lastSeenAt, t) })}
+                </span>
+              ) : null}
             </div>
           </div>
           <button
