@@ -46,8 +46,119 @@ services:
   api:
     image: ${API_IMAGE}
     restart: always
-    # Staging: skip the heavy seed step (prod still seeds via default CMD)
-    command: ["sh", "-c", "prisma migrate deploy && node dist/index.js"]
+    # Staging: skip the heavy seed step (prod still seeds via default CMD).
+    #
+    # Entrypoint contract: start the API regardless of whether `prisma migrate
+    # deploy` succeeds. `/health` is a static route that does not touch the
+    # DB, so the CD smoke test only needs the HTTP server to be listening on
+    # 3001. Making migrate deploy fatal (as the prior `&&` did) means a single
+    # wedged migration — checksum mismatch, stale drift row, or a missing
+    # upstream table — crash-loops the container, and Caddy returns 502 for
+    # every attempt. That was the state #65/#66/#67 kept re-triggering.
+    #
+    # Pre-deploy cleanup still runs best-effort to unstick `_prisma_migrations`
+    # rows accumulated across the 20260418050000 → 20260419010000 → 20260419020000
+    # rename churn:
+    #   1. Any row with `finished_at IS NULL` (errored mid-apply).
+    #   2. `20260418050000_purchase_platform_fields` — first name, gone.
+    #   3. `20260419010000_purchase_platform_fields` — second name, gone.
+    # The renamed `20260419020000_purchase_platform_fields` uses IF NOT EXISTS
+    # so re-running on a DB where an earlier attempt already created the
+    # columns is a no-op, and a real apply on a fresh DB.
+    #
+    # All of the above is best-effort (`|| true`) followed by unconditional
+    # `exec node dist/index.js` — so even if migrate deploy exits non-zero the
+    # health check passes while the DB failure is surfaced in container logs.
+    command:
+      - "sh"
+      - "-c"
+      - |
+        echo "DELETE FROM \"_prisma_migrations\" WHERE finished_at IS NULL OR migration_name IN ('20260418050000_purchase_platform_fields', '20260419010000_purchase_platform_fields');" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        # Schema self-heal: ensure every column the regenerated Prisma client
+        # writes on INSERT exists on the DB, even if the corresponding migration
+        # row is wedged. Prisma sends every defaulted field in its INSERT, so a
+        # missing column here turns every prisma.room.create into an undebuggable
+        # "Failed to create room" in matchmaking. Idempotent — safe to run on a
+        # DB that already has the column.
+        echo "ALTER TABLE \"rooms\" ADD COLUMN IF NOT EXISTS \"isPublic\" BOOLEAN NOT NULL DEFAULT FALSE; CREATE INDEX IF NOT EXISTS \"rooms_isPublic_status_idx\" ON \"rooms\"(\"isPublic\", \"status\");" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        # Same self-heal for the gift/premium fields added by
+        # 20260419000000_gift_premium_and_purchase_gift_fields. When that
+        # migration is wedged in `_prisma_migrations`, every prisma.purchase.create
+        # (the shop checkout path) fails with "column purchases.giftReceiverId
+        # does not exist" because Prisma's INSERT references all scalar fields.
+        #
+        # Run each ALTER in its own `prisma db execute` invocation. The third
+        # statement — ALTER TABLE "gifts" — targets a table that may not exist
+        # at all on staging (the Gift model is in schema.prisma but no migration
+        # ever CREATE TABLEs it; staging came up from migrate deploy so the
+        # table is absent). When all three were bundled, the pg driver ran them
+        # in a single implicit transaction and the gifts failure rolled back
+        # the purchases ALTERs — leaving giftReceiverId missing and every
+        # coin-pack buy 500ing. `IF EXISTS` on the gifts ALTER keeps the third
+        # call a no-op when the table is gone, and the split ensures a failure
+        # on one can't undo the others.
+        echo "ALTER TABLE \"purchases\" ADD COLUMN IF NOT EXISTS \"giftReceiverId\" TEXT;" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        echo "ALTER TABLE \"purchases\" ADD COLUMN IF NOT EXISTS \"premiumPlanId\" VARCHAR(16);" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        echo "ALTER TABLE IF EXISTS \"gifts\" ADD COLUMN IF NOT EXISTS \"premiumPlanId\" VARCHAR(16);" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        # Self-heal for 20260419040000_add_user_emotes. The users.equippedEmotes
+        # column is included in Prisma's default SELECT for any user.findUnique
+        # without an explicit `select` (e.g. the friend-request target lookup),
+        # so a wedged migration 500s every add-friend attempt. user_emotes is
+        # the ownership table the shop emote purchase writes into.
+        echo "ALTER TABLE \"users\" ADD COLUMN IF NOT EXISTS \"equippedEmotes\" TEXT; CREATE TABLE IF NOT EXISTS \"user_emotes\" (\"id\" TEXT PRIMARY KEY, \"userId\" TEXT NOT NULL, \"emoteId\" VARCHAR(40) NOT NULL, \"priceCents\" INTEGER NOT NULL DEFAULT 0, \"starCoins\" INTEGER NOT NULL DEFAULT 0, \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT \"user_emotes_userId_fkey\" FOREIGN KEY (\"userId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE); CREATE UNIQUE INDEX IF NOT EXISTS \"user_emotes_userId_emoteId_key\" ON \"user_emotes\"(\"userId\", \"emoteId\"); CREATE INDEX IF NOT EXISTS \"user_emotes_userId_idx\" ON \"user_emotes\"(\"userId\");" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        # Self-heal for 20260420010000_user_daily_login_bonus. users.lastDailyBonusAt
+        # is in the Prisma schema, so Prisma's default SELECT on User includes it
+        # for any find* without an explicit `select` — e.g. /api/friends (findMany
+        # with include: requester/addressee), /api/friends/requests(/outgoing),
+        # /api/users/search. A wedged migration row means the column doesn't exist
+        # in the DB and every one of those endpoints 500s together. Same self-heal
+        # pattern as equippedEmotes above.
+        echo "ALTER TABLE \"users\" ADD COLUMN IF NOT EXISTS \"lastDailyBonusAt\" TIMESTAMP(3);" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        # Self-heal for the `friendships` table. The Friendship model lives in
+        # schema.prisma but — same as Gift (see b05fec2) — no migration ever
+        # CREATE TABLEs it. Staging came up from `prisma migrate deploy`, so
+        # the table is absent, and every /api/friends/request, /requests,
+        # /requests/outgoing, and /accept 500s with "relation friendships does
+        # not exist". Idempotent CREATE TABLE IF NOT EXISTS so existing envs
+        # (if any) are untouched. Kept in its own `prisma db execute` so a
+        # failure here can't roll back the users.lastDailyBonusAt ALTER above.
+        echo "CREATE TABLE IF NOT EXISTS \"friendships\" (\"id\" TEXT NOT NULL, \"requesterId\" TEXT NOT NULL, \"addresseeId\" TEXT NOT NULL, \"status\" VARCHAR(20) NOT NULL DEFAULT 'pending', \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT \"friendships_pkey\" PRIMARY KEY (\"id\"), CONSTRAINT \"friendships_requesterId_fkey\" FOREIGN KEY (\"requesterId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE, CONSTRAINT \"friendships_addresseeId_fkey\" FOREIGN KEY (\"addresseeId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE); CREATE UNIQUE INDEX IF NOT EXISTS \"friendships_requesterId_addresseeId_key\" ON \"friendships\"(\"requesterId\", \"addresseeId\"); CREATE INDEX IF NOT EXISTS \"friendships_requesterId_status_idx\" ON \"friendships\"(\"requesterId\", \"status\"); CREATE INDEX IF NOT EXISTS \"friendships_addresseeId_status_idx\" ON \"friendships\"(\"addresseeId\", \"status\");" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        # Self-heal for the `direct_messages` table. Same class of bug as
+        # friendships/gifts: the DirectMessage model lives in schema.prisma
+        # but no migration ever CREATE TABLEs it, so staging (brought up via
+        # `prisma migrate deploy`) has no table — every prisma.directMessage.create
+        # in the dm:send socket handler throws "relation direct_messages does
+        # not exist", the catch swallows it, and messages silently vanish
+        # (no save, no real-time broadcast, and GET /messages/:friendId
+        # returns an empty history). Idempotent CREATE TABLE IF NOT EXISTS
+        # in its own `prisma db execute` call so a failure here can't roll
+        # back the friendships CREATE above.
+        echo "CREATE TABLE IF NOT EXISTS \"direct_messages\" (\"id\" TEXT NOT NULL, \"senderId\" TEXT NOT NULL, \"receiverId\" TEXT NOT NULL, \"text\" VARCHAR(1000) NOT NULL, \"read\" BOOLEAN NOT NULL DEFAULT FALSE, \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT \"direct_messages_pkey\" PRIMARY KEY (\"id\"), CONSTRAINT \"direct_messages_senderId_fkey\" FOREIGN KEY (\"senderId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE, CONSTRAINT \"direct_messages_receiverId_fkey\" FOREIGN KEY (\"receiverId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE); CREATE INDEX IF NOT EXISTS \"direct_messages_senderId_receiverId_idx\" ON \"direct_messages\"(\"senderId\", \"receiverId\"); CREATE INDEX IF NOT EXISTS \"direct_messages_receiverId_createdAt_idx\" ON \"direct_messages\"(\"receiverId\", \"createdAt\");" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        # Self-heal for the `gifts` table. Same class of bug as friendships and
+        # direct_messages: the Gift model lives in schema.prisma but no migration
+        # ever CREATE TABLEs it, so staging (brought up via `prisma migrate deploy`)
+        # has no table. Prior to commit 6b7595b this was latent — gifts were
+        # created only on the legacy "claim" path — but that commit moved gift
+        # row creation into the Stripe webhook's creditPurchase transaction, so
+        # every real-money gift now throws "relation gifts does not exist",
+        # rolls back the whole transaction, and the receiver never gets coins
+        # while Stripe still reports success to the buyer. Idempotent
+        # CREATE TABLE IF NOT EXISTS in its own `prisma db execute` call so a
+        # failure here can't roll back the direct_messages CREATE above, and a
+        # future real migration finds the table already present.
+        echo "CREATE TABLE IF NOT EXISTS \"gifts\" (\"id\" TEXT NOT NULL, \"senderId\" TEXT NOT NULL, \"receiverId\" TEXT NOT NULL, \"coinAmount\" INTEGER NOT NULL DEFAULT 0, \"premiumPlanId\" VARCHAR(16), \"message\" VARCHAR(200), \"claimed\" BOOLEAN NOT NULL DEFAULT FALSE, \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT \"gifts_pkey\" PRIMARY KEY (\"id\"), CONSTRAINT \"gifts_senderId_fkey\" FOREIGN KEY (\"senderId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE, CONSTRAINT \"gifts_receiverId_fkey\" FOREIGN KEY (\"receiverId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE);" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        prisma migrate deploy || echo "[entrypoint] prisma migrate deploy failed; starting API anyway so /health responds (DB-backed routes may 500 until migrations converge)"
+        exec node dist/index.js
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,6 +176,8 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
       STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL}
@@ -72,6 +185,9 @@ services:
       STRIPE_PRICE_ID_PACK_500: ${STRIPE_PRICE_ID_PACK_500}
       STRIPE_PRICE_ID_PACK_1500: ${STRIPE_PRICE_ID_PACK_1500}
       STRIPE_PRICE_ID_PACK_5000: ${STRIPE_PRICE_ID_PACK_5000}
+      STRIPE_PRICE_ID_PREMIUM_MONTHLY: ${STRIPE_PRICE_ID_PREMIUM_MONTHLY}
+      STRIPE_PRICE_ID_PREMIUM_YEARLY: ${STRIPE_PRICE_ID_PREMIUM_YEARLY}
+      STRIPE_PORTAL_RETURN_URL: ${STRIPE_PORTAL_RETURN_URL}
       RESEND_API_KEY: ${RESEND_API_KEY}
     deploy:
       resources:

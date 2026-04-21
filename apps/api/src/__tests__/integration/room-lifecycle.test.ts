@@ -178,18 +178,7 @@ describe('Room Lifecycle - Integration Tests', () => {
   })
 
   describe('POST /api/rooms', () => {
-    // The rooms.ts handler now wraps the host debit + room.create in a single
-    // prisma.$transaction (both to make the debit atomic with room creation and
-    // to prevent the "debit-without-room" bug). The default $transaction mock
-    // used in other tests is a bare vi.fn, so we install a pass-through that
-    // runs the callback against the same prisma.user / prisma.room mocks.
-    beforeEach(() => {
-      ;(prisma as any).$transaction = vi.fn(async (fn: any) =>
-        fn({ user: mockPrismaUser, room: mockPrismaRoom }),
-      )
-    })
-
-    it('creates a room with default settings', async () => {
+    it('creates a room with default settings without charging any coins', async () => {
       mockPrismaUser.findUnique.mockResolvedValue({ locale: 'en' })
       mockPrismaRoom.create.mockResolvedValue({
         id: 'room-1',
@@ -217,21 +206,12 @@ describe('Room Lifecycle - Integration Tests', () => {
       expect(body.code).toBe('ABC123')
       expect(body.hostId).toBe('host-user-1')
       expect(body.maxPlayers).toBe(10)
-      // Public lobby: no star-coin debit at creation.
+      // No star-coin debit at creation — host is only charged at game start.
       expect(mockPrismaUser.updateMany).not.toHaveBeenCalled()
-      // Public lobby: the commitment-fee flag must not be set — the per-player
-      // charge happens at game start for everyone.
-      expect(mockRedis.set).toHaveBeenCalledWith(
-        expect.stringContaining('room:'),
-        expect.stringContaining('"hostPrepaid":false'),
-        'EX',
-        21600,
-      )
     })
 
-    it('creates a private room and debits the host 10 ⭐ atomically', async () => {
+    it('creates a private room without debiting the host at creation', async () => {
       mockPrismaUser.findUnique.mockResolvedValue({ locale: 'en' })
-      mockPrismaUser.updateMany.mockResolvedValue({ count: 1 })
       mockPrismaRoom.create.mockResolvedValue({
         id: 'room-2',
         code: 'ABC123',
@@ -270,68 +250,16 @@ describe('Room Lifecycle - Integration Tests', () => {
       expect(body.maxPlayers).toBe(8)
       expect(body.isPrivate).toBe(true)
 
-      // Debit ran through $transaction and only matched users with enough stars.
-      expect(mockPrismaUser.updateMany).toHaveBeenCalledWith({
-        where: { id: 'host-user-1', starCoins: { gte: 10 } },
-        data:  { starCoins: { decrement: 10 } },
-      })
-
-      // Redis state must flag hostPrepaid so startGameForRoom consumes the fee
-      // for the FIRST game only — every subsequent game charges the host again.
-      expect(mockRedis.set).toHaveBeenCalledWith(
-        expect.stringContaining('room:'),
-        expect.stringContaining('"hostPrepaid":true'),
-        'EX',
-        21600,
-      )
+      // Private lobby creation is free — the host should NOT be debited here.
+      // The 10 ⭐ charge lives in startGameForRoom, so a host who never starts
+      // the game never loses coins.
+      expect(mockPrismaUser.updateMany).not.toHaveBeenCalled()
       expect(mockRedis.set).toHaveBeenCalledWith(
         expect.stringContaining('room:'),
         expect.stringContaining('"gameMode":"ranked"'),
         'EX',
         21600,
       )
-    })
-
-    it('refuses to create a private room when host lacks stars (402) and does not create a room', async () => {
-      mockPrismaUser.findUnique.mockResolvedValue({ locale: 'en' })
-      // Atomic debit fails — WHERE clause matched zero rows (insufficient stars).
-      mockPrismaUser.updateMany.mockResolvedValue({ count: 0 })
-
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/rooms',
-        headers: { authorization: `Bearer ${authToken}` },
-        payload: { settings: { isPrivate: true } },
-      })
-
-      expect(response.statusCode).toBe(402)
-      expect(response.json()).toEqual({ error: 'INSUFFICIENT_STARS', required: 10 })
-      // Critically: the transaction must have rolled back — no room row, no
-      // Redis state, and certainly no coins burned without a room to show for
-      // it.
-      expect(mockPrismaRoom.create).not.toHaveBeenCalled()
-      expect(mockRedis.set).not.toHaveBeenCalled()
-    })
-
-    it('does NOT leak a room when the charge transaction rejects mid-flight', async () => {
-      // Simulate a DB failure INSIDE the transaction (e.g. unique-code
-      // collision, connection drop) AFTER the debit. With the pre-fix code
-      // the host had already lost 10 ⭐ with no room and no refund path;
-      // with the transaction-scoped debit the whole thing rolls back, the
-      // host's coins are safe, and we surface a 500.
-      mockPrismaUser.findUnique.mockResolvedValue({ locale: 'en' })
-      ;(prisma as any).$transaction = vi.fn().mockRejectedValue(new Error('DB connection lost'))
-
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/rooms',
-        headers: { authorization: `Bearer ${authToken}` },
-        payload: { settings: { isPrivate: true } },
-      })
-
-      expect(response.statusCode).toBe(500)
-      expect(mockPrismaRoom.create).not.toHaveBeenCalled()
-      expect(mockRedis.set).not.toHaveBeenCalled()
     })
 
     it('requires authentication', async () => {

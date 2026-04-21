@@ -5,10 +5,19 @@ import { createLogger } from '../lib/logger'
 
 const log = createLogger('auth')
 
+interface AuthUser {
+  id: string
+  username: string
+  email?: string
+  level?: number
+  premiumUntil?: string | null
+}
+
 interface AuthState {
   token: string | null
-  user: { id: string; username: string; email?: string } | null
-  setAuth: (token: string, user: AuthState['user']) => void
+  user: AuthUser | null
+  setAuth: (token: string, user: AuthUser | null) => void
+  setUserMeta: (meta: Partial<Pick<AuthUser, 'level' | 'premiumUntil'>>) => void
   clearAuth: () => void
 }
 
@@ -20,6 +29,9 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (token, user) => {
         log.info('login', { userId: user?.id, username: user?.username })
         set({ token, user })
+      },
+      setUserMeta: (meta) => {
+        set((s) => (s.user ? { user: { ...s.user, ...meta } } : {}))
       },
       clearAuth: () => {
         log.info('logout')

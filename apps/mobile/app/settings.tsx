@@ -15,10 +15,10 @@ import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import * as Notifications from 'expo-notifications'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { useAuthStore } from '../../store/auth'
-import { api } from '../../lib/api'
-import i18n from '../../i18n'
-import { LANGUAGES } from '../../i18n/languages'
+import { useAuthStore } from '../store/auth'
+import { api } from '../lib/api'
+import i18n from '../i18n'
+import { LANGUAGES } from '../i18n/languages'
 
 type LangCode = (typeof LANGUAGES)[number]['code']
 

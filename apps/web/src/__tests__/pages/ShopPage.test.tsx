@@ -98,10 +98,19 @@ describe('ShopPage', () => {
     expect(screen.queryByText('shop.tabCosmetics')).not.toBeInTheDocument()
   })
 
-  it('switches to Premium tab and shows the "coming soon" copy', () => {
+  it('switches to Premium tab and shows the plan selector with title + features', () => {
+    // The premium tab is a real live subscription flow now — it lists the
+    // three feature rows, both plan tiles (monthly / yearly), and the CTA
+    // copy. No more "coming soon" placeholder.
     renderShop()
     fireEvent.click(screen.getByText('shop.tabPremium'))
-    expect(screen.getByText(/shop\.premiumComingSoon/)).toBeInTheDocument()
+    expect(screen.getByText('shop.premiumTitle')).toBeInTheDocument()
+    expect(screen.getByText('shop.premiumFeatureNoAdsTitle')).toBeInTheDocument()
+    expect(screen.getByText('shop.premiumFeatureDecksTitle')).toBeInTheDocument()
+    expect(screen.getByText('shop.premiumFeatureUnlimitedTitle')).toBeInTheDocument()
+    // Yearly is the default-selected plan and carries the BEST VALUE badge.
+    expect(screen.getByText('shop.premiumBestValue')).toBeInTheDocument()
+    expect(screen.getByText('shop.premiumCancelAnytime')).toBeInTheDocument()
   })
 
   it('can switch back to the Coins tab from Premium', async () => {

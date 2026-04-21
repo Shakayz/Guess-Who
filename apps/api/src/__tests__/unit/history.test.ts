@@ -58,6 +58,7 @@ describe('History Routes', () => {
         endedAt: new Date('2025-06-01T10:30:00Z'),
         winnerTeam: 'villagers',
         gameMode,
+        room: { language: 'en' },
         _count: { rounds: 3 },
         participations: [
           {

@@ -10,6 +10,9 @@ import { createLogger } from '../lib/logger'
 import { SoundManager } from '../lib/sounds'
 import { VoiceChannel } from '../lib/webrtc'
 import { EliminationReveal } from '../components/EliminationReveal'
+import { FloatingEmote } from '../components/emotes/FloatingEmote'
+import { useEmotesStore } from '../store/emotes'
+import { getEmoteById, DEFAULT_LOADOUT, WORD_CATEGORIES } from '@red-handed/shared'
 // Overlays removed — they blocked gameplay and caused desync between players
 
 const log = createLogger('game-page')
@@ -18,7 +21,6 @@ type Phase = 'clues' | 'voting' | 'reveal'
 
 const PHASE_STEP_IDS: Phase[] = ['clues', 'voting', 'reveal']
 const PHASE_ICONS: Record<Phase, string> = { clues: '✏️', voting: '🗳', reveal: '📋' }
-const EMOTES = ['👍', '😮', '🤔', '😂', '😱']
 
 /** SVG circular countdown timer — visually prominent */
 const CircularTimer = memo(({ seconds, total, phase }: { seconds: number; total: number; phase: Phase }) => {
@@ -315,11 +317,33 @@ const PlayerClueHistoryModal = memo(({
   )
 })
 
+/** Small pill that shows the word's category (icon + localised label). Rendered
+ *  above every secret-word reveal so players know what theme the pair was drawn
+ *  from — otherwise a word like "Crane" could mean the bird or the machine. */
+function CategoryBadge({ categoryKey, className }: { categoryKey: string | null | undefined; className?: string }) {
+  const { t } = useTranslation()
+  if (!categoryKey) return null
+  const cat = WORD_CATEGORIES.find((c) => c.key === categoryKey)
+  if (!cat) return null
+  return (
+    <span
+      className={[
+        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest',
+        'bg-brand-950/60 border border-brand-700/40 text-brand-300',
+        className ?? '',
+      ].join(' ')}
+    >
+      <span>{cat.icon}</span>
+      <span>{t(`home.cat.${cat.key}`, cat.label)}</span>
+    </span>
+  )
+}
+
 export default function GamePage() {
   const { code } = useParams<{ code: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { room, currentRound, completedRounds, myRole, myWord, myVillagerWord, detectiveRevealUsed, guardianProtectUsed, guardianProtectedPlayer, mayorDoubleVoteUsed, mayorDoubleActive, inverterUsed, inverterActive, corruptorTargetUserId, twinPartner, revenantVotesRemaining, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setGuardianProtectUsed, setGuardianProtectedPlayer, setMayorDoubleActive, resetMayorDoubleActive, setInverterActive, resetInverterActive, setCorruptorTarget, setTwinPartner, setRevenantVotesRemaining, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
+  const { room, currentRound, completedRounds, myRole, myWord, myVillagerWord, myCategory, detectiveRevealUsed, guardianProtectUsed, guardianProtectedPlayer, mayorDoubleVoteUsed, mayorDoubleActive, inverterUsed, inverterActive, corruptorTargetUserId, twinPartner, revenantVotesRemaining, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setGuardianProtectUsed, setGuardianProtectedPlayer, setMayorDoubleActive, resetMayorDoubleActive, setInverterActive, resetInverterActive, setCorruptorTarget, setTwinPartner, setRevenantVotesRemaining, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
   const user = useAuthStore((s) => s.user)
   const [clueText, setClueText] = useState('')
   const [clues, setClues] = useState<Clue[]>([])
@@ -327,7 +351,19 @@ export default function GamePage() {
   const [deadChatInput, setDeadChatInput] = useState('')
   const [deadChatMessages, setDeadChatMessages] = useState<{ id: string; userId: string; username: string; text: string }[]>([])
   const [isEliminated, setIsEliminated] = useState(false)
-  const [floatingEmotes, setFloatingEmotes] = useState<{ id: string; emoji: string; username: string; x: number }[]>([])
+  const [floatingEmotes, setFloatingEmotes] = useState<{ id: string; emoteId?: string; emoji: string; username: string; x: number }[]>([])
+  const [emoteCooldownUntil, setEmoteCooldownUntil] = useState(0)
+  const [emoteNow, setEmoteNow] = useState(0)
+  const lastEmoteTime = useRef(0)
+  // Loadout comes from the server (so equipping on Profile takes effect in-game
+  // immediately on next mount). Falls back to the free basics if the fetch
+  // hasn't landed yet — don't want an empty React bar during a live match.
+  const emotesMe = useEmotesStore((s) => s.me)
+  const fetchEmotesMe = useEmotesStore((s) => s.fetchMe)
+  useEffect(() => { fetchEmotesMe() }, [fetchEmotesMe])
+  const activeLoadout = emotesMe?.loadout && emotesMe.loadout.length > 0
+    ? emotesMe.loadout
+    : [...DEFAULT_LOADOUT]
   const [phase, setPhase] = useState<Phase>('clues')
   const [votedFor, setVotedFor] = useState<string | null>(null)
   const [eliminated, setEliminated] = useState<{ username: string; role: string } | null>(null)
@@ -457,10 +493,10 @@ export default function GamePage() {
     }
 
     // On game start, reset ALL UI state and set new role/word
-    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
+    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord, yourCategory }: any) => {
       log.info('game started', { role: yourRole })
       SoundManager.play('game_start')
-      setRoleAndWord(yourRole, yourWord, yourVillagerWord)
+      setRoleAndWord(yourRole, yourWord, yourVillagerWord, yourCategory)
       setShowRoleCard(true)
       // Clear all per-round UI state from any previous game
       setClues([])
@@ -766,12 +802,15 @@ export default function GamePage() {
       if (msg?.userId !== user?.id) SoundManager.play('chat_message')
       addMessage(msg)
     })
-    socket.on('emote:receive' as any, ({ username, emoji }: { username: string; emoji: string }) => {
+    socket.on('emote:receive' as any, ({ username, emoji, emoteId }: { username: string; emoji: string; emoteId?: string }) => {
       const id = `${Date.now()}_${Math.random()}`
       const x = 10 + Math.random() * 80
-      setFloatingEmotes((prev) => prev.length >= 20 ? prev : [...prev, { id, emoji, username, x }])
+      setFloatingEmotes((prev) => prev.length >= 20 ? prev : [...prev, { id, emoteId, emoji, username, x }])
       const tid = setTimeout(() => setFloatingEmotes((prev) => prev.filter((e) => e.id !== id)), 2800)
       timeoutRefs.current.push(tid)
+    })
+    socket.on('emote:cooldown' as any, ({ until }: { until: number }) => {
+      setEmoteCooldownUntil((prev) => (until > prev ? until : prev))
     })
 
     // Register all handlers BEFORE emitting room:join so we don't miss the response
@@ -800,6 +839,7 @@ export default function GamePage() {
       socket.off('chat:message')
       socket.off('deadchat:message' as any)
       socket.off('emote:receive' as any)
+      socket.off('emote:cooldown' as any)
       socket.off('detective:result')
       socket.off('guardian:protect-ack' as any)
       socket.off('guardian:protection-triggered' as any)
@@ -876,11 +916,11 @@ export default function GamePage() {
     if (room?.status === 'finished' || room?.status === 'waiting') stopVoice()
   }, [room?.status, stopVoice])
 
-  // Auto-mute the local mic when it's not our turn to speak. The user can
-  // override via the mute button (`voiceMutedManually`), in which case their
-  // explicit choice wins. We only enforce the auto behaviour during the
-  // vocal clue phase — at all other times the mic stays open so peers can
-  // still hear ambient reactions during voting / reveal.
+  // Auto-mute the local mic based on game phase in vocal mode. Players can
+  // only speak when it's their turn during clues, and during the reveal
+  // (end-of-round result). Voting keeps every mic muted so players can't
+  // influence each other. The manual mute button always wins — players can
+  // silence themselves at any time regardless of the auto state.
   useEffect(() => {
     const vc = voiceChannelRef.current
     if (!vc || voiceStatus !== 'connected') return
@@ -888,9 +928,14 @@ export default function GamePage() {
       vc.setMicEnabled(false)
       return
     }
-    if (phase === 'clues' && vocalMode && vocalSpeakerId) {
-      const isMyTurn = vocalSpeakerId === user?.id
-      vc.setMicEnabled(isMyTurn)
+    if (vocalMode) {
+      if (phase === 'clues') {
+        vc.setMicEnabled(!!vocalSpeakerId && vocalSpeakerId === user?.id)
+      } else if (phase === 'voting') {
+        vc.setMicEnabled(false)
+      } else {
+        vc.setMicEnabled(true)
+      }
     } else {
       vc.setMicEnabled(true)
     }
@@ -924,9 +969,20 @@ export default function GamePage() {
     setChatInput('')
   }
 
-  const sendEmote = (emoji: string) => {
-    getSocket().emit('emote:send' as any, { emoji })
+  const sendEmote = (emoteId: string) => {
+    const now = Date.now()
+    if (now < emoteCooldownUntil) return
+    if (now - lastEmoteTime.current < 1000) return
+    lastEmoteTime.current = now
+    getSocket().emit('emote:send' as any, { emoteId })
   }
+
+  // Tick while a server lockout is active so disabled buttons re-enable.
+  useEffect(() => {
+    if (emoteCooldownUntil <= Date.now()) return
+    const id = setInterval(() => setEmoteNow(Date.now()), 250)
+    return () => clearInterval(id)
+  }, [emoteCooldownUntil])
 
   const sendDeadChat = (e: React.FormEvent) => {
     e.preventDefault()
@@ -986,6 +1042,103 @@ export default function GamePage() {
     twin_red_handed: { icon: '👯', label: t('game.roleTwinRedHanded', 'Evil Twin (Imposter)'), color: 'text-purple-400',  bg: 'from-purple-900/40' },
   }
   const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
+
+  // Mic controls shown inside the vocal clue card and as a standalone banner
+  // during voting / reveal so players can always mute themselves.
+  const voiceControlsBlock = (
+    <>
+      {voiceStatus === 'idle' && (
+        <button
+          type="button"
+          onClick={startVoice}
+          className="w-full px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+        >
+          <span>🎙️</span>
+          <span>{t('game.voiceEnable', 'Enable microphone')}</span>
+        </button>
+      )}
+      {voiceStatus === 'requesting' && (
+        <p className="text-xs text-neutral-400 text-center py-2">
+          {t('game.voiceRequesting', 'Requesting microphone permission...')}
+        </p>
+      )}
+      {voiceStatus === 'denied' && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-amber-400 flex-1">
+            {t('game.voiceDenied', 'Mic permission denied. Allow it in your browser settings, then retry.')}
+          </p>
+          <button
+            type="button"
+            onClick={startVoice}
+            className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
+          >
+            {t('game.voiceRetry', 'Retry')}
+          </button>
+        </div>
+      )}
+      {voiceStatus === 'unsupported' && (
+        <p className="text-xs text-neutral-500 text-center py-1">
+          {t('game.voiceUnsupported', 'Audio streaming is not supported in this browser.')}
+        </p>
+      )}
+      {voiceStatus === 'error' && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-red-400 flex-1">
+            {t('game.voiceError', 'Microphone capture failed.')}
+          </p>
+          <button
+            type="button"
+            onClick={startVoice}
+            className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
+          >
+            {t('game.voiceRetry', 'Retry')}
+          </button>
+        </div>
+      )}
+      {voiceStatus === 'connected' && (() => {
+        const autoMicLive = !voiceMutedManually && (
+          vocalMode
+            ? phase === 'clues'
+              ? !!vocalSpeakerId && vocalSpeakerId === user?.id
+              : phase !== 'voting'
+            : true
+        )
+        return (
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-neutral-400">
+              <span className={[
+                'w-2 h-2 rounded-full',
+                autoMicLive ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-600',
+              ].join(' ')} />
+              <span>
+                {autoMicLive
+                  ? t('game.voiceMicLive', 'Mic live')
+                  : t('game.voiceMicMuted', 'Mic muted')}
+              </span>
+              <span className="text-neutral-600">·</span>
+              <span>
+                {t('game.voicePeerCount', '{{count}} connected', { count: voicePeerCount })}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setVoiceMutedManually((m) => !m)}
+              aria-pressed={voiceMutedManually}
+              aria-label={voiceMutedManually ? 'Unmute microphone' : 'Mute microphone'}
+              className={[
+                'px-2 py-1 rounded text-xs font-medium transition-colors',
+                voiceMutedManually
+                  ? 'bg-red-600/20 text-red-300 hover:bg-red-600/30'
+                  : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700',
+              ].join(' ')}
+            >
+              {voiceMutedManually ? t('game.voiceUnmute', 'Unmute') : t('game.voiceMute', 'Mute')}
+            </button>
+          </div>
+        )
+      })()}
+    </>
+  )
 
   return (
     <div id="main-content" role="main" className="min-h-screen flex flex-col md:flex-row">
@@ -1100,7 +1253,8 @@ export default function GamePage() {
                 >
                   {roleInfo.label}
                 </h1>
-                <div className="mt-5" style={{ animation: 'role-rise 0.4s ease 0.75s both' }}>
+                <div className="mt-5 flex flex-col items-center gap-2" style={{ animation: 'role-rise 0.4s ease 0.75s both' }}>
+                  <CategoryBadge categoryKey={myCategory} />
                   {myVillagerWord ? (
                     <div className="flex gap-3 justify-center">
                       <div className="rounded-xl bg-emerald-950/60 border border-emerald-800/40 px-4 py-2 text-center hover:scale-105 transition-transform">
@@ -1223,16 +1377,17 @@ export default function GamePage() {
       {/* ── Main game area ── */}
       <div className="relative flex-1 flex flex-col p-4 md:p-6 lg:p-8 gap-4 overflow-y-auto">
 
-        {/* Floating emote reactions */}
+        {/* Floating emote reactions — rarity-aware renderer adds halos,
+            entrance animations, and particle bursts based on the emote's
+            catalog entry. See components/emotes/FloatingEmote.tsx. */}
         {floatingEmotes.map((e) => (
-          <div
+          <FloatingEmote
             key={e.id}
-            className="pointer-events-none absolute bottom-20 z-50 flex flex-col items-center animate-float-up"
-            style={{ left: `${e.x}%` }}
-          >
-            <span className="text-3xl drop-shadow-lg">{e.emoji}</span>
-            <span className="text-[10px] text-white/70 font-semibold mt-0.5 bg-black/40 px-1.5 py-0.5 rounded-full">{e.username}</span>
-          </div>
+            emoteId={e.emoteId}
+            emoji={e.emoji}
+            username={e.username}
+            x={e.x}
+          />
         ))}
 
         {/* Detective role reveal — small non-blocking toast */}
@@ -1338,11 +1493,12 @@ export default function GamePage() {
           {myVillagerWord ? (
             /* Double agent: two word chips */
             <div className="relative">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <span className="text-lg">🎭</span>
                 <p className="text-xs font-semibold uppercase tracking-widest text-orange-500">
                   {t('game.roleDoubleAgent')}
                 </p>
+                <CategoryBadge categoryKey={myCategory} className="ml-auto" />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-xl bg-emerald-950/40 border border-emerald-800/40 p-3 shadow-sm shadow-emerald-950/40">
@@ -1358,9 +1514,12 @@ export default function GamePage() {
             </div>
           ) : (
             <div className="relative">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-0.5">
-                {t('game.yourWordLabel')}
-              </p>
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  {t('game.yourWordLabel')}
+                </p>
+                <CategoryBadge categoryKey={myCategory} />
+              </div>
               <p className="text-3xl font-extrabold tracking-tight text-white" style={{ textShadow: '0 0 20px rgba(139,92,246,0.3)' }}>
                 {myWord ?? '???'}
               </p>
@@ -1425,7 +1584,7 @@ export default function GamePage() {
                 </div>
                 {speaker ? (
                   <div className="flex items-center gap-3 mb-3">
-                    <Avatar username={speaker.username} size="md" />
+                    <Avatar src={speaker.avatarUrl} username={speaker.username} size="md" />
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-bold truncate">
                         {isMyTurn
@@ -1446,94 +1605,7 @@ export default function GamePage() {
                 )}
                 {/* ── Microphone controls (real audio streaming) ───────── */}
                 <div className="mt-3 mb-3 pt-3 border-t border-neutral-800/60">
-                  {voiceStatus === 'idle' && (
-                    <button
-                      type="button"
-                      onClick={startVoice}
-                      className="w-full px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <span>🎙️</span>
-                      <span>{t('game.voiceEnable', 'Enable microphone')}</span>
-                    </button>
-                  )}
-                  {voiceStatus === 'requesting' && (
-                    <p className="text-xs text-neutral-400 text-center py-2">
-                      {t('game.voiceRequesting', 'Requesting microphone permission...')}
-                    </p>
-                  )}
-                  {voiceStatus === 'denied' && (
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-amber-400 flex-1">
-                        {t('game.voiceDenied', 'Mic permission denied. Allow it in your browser settings, then retry.')}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={startVoice}
-                        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
-                      >
-                        {t('game.voiceRetry', 'Retry')}
-                      </button>
-                    </div>
-                  )}
-                  {voiceStatus === 'unsupported' && (
-                    <p className="text-xs text-neutral-500 text-center py-1">
-                      {t('game.voiceUnsupported', 'Audio streaming is not supported in this browser.')}
-                    </p>
-                  )}
-                  {voiceStatus === 'error' && (
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-red-400 flex-1">
-                        {t('game.voiceError', 'Microphone capture failed.')}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={startVoice}
-                        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
-                      >
-                        {t('game.voiceRetry', 'Retry')}
-                      </button>
-                    </div>
-                  )}
-                  {voiceStatus === 'connected' && (() => {
-                    // Mic is "live" when track is enabled. We mirror the same
-                    // logic the auto-mute effect uses to decide what to show.
-                    const autoMicLive = !voiceMutedManually && (
-                      !(phase === 'clues' && vocalMode && vocalSpeakerId) || vocalSpeakerId === user?.id
-                    )
-                    return (
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-xs text-neutral-400">
-                          <span className={[
-                            'w-2 h-2 rounded-full',
-                            autoMicLive ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-600',
-                          ].join(' ')} />
-                          <span>
-                            {autoMicLive
-                              ? t('game.voiceMicLive', 'Mic live')
-                              : t('game.voiceMicMuted', 'Mic muted')}
-                          </span>
-                          <span className="text-neutral-600">·</span>
-                          <span>
-                            {t('game.voicePeerCount', '{{count}} connected', { count: voicePeerCount })}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setVoiceMutedManually((m) => !m)}
-                          aria-pressed={voiceMutedManually}
-                          aria-label={voiceMutedManually ? 'Unmute microphone' : 'Mute microphone'}
-                          className={[
-                            'px-2 py-1 rounded text-xs font-medium transition-colors',
-                            voiceMutedManually
-                              ? 'bg-red-600/20 text-red-300 hover:bg-red-600/30'
-                              : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700',
-                          ].join(' ')}
-                        >
-                          {voiceMutedManually ? t('game.voiceUnmute', 'Unmute') : t('game.voiceMute', 'Mute')}
-                        </button>
-                      </div>
-                    )
-                  })()}
+                  {voiceControlsBlock}
                 </div>
                 {isMyTurn && (
                   <button
@@ -1585,6 +1657,14 @@ export default function GamePage() {
                 </button>
               </form>
             )}
+          </div>
+        )}
+
+        {/* Mic controls during voting / reveal (vocal mode) — lets players
+            see their auto-mute state and manually toggle their own mic. */}
+        {vocalMode && (phase === 'voting' || phase === 'reveal') && !isEliminated && (
+          <div className="card">
+            {voiceControlsBlock}
           </div>
         )}
 
@@ -1755,14 +1835,17 @@ export default function GamePage() {
                 )}
               </div>
               {wordReveal && (
-                <div className="grid grid-cols-2 gap-3 mt-5 relative" style={{ animation: 'role-rise 0.4s ease 0.5s both' }}>
-                  <div className="rounded-xl bg-brand-950/40 border border-brand-800/40 p-3 text-center">
-                    <p className="text-xs text-neutral-500 mb-1">{t('game.villagerWord')}</p>
-                    <p className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</p>
-                  </div>
-                  <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
-                    <p className="text-xs text-neutral-500 mb-1">{t('game.redHandedWord')}</p>
-                    <p className="text-amber-300 font-extrabold text-xl">{wordReveal.redHandedWord}</p>
+                <div className="mt-5 relative flex flex-col items-center gap-2" style={{ animation: 'role-rise 0.4s ease 0.5s both' }}>
+                  <CategoryBadge categoryKey={(wordReveal as any).category ?? myCategory} />
+                  <div className="grid grid-cols-2 gap-3 w-full">
+                    <div className="rounded-xl bg-brand-950/40 border border-brand-800/40 p-3 text-center">
+                      <p className="text-xs text-neutral-500 mb-1">{t('game.villagerWord')}</p>
+                      <p className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</p>
+                    </div>
+                    <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
+                      <p className="text-xs text-neutral-500 mb-1">{t('game.redHandedWord')}</p>
+                      <p className="text-amber-300 font-extrabold text-xl">{wordReveal.redHandedWord}</p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1968,7 +2051,7 @@ export default function GamePage() {
             {players.map((p) => {
               const canReveal = myRole === 'detective' && !detectiveRevealUsed && p.userId !== user?.id && p.status === 'alive' && (phase === 'clues' || phase === 'voting')
               const canProtect = myRole === 'guardian' && !guardianProtectUsed && p.status === 'alive' && phase === 'voting'
-              const isSpeakingNow = currentSpeakerId === p.userId && phase === 'clues'
+              const isSpeakingNow = phase === 'clues' && (vocalMode ? vocalSpeakerId === p.userId : currentSpeakerId === p.userId)
               return (
                 <div
                   key={p.id}
@@ -2081,20 +2164,47 @@ export default function GamePage() {
           <div className="flex-1 flex flex-col justify-end p-3 gap-3">
             {/* Chat disabled notice */}
             <p className="text-xs text-neutral-600 text-center">{t('game.chatDisabled')}</p>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600 mb-2">{t('game.react')}</p>
-              <div className="flex gap-2 flex-wrap">
-                {EMOTES.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => sendEmote(emoji)}
-                    className="text-2xl w-11 h-11 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/80 hover:scale-110 active:scale-95 transition-all border border-neutral-700/50"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {(() => {
+              const cooldownRemaining = Math.max(0, emoteCooldownUntil - (emoteNow || Date.now()))
+              const locked = cooldownRemaining > 0
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600">{t('game.react')}</p>
+                    {locked && (
+                      <span className="text-[10px] text-amber-500">Slow down · {Math.ceil(cooldownRemaining / 1000)}s</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {activeLoadout.map((id) => {
+                      const em = getEmoteById(id)
+                      if (!em) return null
+                      const rarityRing =
+                        em.rarity === 'legendary' ? 'border-amber-500/60 hover:border-amber-400/90' :
+                        em.rarity === 'epic'      ? 'border-fuchsia-600/50 hover:border-fuchsia-400/80' :
+                        em.rarity === 'rare'      ? 'border-indigo-600/50 hover:border-indigo-400/80' :
+                        em.rarity === 'common'    ? 'border-sky-700/40 hover:border-sky-500/70' :
+                                                    'border-neutral-700/50 hover:border-neutral-500/70'
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => sendEmote(id)}
+                          disabled={locked}
+                          title={em.name}
+                          className={[
+                            'text-2xl w-11 h-11 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/80 hover:scale-110 active:scale-95 transition-all border',
+                            rarityRing,
+                            locked ? 'opacity-40 cursor-not-allowed hover:scale-100' : '',
+                          ].join(' ')}
+                        >
+                          {em.emoji}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
             {/* Quit & Forfeit */}
             {showForfeitConfirm ? (
               <div className="rounded-xl border border-orange-800/50 bg-orange-950/30 p-3 space-y-2">

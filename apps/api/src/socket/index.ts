@@ -5,13 +5,15 @@ import { env } from '../config/env'
 import { childLogger } from '../config/logger'
 import { redis } from '../config/redis'
 import { prisma } from '../config/prisma'
-import { registerRoomHandlers } from './handlers/room'
+import { registerRoomHandlers, removeUserFromWaitingLobby } from './handlers/room'
 import { registerGameHandlers } from './handlers/game'
 import { registerChatHandlers } from './handlers/chat'
 import { registerMatchmakingHandlers, cleanupEmptyQueue } from './handlers/matchmaking'
 import { registerVoiceHandlers, leaveVoiceChannel } from './handlers/voice'
 import { sendPushNotification } from '../services/push'
 import { evaluateEvent } from '../services/achievements'
+import { EMOTES_BY_ID } from '@red-handed/shared'
+import { getUserLoadout } from '../routes/emotes'
 
 const log = childLogger('socket')
 
@@ -36,6 +38,39 @@ function isRateLimited(socket: any, event: string, maxPerSecond: number = 5): bo
   timestamps.push(now)
   events.set(event, timestamps)
   return false
+}
+
+// Emote-specific anti-spam: min 1s between emotes plus a 5-in-10s burst cap
+// with a 10s lockout once tripped. Tuned tighter than the generic limiter
+// since emotes broadcast to every player in the room.
+const EMOTE_MIN_INTERVAL_MS = 1000
+const EMOTE_BURST_WINDOW_MS = 10_000
+const EMOTE_BURST_MAX = 5
+const EMOTE_LOCKOUT_MS = 10_000
+const emoteRateLimits = new WeakMap<object, { times: number[]; lockoutUntil: number }>()
+
+function checkEmoteSpam(socket: any): { allowed: boolean; reason?: string; retryAfter?: number } {
+  let state = emoteRateLimits.get(socket)
+  if (!state) {
+    state = { times: [], lockoutUntil: 0 }
+    emoteRateLimits.set(socket, state)
+  }
+  const now = Date.now()
+  if (now < state.lockoutUntil) {
+    return { allowed: false, reason: 'lockout', retryAfter: state.lockoutUntil - now }
+  }
+  const last = state.times[state.times.length - 1]
+  if (last !== undefined && now - last < EMOTE_MIN_INTERVAL_MS) {
+    return { allowed: false, reason: 'too_fast', retryAfter: EMOTE_MIN_INTERVAL_MS - (now - last) }
+  }
+  state.times = state.times.filter((t) => now - t < EMOTE_BURST_WINDOW_MS)
+  if (state.times.length >= EMOTE_BURST_MAX) {
+    state.lockoutUntil = now + EMOTE_LOCKOUT_MS
+    state.times = []
+    return { allowed: false, reason: 'burst_lockout', retryAfter: EMOTE_LOCKOUT_MS }
+  }
+  state.times.push(now)
+  return { allowed: true }
 }
 
 export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerToClientEvents>, fastify?: any) {
@@ -71,6 +106,10 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
 
     // Track online user — delete stale entry first to avoid race with old socket
     onlineUsers.set(userId, socket.id)
+    // Join a per-user room so per-user events (game:finished, level:xp,
+    // rank:updated, judge prompt, ...) reach every tab/device this user has
+    // connected — not just the most recent one in `onlineUsers`.
+    await socket.join(`user:${userId}`)
 
     registerRoomHandlers(io, socket)
     registerGameHandlers(io, socket)
@@ -103,21 +142,45 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
           text: msg.text,
           createdAt: msg.createdAt,
         }
-        // Send to recipient if online
-        const recipientSocketId = onlineUsers.get(data.toUserId)
-        if (recipientSocketId) {
-          io.to(recipientSocketId).emit('dm:receive' as any, payload)
-        }
-        // Confirm to sender
-        socket.emit('dm:receive' as any, payload)
+        // Deliver via the per-user room so every tab/device of the recipient
+        // gets it. The old `onlineUsers.get()` lookup only held the most
+        // recent socket id per user, so a second tab or a brief reconnect
+        // could leave the map pointing at a dead socket and silently drop
+        // the message.
+        io.to(`user:${data.toUserId}`).emit('dm:receive' as any, payload)
+        // Confirm to sender on every tab/device they have open, too
+        io.to(`user:${socket.data.userId}`).emit('dm:receive' as any, payload)
         // Fire dm_sent achievement event
         await evaluateEvent(io, 'dm_sent', { userId: socket.data.userId, otherUserId: data.toUserId }).catch(() => {})
-      } catch {}
+      } catch (err) {
+        // Don't swallow silently — a missing column/table (e.g. the
+        // direct_messages self-heal not having run on staging yet) used to
+        // make every DM vanish with no trace in the logs.
+        log.error({ err, senderId: socket.data.userId, toUserId: data.toUserId }, 'dm:send failed')
+      }
     })
 
     // Room invite: invite an online user to a room
     socket.on('room:invite' as any, async (data: { toUserId: string; roomCode: string }) => {
       if (!socket.data.userId || !data.toUserId || !data.roomCode) return
+
+      // Re-inviting a previously kicked player clears their ban on the target
+      // room, so the invite they receive actually works. Only the host is
+      // allowed to do this — everyone else's invite is just a notification.
+      try {
+        const targetRoom = await prisma.room.findUnique({ where: { code: data.roomCode } })
+        if (targetRoom && targetRoom.hostId === socket.data.userId) {
+          const stateRaw = await redis.get(`room:${targetRoom.id}:state`)
+          if (stateRaw) {
+            const state = JSON.parse(stateRaw)
+            if (Array.isArray(state.bannedUserIds) && state.bannedUserIds.includes(data.toUserId)) {
+              state.bannedUserIds = state.bannedUserIds.filter((u: string) => u !== data.toUserId)
+              await redis.set(`room:${targetRoom.id}:state`, JSON.stringify(state), 'EX', 21600)
+            }
+          }
+        }
+      } catch {}
+
       const targetSocketId = onlineUsers.get(data.toUserId)
       if (targetSocketId) {
         io.to(targetSocketId).emit('room:invited' as any, {
@@ -206,22 +269,65 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       io.to(`dead:${room.id}`).emit('deadchat:message' as any, msg)
     })
 
-    // Emote: quick reaction broadcast to the room
-    socket.on('emote:send' as any, (data: { emoji: string }) => {
-      if (isRateLimited(socket, 'emote:send', 2)) return
-      if (!socket.data.userId) return
-      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
-      if (!roomKey) return
-      const allowed = ['👍', '😮', '🤔', '😂', '😱']
-      if (!allowed.includes(data.emoji)) {
-        log.warn({ userId: socket.data.userId, emoji: data.emoji }, 'emote:send rejected: invalid emoji')
+    // Emote: quick reaction broadcast to the room.
+    // Anti-spam: 1s min between emotes, plus a 5-in-10s burst cap that
+    // triggers a 10s lockout. Sender gets `emote:cooldown` with a retry
+    // timestamp so the UI can disable buttons.
+    //
+    // Accepts either `{ emoteId }` (preferred — catalog id, validates against
+    // the sender's loadout) or legacy `{ emoji }` (unicode glyph — resolved
+    // back to the matching free-tier emote id so pre-update clients keep
+    // working). Anything the sender doesn't have equipped is rejected.
+    socket.on('emote:send' as any, async (data: { emoteId?: string; emoji?: string }) => {
+      if (!socket.data.userId) {
+        socket.emit('error', { code: 'UNAUTHENTICATED', message: 'Not signed in' })
         return
       }
-      log.info({ userId: socket.data.userId, emoji: data.emoji, room: roomKey }, 'emote:send')
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) {
+        socket.emit('error', { code: 'EMOTE_NO_ROOM', message: 'Not in a room' })
+        log.warn({ userId: socket.data.userId, rooms: [...socket.rooms] }, 'emote:send rejected: no room membership')
+        return
+      }
+
+      // Resolve id — prefer the explicit emoteId, fall back to matching the
+      // legacy emoji against the catalog so older clients stay functional.
+      let emoteId = data.emoteId
+      if (!emoteId && data.emoji) {
+        const hit = Object.values(EMOTES_BY_ID).find((e) => e.emoji === data.emoji)
+        emoteId = hit?.id
+      }
+      if (!emoteId || !EMOTES_BY_ID[emoteId]) {
+        socket.emit('error', { code: 'EMOTE_UNKNOWN', message: 'Unknown emote' })
+        log.warn({ userId: socket.data.userId, data }, 'emote:send rejected: unknown id')
+        return
+      }
+
+      // Loadout check — server-authoritative so a patched client can't send
+      // unlocked-but-not-equipped content (or content they haven't paid for).
+      // getUserLoadout() is hardened to never throw (falls back to defaults on
+      // DB error), so we don't need a try/catch around it here.
+      const { loadout } = await getUserLoadout(socket.data.userId as string)
+      if (!loadout.includes(emoteId)) {
+        socket.emit('error', { code: 'EMOTE_NOT_EQUIPPED', message: 'Emote not in loadout' })
+        log.warn({ userId: socket.data.userId, emoteId }, 'emote:send rejected: not in loadout')
+        return
+      }
+
+      const spam = checkEmoteSpam(socket)
+      if (!spam.allowed) {
+        socket.emit('emote:cooldown' as any, { until: Date.now() + spam.retryAfter!, reason: spam.reason })
+        return
+      }
+
+      const emote = EMOTES_BY_ID[emoteId]
+      log.info({ userId: socket.data.userId, emoteId, room: roomKey }, 'emote:send')
       io.to(roomKey).emit('emote:receive' as any, {
         userId: socket.data.userId,
         username: socket.data.username,
-        emoji: data.emoji,
+        // Legacy field for older clients that still key off the raw glyph.
+        emoji: emote.emoji,
+        emoteId,
       })
     })
 
@@ -313,10 +419,10 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       if (!VALID_HONOR_TYPES.includes(data.honorType)) return
       log.info({ userId, targetUserId: data.targetUserId, honorType: data.honorType, gameId: data.gameId }, 'honor:give')
       try {
-        // ── One honor per sender → target per game ────────────────────────────
+        // One honor per sender per game — sender may only honor a single player.
         if (data.gameId) {
           const existing = await prisma.honor.findFirst({
-            where: { senderId: userId, receiverId: data.targetUserId, gameId: data.gameId },
+            where: { senderId: userId, gameId: data.gameId },
           })
           if (existing) return
         }
@@ -407,33 +513,21 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         const wasInGame = state.status === 'in_progress' || state.status === 'voting'
 
         if (wasInGame) {
-          // Mid-game: mark as eliminated (forfeit), don't remove from player list
+          // Mid-game disconnect: mark as eliminated but keep the player entry
+          // so reconnect can resume correctly. Host-loss here is cosmetic only —
+          // intentionally not reassigning host during an active game.
           const player = state.players.find((p: any) => p.userId === userId)
           if (player && player.status === 'alive') player.status = 'eliminated'
+          await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
+          io.to(roomKey).emit('player:left', socket.id)
         } else {
-          // In lobby: remove the player entirely
-          state.players = state.players.filter((p: any) => p.userId !== userId)
+          // Waiting lobby: delegate to the shared helper so the empty→close,
+          // host-reassignment, and broadcast paths stay consistent with the
+          // room:leave handler and the stale-lobby eviction in room:join.
+          await removeUserFromWaitingLobby(io, roomId, userId, socket.id).catch((err) => {
+            log.error({ err, roomId, userId }, 'disconnect: removeUserFromWaitingLobby failed')
+          })
         }
-
-        // ── Host reassignment ───────────────────────────────────────────────
-        // Only reassign host if game is in waiting state (mid-game host loss is cosmetic only)
-        if (!wasInGame && state.players.length > 0) {
-          const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
-          if (room && room.hostId === userId) {
-            // Promote the first remaining player to host
-            const newHost = state.players[0]
-            newHost.isHost  = true
-            newHost.isReady = true
-            await prisma.room.update({
-              where: { id: roomId },
-              data:  { hostId: newHost.userId },
-            }).catch(() => {})
-            io.to(roomKey).emit('room:host-changed' as any, { newHostId: newHost.userId, newHostUsername: newHost.username })
-          }
-        }
-
-        await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 86400)
-        io.to(roomKey).emit('player:left', socket.id)
       }
     })
   })

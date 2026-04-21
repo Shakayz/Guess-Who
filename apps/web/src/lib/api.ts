@@ -34,6 +34,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const err = await res.json().catch(() => ({}))
     const error = Object.assign(new Error(err.error ?? `HTTP ${res.status}`), { status: res.status, data: err })
     log.error(`${method} ${path} failed`, { status: res.status, error: error.message })
+    // 402 Payment Required → the resource is premium-gated. Surface an event
+    // so any page can offer an upsell. Avoid redirecting from the Shop
+    // itself (would loop).
+    if (res.status === 402 && typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('premium-required', { detail: err }))
+      } catch {}
+    }
     throw error
   }
   // Handle 204 No Content

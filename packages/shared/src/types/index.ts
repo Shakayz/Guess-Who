@@ -1,6 +1,6 @@
 // ─── User & Auth ────────────────────────────────────────────────────────────
 
-export type Locale = 'en' | 'fr' | 'ar' | 'es' | 'it' | 'pt' | 'zh' | 'de'
+export type Locale = 'en' | 'fr' | 'ar' | 'es' | 'it' | 'pt' | 'zh' | 'de' | 'ru' | 'hi'
 
 export interface User {
   id: string
@@ -78,6 +78,7 @@ export const WORD_CATEGORIES = [
   { key: 'jobs',         label: 'Jobs',           icon: '💼' },
   { key: 'sports',       label: 'Sports',         icon: '⚽' },
   { key: 'movies',       label: 'Movies',         icon: '🎬' },
+  { key: 'tech',         label: 'Tech',           icon: '💻' },
   { key: 'history',      label: 'History',        icon: '📜' },
   { key: 'mangas',       label: 'Mangas',         icon: '🈶' },
   { key: 'celebrities',  label: 'Celebrities',    icon: '⭐' },
@@ -94,6 +95,11 @@ export interface RoomSettings {
   votingTimeSeconds: number
   wordPackId: string
   isPrivate: boolean
+  /** Discoverability toggle for Custom Lobbies. When true, the lobby is listed
+   *  in the public browser (GET /rooms/public). Pricing is identical either
+   *  way — this is purely a visibility flag. Ranked rooms always have this
+   *  false. Optional in transit for backwards compatibility with old clients. */
+  isPublic?: boolean
   language: Locale
   gameMode: GameMode
   categories: WordCategory[]   // empty = all categories
@@ -131,6 +137,13 @@ export interface Player {
   userId: string
   username: string
   avatarUrl: string | null
+  /**
+   * Populated from User.premiumUntil at the moment the player joins a room,
+   * so every lobby/voting UI can render the crown badge without a per-render
+   * /users/:id round-trip. Stale within a single game is fine — entitlement
+   * only matters here for the badge itself.
+   */
+  isPremium?: boolean
   role?: PlayerRole
   status: PlayerStatus
   word?: string
@@ -188,6 +201,9 @@ export interface Vote {
 export interface WordReveal {
   villagerWord: string
   redHandedWord: string
+  /** Category key the pair was drawn from (e.g. 'food', 'movies'). Optional
+   *  for backwards compatibility with older payloads. */
+  category?: WordCategory
 }
 
 // ─── Word Packs ───────────────────────────────────────────────────────────────
@@ -215,7 +231,7 @@ export interface WordPair {
 
 export interface ServerToClientEvents {
   'room:updated': (room: Room) => void
-  'game:started': (data: { round: Round; yourWord: string; yourRole: PlayerRole; yourVillagerWord?: string }) => void
+  'game:started': (data: { round: Round; yourWord: string; yourRole: PlayerRole; yourVillagerWord?: string; yourCategory?: WordCategory }) => void
   'detective:result': (data: { targetUserId: string; targetUsername: string; role: PlayerRole }) => void
   'round:speaking-turn': (data: { playerId: string | null; timeSeconds: number; speakingOrder: string[] }) => void
   'round:clue-submitted': (clue: Clue) => void
@@ -242,6 +258,7 @@ export interface ServerToClientEvents {
   'player:joined': (player: Player) => void
   'player:left': (playerId: string) => void
   'player:ready': (data: { playerId: string; isReady: boolean }) => void
+  'room:kicked': (data: { byUsername?: string }) => void
   'chat:message': (message: ChatMessage) => void
   'achievement:unlocked': (data: { key: string; name: string; icon: string; difficulty: string; category: string; starsReward: number; xpReward: number }) => void
   // ── Voice (WebRTC) signaling — vocal mode mic streaming ────────────────────
@@ -259,6 +276,8 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   'room:join': (data: { roomCode: string }) => void
   'room:leave': () => void
+  'room:kick-player': (data: { targetUserId: string }) => void
+  'room:transfer-host': (data: { targetUserId: string }) => void
   'player:ready': (isReady: boolean) => void
   'game:start': () => void
   'game:forfeit': () => void

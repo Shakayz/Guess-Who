@@ -220,7 +220,7 @@ function StepWelcome() {
           boxShadow: '0 0 40px rgba(34,211,238,0.25), 0 0 40px rgba(251,191,36,0.2), inset 0 2px 0 rgba(255,255,255,0.6)',
         }}
       >
-        <img src="/logo-masks.svg" alt="" className="w-16 h-16 select-none" draggable={false} />
+        <img src="/masks.png" alt="" className="w-16 h-16 object-contain select-none" draggable={false} />
       </div>
       <div>
         <h2 className="text-2xl font-extrabold text-white mb-2">

@@ -8,6 +8,7 @@ import {
   Animated,
   Easing,
   Dimensions,
+  Image,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -443,10 +444,14 @@ function SetupPhase({
           <View className="self-end">
             <LanguagePicker />
           </View>
-          <Text style={{ fontSize: isTablet ? 36 : 30 }}>🎭</Text>
+          <Image
+            source={require('../assets/masks.png')}
+            style={{ width: isTablet ? 96 : 80, height: isTablet ? 96 : 80, marginBottom: 12 }}
+            resizeMode="contain"
+          />
           <Text
-            className="font-extrabold text-white tracking-tight mt-1"
-            style={{ fontSize: (isTablet ? 26 : 22) * fontScale }}
+            className="font-extrabold text-white tracking-tight"
+            style={{ fontSize: (isTablet ? 30 : 26) * fontScale }}
           >
             {t('offline.title', { defaultValue: 'Offline Mode' })}
           </Text>
@@ -924,7 +929,7 @@ function RoleRevealCard({
   fontScale,
 }: {
   player: OfflinePlayer
-  wordPair: { villagerWord: string; redHandedWord: string }
+  wordPair: { villagerWord: string; redHandedWord: string; category?: WordCategory }
   isLast: boolean
   onGotIt: () => void
   isTablet: boolean
@@ -1038,15 +1043,30 @@ function RoleRevealCard({
           if (!baseTeam) return <View style={{ marginBottom: 16 }} />
           const teamClass = baseTeam === 'villager' ? 'text-emerald-400' : 'text-red-400'
           const teamIcon = baseTeam === 'villager' ? '🟢' : '🔴'
+          const teamKey = baseTeam === 'villager' ? 'offline.villager' : 'offline.redHanded'
+          const teamFallback = baseTeam === 'villager' ? 'Villager' : 'Imposter'
           return (
             <Text
               className={['text-center font-semibold mt-1 mb-4', teamClass].join(' ')}
               style={{ fontSize: 13 * fontScale }}
             >
-              {teamIcon} {t(`offline.${baseTeam}`, { defaultValue: baseTeam })}
+              {teamIcon} {t(teamKey, { defaultValue: teamFallback })}
             </Text>
           )
         })()}
+
+        {wordPair.category ? (() => {
+          const cat = WORD_CATEGORIES.find((c) => c.key === wordPair.category)
+          if (!cat) return null
+          return (
+            <View className="self-center flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-violet-950/60 border border-violet-700/40 mb-2">
+              <Text className="text-[10px]">{cat.icon}</Text>
+              <Text className="text-[10px] font-bold uppercase tracking-widest text-violet-300">
+                {t(`home.cat.${cat.key}`, cat.label)}
+              </Text>
+            </View>
+          )
+        })() : null}
 
         {isDoubleAgent ? (
           <View className="gap-2">
@@ -1137,7 +1157,7 @@ function DealingPhase({
   fontScale,
 }: {
   players: OfflinePlayer[]
-  wordPair: { villagerWord: string; redHandedWord: string }
+  wordPair: { villagerWord: string; redHandedWord: string; category?: WordCategory }
   onDone: () => void
   isTablet: boolean
   px: number
@@ -1272,7 +1292,10 @@ function SpeakingTimer({ isTablet, fontScale }: { isTablet: boolean; fontScale: 
           }
           // Last-5-second countdown ticks — subtle tick + tactile tap
           // so players feel the pressure even when looking at the room.
-          if (s <= 6) {
+          if (s <= 4) {
+            SoundManager.play('countdown_final')
+            HapticManager.selection()
+          } else if (s <= 6) {
             SoundManager.play('timer_tick')
             HapticManager.selection()
           }
@@ -2089,7 +2112,7 @@ function PlayingPhase({
 }: {
   initialPlayers: OfflinePlayer[]
   gameMode: GameMode
-  wordPair: { villagerWord: string; redHandedWord: string }
+  wordPair: { villagerWord: string; redHandedWord: string; category?: WordCategory }
   onRevealRoles: (updatedPlayers: OfflinePlayer[], manual?: boolean) => void
   isTablet: boolean
   px: number
@@ -2507,7 +2530,7 @@ function ResultsPhase({
 }: {
   players: OfflinePlayer[]
   gameMode: GameMode
-  wordPair: { villagerWord: string; redHandedWord: string }
+  wordPair: { villagerWord: string; redHandedWord: string; category?: WordCategory }
   manualReveal: boolean
   onPlayAgain: () => void
   onHome: () => void
@@ -2610,9 +2633,23 @@ function ResultsPhase({
         </Animated.View>
 
         <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-3">
-          <Text className="text-neutral-500 font-semibold uppercase tracking-widest" style={{ fontSize: 10 * fontScale }}>
-            {t('offline.theWords', { defaultValue: 'The Words' })}
-          </Text>
+          <View className="flex-row items-center justify-between gap-2">
+            <Text className="text-neutral-500 font-semibold uppercase tracking-widest" style={{ fontSize: 10 * fontScale }}>
+              {t('offline.theWords', { defaultValue: 'The Words' })}
+            </Text>
+            {wordPair.category ? (() => {
+              const cat = WORD_CATEGORIES.find((c) => c.key === wordPair.category)
+              if (!cat) return null
+              return (
+                <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-violet-950/60 border border-violet-700/40">
+                  <Text className="text-[10px]">{cat.icon}</Text>
+                  <Text className="text-[10px] font-bold uppercase tracking-widest text-violet-300">
+                    {t(`home.cat.${cat.key}`, cat.label)}
+                  </Text>
+                </View>
+              )
+            })() : null}
+          </View>
           <View className="flex-row gap-3">
             <View className="flex-1 p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/30">
               <Text className="text-emerald-600 font-bold uppercase tracking-widest" style={{ fontSize: 9 * fontScale }}>
@@ -2832,7 +2869,7 @@ export default function OfflineScreen() {
   const [phase, setPhase] = useState<Phase>('setup')
   const [gameMode, setGameMode] = useState<GameMode>('normal')
   const [players, setPlayers] = useState<OfflinePlayer[]>([])
-  const [wordPair, setWordPair] = useState<{ villagerWord: string; redHandedWord: string }>({
+  const [wordPair, setWordPair] = useState<{ villagerWord: string; redHandedWord: string; category?: WordCategory }>({
     villagerWord: '',
     redHandedWord: '',
   })
@@ -2849,7 +2886,7 @@ export default function OfflineScreen() {
 
       const rawPair = pickRandomWordPair(settings.categories, shuffleArray, i18n.language)
       const pair = Math.random() < 0.5
-        ? { villagerWord: rawPair.redHandedWord, redHandedWord: rawPair.villagerWord }
+        ? { villagerWord: rawPair.redHandedWord, redHandedWord: rawPair.villagerWord, category: rawPair.category }
         : rawPair
 
       const playerOrder = shuffleArray([...settings.names])
@@ -2934,7 +2971,7 @@ export default function OfflineScreen() {
   const handlePlayAgain = useCallback(() => {
     setPhase('setup')
     setPlayers([])
-    setWordPair({ villagerWord: '', redHandedWord: '' })
+    setWordPair({ villagerWord: '', redHandedWord: '', category: undefined })
   }, [])
   const handleHome = useCallback(() => router.back(), [router])
 

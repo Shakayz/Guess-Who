@@ -47,6 +47,14 @@ function AppleIcon() {
   )
 }
 
+function DiscordIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 127.14 96.36" fill="currentColor" aria-hidden="true">
+      <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/>
+    </svg>
+  )
+}
+
 // ─── AuthPage ─────────────────────────────────────────────────────────────────
 
 export default function AuthPage() {
@@ -57,7 +65,7 @@ export default function AuthPage() {
   const [form, setForm] = useState({ identifier: '', email: '', password: '', username: '', referralCode: '' })
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null)
+  const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | 'discord' | null>(null)
   const [usernameSetup, setUsernameSetup] = useState<UsernameSetup | null>(null)
   const [chosenUsername, setChosenUsername] = useState('')
   const [usernameError, setUsernameError] = useState<string | null>(null)
@@ -74,6 +82,37 @@ export default function AuthPage() {
       setForm((f) => ({ ...f, referralCode: invite }))
       setMode('signup')
     }
+  }, [])
+
+  // Discord OAuth callback. Discord redirects the user back to
+  // <origin>/auth/discord/callback?code=...; AuthPage is mounted on that
+  // route (see App.tsx) so we pick up the code, exchange it server-side,
+  // and clean the URL so a refresh doesn't re-run the exchange.
+  useEffect(() => {
+    if (!window.location.pathname.startsWith('/auth/discord/callback')) return
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    const oauthError = params.get('error')
+    if (oauthError) {
+      setError(`Discord sign-in failed: ${oauthError}`)
+      window.history.replaceState({}, '', '/auth')
+      return
+    }
+    if (!code) return
+    const redirectUri = `${window.location.origin}/auth/discord/callback`
+    setOauthLoading('discord')
+    api.post<any>('/auth/discord/verify', { code, redirectUri, locale: i18n.language })
+      .then((data) => {
+        window.history.replaceState({}, '', '/auth')
+        handleOAuthResponse(data)
+      })
+      .catch((err: any) => {
+        log.error('discord verify failed', { message: err?.message })
+        setError(err?.message ?? 'Discord sign-in failed')
+        window.history.replaceState({}, '', '/auth')
+      })
+      .finally(() => setOauthLoading(null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const update = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -140,7 +179,7 @@ export default function AuthPage() {
             return
           }
           try {
-            const data = await api.post<any>('/auth/google/verify', { accessToken: response.access_token })
+            const data = await api.post<any>('/auth/google/verify', { accessToken: response.access_token, locale: i18n.language })
             handleOAuthResponse(data)
           } catch (err: any) {
             setError(err.message ?? 'Google sign-in failed')
@@ -202,7 +241,7 @@ export default function AuthPage() {
           const name = res.user?.name
             ? `${res.user.name.firstName ?? ''} ${res.user.name.lastName ?? ''}`.trim()
             : undefined
-          const data = await api.post<any>('/auth/apple/verify', { identityToken, name })
+          const data = await api.post<any>('/auth/apple/verify', { identityToken, name, locale: i18n.language })
           handleOAuthResponse(data)
         })
         .catch((err: AppleIDSignInError | Error | undefined) => {
@@ -241,6 +280,30 @@ export default function AuthPage() {
         }
       }, 100)
     }
+  }
+
+  // ── Discord ──
+  // Plain authorization-code redirect — no JS SDK. We bounce the user to
+  // Discord's consent page; Discord sends them back to
+  // <origin>/auth/discord/callback?code=..., where the useEffect above
+  // picks up the code and POSTs it to /auth/discord/verify.
+  const handleDiscord = () => {
+    const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID
+    if (!clientId) {
+      setError('Discord sign-in is not available yet. Please use email & password.')
+      return
+    }
+    log.info('discord oauth attempt')
+    setError(null)
+    setOauthLoading('discord')
+    const redirectUri = `${window.location.origin}/auth/discord/callback`
+    const url = new URL('https://discord.com/oauth2/authorize')
+    url.searchParams.set('client_id', clientId)
+    url.searchParams.set('redirect_uri', redirectUri)
+    url.searchParams.set('response_type', 'code')
+    url.searchParams.set('scope', 'identify email')
+    url.searchParams.set('prompt', 'consent')
+    window.location.assign(url.toString())
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -432,6 +495,21 @@ export default function AuthPage() {
                 </svg>
               ) : <AppleIcon />}
               Continue with Apple
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setError(null); handleDiscord() }}
+              disabled={!!oauthLoading}
+              className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] active:scale-[0.98] text-white font-semibold text-sm transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {oauthLoading === 'discord' ? (
+                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              ) : <DiscordIcon />}
+              Continue with Discord
             </button>
           </div>
 

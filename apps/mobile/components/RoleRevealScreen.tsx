@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { Modal, View, Text, Animated, Easing, useWindowDimensions } from 'react-native'
+import { ConfettiRain, ScreenFlash } from './anim/AnimatedViews'
+import { WORD_CATEGORIES, type WordCategory } from '@red-handed/shared'
+import { useTranslation } from 'react-i18next'
 
 interface RoleRevealScreenProps {
   visible: boolean
   role: string
   word: string
   villagerWord?: string
+  category?: WordCategory | null
   onDismiss: () => void
 }
 
@@ -53,8 +57,11 @@ export default function RoleRevealScreen({
   role,
   word,
   villagerWord,
+  category,
   onDismiss,
 }: RoleRevealScreenProps) {
+  const { t } = useTranslation()
+  const catInfo = category ? WORD_CATEGORIES.find((c) => c.key === category) : null
   const { width, height } = useWindowDimensions()
   const isTablet = width >= 768
   const cardMaxWidth = isTablet ? 440 : 340
@@ -183,11 +190,23 @@ export default function RoleRevealScreen({
     outputRange: [0, 1],
   })
 
+  // Friendly roles (villager, detective) get a confetti celebration on flip;
+  // impostor roles get a brief red screen flash to punch the reveal.
+  const isFriendly = role === 'villager' || role === 'detective'
+  const flashColor = isFriendly ? '#fbbf24' : '#ef4444'
+  const flashTrigger = visible ? 1 : 0
+
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <Animated.View style={{ flex: 1, opacity: fade }}>
         {/* Black backdrop */}
         <View style={{ ...StyleAbsFill, backgroundColor: 'rgba(0,0,0,0.85)' }} />
+
+        {/* Screen flash at the moment of the flip */}
+        <ScreenFlash trigger={flashTrigger} color={flashColor} />
+
+        {/* Confetti for friendly roles only */}
+        {isFriendly && visible && <ConfettiRain count={50} trigger={flashTrigger} />}
 
         {/* Breathing glow behind the card */}
         <Animated.View
@@ -311,6 +330,15 @@ export default function RoleRevealScreen({
                 >
                   {config.label}
                 </Text>
+
+                {catInfo ? (
+                  <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-violet-950/60 border border-violet-700/40 mb-3">
+                    <Text className="text-[10px]">{catInfo.icon}</Text>
+                    <Text className="text-[10px] font-bold uppercase tracking-widest text-violet-300">
+                      {t(`home.cat.${catInfo.key}`, catInfo.label)}
+                    </Text>
+                  </View>
+                ) : null}
 
                 {role === 'double_agent' && villagerWord ? (
                   <View className="w-full gap-3">

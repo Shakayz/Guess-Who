@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { Room, Round, ChatMessage, RewardSummary } from '@red-handed/shared'
+import type { Room, Round, ChatMessage, RewardSummary, WordCategory } from '@red-handed/shared'
 import { createLogger } from '../lib/logger'
 
 const log = createLogger('game')
@@ -30,6 +30,7 @@ interface GameState {
   myRole: string | null
   myWord: string | null
   myVillagerWord: string | null
+  myCategory: WordCategory | null
   detectiveRevealUsed: boolean
   guardianProtectUsed: boolean
   guardianProtectedPlayer: { userId: string; username: string } | null
@@ -57,7 +58,7 @@ interface GameState {
   setRoom: (room: Room) => void
   setRound: (round: Round) => void
   addCompletedRound: (round: Round) => void
-  setRoleAndWord: (role: string, word: string, villagerWord?: string) => void
+  setRoleAndWord: (role: string, word: string, villagerWord?: string, category?: WordCategory) => void
   setDetectiveRevealUsed: () => void
   setGuardianProtectUsed: (target: { userId: string; username: string }) => void
   setGuardianProtectedPlayer: (p: { userId: string; username: string } | null) => void
@@ -84,6 +85,7 @@ export const useGameStore = create<GameState>()(
       myRole: null,
       myWord: null,
       myVillagerWord: null,
+      myCategory: null,
       detectiveRevealUsed: false,
       guardianProtectUsed: false,
       guardianProtectedPlayer: null,
@@ -110,9 +112,9 @@ export const useGameStore = create<GameState>()(
       addCompletedRound: (round) => set((s) => ({
         completedRounds: [...s.completedRounds, round].slice(-20),
       })),
-      setRoleAndWord: (myRole, myWord, villagerWord) => {
+      setRoleAndWord: (myRole, myWord, villagerWord, category) => {
         log.info('role and word set', { role: myRole })
-        set({ myRole, myWord, myVillagerWord: villagerWord ?? null })
+        set({ myRole, myWord, myVillagerWord: villagerWord ?? null, myCategory: category ?? null })
       },
       setDetectiveRevealUsed: () => set({ detectiveRevealUsed: true }),
       setGuardianProtectUsed: (target) => set({ guardianProtectUsed: true, guardianProtectedPlayer: target }),
@@ -138,7 +140,7 @@ export const useGameStore = create<GameState>()(
       setGameFinished: (gameFinished) => set({ gameFinished }),
       reset: () => {
         log.info('game state reset')
-        set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, detectiveRevealUsed: false, guardianProtectUsed: false, guardianProtectedPlayer: null, mayorDoubleVoteUsed: false, mayorDoubleActive: false, inverterUsed: false, inverterActive: false, corruptorTargetUserId: null, twinPartner: null, revenantVotesRemaining: 0, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() })
+        set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, myCategory: null, detectiveRevealUsed: false, guardianProtectUsed: false, guardianProtectedPlayer: null, mayorDoubleVoteUsed: false, mayorDoubleActive: false, inverterUsed: false, inverterActive: false, corruptorTargetUserId: null, twinPartner: null, revenantVotesRemaining: 0, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() })
       },
     }),
     {
@@ -152,6 +154,7 @@ export const useGameStore = create<GameState>()(
         myRole: state.myRole,
         myWord: state.myWord,
         myVillagerWord: state.myVillagerWord,
+        myCategory: state.myCategory,
         detectiveRevealUsed: state.detectiveRevealUsed,
         guardianProtectUsed: state.guardianProtectUsed,
         mayorDoubleVoteUsed: state.mayorDoubleVoteUsed,

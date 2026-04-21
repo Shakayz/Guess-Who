@@ -11,6 +11,10 @@ import { getSocket } from '../lib/socket'
 import { SoundManager } from '../lib/sounds'
 import { PlayerActionMenu } from '../components/PlayerActionMenu'
 import { CoinsRevealCard } from '../components/CoinsRevealCard'
+import { AdInterstitialModal } from '../components/AdInterstitialModal'
+import { shouldShowAd } from '../lib/ads'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../lib/api'
 
 /** Full-screen cinematic intro overlay that auto-dismisses */
 const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: () => void }) => {
@@ -274,7 +278,7 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
                 💀 <span className="font-semibold text-white">{eliminated.username}</span>
                 {' '}
                 <span className="text-neutral-500 text-xs">
-                  ({round.eliminatedRole === 'red_handed' ? `🎭 ${t('game.roleRedHanded', 'Imposter')}` : round.eliminatedRole === 'double_agent' ? `🕵️ ${t('game.roleDoubleAgent', 'Double Agent')}` : round.eliminatedRole === 'detective' ? `🔍 ${t('game.roleDetective', 'Detective')}` : `👤 ${t('game.roleVillager', 'Villager')}`})
+                  ({round.eliminatedRole === 'red_handed' ? `🎭 ${t('game.roleRedHanded', 'Imposter')}` : round.eliminatedRole === 'double_agent' ? `🕵️ ${t('game.roleDoubleAgent', 'Double Agent')}` : round.eliminatedRole === 'detective' ? `🔍 ${t('game.roleDetective', 'Detective')}` : `🏠 ${t('game.roleVillager', 'Villager')}`})
                 </span>
               </span>
             ) : (
@@ -401,6 +405,13 @@ export default function ResultsPage() {
   const [showCinematic, setShowCinematic] = useState(true)
   const [honorGiven, setHonorGiven] = useState<Record<string, HonorType>>({})
   const [honorTarget, setHonorTarget] = useState<string | null>(null)
+  const [pendingAdNav, setPendingAdNav] = useState<string | null>(null)
+  const meQuery = useQuery<{ level?: number; isPremium?: boolean }>({
+    queryKey: ['me'],
+    queryFn: () => api.get('/auth/me'),
+    retry: false,
+  })
+  const hasGivenHonor = Object.keys(honorGiven).length > 0
   const [rankUp, setRankUp] = useState<{ oldTier: RankTier; newTier: RankTier; newLP: number } | null>(null)
   const [showRankCelebration, setShowRankCelebration] = useState(false)
 
@@ -512,10 +523,23 @@ export default function ResultsPage() {
     getSocket().emit('honor:give' as any, { targetUserId, honorType })
   }
 
+  // Defers `reset()` until *just before* `navigate()` runs so we don't clear
+  // the game store while the ResultsPage is still mounted — otherwise the
+  // `!result` guard below kicks in and strands the user on the "No game data
+  // available" fallback (the AdInterstitialModal lives in the main return
+  // path and would never mount).
+  const navigateWithAd = (dest: string) => {
+    if (shouldShowAd({ level: meQuery.data?.level, isPremium: meQuery.data?.isPremium })) {
+      setPendingAdNav(dest)
+    } else {
+      reset()
+      navigate(dest)
+    }
+  }
+
   const handlePlayAgain = () => {
     const roomCode = code ?? room?.code   // route param is most reliable
-    reset()
-    navigate(roomCode ? `/lobby/${roomCode}` : '/')
+    navigateWithAd(roomCode ? `/lobby/${roomCode}` : '/')
   }
 
   // Guard: if no game result data, show fallback
@@ -818,7 +842,7 @@ export default function ResultsPage() {
                         {HONOR_ICON[honorGiven[p.userId]]}{' '}
                         {t(`honor.${honorGiven[p.userId] === 'sharp_mind' ? 'sharpMind' : honorGiven[p.userId] === 'good_sport' ? 'goodSport' : 'teamplayer'}`)}
                       </span>
-                    ) : honorTarget === p.userId ? (
+                    ) : hasGivenHonor ? null : honorTarget === p.userId ? (
                       <div className="flex flex-col gap-1.5 items-end animate-slide-up">
                         {(['teamplayer', 'sharp_mind', 'good_sport'] as HonorType[]).map((type) => {
                           const honorColors: Record<HonorType, string> = {
@@ -931,7 +955,7 @@ export default function ResultsPage() {
               {t('results.playAgain')}
             </button>
             <button
-              onClick={() => { reset(); navigate('/') }}
+              onClick={() => navigateWithAd('/')}
               className="px-5 py-3.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold transition-colors"
             >
               {t('results.exit', 'Exit')}
@@ -940,6 +964,17 @@ export default function ResultsPage() {
 
         </div>
       </main>
+      <AdInterstitialModal
+        open={!!pendingAdNav}
+        onClose={() => {
+          const dest = pendingAdNav
+          setPendingAdNav(null)
+          if (dest) {
+            reset()
+            navigate(dest)
+          }
+        }}
+      />
     </div>
   )
 }
