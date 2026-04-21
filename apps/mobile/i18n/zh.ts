@@ -362,6 +362,7 @@ export default {
     guardianInfo: '属于村民阵营，每轮可以保护一名玩家免于淘汰',
     players: '玩家',
     addPlayer: '+ 添加玩家',
+    autoFill: '自动填充',
     redHandedCount: '卧底数量',
     detectiveCount: '侦探',
     doubleAgentCount: '双面间谍',

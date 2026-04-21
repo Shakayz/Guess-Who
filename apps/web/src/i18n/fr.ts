@@ -832,6 +832,7 @@ export default {
     guardianInfo: 'Dans l\'équipe village, peut protéger un joueur de l\'élimination à chaque tour',
     players: 'Joueurs',
     addPlayer: '+ Ajouter un joueur',
+    autoFill: 'Remplir auto',
     redHandedCount: 'Nombre d\'Imposteurs',
     detectiveCount: 'Détectives',
     doubleAgentCount: 'Agents Doubles',

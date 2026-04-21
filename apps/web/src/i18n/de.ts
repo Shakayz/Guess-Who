@@ -781,6 +781,7 @@ export default {
     guardianInfo: 'Im Dorfteam, kann pro Runde einen Spieler vor der Eliminierung schützen',
     players: 'Spieler',
     addPlayer: '+ Spieler hinzufügen',
+    autoFill: 'Auto-ausfüllen',
     redHandedCount: 'Anzahl Hochstapler',
     detectiveCount: 'Detektive',
     doubleAgentCount: 'Doppelagenten',

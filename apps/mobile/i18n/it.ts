@@ -362,6 +362,7 @@ export default {
     guardianInfo: "Nella squadra degli abitanti, può proteggere un giocatore dall'eliminazione ogni turno",
     players: 'Giocatori',
     addPlayer: '+ Aggiungi Giocatore',
+    autoFill: 'Auto-riempi',
     redHandedCount: 'Numero di Impostori',
     detectiveCount: 'Detective',
     doubleAgentCount: 'Agenti Doppi',

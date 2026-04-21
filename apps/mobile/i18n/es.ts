@@ -354,6 +354,7 @@ export default {
     guardianInfo: 'En el equipo de aldeanos, puede proteger a un jugador de la eliminación en cada ronda',
     players: 'Jugadores',
     addPlayer: '+ Añadir Jugador',
+    autoFill: 'Auto-rellenar',
     redHandedCount: 'Número de Impostores',
     detectiveCount: 'Detectives',
     doubleAgentCount: 'Agentes Dobles',

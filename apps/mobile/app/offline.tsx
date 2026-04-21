@@ -411,6 +411,15 @@ function SetupPhase({
     if (names.length <= 3) return
     setNames((prev) => prev.filter((_, idx) => idx !== i))
   }
+  const autoFillNames = () => {
+    setNames((prev) =>
+      prev.map((n, idx) =>
+        n.trim().length > 0
+          ? n
+          : t('offline.playerPlaceholder', { n: idx + 1, defaultValue: `Player ${idx + 1}` }),
+      ),
+    )
+  }
   const toggleCategory = (key: WordCategory) =>
     setCategories((prev) => (prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key]))
   const setCount = (k: keyof SpecialRoleCounts, v: number) =>
@@ -527,12 +536,26 @@ function SetupPhase({
 
         {/* Players */}
         <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-3">
-          <Text
-            className="font-semibold uppercase tracking-widest text-neutral-500"
-            style={{ fontSize: 11 * fontScale }}
-          >
-            {t('offline.players', { defaultValue: 'Players' })} ({names.length}/20)
-          </Text>
+          <View className="flex-row items-center justify-between">
+            <Text
+              className="font-semibold uppercase tracking-widest text-neutral-500"
+              style={{ fontSize: 11 * fontScale }}
+            >
+              {t('offline.players', { defaultValue: 'Players' })} ({names.length}/20)
+            </Text>
+            <TouchableOpacity
+              onPress={autoFillNames}
+              className="px-2.5 py-1 rounded-lg border border-neutral-700 bg-neutral-800"
+              activeOpacity={0.7}
+            >
+              <Text
+                className="text-neutral-300 font-bold uppercase tracking-wider"
+                style={{ fontSize: 10 * fontScale }}
+              >
+                {t('offline.autoFill', { defaultValue: 'Auto-fill' })}
+              </Text>
+            </TouchableOpacity>
+          </View>
           {names.map((name, i) => (
             <View key={i} className="flex-row items-center gap-2">
               <View className="w-7 h-7 rounded-full bg-neutral-800 border border-neutral-700 items-center justify-center">

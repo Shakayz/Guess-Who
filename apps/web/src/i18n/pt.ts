@@ -791,6 +791,7 @@ export default {
     guardianInfo: 'No time dos aldeões, pode proteger um jogador da eliminação a cada rodada',
     players: 'Jogadores',
     addPlayer: '+ Adicionar Jogador',
+    autoFill: 'Preench. auto',
     redHandedCount: 'Número de Impostores',
     detectiveCount: 'Detetives',
     doubleAgentCount: 'Agentes Duplos',

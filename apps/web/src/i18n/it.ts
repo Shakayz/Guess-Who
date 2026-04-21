@@ -791,6 +791,7 @@ export default {
     guardianInfo: 'Nella squadra dei villici, può proteggere un giocatore dall\'eliminazione ogni turno',
     players: 'Giocatori',
     addPlayer: '+ Aggiungi Giocatore',
+    autoFill: 'Auto-riempi',
     redHandedCount: 'Numero di Impostori',
     detectiveCount: 'Investigatori',
     doubleAgentCount: 'Agenti Doppi',

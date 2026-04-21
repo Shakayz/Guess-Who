@@ -331,6 +331,12 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
     setNames((prev) => prev.map((n, idx) => (idx === i ? val : n)))
   }
 
+  const autoFillNames = () => {
+    setNames((prev) =>
+      prev.map((n, idx) => (n.trim().length > 0 ? n : t('offline.playerPlaceholder', { n: idx + 1 }))),
+    )
+  }
+
   const toggleCategory = (key: WordCategory) => {
     setCategories((prev) =>
       prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key],
@@ -550,9 +556,17 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
 
       {/* Player names */}
       <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-3">
-        <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-          {t('offline.players')} ({names.length}/20)
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+            {t('offline.players')} ({names.length}/20)
+          </p>
+          <button
+            onClick={autoFillNames}
+            className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border border-neutral-700/60 bg-neutral-800/60 text-neutral-400 hover:border-brand-600/50 hover:text-brand-400 transition-all shrink-0"
+          >
+            {t('offline.autoFill')}
+          </button>
+        </div>
         <div className="space-y-2">
           {names.map((name, i) => (
             <div key={i} className="flex items-center gap-2">

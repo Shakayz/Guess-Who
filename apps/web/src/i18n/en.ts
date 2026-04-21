@@ -865,6 +865,7 @@ export default {
     guardianInfo: 'On the villager team, can protect one player from elimination each round',
     players: 'Players',
     addPlayer: '+ Add Player',
+    autoFill: 'Auto-fill',
     redHandedCount: 'Number of Imposters',
     detectiveCount: 'Detectives',
     doubleAgentCount: 'Double Agents',

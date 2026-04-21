@@ -451,6 +451,7 @@ export default {
     guardianInfo: 'في فريق القرية، يمكنه حماية لاعب واحد من الإقصاء في كل جولة',
     players: 'اللاعبون',
     addPlayer: '+ إضافة لاعب',
+    autoFill: 'ملء تلقائي',
     redHandedCount: 'عدد المحتالين',
     detectiveCount: 'محققون',
     doubleAgentCount: 'عملاء مزدوجون',

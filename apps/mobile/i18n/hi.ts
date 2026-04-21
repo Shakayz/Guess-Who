@@ -362,6 +362,7 @@ export default {
     guardianInfo: 'ग्रामीण टीम में, हर राउंड में एक खिलाड़ी को बाहर होने से बचा सकता है',
     players: 'खिलाड़ी',
     addPlayer: '+ खिलाड़ी जोड़ें',
+    autoFill: 'स्वतः भरें',
     redHandedCount: 'भेदिया की संख्या',
     detectiveCount: 'जासूस',
     doubleAgentCount: 'डबल एजेंट',

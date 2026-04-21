@@ -419,6 +419,7 @@ export default {
     guardianInfo: 'В команде жителей, может защищать одного игрока от устранения каждый раунд',
     players: 'Игроки',
     addPlayer: '+ Добавить игрока',
+    autoFill: 'Автозаполнение',
     redHandedCount: 'Количество самозванцев',
     detectiveCount: 'Детективы',
     doubleAgentCount: 'Двойные агенты',
