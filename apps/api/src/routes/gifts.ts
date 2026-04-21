@@ -33,7 +33,7 @@ export const giftsRoutes: FastifyPluginAsync = async (fastify) => {
     req.log.info({ senderId, receiverUsername: body.receiverUsername, coinAmount: body.coinAmount }, 'gift send attempt')
 
     // Resolve receiver
-    const receiver = await prisma.user.findUnique({ where: { username: body.receiverUsername } })
+    const receiver = await prisma.user.findFirst({ where: { username: { equals: body.receiverUsername, mode: 'insensitive' } } })
     if (!receiver) {
       req.log.warn({ senderId, receiverUsername: body.receiverUsername }, 'gift failed: receiver not found')
       return reply.status(404).send({ error: 'User not found' })

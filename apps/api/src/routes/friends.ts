@@ -81,7 +81,7 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     const targetSelect = { id: true, pushToken: true } as const
     const target = toUserId
       ? await prisma.user.findUnique({ where: { id: toUserId }, select: targetSelect })
-      : await prisma.user.findUnique({ where: { username: username! }, select: targetSelect })
+      : await prisma.user.findFirst({ where: { username: { equals: username!, mode: 'insensitive' } }, select: targetSelect })
     if (!target) {
       req.log.warn({ userId, targetUsername: username, targetUserId: toUserId }, 'friend request failed: user not found')
       return reply.status(404).send({ error: 'User not found' })

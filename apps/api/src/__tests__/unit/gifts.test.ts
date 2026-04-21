@@ -94,9 +94,8 @@ describe('Gifts Routes', () => {
 
   describe('POST /api/gifts/send', () => {
     it('sends a coin gift to a friend', async () => {
-      mockPrismaUser.findUnique
-        .mockResolvedValueOnce({ id: 'user-2', username: 'alice' }) // receiver lookup
-        .mockResolvedValueOnce({ id: 'user-1', starCoins: 500 })    // sender balance check
+      mockPrismaUser.findFirst.mockResolvedValue({ id: 'user-2', username: 'alice' }) // receiver lookup (by username, case-insensitive)
+      mockPrismaUser.findUnique.mockResolvedValue({ id: 'user-1', starCoins: 500 })    // sender balance check (by id)
       ;(prisma as any).friendship.findFirst.mockResolvedValue({ id: 'fs-1', status: 'accepted' })
       ;(prisma.$transaction as any).mockImplementation(async (fn: any) => {
         const tx = {
@@ -128,7 +127,7 @@ describe('Gifts Routes', () => {
     })
 
     it('returns 404 when receiver does not exist', async () => {
-      mockPrismaUser.findUnique.mockResolvedValue(null)
+      mockPrismaUser.findFirst.mockResolvedValue(null)
 
       const res = await app.inject({
         method: 'POST',
@@ -141,7 +140,7 @@ describe('Gifts Routes', () => {
     })
 
     it('returns 403 when receiver is not a friend', async () => {
-      mockPrismaUser.findUnique.mockResolvedValue({ id: 'user-3', username: 'stranger' })
+      mockPrismaUser.findFirst.mockResolvedValue({ id: 'user-3', username: 'stranger' })
       ;(prisma as any).friendship.findFirst.mockResolvedValue(null)
 
       const res = await app.inject({
@@ -156,9 +155,8 @@ describe('Gifts Routes', () => {
     })
 
     it('returns 400 when sender has insufficient coins', async () => {
-      mockPrismaUser.findUnique
-        .mockResolvedValueOnce({ id: 'user-2', username: 'alice' })
-        .mockResolvedValueOnce({ id: 'user-1', starCoins: 10 })
+      mockPrismaUser.findFirst.mockResolvedValue({ id: 'user-2', username: 'alice' })
+      mockPrismaUser.findUnique.mockResolvedValue({ id: 'user-1', starCoins: 10 })
       ;(prisma as any).friendship.findFirst.mockResolvedValue({ id: 'fs-1', status: 'accepted' })
 
       const res = await app.inject({
@@ -173,7 +171,7 @@ describe('Gifts Routes', () => {
     })
 
     it('returns 400 when coinAmount is zero', async () => {
-      mockPrismaUser.findUnique.mockResolvedValue({ id: 'user-2', username: 'alice' })
+      mockPrismaUser.findFirst.mockResolvedValue({ id: 'user-2', username: 'alice' })
       ;(prisma as any).friendship.findFirst.mockResolvedValue({ id: 'fs-1', status: 'accepted' })
 
       const res = await app.inject({
@@ -200,7 +198,7 @@ describe('Gifts Routes', () => {
 
     it('returns 400 when sending to yourself', async () => {
       // token is sub='user-1', receiver also has id='user-1'
-      mockPrismaUser.findUnique.mockResolvedValue({ id: 'user-1', username: 'testuser' })
+      mockPrismaUser.findFirst.mockResolvedValue({ id: 'user-1', username: 'testuser' })
 
       const res = await app.inject({
         method: 'POST',
@@ -222,9 +220,8 @@ describe('Gifts Routes', () => {
       const onlineUsersModule = await import('../../socket/onlineUsers')
       ;(onlineUsersModule.onlineUsers as any).set('user-2', 'socket-id-for-user2')
 
-      mockPrismaUser.findUnique
-        .mockResolvedValueOnce({ id: 'user-2', username: 'alice' })
-        .mockResolvedValueOnce({ id: 'user-1', starCoins: 500 })
+      mockPrismaUser.findFirst.mockResolvedValue({ id: 'user-2', username: 'alice' })
+      mockPrismaUser.findUnique.mockResolvedValue({ id: 'user-1', starCoins: 500 })
       ;(prisma as any).friendship.findFirst.mockResolvedValue({ id: 'fs-1', status: 'accepted' })
       ;(prisma.$transaction as any).mockImplementation(async (fn: any) => {
         const tx = {
