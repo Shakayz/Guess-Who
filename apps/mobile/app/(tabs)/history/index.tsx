@@ -23,7 +23,7 @@ interface GameSummary {
   gameMode?: 'normal' | 'special' | 'ranked'
   roundCount: number
   players: string[]
-  createdAt: string
+  startedAt: string
   language?: string
 }
 
@@ -138,7 +138,10 @@ export default function HistoryScreen() {
                 <Text className="text-neutral-300 text-[10px] font-semibold">{lang.label}</Text>
               </View>
               <Text className="text-neutral-500 text-xs">
-                {dateFormatter.format(new Date(item.createdAt))}
+                {(() => {
+                  const d = new Date(item.startedAt)
+                  return Number.isNaN(d.getTime()) ? '' : dateFormatter.format(d)
+                })()}
               </Text>
             </View>
           </View>

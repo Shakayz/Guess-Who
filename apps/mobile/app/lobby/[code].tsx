@@ -855,9 +855,12 @@ function PlayerActionModal({
 // ─── Friend invite types ─────────────────────────────────────────────────────
 
 interface Friend {
-  id: string
-  username: string
-  status?: string
+  friendshipId: string
+  user: {
+    id: string
+    username: string
+    avatarUrl?: string | null
+  }
 }
 
 // ─── LobbyScreen ─────────────────────────────────────────────────────────────
@@ -1028,6 +1031,10 @@ export default function LobbyScreen() {
     socket.on('room:updated', (r) => {
       log.debug('room updated', { players: r.players?.length, status: (r as any).status })
       setRoom(r as Room)
+      if (r.players && user) {
+        const me = r.players.find((p: any) => p.userId === user.id)
+        if (me) setIsReady(!!(me as any).isReady)
+      }
       if (r.settings) {
         const rs: any = r.settings
         setSettings((prev) => ({
@@ -1099,7 +1106,7 @@ export default function LobbyScreen() {
 
     socket.on('error', (err) => {
       const code = (err as any)?.code
-      log.error('socket error', { code, message: (err as any)?.message })
+      log.warn('socket error', { code, message: (err as any)?.message })
       if (code === 'KICKED_FROM_ROOM') {
         setKickedToast('You were removed from this lobby')
         setTimeout(() => router.replace('/'), 2000)
@@ -1478,25 +1485,23 @@ export default function LobbyScreen() {
             ) : (
               <View className="gap-2">
                 {friends.map((friend) => {
-                  const invited = invitedIds.has(friend.id)
+                  const invited = invitedIds.has(friend.user.id)
+                  const username = friend.user.username ?? ''
                   return (
                     <View
-                      key={friend.id}
+                      key={friend.friendshipId}
                       className="flex-row items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-800/30"
                     >
                       <View className="w-8 h-8 rounded-full bg-cyan-700 items-center justify-center">
                         <Text className="text-white text-sm font-bold">
-                          {friend.username.charAt(0).toUpperCase()}
+                          {username.charAt(0).toUpperCase()}
                         </Text>
                       </View>
                       <View className="flex-1">
-                        <Text className="text-white font-semibold text-sm">{friend.username}</Text>
-                        {friend.status && (
-                          <Text className="text-neutral-500 text-xs">{friend.status}</Text>
-                        )}
+                        <Text className="text-white font-semibold text-sm">{username}</Text>
                       </View>
                       <TouchableOpacity
-                        onPress={() => inviteFriend(friend.id)}
+                        onPress={() => inviteFriend(friend.user.id)}
                         disabled={invited}
                         className={[
                           'px-3 py-1.5 rounded-lg',

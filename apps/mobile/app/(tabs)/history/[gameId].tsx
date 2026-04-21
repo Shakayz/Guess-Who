@@ -42,7 +42,7 @@ interface GameDetail {
   winner: 'villagers' | 'red_handed'
   players: PlayerInfo[]
   rounds: Round[]
-  createdAt: string
+  startedAt: string
 }
 
 const ROLE_CONFIG: Record<string, { emoji: string; label: string }> = {
@@ -157,7 +157,10 @@ export default function GameDetailScreen() {
               : t('results.redHandedWon')}
           </Text>
           <Text className="text-neutral-600 text-xs mt-2">
-            {dateFormatter.format(new Date(game.createdAt))}
+            {(() => {
+              const d = new Date(game.startedAt)
+              return Number.isNaN(d.getTime()) ? '' : dateFormatter.format(d)
+            })()}
           </Text>
         </View>
 

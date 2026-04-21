@@ -39,10 +39,12 @@ interface FriendRequest {
 }
 
 interface Friend {
-  id: string
-  friendId: string
-  friendUsername: string
-  friendAvatarUrl: string | null
+  friendshipId: string
+  user: {
+    id: string
+    username: string
+    avatarUrl: string | null
+  }
 }
 
 /* ---------- Constants ---------- */
@@ -249,7 +251,7 @@ export default function FriendsScreen() {
                 {searchResults.map((result, index) => {
                   const alreadySent = sentRequests.has(result.id)
                   const alreadyFriend = friends.some(
-                    (f) => f.friendId === result.id,
+                    (f) => f.user.id === result.id,
                   )
 
                   return (
@@ -386,11 +388,12 @@ export default function FriendsScreen() {
           ) : (
             <View className="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
               {friends.map((friend, index) => {
-                const invited = invitedIds.has(friend.friendId)
+                const invited = invitedIds.has(friend.user.id)
+                const username = friend.user.username ?? ''
 
                 return (
                   <View
-                    key={friend.id}
+                    key={friend.friendshipId}
                     className={`flex-row items-center px-4 py-3 ${
                       index < friends.length - 1
                         ? 'border-b border-neutral-800'
@@ -399,15 +402,15 @@ export default function FriendsScreen() {
                   >
                     <View className="w-10 h-10 rounded-full bg-violet-900/40 border border-violet-700/30 items-center justify-center mr-3">
                       <Text className="text-violet-400 text-base font-bold">
-                        {getInitial(friend.friendUsername)}
+                        {getInitial(username)}
                       </Text>
                     </View>
                     <Text className="text-white text-sm font-semibold flex-1">
-                      {friend.friendUsername}
+                      {username}
                     </Text>
                     <View className="flex-row gap-2">
                       <TouchableOpacity
-                        onPress={() => handleInvite(friend.friendId)}
+                        onPress={() => handleInvite(friend.user.id)}
                         disabled={invited}
                         className={`px-3 py-1.5 rounded-lg ${
                           invited ? 'bg-neutral-800' : 'bg-violet-600'
