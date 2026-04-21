@@ -168,6 +168,9 @@ export interface Player {
   revenantVotesRemaining?: number
   /** Twin pairing: userId of the other twin (known to both twins from game start). */
   twinPartnerUserId?: string
+  /** Socket dropped mid-game and the player hasn't rejoined yet. Distinct from
+   *  `status === 'eliminated'`, which can also happen via vote or said-word. */
+  disconnected?: boolean
 }
 
 // ─── Round ───────────────────────────────────────────────────────────────────
