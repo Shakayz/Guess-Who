@@ -76,6 +76,8 @@ export default function GameDetailScreen() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedRounds, setExpandedRounds] = useState<Set<number>>(new Set())
+  const { isTablet, px } = useResponsive()
+  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
   useEffect(() => {
     if (!gameId) return
@@ -119,9 +121,6 @@ export default function GameDetailScreen() {
       </SafeAreaView>
     )
   }
-
-  const { isTablet, px } = useResponsive()
-  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
   const me = game.players.find((p) => p.username === user?.username)
   const won = me ? didWin(game.winner, me.role) : game.winner === 'villagers'
