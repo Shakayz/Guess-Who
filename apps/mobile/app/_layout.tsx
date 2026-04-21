@@ -16,6 +16,7 @@ LogBox.ignoreLogs([
 import { Stack, Redirect, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as Linking from 'expo-linking'
+import * as Notifications from 'expo-notifications'
 import '../i18n'
 import { useAuthStore } from '../store/auth'
 import { useSocialStore } from '../store/social'
@@ -209,6 +210,44 @@ function DeepLinkHandler() {
   return null
 }
 
+function PushTapHandler() {
+  const router = useRouter()
+  const token = useAuthStore((s) => s.token)
+  const setActiveDm = useSocialStore((s) => s.setActiveDm)
+
+  useEffect(() => {
+    if (!token) return
+
+    const handleResponse = (response: Notifications.NotificationResponse) => {
+      const data = response.notification.request.content.data as
+        | { type?: string; roomCode?: string; senderId?: string; fromUsername?: string }
+        | undefined
+      if (!data?.type) return
+
+      if ((data.type === 'room_invite' || data.type === 'matchmaking_found') && data.roomCode) {
+        router.push(`/lobby/${data.roomCode}`)
+        return
+      }
+      if (data.type === 'dm' && data.senderId) {
+        // The DM screen is a modal hosted by GlobalDmChatHost — opening the
+        // active DM in the social store triggers it to mount.
+        setActiveDm({ friendId: data.senderId, friendUsername: data.fromUsername ?? '' })
+      }
+    }
+
+    // Cold-start: tapping a push while the app was killed delivers the
+    // response before any listener is registered, so check lastResponse first.
+    Notifications.getLastNotificationResponseAsync()
+      .then((resp) => { if (resp) handleResponse(resp) })
+      .catch(() => {})
+
+    const sub = Notifications.addNotificationResponseReceivedListener(handleResponse)
+    return () => sub.remove()
+  }, [token, router, setActiveDm])
+
+  return null
+}
+
 function InviteBanner() {
   const router = useRouter()
   const { pendingInvite, setPendingInvite } = useSocialStore()
@@ -324,6 +363,7 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <AuthGuard>
         <DeepLinkHandler />
+        <PushTapHandler />
         <GlobalSocketListeners />
         <ConnectionStatus />
         <InviteBanner />

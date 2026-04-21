@@ -6,6 +6,29 @@ import { redis } from '../../config/redis'
 import { childLogger } from '../../config/logger'
 import { onlineUsers } from '../onlineUsers'
 import { DAILY_COST } from '../../services/dailyRewards'
+import { sendPushNotifications } from '../../services/push'
+
+async function pushMatchFoundNotifications(userIds: string[], roomCode: string) {
+  try {
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds }, pushToken: { not: null } },
+      select: { pushToken: true },
+    })
+    const notifications = users
+      .filter((u) => u.pushToken)
+      .map((u) => ({
+        pushToken: u.pushToken as string,
+        title: 'Match found!',
+        body: 'Your game is ready — tap to join.',
+        data: { type: 'matchmaking_found', roomCode },
+      }))
+    if (notifications.length > 0) {
+      await sendPushNotifications(notifications)
+    }
+  } catch (err) {
+    log.error({ err, roomCode }, 'push: matchmaking notification error')
+  }
+}
 
 const log = childLogger('socket:matchmaking')
 
@@ -218,6 +241,10 @@ async function executeMatch(io: Server<any, any>, queueKey: string, count: numbe
     if (sid) io.to(sid).emit('matchmaking:found' as any, { roomCode: room.code })
   }
 
+  // Push to all matched players — covers backgrounded mobile users who
+  // minimized the app while queuing.
+  pushMatchFoundNotifications(players.map((p) => p.userId), room.code).catch(() => {})
+
   // Reset window for remaining players in the queue
   const remaining = await redis.llen(queueKey)
   if (remaining > 0) {
@@ -399,6 +426,8 @@ async function executeRankedMatch(io: Server<any, any>, queueKey: string, player
     const sid = onlineUsers.get(player.userId)
     if (sid) io.to(sid).emit('matchmaking:found' as any, { roomCode: room.code })
   }
+
+  pushMatchFoundNotifications(players.map((p) => p.userId), room.code).catch(() => {})
 }
 
 function startMatchmakingWindow(io: Server<any, any>, queueKey: string, ranked = false) {

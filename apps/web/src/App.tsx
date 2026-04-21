@@ -8,6 +8,12 @@ import { useGameStore } from './store/game'
 import { useMatchmakingStore } from './store/matchmaking'
 import { getSocket, connectSocket, disconnectSocket } from './lib/socket'
 import { api } from './lib/api'
+import {
+  clearBadge,
+  incrementBadge,
+  requestNotificationPermission,
+  showBrowserNotification,
+} from './lib/tabBadge'
 import { BottomNav } from './components/BottomNav'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { AchievementToastBanner } from './components/achievements/AchievementToastBanner'
@@ -208,11 +214,41 @@ function GlobalSocketListeners() {
           senderUsername: data.senderUsername,
           text: data.text,
         })
+        incrementBadge()
+        showBrowserNotification(
+          `Message from ${data.senderUsername ?? 'a friend'}`,
+          data.text,
+          {
+            tag: `dm-${data.senderId}`,
+            onClick: () => navigate(`/friends?dm=${data.senderId}`),
+          },
+        )
       }
     }
 
     const handleRoomInvited = (data: RoomInvitedEvent) => {
       setPendingInvite({ fromUsername: data.fromUsername, roomCode: data.roomCode })
+      incrementBadge()
+      showBrowserNotification(
+        'Game invite',
+        `${data.fromUsername ?? 'A friend'} invited you to a game`,
+        {
+          tag: `invite-${data.roomCode}`,
+          onClick: () => navigate(`/lobby/${data.roomCode}`),
+        },
+      )
+    }
+
+    const handleMatchmakingFound = (data: { roomCode: string }) => {
+      incrementBadge()
+      showBrowserNotification(
+        'Match found!',
+        'Your game is ready — tap to join.',
+        {
+          tag: `match-${data.roomCode}`,
+          onClick: () => navigate(`/lobby/${data.roomCode}`),
+        },
+      )
     }
 
     const handleFriendRequest = (data: FriendRequestEvent) => {
@@ -284,20 +320,36 @@ function GlobalSocketListeners() {
 
     sock.on('dm:receive', handleDmReceive)
     sock.on('room:invited', handleRoomInvited)
+    sock.on('matchmaking:found', handleMatchmakingFound)
     sock.on('friend:request', handleFriendRequest)
     sock.on('friend:accepted', handleFriendAccepted)
     sock.on('game:finished', handleGameFinished)
     sock.on('achievement:unlocked', handleAchievementUnlocked)
     sock.on('gift:received', handleGiftReceived)
 
+    // Lazy-request Web Notifications permission so we can fire OS-level
+    // notifications when the tab is hidden. If the user denies it, we still
+    // get the in-tab favicon/title badge.
+    requestNotificationPermission().catch(() => {})
+
+    // Clear the tab badge whenever the user actually looks at the tab again.
+    const handleVisibility = () => {
+      if (!document.hidden) clearBadge()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('focus', handleVisibility)
+
     return () => {
       sock.off('dm:receive', handleDmReceive)
       sock.off('room:invited', handleRoomInvited)
+      sock.off('matchmaking:found', handleMatchmakingFound)
       sock.off('friend:request', handleFriendRequest)
       sock.off('friend:accepted', handleFriendAccepted)
       sock.off('game:finished', handleGameFinished)
       sock.off('achievement:unlocked', handleAchievementUnlocked)
       sock.off('gift:received', handleGiftReceived)
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', handleVisibility)
     }
   }, [token, activeDm, incrementUnread, setPendingInvite, setPendingFriendRequest, navigate, queryClient])
 

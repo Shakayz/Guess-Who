@@ -111,6 +111,13 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     // connected — not just the most recent one in `onlineUsers`.
     await socket.join(`user:${userId}`)
 
+    // Stamp `lastSeenAt` on connect so friends see an accurate time even
+    // when the user is currently online (the profile endpoint treats an
+    // entry in `onlineUsers` as "online now" regardless of this value).
+    prisma.user
+      .update({ where: { id: userId }, data: { lastSeenAt: new Date() } })
+      .catch((err) => log.warn({ err, userId }, 'lastSeenAt connect update failed'))
+
     registerRoomHandlers(io, socket)
     registerGameHandlers(io, socket)
     registerChatHandlers(io, socket)
@@ -150,6 +157,26 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         io.to(`user:${data.toUserId}`).emit('dm:receive' as any, payload)
         // Confirm to sender on every tab/device they have open, too
         io.to(`user:${socket.data.userId}`).emit('dm:receive' as any, payload)
+
+        // Push notification to recipient (fires even if they're offline, so
+        // backgrounded mobile users see new messages). We intentionally do not
+        // push to the sender.
+        try {
+          const recipient = await prisma.user.findUnique({
+            where: { id: data.toUserId },
+            select: { pushToken: true },
+          })
+          if (recipient?.pushToken) {
+            const preview = msg.text.length > 120 ? `${msg.text.slice(0, 117)}…` : msg.text
+            sendPushNotification(
+              recipient.pushToken,
+              `New message from ${sender?.username ?? 'a friend'}`,
+              preview,
+              { type: 'dm', senderId: msg.senderId },
+            ).catch((err) => log.error({ err }, 'push: dm notification error'))
+          }
+        } catch {}
+
         // Fire dm_sent achievement event
         await evaluateEvent(io, 'dm_sent', { userId: socket.data.userId, otherUserId: data.toUserId }).catch(() => {})
       } catch (err) {
@@ -481,6 +508,11 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       log.info({ socketId: socket.id, userId }, 'socket disconnected')
       // Remove from online users map
       onlineUsers.delete(userId)
+      // Stamp `lastSeenAt` so a friend viewing the profile sees "last seen
+      // just now" immediately after the user goes offline.
+      prisma.user
+        .update({ where: { id: userId }, data: { lastSeenAt: new Date() } })
+        .catch((err) => log.warn({ err, userId }, 'lastSeenAt disconnect update failed'))
       // Remove player from any matchmaking queues
       try {
         const queueKeys = await redis.keys('matchmaking:*')
