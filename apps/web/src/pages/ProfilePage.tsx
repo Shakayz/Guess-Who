@@ -84,6 +84,7 @@ const HONOR_LABELS = [
 export default function ProfilePage() {
   const { t } = useTranslation()
   const authUser = useAuthStore((s) => s.user)
+  const updateUser = useAuthStore((s) => s.updateUser)
   const queryClient = useQueryClient()
   const [editingAvatar, setEditingAvatar] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
@@ -143,8 +144,14 @@ export default function ProfilePage() {
   }
 
   const usernameMutation = useMutation({
-    mutationFn: (username: string) => api.patch('/users/me', { username }),
-    onSuccess: () => {
+    mutationFn: (username: string) =>
+      api.patch<{ id: string; username: string }>('/users/me', { username }),
+    onSuccess: (updated) => {
+      // Mirror the rename into the persisted auth store so the NavBar and any
+      // other consumer of `useAuthStore().user` see the new name immediately
+      // — react-query's /auth/me cache was the only place it flowed before,
+      // so the header kept showing the old username until the next reload.
+      if (updated?.username) updateUser({ username: updated.username })
       queryClient.invalidateQueries({ queryKey: ['me'] })
       setEditingUsername(false)
       setUsernameInput('')
