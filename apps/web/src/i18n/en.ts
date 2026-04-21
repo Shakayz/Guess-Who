@@ -505,6 +505,10 @@ export default {
     max: 'max',
     roundsInfinity: '∞ rounds',
     roundsCount: '{{count}} rounds',
+    chatTitle: 'Lobby Chat',
+    chatPlaceholder: 'Message the lobby…',
+    chatEmpty: 'Say hi while you wait…',
+    chatSend: 'Send message',
   },
   rank: {
     wooden: 'Wooden',

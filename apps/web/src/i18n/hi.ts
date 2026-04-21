@@ -505,6 +505,10 @@ export default {
     max: 'अधिकतम',
     roundsInfinity: '∞ राउंड',
     roundsCount: '{{count}} राउंड',
+    chatTitle: 'लॉबी चैट',
+    chatPlaceholder: 'लॉबी को संदेश भेजें…',
+    chatEmpty: 'इंतज़ार करते हुए नमस्ते कहें…',
+    chatSend: 'भेजें',
   },
   rank: {
     wooden: 'लकड़ी',

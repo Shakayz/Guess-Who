@@ -506,6 +506,10 @@ export default {
     max: '上限',
     roundsInfinity: '∞ 回合',
     roundsCount: '{{count}} 回合',
+    chatTitle: '大厅聊天',
+    chatPlaceholder: '在大厅里发消息…',
+    chatEmpty: '等待时打个招呼吧…',
+    chatSend: '发送',
   },
   rank: {
     wooden: '木头',

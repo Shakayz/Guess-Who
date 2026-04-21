@@ -506,6 +506,10 @@ export default {
     max: 'máx',
     roundsInfinity: '∞ rondas',
     roundsCount: '{{count}} rondas',
+    chatTitle: 'Chat de la sala',
+    chatPlaceholder: 'Escribe un mensaje…',
+    chatEmpty: 'Saluda mientras esperas…',
+    chatSend: 'Enviar',
   },
   rank: {
     wooden: 'Madera',
