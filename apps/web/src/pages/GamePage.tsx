@@ -1828,26 +1828,16 @@ export default function GamePage() {
                   </button>
                 ))}
             </div>
-            {!tiebreakerActive && (
-              <button
-                aria-label={t('game.skipVote')}
-                onClick={skipVote}
-                disabled={!!votedFor}
-                className={[
-                  'mt-2 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 text-left active:scale-[0.98]',
-                  votedFor === '__skip__'
-                    ? 'border-neutral-500/70 bg-gradient-to-r from-neutral-800/60 to-neutral-900/30 shadow-lg shadow-neutral-950/50 animate-jelly'
-                    : votedFor
-                    ? 'border-neutral-800 bg-neutral-900/40 opacity-50'
-                    : 'border-neutral-800 bg-neutral-900/40 hover:border-neutral-600 hover:bg-neutral-900/60 hover:-translate-y-0.5',
-                ].join(' ')}
-              >
-                <span className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-400 text-sm">🚫</span>
-                <span className="flex-1 font-semibold text-neutral-300 text-sm">{t('game.skipVote')}</span>
-                {votedFor === '__skip__' && (
-                  <span className="shrink-0 text-neutral-400 text-xs font-bold">{t('game.yourVoteLabel')}</span>
-                )}
-              </button>
+            {!tiebreakerActive && !votedFor && (
+              <div className="mt-3 flex justify-center">
+                <button
+                  aria-label={t('game.skipVote')}
+                  onClick={skipVote}
+                  className="text-xs text-neutral-500 hover:text-neutral-300 underline underline-offset-4 decoration-dotted transition-colors px-2 py-1"
+                >
+                  {t('game.skipVote')}
+                </button>
+              </div>
             )}
             </>
             )}
