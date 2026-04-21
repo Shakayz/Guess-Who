@@ -44,6 +44,37 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (v: b
   )
 }
 
+function VolumeSlider({
+  value,
+  onChange,
+  disabled,
+  label,
+}: {
+  value: number
+  onChange: (v: number) => void
+  disabled?: boolean
+  label: string
+}) {
+  return (
+    <div className={disabled ? 'opacity-50' : ''}>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs font-medium text-neutral-400">{label}</label>
+        <span className="text-xs tabular-nums text-neutral-500">{Math.round(value * 100)}%</span>
+      </div>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.05"
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="w-full accent-brand-600 disabled:cursor-not-allowed"
+      />
+    </div>
+  )
+}
+
 function SectionHeader({ title }: { title: string }) {
   return (
     <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3 px-1">
@@ -179,9 +210,12 @@ export default function SettingsPage() {
   })
 
   // Sound
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    return localStorage.getItem('sound_enabled') !== 'false'
-  })
+  const [soundEnabled, setSoundEnabled] = useState(() => SoundManager.isEnabled())
+  const [soundVolume, setSoundVolume] = useState(() => SoundManager.getVolume())
+
+  // Music
+  const [musicEnabled, setMusicEnabled] = useState(() => MusicManager.isEnabled())
+  const [musicVolume, setMusicVolume] = useState(() => MusicManager.getVolume())
 
   // Notifications
   const [notifEnabled, setNotifEnabled] = useState(() => {
@@ -234,8 +268,21 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    localStorage.setItem('sound_enabled', String(soundEnabled))
+    SoundManager.setEnabled(soundEnabled)
   }, [soundEnabled])
+
+  useEffect(() => {
+    SoundManager.setVolume(soundVolume)
+  }, [soundVolume])
+
+  useEffect(() => {
+    MusicManager.setEnabled(musicEnabled)
+    if (musicEnabled) MusicManager.play()
+  }, [musicEnabled])
+
+  useEffect(() => {
+    MusicManager.setVolume(musicVolume)
+  }, [musicVolume])
 
   const handleNotifToggle = async (value: boolean) => {
     if (value) {
@@ -296,7 +343,7 @@ export default function SettingsPage() {
           <h1 className="text-2xl md:text-3xl font-extrabold text-white">Settings</h1>
 
           {/* Sound */}
-          <div className="card">
+          <div className="card space-y-4">
             <SectionHeader title="Sound" />
             <div className="flex items-center justify-between py-1">
               <div>
@@ -305,6 +352,30 @@ export default function SettingsPage() {
               </div>
               <ToggleSwitch enabled={soundEnabled} onChange={setSoundEnabled} />
             </div>
+            <VolumeSlider
+              label="Sound volume"
+              value={soundVolume}
+              onChange={setSoundVolume}
+              disabled={!soundEnabled}
+            />
+          </div>
+
+          {/* Music */}
+          <div className="card space-y-4">
+            <SectionHeader title="Music" />
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-semibold text-white">Background Music</p>
+                <p className="text-xs text-neutral-500 mt-0.5">Looping track in menus and lobby</p>
+              </div>
+              <ToggleSwitch enabled={musicEnabled} onChange={setMusicEnabled} />
+            </div>
+            <VolumeSlider
+              label="Music volume"
+              value={musicVolume}
+              onChange={setMusicVolume}
+              disabled={!musicEnabled}
+            />
           </div>
 
           {/* Notifications */}
