@@ -467,11 +467,28 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         id: true, username: true, avatarUrl: true, rankTier: true,
         rankPoints: true, honorPoints: true, createdAt: true,
         level: true, xp: true, hasPlayedRanked: true,
-        premiumUntil: true, lastSeenAt: true,
+        premiumUntil: true,
       },
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
     const isPremiumProfile = !!(user.premiumUntil && user.premiumUntil.getTime() > Date.now())
+
+    // Best-effort read of `lastSeenAt`. Kept separate from the main select so a
+    // fresh environment where the migration hasn't converged yet (column
+    // missing) still renders the profile instead of 500-ing the whole page —
+    // same defensive spirit as the friendship lookup further down.
+    const readLastSeenAt = async (): Promise<Date | null> => {
+      try {
+        const row = await prisma.user.findUnique({
+          where: { id },
+          select: { lastSeenAt: true },
+        })
+        return row?.lastSeenAt ?? null
+      } catch (err) {
+        req.log.warn({ err, targetId: id }, 'profile: lastSeenAt lookup failed, returning null')
+        return null
+      }
+    }
 
     // Helper that builds the same set of stat queries scoped by gameMode.
     // mode = 'ranked' → only games where game.gameMode === 'ranked'
@@ -556,7 +573,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       return { ranked: toArray(rankedCounts), unranked: toArray(unrankedCounts) }
     }
 
-    const [statsRanked, statsUnranked, honorBuckets, recentParticipations] = await Promise.all([
+    const [statsRanked, statsUnranked, honorBuckets, recentParticipations, lastSeenAt] = await Promise.all([
       statsForMode('ranked'),
       statsForMode('unranked'),
       computeHonorBuckets(),
@@ -573,6 +590,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
           },
         },
       }),
+      readLastSeenAt(),
     ])
 
     const { ranked: honorsRanked, unranked: honorsUnranked } = honorBuckets
@@ -639,7 +657,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     // the derived boolean so the exact subscription end date stays private.
     // `lastSeenAt` is also private by default — only surfaced to accepted
     // friends (and the user themselves) so strangers can't track activity.
-    const { premiumUntil: _omitProfile, lastSeenAt, ...publicProfile } = user
+    const { premiumUntil: _omitProfile, ...publicProfile } = user
     const isFriendOrSelf = viewerId === id || friendship?.status === 'accepted'
     const isOnline = isFriendOrSelf ? onlineUsers.has(id) : undefined
     return reply.send({

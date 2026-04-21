@@ -630,6 +630,45 @@ describe('User Routes', () => {
       ])
     })
 
+    it('degrades lastSeenAt to null when the column lookup throws (migration gap)', async () => {
+      // Self-view on user-1 so `isFriendOrSelf` is true and `lastSeenAt`
+      // would normally be surfaced in the response.
+      mockUser.findUnique
+        // 1) main profile select
+        .mockResolvedValueOnce({
+          id: 'user-1',
+          username: 'testuser',
+          avatarUrl: null,
+          rankTier: 'gold',
+          rankPoints: 2000,
+          honorPoints: 20,
+          createdAt: new Date('2025-01-01'),
+          level: 1,
+          xp: 0,
+          hasPlayedRanked: false,
+          premiumUntil: null,
+        })
+        // 2) best-effort lastSeenAt read — simulate a fresh env where the
+        //    migration hasn't landed and Postgres complains about the column.
+        .mockRejectedValueOnce(new Error('column "lastSeenAt" does not exist'))
+
+      mockGameParticipation.count.mockResolvedValue(0)
+      mockGameParticipation.findMany.mockResolvedValue([])
+      mockHonor.findMany.mockResolvedValue([])
+      mockGame.findMany.mockResolvedValue([])
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/users/user-1/profile',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(200)
+      const body = res.json()
+      expect(body.isSelf).toBe(true)
+      expect(body.lastSeenAt).toBeNull()
+    })
+
     it('skips prisma.game.findMany when the user has no honors', async () => {
       mockUser.findUnique.mockResolvedValue({
         id: 'user-new',
