@@ -962,6 +962,15 @@ export default function GamePage() {
     getSocket().emit('vote:cast', playerId)
   }
 
+  const skipVote = () => {
+    if (votedFor || phase !== 'voting') return
+    if (tiebreakerActive) return
+    log.info('vote skipped')
+    SoundManager.play('vote')
+    setVotedFor('__skip__')
+    getSocket().emit('vote:cast', null)
+  }
+
   const sendChat = (e: React.FormEvent) => {
     e.preventDefault()
     if (!chatInput.trim()) return
@@ -1043,6 +1052,8 @@ export default function GamePage() {
   }
   const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
 
+  // Camp (team) derivation — shown in the word-card role chip for special/ranked modes,
+  // where knowing the role alone isn't enough to infer the winning team.
   const gameMode = room?.settings?.gameMode ?? 'normal'
   const showCamp = gameMode !== 'normal'
   const camp: 'villager' | 'red_handed' | 'jester' | null =
@@ -1532,11 +1543,11 @@ export default function GamePage() {
                   {t('game.yourWordLabel')}
                 </p>
                 <CategoryBadge categoryKey={myCategory} />
-                {myRole && roleInfo && (
-                  <span className={['ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 bg-neutral-900/60', showCamp && camp ? CAMP_META[camp].ring : 'ring-neutral-700/40'].join(' ')}>
+                {myRole && (
+                  <span className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${showCamp && camp ? CAMP_META[camp].ring : 'ring-neutral-700/40'} bg-neutral-900/60`}>
                     {showCamp && camp && (
                       <>
-                        <span className={['w-1.5 h-1.5 rounded-full', CAMP_META[camp].dot].join(' ')} />
+                        <span className={`w-1.5 h-1.5 rounded-full ${CAMP_META[camp].dot}`} />
                         <span className={CAMP_META[camp].color}>{CAMP_META[camp].label}</span>
                         <span className="text-neutral-600">·</span>
                       </>
@@ -1731,7 +1742,12 @@ export default function GamePage() {
             ) : (
             <>
             {/* Your vote summary */}
-            {votedFor && (() => {
+            {votedFor === '__skip__' ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-neutral-900/60 border border-neutral-700/40 mb-3">
+                <span className="text-neutral-400 text-xs">🚫</span>
+                <span className="text-xs text-neutral-300 font-semibold">{t('game.youSkippedVote')}</span>
+              </div>
+            ) : votedFor && (() => {
               const votedPlayer = alivePlayers.find(p => p.userId === votedFor)
               return votedPlayer ? (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-950/30 border border-amber-800/30 mb-3">
@@ -1740,16 +1756,7 @@ export default function GamePage() {
                 </div>
               ) : null
             })()}
-            <div
-              className={[
-                'grid gap-2',
-                alivePlayers.length <= 3
-                  ? 'grid-cols-1'
-                  : alivePlayers.length > 10
-                    ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-                    : 'grid-cols-1 sm:grid-cols-2',
-              ].join(' ')}
-            >
+            <div className="space-y-2">
               {alivePlayers
                 .filter((p) => p.userId !== user?.id && (!tiebreakerActive || tiebreakerPlayerIds.includes(p.userId)))
                 .map((p) => (
@@ -1777,6 +1784,27 @@ export default function GamePage() {
                     )}
                   </button>
                 ))}
+              {!tiebreakerActive && (
+                <button
+                  aria-label={t('game.skipVote')}
+                  onClick={skipVote}
+                  disabled={!!votedFor}
+                  className={[
+                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 text-left active:scale-[0.98]',
+                    votedFor === '__skip__'
+                      ? 'border-neutral-500/70 bg-gradient-to-r from-neutral-800/60 to-neutral-900/30 shadow-lg shadow-neutral-950/50 animate-jelly'
+                      : votedFor
+                      ? 'border-neutral-800 bg-neutral-900/40 opacity-50'
+                      : 'border-neutral-800 bg-neutral-900/40 hover:border-neutral-600 hover:bg-neutral-900/60 hover:-translate-y-0.5',
+                  ].join(' ')}
+                >
+                  <span className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-400 text-sm">🚫</span>
+                  <span className="flex-1 font-semibold text-neutral-300 text-sm">{t('game.skipVote')}</span>
+                  {votedFor === '__skip__' && (
+                    <span className="text-neutral-400 text-xs font-bold">{t('game.yourVoteLabel')}</span>
+                  )}
+                </button>
+              )}
             </div>
             </>
             )}

@@ -15,7 +15,19 @@ export type SoundType =
   | 'round_start'
   | 'chat_message'
 
+function clamp01(v: number) {
+  return Math.max(0, Math.min(1, v))
+}
+
 let audioCtx: AudioContext | null = null
+
+let soundVolume = (() => {
+  if (typeof window === 'undefined') return 1
+  const raw = localStorage.getItem('sound_volume')
+  if (raw === null) return 1
+  const v = parseFloat(raw)
+  return Number.isFinite(v) ? clamp01(v) : 1
+})()
 
 function getCtx(): AudioContext | null {
   if (typeof window === 'undefined') return null
@@ -45,7 +57,7 @@ function playTone(
 
   osc.type = type
   osc.frequency.value = frequency
-  gain.gain.setValueAtTime(volume, now)
+  gain.gain.setValueAtTime(volume * soundVolume, now)
   gain.gain.exponentialRampToValueAtTime(0.001, now + duration)
 
   osc.connect(gain)
@@ -72,7 +84,7 @@ function playFreqRamp(
   osc.type = type
   osc.frequency.setValueAtTime(freqStart, now)
   osc.frequency.linearRampToValueAtTime(freqEnd, now + duration)
-  gain.gain.setValueAtTime(volume, now)
+  gain.gain.setValueAtTime(volume * soundVolume, now)
   gain.gain.exponentialRampToValueAtTime(0.001, now + duration)
 
   osc.connect(gain)
@@ -97,8 +109,18 @@ export const SoundManager = {
     }
   },
 
+  getVolume: () => soundVolume,
+
+  setVolume: (v: number) => {
+    soundVolume = clamp01(v)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sound_volume', String(soundVolume))
+    }
+  },
+
   play: (sound: SoundType) => {
     if (!soundEnabled) return
+    if (soundVolume <= 0) return
     const ctx = getCtx()
     if (!ctx) return
     // Resume context if suspended (browser autoplay policy)

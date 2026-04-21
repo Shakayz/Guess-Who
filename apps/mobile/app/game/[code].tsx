@@ -481,6 +481,41 @@ export default function GameScreen() {
   const players = room?.players ?? []
   const alivePlayers = players.filter((p) => p.status === 'alive')
 
+  // ─── Role + camp config for the in-game word card ─────────────────────────
+  // Icon, colors, and hints per role. Mirrors the web ROLE_CONFIG but with
+  // NativeWind class sets tailored to the mobile card layout (tile + headline).
+  const ROLE_CONFIG: Record<string, { emoji: string; border: string; bg: string; accent: string; tile: string; text: string; headlineKey: string; headlineFallback: string; hintKey: string; hintFallback: string }> = {
+    villager:        { emoji: '🏘️', border: 'border-violet-700/60',    bg: 'bg-violet-950/25',   accent: 'bg-violet-500',   tile: 'bg-violet-900/50 border-violet-700/40',   text: 'text-violet-300',   headlineKey: 'game.headlineVillager',     headlineFallback: 'You are a Villager',       hintKey: 'game.hintVillager',     hintFallback: 'Give a clue without saying the word directly' },
+    red_handed:      { emoji: '🔪', border: 'border-red-700/60',       bg: 'bg-red-950/25',      accent: 'bg-red-500',      tile: 'bg-red-900/50 border-red-700/40',         text: 'text-red-300',      headlineKey: 'game.headlineRedHanded',    headlineFallback: 'You are the Imposter',     hintKey: 'game.hintRedHanded',    hintFallback: "Blend in — don't reveal you have a different word" },
+    detective:       { emoji: '🔍', border: 'border-sky-700/60',       bg: 'bg-sky-950/25',      accent: 'bg-sky-500',       tile: 'bg-sky-900/50 border-sky-700/40',         text: 'text-sky-300',      headlineKey: 'game.headlineDetective',    headlineFallback: 'You are the Detective',    hintKey: 'game.hintDetective',    hintFallback: 'Investigate players to find the imposter' },
+    double_agent:    { emoji: '🎭', border: 'border-orange-700/60',    bg: 'bg-orange-950/25',   accent: 'bg-orange-500',   tile: 'bg-orange-900/50 border-orange-700/40',   text: 'text-orange-300',   headlineKey: 'game.headlineDoubleAgent',  headlineFallback: 'You are a Double Agent',   hintKey: 'game.hintDoubleAgent',  hintFallback: 'You know both words — use it wisely' },
+    guardian:        { emoji: '🛡️', border: 'border-yellow-700/60',    bg: 'bg-yellow-950/25',   accent: 'bg-yellow-500',   tile: 'bg-yellow-900/50 border-yellow-700/40',   text: 'text-yellow-300',   headlineKey: 'game.headlineGuardian',     headlineFallback: 'You are the Guardian',     hintKey: 'game.hintGuardian',     hintFallback: 'Protect a player each round' },
+    mayor:           { emoji: '⚖️', border: 'border-indigo-700/60',    bg: 'bg-indigo-950/25',   accent: 'bg-indigo-500',   tile: 'bg-indigo-900/50 border-indigo-700/40',   text: 'text-indigo-300',   headlineKey: 'game.headlineMayor',        headlineFallback: 'You are the Mayor',        hintKey: 'game.hintMayor',        hintFallback: 'Your vote counts twice' },
+    infiltrator:     { emoji: '🥷', border: 'border-fuchsia-700/60',   bg: 'bg-fuchsia-950/25',  accent: 'bg-fuchsia-500',  tile: 'bg-fuchsia-900/50 border-fuchsia-700/40', text: 'text-fuchsia-300',  headlineKey: 'game.headlineInfiltrator',  headlineFallback: 'You are the Infiltrator',  hintKey: 'game.hintInfiltrator',  hintFallback: 'Blend in and work against the villagers' },
+    jester:          { emoji: '🃏', border: 'border-pink-700/60',      bg: 'bg-pink-950/25',     accent: 'bg-pink-500',     tile: 'bg-pink-900/50 border-pink-700/40',       text: 'text-pink-300',     headlineKey: 'game.headlineJester',       headlineFallback: 'You are the Jester',       hintKey: 'game.hintJester',       hintFallback: 'Get voted out to win — but not first!' },
+    judge:           { emoji: '👨‍⚖️', border: 'border-emerald-700/60',  bg: 'bg-emerald-950/25',  accent: 'bg-emerald-500',  tile: 'bg-emerald-900/50 border-emerald-700/40', text: 'text-emerald-300',  headlineKey: 'game.headlineJudge',        headlineFallback: 'You are the Judge',        hintKey: 'game.hintJudge',        hintFallback: 'Cast the tie-breaking vote' },
+    revenant:        { emoji: '👻', border: 'border-teal-700/60',      bg: 'bg-teal-950/25',     accent: 'bg-teal-500',     tile: 'bg-teal-900/50 border-teal-700/40',       text: 'text-teal-300',     headlineKey: 'game.headlineRevenant',     headlineFallback: 'You are the Revenant',     hintKey: 'game.hintRevenant',     hintFallback: 'Come back to haunt the living' },
+    kamikaze:        { emoji: '💥', border: 'border-red-700/60',       bg: 'bg-red-950/25',      accent: 'bg-red-500',       tile: 'bg-red-900/50 border-red-700/40',         text: 'text-red-300',       headlineKey: 'game.headlineKamikaze',     headlineFallback: 'You are the Kamikaze',     hintKey: 'game.hintKamikaze',     hintFallback: 'Take someone down with you' },
+    corruptor:       { emoji: '🕷️', border: 'border-orange-700/60',    bg: 'bg-orange-950/25',   accent: 'bg-orange-500',   tile: 'bg-orange-900/50 border-orange-700/40',   text: 'text-orange-300',   headlineKey: 'game.headlineCorruptor',    headlineFallback: 'You are the Corruptor',    hintKey: 'game.hintCorruptor',    hintFallback: 'Corrupt another player each round' },
+    inverter:        { emoji: '🔄', border: 'border-rose-700/60',      bg: 'bg-rose-950/25',     accent: 'bg-rose-500',     tile: 'bg-rose-900/50 border-rose-700/40',       text: 'text-rose-300',     headlineKey: 'game.headlineInverter',     headlineFallback: 'You are the Inverter',     hintKey: 'game.hintInverter',     hintFallback: 'Flip the vote result' },
+    twin_villager:   { emoji: '👯', border: 'border-purple-700/60',    bg: 'bg-purple-950/25',   accent: 'bg-purple-500',   tile: 'bg-purple-900/50 border-purple-700/40',   text: 'text-purple-300',   headlineKey: 'game.headlineTwinVillager', headlineFallback: 'You are an Evil Twin',     hintKey: 'game.hintTwinVillager', hintFallback: "You share a secret bond — don't get caught" },
+    twin_red_handed: { emoji: '👯', border: 'border-purple-700/60',    bg: 'bg-purple-950/25',   accent: 'bg-purple-500',   tile: 'bg-purple-900/50 border-purple-700/40',   text: 'text-purple-400',   headlineKey: 'game.headlineTwinRedHanded',headlineFallback: 'You are an Evil Twin',     hintKey: 'game.hintTwinRedHanded',hintFallback: "You share a secret bond — don't get caught" },
+  }
+  const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
+
+  const gameMode = (room?.settings as any)?.gameMode ?? 'normal'
+  const showCamp = gameMode !== 'normal'
+  const camp: 'villager' | 'red_handed' | 'jester' | null =
+    myRole && isRedHandedSideRole(myRole as any) ? 'red_handed'
+    : myRole && isVillagerSideRole(myRole as any) ? 'villager'
+    : myRole && isJesterRole(myRole as any) ? 'jester'
+    : null
+  const CAMP_META: Record<'villager' | 'red_handed' | 'jester', { label: string; text: string; border: string; dot: string }> = {
+    villager:   { label: t('game.campVillager', 'Villagers'),  text: 'text-emerald-400', border: 'border-emerald-700/50', dot: 'bg-emerald-500' },
+    red_handed: { label: t('game.campRedHanded', 'Imposters'), text: 'text-red-400',     border: 'border-red-700/50',     dot: 'bg-red-500' },
+    jester:     { label: t('game.campJester', 'Solo'),         text: 'text-pink-400',    border: 'border-pink-700/50',    dot: 'bg-pink-500' },
+  }
+
   // ─── Timer tick sounds ─────────────────────────────────────────────────────
   useEffect(() => {
     if (timeLeft <= 0) return
@@ -860,6 +895,15 @@ export default function GameScreen() {
     getSocket().emit('vote:cast', playerId)
   }
 
+  const skipVote = () => {
+    if (votedFor || phase !== 'voting') return
+    log.info('vote skipped')
+    SoundManager.play('vote')
+    setVotedFor('__skip__')
+    HapticManager.medium()
+    getSocket().emit('vote:cast', null)
+  }
+
   const sendChat = () => {
     if (!chatInput.trim()) return
     getSocket().emit('chat:send', chatInput.trim())
@@ -937,6 +981,7 @@ export default function GameScreen() {
         word={myWord ?? '???'}
         villagerWord={myVillagerWord ?? undefined}
         category={myCategory}
+        gameMode={gameMode as 'normal' | 'special' | 'ranked'}
         onDismiss={() => setShowRoleReveal(false)}
       />
 
@@ -1085,65 +1130,41 @@ export default function GameScreen() {
             </View>
           ) : (
             <View
-              className={[
-                'rounded-2xl border-2 p-5 overflow-hidden',
-                isRedHanded
-                  ? 'border-red-700/60 bg-red-950/25'
-                  : myRole === 'detective'
-                  ? 'border-sky-700/60 bg-sky-950/25'
-                  : 'border-violet-700/60 bg-violet-950/25',
-              ].join(' ')}
+              className={['rounded-2xl border-2 p-5 overflow-hidden', roleInfo.border, roleInfo.bg].join(' ')}
             >
               {/* Top accent */}
-              <View
-                className={[
-                  'absolute top-0 left-0 right-0 h-0.5',
-                  isRedHanded ? 'bg-red-500' : myRole === 'detective' ? 'bg-sky-500' : 'bg-violet-500',
-                ].join(' ')}
-              />
+              <View className={['absolute top-0 left-0 right-0 h-0.5', roleInfo.accent].join(' ')} />
               <View className="flex-row items-center gap-4">
                 <View
-                  className={[
-                    'w-14 h-14 rounded-2xl items-center justify-center border',
-                    isRedHanded
-                      ? 'bg-red-900/50 border-red-700/40'
-                      : myRole === 'detective'
-                      ? 'bg-sky-900/50 border-sky-700/40'
-                      : 'bg-violet-900/50 border-violet-700/40',
-                  ].join(' ')}
+                  className={['w-14 h-14 rounded-2xl items-center justify-center border', roleInfo.tile].join(' ')}
                 >
-                  <Text style={{ fontSize: 28 }}>
-                    {isRedHanded ? '🎭' : myRole === 'detective' ? '🔍' : '🏘️'}
-                  </Text>
+                  <Text style={{ fontSize: 28 }}>{roleInfo.emoji}</Text>
                 </View>
                 <View className="flex-1">
                   <Text className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 mb-1">
-                    {isRedHanded
-                      ? 'You are the Imposter'
-                      : myRole === 'detective'
-                      ? 'You are the Detective'
-                      : 'You are a Villager'}
+                    {t(roleInfo.headlineKey, roleInfo.headlineFallback)}
                   </Text>
-                  {myCategory ? (
-                    <View className="mb-1">
-                      <CategoryBadge categoryKey={myCategory} />
-                    </View>
-                  ) : null}
+                  <View className="flex-row items-center flex-wrap gap-1.5 mb-1">
+                    {myCategory ? <CategoryBadge categoryKey={myCategory} /> : null}
+                    {showCamp && camp && (
+                      <View
+                        className={['flex-row items-center gap-1 px-2 py-0.5 rounded-full border bg-neutral-900/60', CAMP_META[camp].border].join(' ')}
+                      >
+                        <View className={['w-1.5 h-1.5 rounded-full', CAMP_META[camp].dot].join(' ')} />
+                        <Text className={['text-[10px] font-bold uppercase tracking-widest', CAMP_META[camp].text].join(' ')}>
+                          {CAMP_META[camp].label}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   <Text
-                    className={[
-                      'font-extrabold tracking-tight',
-                      isRedHanded ? 'text-red-300' : myRole === 'detective' ? 'text-sky-300' : 'text-violet-300',
-                    ].join(' ')}
+                    className={['font-extrabold tracking-tight', roleInfo.text].join(' ')}
                     style={{ fontSize: 28 }}
                   >
                     {myWord ?? '???'}
                   </Text>
                   <Text className="text-xs text-neutral-500 mt-1 leading-relaxed">
-                    {isRedHanded
-                      ? "Blend in — don't reveal you have a different word"
-                      : myRole === 'detective'
-                      ? 'Investigate players to find the imposter'
-                      : 'Give a clue without saying the word directly'}
+                    {t(roleInfo.hintKey, roleInfo.hintFallback)}
                   </Text>
                 </View>
               </View>
@@ -1368,7 +1389,14 @@ export default function GameScreen() {
               )}
 
               {/* Your vote summary */}
-              {votedFor &&
+              {votedFor === '__skip__' ? (
+                <View className="flex-row items-center gap-2 px-3 py-2 rounded-xl bg-neutral-900/60 border border-neutral-700/40 mb-3">
+                  <Text className="text-neutral-400 text-xs">🚫</Text>
+                  <Text className="text-xs text-neutral-300 font-semibold">
+                    {t('game.youSkippedVote')}
+                  </Text>
+                </View>
+              ) : votedFor &&
                 (() => {
                   const votedPlayer = alivePlayers.find((p) => p.userId === votedFor)
                   return votedPlayer ? (
@@ -1382,31 +1410,49 @@ export default function GameScreen() {
                   ) : null
                 })()}
 
-              {(() => {
-                const voteCols = alivePlayers.length <= 3 ? 1 : alivePlayers.length > 10 ? 3 : 2
-                const itemWidth = voteCols === 1 ? '100%' : voteCols === 2 ? '49%' : '32%'
-                return (
-                  <View className="flex-row flex-wrap" style={{ gap: 8 }}>
-                    {alivePlayers
-                      .filter((p) => p.userId !== user?.id)
-                      .map((p) => {
-                        const isVotedTarget = votedFor === p.userId
-                        const hasVoted = !!votedFor
-                        return (
-                          <View key={p.id} style={{ width: itemWidth }}>
-                            <VoteOption
-                              player={p}
-                              isVotedTarget={isVotedTarget}
-                              hasVoted={hasVoted}
-                              disabled={hasVoted || isEliminated}
-                              onPress={() => vote(p.userId)}
-                            />
-                          </View>
-                        )
-                      })}
+              <View className="gap-2">
+                {alivePlayers
+                  .filter((p) => p.userId !== user?.id)
+                  .map((p) => {
+                    const isVotedTarget = votedFor === p.userId
+                    const hasVoted = !!votedFor
+                    return (
+                      <VoteOption
+                        key={p.id}
+                        player={p}
+                        isVotedTarget={isVotedTarget}
+                        hasVoted={hasVoted}
+                        disabled={hasVoted || isEliminated}
+                        onPress={() => vote(p.userId)}
+                      />
+                    )
+                  })}
+                <TouchableOpacity
+                  onPress={skipVote}
+                  disabled={!!votedFor || isEliminated}
+                  activeOpacity={0.8}
+                  className={[
+                    'flex-row items-center gap-3 px-3 py-2.5 rounded-xl border',
+                    votedFor === '__skip__'
+                      ? 'border-neutral-500/70 bg-neutral-800/60'
+                      : votedFor
+                      ? 'border-neutral-800 bg-neutral-900/40 opacity-50'
+                      : 'border-neutral-800 bg-neutral-900/40',
+                  ].join(' ')}
+                >
+                  <View className="w-8 h-8 rounded-full bg-neutral-800 items-center justify-center">
+                    <Text className="text-neutral-400 text-sm">🚫</Text>
                   </View>
-                )
-              })()}
+                  <Text className="flex-1 font-bold text-neutral-300 text-sm">
+                    {t('game.skipVote')}
+                  </Text>
+                  {votedFor === '__skip__' && (
+                    <Text className="text-neutral-400 text-xs font-bold">
+                      {t('game.yourVoteLabel')}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
