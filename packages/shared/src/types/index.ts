@@ -235,7 +235,7 @@ export interface WordPair {
 
 export interface ServerToClientEvents {
   'room:updated': (room: Room) => void
-  'game:started': (data: { round: Round; yourWord: string; yourRole: PlayerRole; yourVillagerWord?: string; yourCategory?: WordCategory }) => void
+  'game:started': (data: { round: Round; yourWord: string; yourRole: PlayerRole; yourVillagerWord?: string; yourCategory?: WordCategory; isReconnect?: boolean }) => void
   'detective:result': (data: { targetUserId: string; targetUsername: string; role: PlayerRole }) => void
   'round:speaking-turn': (data: { playerId: string | null; timeSeconds: number; speakingOrder: string[] }) => void
   'round:clue-submitted': (clue: Clue) => void

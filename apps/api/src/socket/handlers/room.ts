@@ -786,6 +786,7 @@ export function registerRoomHandlers(
               yourRole: alreadyIn.role,
               yourVillagerWord: alreadyIn.role === 'double_agent' ? state.villagerWord : undefined,
               yourCategory: state.wordCategory,
+              isReconnect: true,
             })
 
             // Emit full phase sync so reconnecting client can resume at the correct phase

@@ -587,11 +587,18 @@ export default function GameScreen() {
   }, [timeLeft])
 
   // ─── Role reveal on mount ──────────────────────────────────────────────────
+  // Only show on a FRESH game entry. If the player is mid-game (clues already
+  // submitted or past round 1), this is a remount/resume — skip the reveal.
 
   useEffect(() => {
-    if (myRole && myWord) {
-      setShowRoleReveal(true)
-    }
+    if (!myRole || !myWord) return
+    const s = useGameStore.getState()
+    const isMidGame =
+      (s.completedRounds?.length ?? 0) > 0 ||
+      (s.currentRound?.clues?.length ?? 0) > 0 ||
+      ((s.currentRound?.roundNumber ?? 1) > 1)
+    if (isMidGame) return
+    setShowRoleReveal(true)
   }, []) // only on mount
 
   // ─── Voice channel (vocal mode) ────────────────────────────────────────────
@@ -642,9 +649,16 @@ export default function GameScreen() {
       reset()
     }
 
-    // game:started — reset all state for new game
-    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord, yourCategory }: any) => {
-      log.info('game started', { role: yourRole })
+    // game:started — reset all state for new game.
+    // Server also re-emits this on reconnect so the client can restore its role/word;
+    // in that case we skip the reveal + state reset (game:sync fires right after
+    // to restore phase/clues/timer).
+    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord, yourCategory, isReconnect }: any) => {
+      log.info('game started', { role: yourRole, isReconnect: !!isReconnect })
+      if (isReconnect) {
+        setRoleAndWord(yourRole, yourWord, yourVillagerWord, yourCategory)
+        return
+      }
       SoundManager.play('game_start')
       setRoleAndWord(yourRole, yourWord, yourVillagerWord, yourCategory)
       setClues([])
@@ -1860,6 +1874,73 @@ export default function GameScreen() {
                   </TouchableOpacity>
                 </View>
               )}
+            </View>
+          )}
+
+          {/* ─── Live clue feed ──────────────────────────────────────────────
+              Mobile lacks the per-player sidebar that web shows clues in, so
+              surface the submitted clues of the current round inline. Visible
+              during speaking (so players can read as they come in) and voting
+              (so they can re-read before picking), and for eliminated players
+              who are spectating. */}
+          {(phase === 'speaking' || phase === 'voting') && clues.length > 0 && (
+            <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  {t('game.cluesThisRound', 'Clues this round')}
+                </Text>
+                <View className="px-2 py-0.5 rounded-full bg-violet-950/50 border border-violet-800/40">
+                  <Text className="text-[10px] font-bold text-violet-400">
+                    {clues.length}/{alivePlayers.length}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ gap: 6 }}>
+                {clues.map((c) => {
+                  const author = players.find((p) => p.userId === c.playerId)
+                  const isMe = c.playerId === user?.id
+                  const flagged = (c as any).flaggedForWord
+                  return (
+                    <View
+                      key={c.playerId}
+                      className={[
+                        'flex-row items-start gap-2.5 px-3 py-2 rounded-xl border',
+                        flagged
+                          ? 'bg-amber-950/30 border-amber-800/40'
+                          : isMe
+                          ? 'bg-violet-950/20 border-violet-800/30'
+                          : 'bg-neutral-800/40 border-neutral-700/40',
+                      ].join(' ')}
+                    >
+                      <Avatar
+                        url={author?.avatarUrl}
+                        username={author?.username ?? '?'}
+                        size={24}
+                      />
+                      <View className="flex-1 min-w-0">
+                        <View className="flex-row items-center gap-1.5 flex-wrap">
+                          <Text className="text-white text-xs font-bold">
+                            {author?.username ?? 'Unknown'}
+                          </Text>
+                          {isMe && (
+                            <View className="px-1 py-0.5 rounded bg-violet-900/60 border border-violet-700/40">
+                              <Text className="text-[9px] text-violet-400 font-bold">YOU</Text>
+                            </View>
+                          )}
+                          {flagged && (
+                            <Text className="text-[9px] font-bold text-amber-400 uppercase tracking-wider">
+                              ⚠ {t('game.saidTheWordBadge', 'Said the word')}
+                            </Text>
+                          )}
+                        </View>
+                        <Text className="text-neutral-200 text-sm leading-snug mt-0.5">
+                          {c.text}
+                        </Text>
+                      </View>
+                    </View>
+                  )
+                })}
+              </View>
             </View>
           )}
 

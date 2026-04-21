@@ -49,18 +49,19 @@ export default function ResultsScreen() {
   const rewards = result?.rewards ?? { starCoinsEarned: 0, xpEarned: 120, lpChange: 18, achievements: [], levelUpCoinsEarned: 0 }
   const players = room?.players?.length ? room.players : MOCK_PLAYERS
   const isRedHanded = myRole === 'red_handed' || myRole === 'double_agent'
-  const didWin = (winner === 'villagers' && !isRedHanded) || (winner === 'red_handed' && isRedHanded)
+  const isDraw = winner === 'draw'
+  const didWin = !isDraw && ((winner === 'villagers' && !isRedHanded) || (winner === 'red_handed' && isRedHanded))
 
   useEffect(() => {
-    // Stamp lands first (the "VICTORY"/"DEFEAT" thump), then the tonal response.
+    // Stamp lands first (the "VICTORY"/"DEFEAT"/"DRAW" thump), then the tonal response.
     SoundManager.play('stamp')
-    const t1 = setTimeout(() => SoundManager.play(didWin ? 'success' : 'error'), 180)
+    const t1 = setTimeout(() => SoundManager.play(didWin || isDraw ? 'success' : 'error'), 180)
     // Achievement jingle when the player unlocked something.
     const achieved = rewards.achievements.length > 0
     const t2 = achieved ? setTimeout(() => SoundManager.play('achievement'), 900) : null
     if (didWin) {
       HapticManager.success()
-    } else {
+    } else if (!isDraw) {
       HapticManager.error()
     }
     return () => {
@@ -101,52 +102,67 @@ export default function ResultsScreen() {
         <View
           className={[
             'rounded-2xl border-2 relative overflow-hidden items-center',
-            didWin ? 'border-emerald-600/70' : 'border-red-700/70',
+            isDraw ? 'border-amber-600/70' : didWin ? 'border-emerald-600/70' : 'border-red-700/70',
           ].join(' ')}
           style={{ paddingVertical: isTablet ? 52 : 40 }}
         >
           {/* Background tint */}
           <View
-            className={['absolute inset-0', didWin ? 'bg-emerald-950' : 'bg-red-950'].join(' ')}
+            className={[
+              'absolute inset-0',
+              isDraw ? 'bg-amber-950' : didWin ? 'bg-emerald-950' : 'bg-red-950',
+            ].join(' ')}
             style={{ opacity: 0.35 }}
           />
           {/* Top accent bar */}
           <View
             className={[
               'absolute top-0 left-0 right-0 h-1',
-              didWin ? 'bg-emerald-500' : 'bg-red-500',
+              isDraw ? 'bg-amber-500' : didWin ? 'bg-emerald-500' : 'bg-red-500',
             ].join(' ')}
           />
           {/* Bottom fade */}
           <View
             className="absolute bottom-0 left-0 right-0 h-16"
-            style={{ backgroundColor: didWin ? 'rgba(5,46,22,0.3)' : 'rgba(69,10,10,0.3)' }}
+            style={{
+              backgroundColor: isDraw
+                ? 'rgba(120,53,15,0.3)'
+                : didWin
+                ? 'rgba(5,46,22,0.3)'
+                : 'rgba(69,10,10,0.3)',
+            }}
           />
 
           {didWin && <ConfettiRain count={70} />}
           {didWin && <CoinRain count={25} />}
-          {didWin && <Shimmer />}
+          {(didWin || isDraw) && <Shimmer />}
 
           <FloatSoft>
             <Text
               style={{
                 fontSize: isTablet ? 80 : 64,
                 marginBottom: 14,
-                textShadowColor: didWin ? 'rgba(251,191,36,0.65)' : 'rgba(220,38,38,0.55)',
+                textShadowColor: isDraw
+                  ? 'rgba(245,158,11,0.6)'
+                  : didWin
+                  ? 'rgba(251,191,36,0.65)'
+                  : 'rgba(220,38,38,0.55)',
                 textShadowRadius: 22,
                 textShadowOffset: { width: 0, height: 0 },
               }}
             >
-              {didWin ? '🏆' : '💀'}
+              {isDraw ? '🤝' : didWin ? '🏆' : '💀'}
             </Text>
           </FloatSoft>
 
-          {/* WIN / LOSS badge */}
+          {/* WIN / LOSS / DRAW badge */}
           <StampIn>
           <View
             className={[
               'flex-row items-center gap-2 px-5 py-2 rounded-full border mb-3',
-              didWin
+              isDraw
+                ? 'bg-amber-900/60 border-amber-600/60'
+                : didWin
                 ? 'bg-emerald-900/60 border-emerald-600/60'
                 : 'bg-red-900/60 border-red-600/60',
             ].join(' ')}
@@ -154,26 +170,35 @@ export default function ResultsScreen() {
             <Text
               className={[
                 'font-extrabold tracking-widest uppercase',
-                didWin ? 'text-emerald-300' : 'text-red-300',
+                isDraw ? 'text-amber-300' : didWin ? 'text-emerald-300' : 'text-red-300',
               ].join(' ')}
               style={{
                 fontSize: isTablet ? 22 : 18,
                 letterSpacing: 4,
-                textShadowColor: didWin ? 'rgba(16,185,129,0.6)' : 'rgba(220,38,38,0.6)',
+                textShadowColor: isDraw
+                  ? 'rgba(245,158,11,0.6)'
+                  : didWin
+                  ? 'rgba(16,185,129,0.6)'
+                  : 'rgba(220,38,38,0.6)',
                 textShadowRadius: 10,
                 textShadowOffset: { width: 0, height: 0 },
               }}
             >
-              {didWin ? 'Victory' : 'Defeat'}
+              {isDraw ? t('results.draw', "It's a Draw!") : didWin ? t('results.victory', 'Victory') : t('results.defeat', 'Defeat')}
             </Text>
           </View>
           </StampIn>
 
           <Text
-            className={['font-semibold text-center px-6', didWin ? 'text-emerald-500' : 'text-red-500'].join(' ')}
+            className={[
+              'font-semibold text-center px-6',
+              isDraw ? 'text-amber-500' : didWin ? 'text-emerald-500' : 'text-red-500',
+            ].join(' ')}
             style={{ fontSize: 13 * fontScale }}
           >
-            {winner === 'villagers'
+            {isDraw
+              ? t('results.drawDesc', 'The game lasted 30 rounds with no winner')
+              : winner === 'villagers'
               ? 'Villagers found the imposter'
               : 'Imposters escaped detection'}
           </Text>

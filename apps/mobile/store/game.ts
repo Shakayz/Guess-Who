@@ -7,7 +7,7 @@ import { createLogger } from '../lib/logger'
 const log = createLogger('game')
 
 interface GameResult {
-  winner: 'villagers' | 'red_handed'
+  winner: 'villagers' | 'red_handed' | 'draw' | 'jester' | 'evil_twins'
   finalRound: Round
   rewards: RewardSummary
 }
