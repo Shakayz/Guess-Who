@@ -22,12 +22,26 @@ const mockPrisma = prisma as any
 ;(mockPrisma as any).round = { findUnique: vi.fn() }
 
 // Mock the handlers so they don't add noise
-vi.mock('../../socket/handlers/room', () => ({ registerRoomHandlers: vi.fn() }))
+// Keep the real `removeUserFromWaitingLobby` helper (socket/index.ts calls it
+// from its `disconnect` handler when a player drops out of a waiting-lobby
+// room), but stub `registerRoomHandlers` since its own listeners aren't under
+// test here and would pull the full room-handler dependency tree along.
+vi.mock('../../socket/handlers/room', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../socket/handlers/room')>()
+  return {
+    ...actual,
+    registerRoomHandlers: vi.fn(),
+  }
+})
 vi.mock('../../socket/handlers/game', () => ({ registerGameHandlers: vi.fn() }))
 vi.mock('../../socket/handlers/chat', () => ({ registerChatHandlers: vi.fn() }))
 vi.mock('../../socket/handlers/matchmaking', () => ({
   registerMatchmakingHandlers: vi.fn(),
   cleanupEmptyQueue: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('../../socket/handlers/voice', () => ({
+  registerVoiceHandlers: vi.fn(),
+  leaveVoiceChannel: vi.fn().mockResolvedValue(undefined),
 }))
 
 // Mock the emote loadout lookup — by default return the 5 free basics, which
@@ -98,8 +112,11 @@ async function buildConnectedSocket(ioOverrides = {}, socketOverrides: Partial<a
     })
   })
 
-  // Fire connection event
-  io._fire('connection', socket)
+  // Fire connection event and wait for async handler (which `await`s
+  // `socket.join(...)` before registering event listeners) to complete,
+  // otherwise tests that fire subsequent events race the listener
+  // registration and their callbacks never run.
+  await io._fire('connection', socket)
 
   return { io, socket }
 }
@@ -200,12 +217,12 @@ describe('room:invite handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     // Register target as online
     onlineUsers.set('user-2', 'target-socket-id')
 
-    socket._fire('room:invite', { toUserId: 'user-2', roomCode: 'XYZW' })
+    await socket._fire('room:invite', { toUserId: 'user-2', roomCode: 'XYZW' })
 
     expect(io.to).toHaveBeenCalledWith('target-socket-id')
     expect(io._emit).toHaveBeenCalledWith('room:invited', expect.objectContaining({
@@ -227,11 +244,11 @@ describe('room:invite handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     onlineUsers.delete('user-99') // ensure offline
 
-    socket._fire('room:invite', { toUserId: 'user-99', roomCode: 'XYZW' })
+    await socket._fire('room:invite', { toUserId: 'user-99', roomCode: 'XYZW' })
     expect(io._emit).not.toHaveBeenCalled()
   })
 })
@@ -249,7 +266,7 @@ describe('emote:send handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('emote:send', { emoji: '👍' })
 
@@ -270,7 +287,7 @@ describe('emote:send handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     // 💀 → `skull` (epic) — not in the default free loadout mocked above.
     await socket._fire('emote:send', { emoji: '💀' })
@@ -287,7 +304,7 @@ describe('emote:send handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('emote:send', { emoji: '😮' })
     expect(io._emit).not.toHaveBeenCalled()
@@ -299,7 +316,6 @@ describe('emote:send handler', () => {
 describe('dm:send handler', () => {
   it('creates a DM and emits to sender and recipient when recipient is online', async () => {
     const { registerSocketHandlers } = await import('../../socket/index')
-    const { onlineUsers } = await import('../../socket/onlineUsers')
     const io = makeIo()
     const socket = makeSocket()
     socket.handshake.auth.token = makeValidToken('user-1', 'Alice')
@@ -308,16 +324,15 @@ describe('dm:send handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
-
-    onlineUsers.set('user-2', 'recipient-socket')
+    await io._fire('connection', socket)
 
     await socket._fire('dm:send', { toUserId: 'user-2', text: 'Hello!' })
 
     expect(mockPrisma.directMessage.create).toHaveBeenCalled()
-    expect(io.to).toHaveBeenCalledWith('recipient-socket')
-
-    onlineUsers.delete('user-2')
+    // Delivery uses per-user rooms (user:<id>) so every tab/device of both
+    // the recipient and the sender gets `dm:receive`.
+    expect(io.to).toHaveBeenCalledWith('user:user-2')
+    expect(io.to).toHaveBeenCalledWith('user:user-1')
   })
 
   it('does nothing when text is empty', async () => {
@@ -330,7 +345,7 @@ describe('dm:send handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('dm:send', { toUserId: 'user-2', text: '   ' })
     expect(mockPrisma.directMessage.create).not.toHaveBeenCalled()
@@ -357,7 +372,7 @@ describe('gamechat:send handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('gamechat:send', { text: 'Good game!' })
 
@@ -376,7 +391,7 @@ describe('gamechat:send handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('gamechat:send', { text: 'Hello' })
     expect(mockPrisma.gameChatMessage.create).not.toHaveBeenCalled()
@@ -399,7 +414,7 @@ describe('gamechat:history handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('gamechat:history')
 
@@ -421,7 +436,7 @@ describe('gamechat:history handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('gamechat:history')
 
@@ -452,7 +467,7 @@ describe('detective:reveal handler (socket/index.ts)', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('detective:reveal', { targetUserId: 'user-2' })
 
@@ -479,7 +494,7 @@ describe('detective:reveal handler (socket/index.ts)', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('detective:reveal', { targetUserId: 'user-2' })
 
@@ -507,7 +522,7 @@ describe('detective:reveal handler (socket/index.ts)', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('detective:reveal', { targetUserId: 'user-2' })
 
@@ -531,7 +546,7 @@ describe('honor:give handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('honor:give', { targetUserId: 'user-1', honorType: 'teamplayer' })
     expect(mockPrisma.$transaction).not.toHaveBeenCalled()
@@ -547,7 +562,7 @@ describe('honor:give handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('honor:give', { targetUserId: 'user-2', honorType: 'invalid_type' })
     expect(mockPrisma.$transaction).not.toHaveBeenCalled()
@@ -565,7 +580,7 @@ describe('honor:give handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     onlineUsers.set('user-2', 'sock-2')
 
@@ -591,7 +606,7 @@ describe('disconnect handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     expect(onlineUsers.has('user-disconnect')).toBe(true)
 
@@ -618,7 +633,7 @@ describe('disconnect handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     mockRedis.get.mockResolvedValue(JSON.stringify(state))
     mockRedis.set.mockResolvedValue('OK')
@@ -647,7 +662,7 @@ describe('disconnect handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     mockRedis.get.mockResolvedValue(JSON.stringify(state))
     mockRedis.set.mockResolvedValue('OK')
@@ -655,8 +670,12 @@ describe('disconnect handler', () => {
 
     await socket._fire('disconnect')
 
-    const setCall = mockRedis.set.mock.calls[0]
-    const savedState = JSON.parse(setCall[1])
+    // `removeUserFromWaitingLobby` acquires a join-lock via `redis.set(lockKey,
+    // '1', 'PX', 5000, 'NX')` before writing the state, so the first mock.set
+    // call is the lock value '1', not the saved state. Filter by key.
+    const stateSetCall = mockRedis.set.mock.calls.find((c: any[]) => c[0] === 'room:room-1:state')
+    expect(stateSetCall).toBeDefined()
+    const savedState = JSON.parse(stateSetCall![1])
     expect(savedState.players.some((p: any) => p.userId === 'user-1')).toBe(false)
   })
 
@@ -679,7 +698,7 @@ describe('disconnect handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     mockRedis.get.mockResolvedValue(JSON.stringify(state))
     mockRedis.set.mockResolvedValue('OK')
@@ -714,7 +733,7 @@ describe('disconnect handler', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('disconnect')
 
@@ -743,7 +762,7 @@ describe('deadchat handlers', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('deadchat:join')
 
@@ -765,7 +784,7 @@ describe('deadchat handlers', () => {
     registerSocketHandlers(io)
     const next = vi.fn()
     io._runMiddleware(socket, next)
-    io._fire('connection', socket)
+    await io._fire('connection', socket)
 
     await socket._fire('deadchat:send', { text: 'I saw it all!' })
 

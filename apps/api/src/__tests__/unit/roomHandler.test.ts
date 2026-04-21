@@ -244,8 +244,12 @@ describe('room:leave', () => {
     registerRoomHandlers(io, socket)
     await socket._fire('room:leave')
 
-    const setCall = mockRedis.set.mock.calls[0]
-    const savedState = JSON.parse(setCall[1])
+    // The waiting-lobby leave path acquires a join lock first (`room:<id>:join-lock`)
+    // before persisting the mutated state, so the state save is no longer the
+    // first set call — find it by key to stay robust to lock churn.
+    const stateSetCall = mockRedis.set.mock.calls.find((c: any[]) => c[0] === 'room:room-1:state')
+    expect(stateSetCall).toBeDefined()
+    const savedState = JSON.parse(stateSetCall![1])
     expect(savedState.players.find((p: any) => p.userId === 'host-1')).toBeUndefined()
   })
 

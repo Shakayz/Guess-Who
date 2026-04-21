@@ -10,22 +10,35 @@ process.env.ALLOWED_ORIGINS = 'http://localhost:3000'
 process.env.LOG_LEVEL = 'silent'
 
 // Mock Prisma
+//
+// Notes on defaults:
+//   * `user.update` resolves to `{}` by default so fire-and-forget `.catch()`
+//     calls (e.g. the `lastSeenAt` stamp in socket/index.ts connection/disconnect)
+//     don't throw synchronously when a test hasn't pre-mocked them. Tests that
+//     care about the return value can still call `mockResolvedValue(...)` to
+//     override.
+//   * Same reason for `room.update` — the socket disconnect path does
+//     fire-and-forget host reassignments that would otherwise crash tests.
 vi.mock('../config/prisma', () => ({
   prisma: {
     user: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
-      findMany: vi.fn(),
+      // `[]` so `.filter/.map` never crash on the returned value. game:start
+      // in socket/handlers/room.ts does `prisma.user.findMany(...).filter(...)`
+      // outside a try/catch to pre-compute premium status, and the old
+      // `vi.fn()` default (undefined) made every callsite blow up.
+      findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn(),
-      update: vi.fn(),
-      updateMany: vi.fn(),
+      update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       delete: vi.fn(),
     },
     room: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
-      update: vi.fn(),
+      update: vi.fn().mockResolvedValue({}),
       delete: vi.fn(),
     },
     honor: {

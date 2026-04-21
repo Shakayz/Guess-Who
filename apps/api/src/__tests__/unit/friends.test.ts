@@ -216,7 +216,9 @@ describe('Friends Routes', () => {
       ;(app as any).onlineUsers = undefined
 
       expect(res.statusCode).toBe(201)
-      expect(mockTo).toHaveBeenCalledWith('socket-id-2')
+      // Emits to the per-user room so every tab/device of the target gets the
+      // incoming-request event (not just the most recently connected socket).
+      expect(mockTo).toHaveBeenCalledWith('user:user-2')
       expect(mockEmit).toHaveBeenCalledWith('friend:request', expect.objectContaining({ friendshipId: 'fs-notify' }))
     })
   })
@@ -295,7 +297,11 @@ describe('Friends Routes', () => {
       ;(app as any).onlineUsers = undefined
 
       expect(res.statusCode).toBe(200)
-      expect(mockTo).toHaveBeenCalledWith('socket-id-3')
+      // Emits to the requester's per-user room (every tab/device gets it) and
+      // echoes to the accepter's own per-user room so both sides' friend lists
+      // refresh regardless of which surface the user is on.
+      expect(mockTo).toHaveBeenCalledWith('user:user-3')
+      expect(mockTo).toHaveBeenCalledWith('user:user-1')
       expect(mockEmit).toHaveBeenCalledWith('friend:accepted', expect.objectContaining({ friendshipId: 'fs-2' }))
     })
   })
