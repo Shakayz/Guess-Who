@@ -407,6 +407,7 @@ export default function GamePage() {
   // opens the picker at any moment, so the detective doesn't have to hunt
   // through player pills/modals to use their one reveal.
   const [showDetectivePicker, setShowDetectivePicker] = useState(false)
+  const [showGuardianPicker, setShowGuardianPicker] = useState(false)
   // Evil Twins private DM channel — only rendered for the two twins.
   const [twinChatOpen, setTwinChatOpen] = useState(false)
   const [twinChatInput, setTwinChatInput] = useState('')
@@ -1391,6 +1392,45 @@ export default function GamePage() {
         </div>
       )}
 
+      {/* ── Guardian protect picker modal — opens from the vote panel button.
+          Clicking a name fires `guardian:protect` and closes the modal. The
+          server enforces one-shot + alive checks. ── */}
+      {showGuardianPicker && myRole === 'guardian' && !guardianProtectUsed && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-neutral-900 border border-yellow-800/60 p-6 shadow-2xl">
+            <div className="text-center mb-4">
+              <div className="text-5xl mb-2">🛡️</div>
+              <h2 className="text-xl font-black text-yellow-400">{t('game.guardianProtectBtn')}</h2>
+              <p className="text-xs text-neutral-500 mt-2">{t('game.guardianAvailable')}</p>
+            </div>
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {players
+                .filter((p) => p.userId !== user?.id && p.status === 'alive')
+                .map((p) => (
+                  <button
+                    key={p.userId}
+                    onClick={() => {
+                      log.info('guardian protecting', { targetUserId: p.userId })
+                      getSocket().emit('guardian:protect' as any, { targetUserId: p.userId })
+                      setShowGuardianPicker(false)
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-neutral-800 hover:bg-yellow-950/60 border border-neutral-700 hover:border-yellow-700 text-left text-sm font-semibold text-white transition-all flex items-center gap-2"
+                  >
+                    <span>🛡️</span>
+                    <span>{getDisplayName(p.userId, p.username)}</span>
+                  </button>
+                ))}
+            </div>
+            <button
+              onClick={() => setShowGuardianPicker(false)}
+              className="mt-4 w-full px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-semibold text-neutral-400 transition-all"
+            >
+              {t('game.detectiveLater', 'Not yet — decide later')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Corruptor target picker modal — opened on demand from the banner ── */}
       {showCorruptorPicker && myRole === 'corruptor' && !corruptorTargetUserId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -2009,6 +2049,21 @@ export default function GamePage() {
                   <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-900/50 border border-rose-500/60 text-rose-200 text-xs font-bold">
                     <span>🔄</span>
                     <span>{t('game.inverterActive', 'Vote inversion active this round')}</span>
+                  </div>
+                )}
+                {myRole === 'guardian' && !guardianProtectUsed && (
+                  <button
+                    onClick={() => setShowGuardianPicker(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-700 to-yellow-600 hover:from-yellow-600 hover:to-yellow-500 border-2 border-yellow-400/60 text-white text-sm font-black uppercase tracking-wide shadow-lg shadow-yellow-950/50 animate-pulse-subtle transition-all"
+                  >
+                    <span className="text-lg">🛡️</span>
+                    <span>{t('game.guardianProtectBtn')}</span>
+                  </button>
+                )}
+                {myRole === 'guardian' && guardianProtectUsed && (
+                  <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-yellow-900/50 border border-yellow-500/60 text-yellow-200 text-xs font-bold">
+                    <span>🛡️</span>
+                    <span>{t('game.guardianUsed')}</span>
                   </div>
                 )}
               </div>

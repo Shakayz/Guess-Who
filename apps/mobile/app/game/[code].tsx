@@ -280,6 +280,8 @@ function VoteOption({
   hasVoted,
   disabled,
   onPress,
+  canProtect,
+  onProtect,
 }: {
   player: { id: string; userId: string; username: string; avatarUrl?: string | null }
   clue?: { text: string; flaggedForWord?: boolean }
@@ -287,6 +289,8 @@ function VoteOption({
   hasVoted: boolean
   disabled: boolean
   onPress: () => void
+  canProtect?: boolean
+  onProtect?: () => void
 }) {
   const scaleX = useRef(new Animated.Value(1)).current
   const scaleY = useRef(new Animated.Value(1)).current
@@ -366,6 +370,16 @@ function VoteOption({
             <Text className="text-neutral-400 text-[10px] font-semibold">Vote</Text>
           </View>
         ) : null}
+        {canProtect && (
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation?.(); onProtect?.() }}
+            hitSlop={8}
+            className="ml-1 px-1.5 py-1 rounded-md border border-yellow-700/60 bg-yellow-950/40"
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 14 }}>🛡️</Text>
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     </Animated.View>
   )
@@ -395,6 +409,8 @@ export default function GameScreen() {
     mayorDoubleActive,
     inverterUsed,
     inverterActive,
+    guardianProtectUsed,
+    guardianProtectedPlayer,
     messages,
     addMessage,
     addTwinMessage,
@@ -403,6 +419,8 @@ export default function GameScreen() {
     setKamikazePrompt,
     setMayorDoubleActive,
     setInverterActive,
+    setGuardianProtectUsed,
+    setGuardianProtectedPlayer,
     setResult,
     setRound,
     addCompletedRound,
@@ -464,6 +482,7 @@ export default function GameScreen() {
   // Role-power pickers (any-time usage — banner opens modal, modal emits, closes).
   const [showCorruptorPicker, setShowCorruptorPicker] = useState(false)
   const [showDetectivePicker, setShowDetectivePicker] = useState(false)
+  const [showGuardianPicker, setShowGuardianPicker] = useState(false)
   // Evil Twins private DM — mirrors web. Ref keeps the live value in the
   // socket handler, which closes over mount-time state otherwise.
   const [twinChatOpen, setTwinChatOpen] = useState(false)
@@ -840,6 +859,17 @@ export default function GameScreen() {
       useGameStore.getState().setInverterActive()
     })
 
+    // Guardian protection acks
+    socket.on('guardian:protect-ack' as any, ({ targetUserId, targetUsername }: any) => {
+      log.info('guardian protection applied', { targetUserId })
+      useGameStore.getState().setGuardianProtectUsed({ userId: targetUserId, username: targetUsername })
+    })
+    socket.on('guardian:protection-triggered' as any, ({ protectedUserId, protectedUsername }: any) => {
+      useGameStore.getState().setGuardianProtectedPlayer({ userId: protectedUserId, username: protectedUsername })
+      const tid = setTimeout(() => useGameStore.getState().setGuardianProtectedPlayer(null), 5000)
+      timeoutRefs.current.push(tid)
+    })
+
     // Detective reveal result
     socket.on('detective:result', ({ targetUserId, targetUsername, role }: any) => {
       setDetectiveRevealUsed()
@@ -946,6 +976,8 @@ export default function GameScreen() {
       socket.off('kamikaze:target-chosen' as any)
       socket.off('mayor:double-ack' as any)
       socket.off('inverter:activate-ack' as any)
+      socket.off('guardian:protect-ack' as any)
+      socket.off('guardian:protection-triggered' as any)
       socket.off('detective:result')
       socket.off('round:word-said' as any)
       socket.off('vote:update' as any)
@@ -1146,6 +1178,60 @@ export default function GameScreen() {
             </ScrollView>
             <TouchableOpacity
               onPress={() => setShowDetectivePicker(false)}
+              className="mt-3 px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 items-center"
+              activeOpacity={0.7}
+            >
+              <Text className="text-neutral-400 text-xs font-semibold">
+                {t('game.detectiveLater', 'Not yet — decide later')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Guardian protect picker modal ─────────────────────────────────
+          Same pattern as Detective. Pick a player to shield from the next vote. */}
+      <Modal
+        visible={showGuardianPicker && myRole === 'guardian' && !guardianProtectUsed}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowGuardianPicker(false)}
+      >
+        <View className="flex-1 items-center justify-center bg-black/80 p-4">
+          <View className="w-full max-w-md rounded-2xl bg-neutral-900 border border-yellow-800/60 p-5">
+            <View className="items-center mb-4">
+              <Text style={{ fontSize: 40, marginBottom: 6 }}>🛡️</Text>
+              <Text className="text-yellow-400 font-black text-lg">
+                {t('game.guardianProtectBtn')}
+              </Text>
+              <Text className="text-neutral-500 text-xs text-center mt-1.5">
+                {t('game.guardianAvailable')}
+              </Text>
+            </View>
+            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+              <View className="gap-2">
+                {players
+                  .filter((p) => p.userId !== user?.id && p.status === 'alive')
+                  .map((p) => (
+                    <TouchableOpacity
+                      key={p.userId}
+                      onPress={() => {
+                        log.info('guardian protecting', { targetUserId: p.userId })
+                        getSocket().emit('guardian:protect' as any, { targetUserId: p.userId })
+                        setShowGuardianPicker(false)
+                      }}
+                      className="flex-row items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700"
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize: 14 }}>🛡️</Text>
+                      <Avatar url={p.avatarUrl} username={p.username} size={24} />
+                      <Text className="text-white font-semibold text-sm">{p.username}</Text>
+                    </TouchableOpacity>
+                  ))}
+              </View>
+            </ScrollView>
+            <TouchableOpacity
+              onPress={() => setShowGuardianPicker(false)}
               className="mt-3 px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 items-center"
               activeOpacity={0.7}
             >
@@ -1955,6 +2041,26 @@ export default function GameScreen() {
                       </Text>
                     </View>
                   )}
+                  {myRole === 'guardian' && !guardianProtectUsed && (
+                    <TouchableOpacity
+                      onPress={() => setShowGuardianPicker(true)}
+                      className="flex-row items-center justify-center gap-2 px-4 py-3 rounded-xl bg-yellow-600 border-2 border-yellow-400/60"
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 18 }}>🛡️</Text>
+                      <Text className="text-white font-black text-sm uppercase tracking-wide">
+                        {t('game.guardianProtectBtn')}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {myRole === 'guardian' && guardianProtectUsed && (
+                    <View className="flex-row items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-yellow-900/50 border border-yellow-500/60">
+                      <Text>🛡️</Text>
+                      <Text className="text-yellow-200 text-xs font-bold">
+                        {t('game.guardianUsed')}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               )}
 
@@ -1990,6 +2096,7 @@ export default function GameScreen() {
                       const isVotedTarget = votedFor === p.userId
                       const hasVoted = !!votedFor
                       const playerClue = clues.find((c) => c.playerId === p.userId)
+                      const canProtect = myRole === 'guardian' && !guardianProtectUsed && p.status === 'alive'
                       return (
                         <View key={p.id} style={{ width: itemWidth }}>
                           <VoteOption
@@ -1999,6 +2106,11 @@ export default function GameScreen() {
                             hasVoted={hasVoted}
                             disabled={hasVoted || isEliminated}
                             onPress={() => vote(p.userId)}
+                            canProtect={canProtect}
+                            onProtect={() => {
+                              log.info('guardian protecting', { targetUserId: p.userId })
+                              getSocket().emit('guardian:protect' as any, { targetUserId: p.userId })
+                            }}
                           />
                         </View>
                       )

@@ -60,6 +60,10 @@ interface GameState {
   inverterUsed: boolean
   /** Inverter: flip active for the current voting phase */
   inverterActive: boolean
+  /** Guardian: protection permanently consumed for this game */
+  guardianProtectUsed: boolean
+  /** Guardian: last protected player for 5s banner */
+  guardianProtectedPlayer: { userId: string; username: string } | null
   messages: ChatMessage[]
   result: GameResult | null
   setRoom: (room: Room) => void
@@ -77,6 +81,8 @@ interface GameState {
   resetMayorDoubleActive: () => void
   setInverterActive: () => void
   resetInverterActive: () => void
+  setGuardianProtectUsed: (target: { userId: string; username: string }) => void
+  setGuardianProtectedPlayer: (player: { userId: string; username: string } | null) => void
   addMessage: (msg: ChatMessage) => void
   setResult: (result: GameResult) => void
   reset: () => void
@@ -103,6 +109,8 @@ export const useGameStore = create<GameState>()(
   mayorDoubleActive: false,
   inverterUsed: false,
   inverterActive: false,
+  guardianProtectUsed: false,
+  guardianProtectedPlayer: null,
   messages: [],
   result: null,
   setRoom: (room) => {
@@ -141,6 +149,8 @@ export const useGameStore = create<GameState>()(
   resetMayorDoubleActive: () => set({ mayorDoubleActive: false }),
   setInverterActive: () => set({ inverterUsed: true, inverterActive: true }),
   resetInverterActive: () => set({ inverterActive: false }),
+  setGuardianProtectUsed: (target) => set({ guardianProtectUsed: true, guardianProtectedPlayer: target }),
+  setGuardianProtectedPlayer: (guardianProtectedPlayer) => set({ guardianProtectedPlayer }),
   addMessage: (msg) =>
     set((s) => ({ messages: [...s.messages.slice(-99), msg] })),
   setResult: (result) => {
@@ -168,6 +178,8 @@ export const useGameStore = create<GameState>()(
       mayorDoubleActive: false,
       inverterUsed: false,
       inverterActive: false,
+      guardianProtectUsed: false,
+      guardianProtectedPlayer: null,
       messages: [],
       result: null,
     })
@@ -193,6 +205,7 @@ export const useGameStore = create<GameState>()(
         mayorDoubleActive: state.mayorDoubleActive,
         inverterUsed: state.inverterUsed,
         inverterActive: state.inverterActive,
+        guardianProtectUsed: state.guardianProtectUsed,
         result: state.result,
       }),
     },
