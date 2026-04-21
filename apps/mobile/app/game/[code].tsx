@@ -271,7 +271,7 @@ function PlayerClueHistoryModal({
             style={{ maxHeight: 360 }}
           >
             {allRoundClues.length === 0 ? (
-              <Text className="text-neutral-600 text-sm italic text-center py-6">
+              <Text className="text-neutral-400 text-sm italic text-center py-6">
                 No clues submitted yet
               </Text>
             ) : (
@@ -522,6 +522,10 @@ export default function GameScreen() {
   } | null>(null)
   const [voteCount, setVoteCount] = useState(0)
   const [totalVoters, setTotalVoters] = useState(0)
+  // Track *which* users have cast a vote so the vote panel can show a voter
+  // avatar row ("who's already voted"). Aggregate counts come from vote:update;
+  // identities come from per-cast round:vote-cast. Cleared on phase transitions.
+  const [votedUserIds, setVotedUserIds] = useState<string[]>([])
   const [allVotedMsg, setAllVotedMsg] = useState(false)
   const [isTie, setIsTie] = useState(false)
   const [wordReveal, setWordReveal] = useState<{
@@ -858,6 +862,7 @@ export default function GameScreen() {
       if (vocalTimerRef.current) { clearInterval(vocalTimerRef.current); vocalTimerRef.current = null }
       setVoteCount(0)
       setTotalVoters(vPlayers?.length ?? 0)
+      setVotedUserIds([])
       setAllVotedMsg(false)
       startTimerRef.current(timeSeconds ?? 30)
     })
@@ -895,6 +900,11 @@ export default function GameScreen() {
     socket.on('vote:update' as any, ({ voteCount: vc, totalVoters: tv }: any) => {
       setVoteCount(vc)
       setTotalVoters(tv)
+    })
+    // Who cast — identities for voter avatar row. Dedupe in case of re-emits.
+    socket.on('round:vote-cast' as any, ({ voterId }: { voterId: string; hasVoted: boolean }) => {
+      if (!voterId) return
+      setVotedUserIds((prev) => (prev.includes(voterId) ? prev : [...prev, voterId]))
     })
     socket.on('vote:all-cast' as any, () => {
       setAllVotedMsg(true)
@@ -1078,6 +1088,7 @@ export default function GameScreen() {
       socket.off('detective:result')
       socket.off('round:word-said' as any)
       socket.off('vote:update' as any)
+      socket.off('round:vote-cast' as any)
       socket.off('vote:all-cast' as any)
       socket.off('clue:flagged' as any)
       socket.off('error')
@@ -1286,23 +1297,33 @@ export default function GameScreen() {
                   .map((p) => (
                     <TouchableOpacity
                       key={p.userId}
+                      disabled={pendingPower === 'detective'}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Reveal ${p.username}'s identity`}
                       onPress={() => {
                         log.info('detective revealing', { targetUserId: p.userId })
+                        setPendingPower('detective')
                         getSocket().emit('detective:reveal', { targetUserId: p.userId })
                         setShowDetectivePicker(false)
                       }}
-                      className="flex-row items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700"
+                      className={`flex-row items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700 ${pendingPower === 'detective' ? 'opacity-50' : ''}`}
                       activeOpacity={0.7}
                     >
                       <Avatar url={p.avatarUrl} username={p.username} size={24} />
-                      <Text className="text-white font-semibold text-sm">{p.username}</Text>
+                      <Text className="text-white font-semibold text-sm flex-1">{p.username}</Text>
+                      {pendingPower === 'detective' && (
+                        <ActivityIndicator size="small" color="#60a5fa" />
+                      )}
                     </TouchableOpacity>
                   ))}
               </View>
             </ScrollView>
             <TouchableOpacity
               onPress={() => setShowDetectivePicker(false)}
-              className="mt-3 px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 items-center"
+              disabled={pendingPower === 'detective'}
+              accessibilityRole="button"
+              accessibilityLabel="Close detective reveal picker"
+              className={`mt-3 px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 items-center ${pendingPower === 'detective' ? 'opacity-50' : ''}`}
               activeOpacity={0.7}
             >
               <Text className="text-neutral-400 text-xs font-semibold">
@@ -1339,24 +1360,34 @@ export default function GameScreen() {
                   .map((p) => (
                     <TouchableOpacity
                       key={p.userId}
+                      disabled={pendingPower === 'guardian'}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Protect ${p.username} from elimination`}
                       onPress={() => {
                         log.info('guardian protecting', { targetUserId: p.userId })
+                        setPendingPower('guardian')
                         getSocket().emit('guardian:protect' as any, { targetUserId: p.userId })
                         setShowGuardianPicker(false)
                       }}
-                      className="flex-row items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700"
+                      className={`flex-row items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700 ${pendingPower === 'guardian' ? 'opacity-50' : ''}`}
                       activeOpacity={0.7}
                     >
                       <Text style={{ fontSize: 14 }}>🛡️</Text>
                       <Avatar url={p.avatarUrl} username={p.username} size={24} />
-                      <Text className="text-white font-semibold text-sm">{p.username}</Text>
+                      <Text className="text-white font-semibold text-sm flex-1">{p.username}</Text>
+                      {pendingPower === 'guardian' && (
+                        <ActivityIndicator size="small" color="#fbbf24" />
+                      )}
                     </TouchableOpacity>
                   ))}
               </View>
             </ScrollView>
             <TouchableOpacity
               onPress={() => setShowGuardianPicker(false)}
-              className="mt-3 px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 items-center"
+              disabled={pendingPower === 'guardian'}
+              accessibilityRole="button"
+              accessibilityLabel="Close guardian protect picker"
+              className={`mt-3 px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 items-center ${pendingPower === 'guardian' ? 'opacity-50' : ''}`}
               activeOpacity={0.7}
             >
               <Text className="text-neutral-400 text-xs font-semibold">
@@ -1393,22 +1424,32 @@ export default function GameScreen() {
                   .map((p) => (
                     <TouchableOpacity
                       key={p.userId}
+                      disabled={pendingPower === 'corruptor'}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Silence ${p.username}'s votes`}
                       onPress={() => {
                         log.info('corruptor picking target', { targetUserId: p.userId })
+                        setPendingPower('corruptor')
                         getSocket().emit('corruptor:pick-target' as any, { targetUserId: p.userId })
                       }}
-                      className="flex-row items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700"
+                      className={`flex-row items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700 ${pendingPower === 'corruptor' ? 'opacity-50' : ''}`}
                       activeOpacity={0.7}
                     >
                       <Avatar url={p.avatarUrl} username={p.username} size={24} />
-                      <Text className="text-white font-semibold text-sm">{p.username}</Text>
+                      <Text className="text-white font-semibold text-sm flex-1">{p.username}</Text>
+                      {pendingPower === 'corruptor' && (
+                        <ActivityIndicator size="small" color="#fb923c" />
+                      )}
                     </TouchableOpacity>
                   ))}
               </View>
             </ScrollView>
             <TouchableOpacity
               onPress={() => setShowCorruptorPicker(false)}
-              className="mt-3 px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 items-center"
+              disabled={pendingPower === 'corruptor'}
+              accessibilityRole="button"
+              accessibilityLabel="Close corruptor target picker"
+              className={`mt-3 px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 items-center ${pendingPower === 'corruptor' ? 'opacity-50' : ''}`}
               activeOpacity={0.7}
             >
               <Text className="text-neutral-400 text-xs font-semibold">
@@ -1447,15 +1488,22 @@ export default function GameScreen() {
                   .map((p) => (
                     <TouchableOpacity
                       key={p.userId}
+                      disabled={pendingPower === 'kamikaze'}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Take ${p.username} out with you`}
                       onPress={() => {
                         log.info('kamikaze picking target', { targetUserId: p.userId })
+                        setPendingPower('kamikaze')
                         getSocket().emit('kamikaze:pick-target' as any, { targetUserId: p.userId })
                       }}
-                      className="flex-row items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700"
+                      className={`flex-row items-center gap-2 px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700 ${pendingPower === 'kamikaze' ? 'opacity-50' : ''}`}
                       activeOpacity={0.7}
                     >
                       <Avatar url={p.avatarUrl} username={p.username} size={24} />
-                      <Text className="text-white font-semibold text-sm">{p.username}</Text>
+                      <Text className="text-white font-semibold text-sm flex-1">{p.username}</Text>
+                      {pendingPower === 'kamikaze' && (
+                        <ActivityIndicator size="small" color="#f87171" />
+                      )}
                     </TouchableOpacity>
                   ))}
               </View>
@@ -1463,9 +1511,13 @@ export default function GameScreen() {
             <TouchableOpacity
               onPress={() => {
                 log.info('kamikaze sparing everyone')
+                setPendingPower('kamikaze')
                 getSocket().emit('kamikaze:skip' as any)
               }}
-              className="mt-3 px-4 py-2.5 rounded-xl bg-neutral-800 border border-neutral-700 items-center"
+              disabled={pendingPower === 'kamikaze'}
+              accessibilityRole="button"
+              accessibilityLabel="Spare everyone — don't take a target"
+              className={`mt-3 px-4 py-2.5 rounded-xl bg-neutral-800 border border-neutral-700 items-center ${pendingPower === 'kamikaze' ? 'opacity-50' : ''}`}
               activeOpacity={0.7}
             >
               <Text className="text-neutral-300 text-sm font-semibold">
@@ -1534,10 +1586,13 @@ export default function GameScreen() {
               </View>
               <TouchableOpacity
                 onPress={() => setTwinChatOpen(false)}
-                className="w-8 h-8 rounded-full bg-neutral-900 items-center justify-center"
+                accessibilityRole="button"
+                accessibilityLabel="Close twin chat"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                className="w-11 h-11 rounded-full bg-neutral-900 items-center justify-center"
                 activeOpacity={0.7}
               >
-                <Text className="text-neutral-400 text-sm">✕</Text>
+                <Text className="text-neutral-400 text-base">✕</Text>
               </TouchableOpacity>
             </View>
             {/* Messages */}
@@ -1550,7 +1605,7 @@ export default function GameScreen() {
               onContentSizeChange={() => twinChatScrollRef.current?.scrollToEnd({ animated: true })}
             >
               {twinMessages.length === 0 ? (
-                <Text className="text-neutral-600 text-xs italic text-center py-8">
+                <Text className="text-neutral-400 text-xs italic text-center py-8">
                   {t('game.twinChatEmpty', 'No messages yet. Coordinate with your twin — stay in sync.')}
                 </Text>
               ) : (
@@ -1591,6 +1646,7 @@ export default function GameScreen() {
                 onChangeText={setTwinChatInput}
                 maxLength={200}
                 returnKeyType="send"
+                accessibilityLabel="Twin chat message input"
                 onSubmitEditing={() => {
                   const text = twinChatInput.trim()
                   if (!text) return
@@ -1606,6 +1662,8 @@ export default function GameScreen() {
                   setTwinChatInput('')
                 }}
                 disabled={!twinChatInput.trim()}
+                accessibilityRole="button"
+                accessibilityLabel="Send twin chat message"
                 className={[
                   'px-4 py-2 rounded-xl items-center justify-center',
                   twinChatInput.trim() ? 'bg-purple-600' : 'bg-neutral-800 opacity-40',
@@ -1691,16 +1749,43 @@ export default function GameScreen() {
               </View>
             </View>
             <View className="flex-row items-center justify-between">
-              <Text className="text-xs text-neutral-500">
+              <Text
+                className="text-xs text-neutral-400"
+                accessibilityLabel={`${alivePlayers.length} players alive, round ${currentRound?.roundNumber ?? 1}`}
+              >
                 {alivePlayers.length} alive · Round {currentRound?.roundNumber ?? 1}
               </Text>
               {/* Forfeit button */}
-              <TouchableOpacity onPress={handleForfeit} activeOpacity={0.7}>
-                <Text className="text-xs text-neutral-600 font-semibold">🏳 Forfeit</Text>
+              <TouchableOpacity
+                onPress={handleForfeit}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Forfeit the game"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text className="text-xs text-neutral-400 font-semibold">🏳 Forfeit</Text>
               </TouchableOpacity>
             </View>
             {timeLeft > 0 && (
-              <CountdownBar seconds={timeLeft} total={totalTime} isVoting={phase === 'voting'} />
+              <View>
+                <CountdownBar seconds={timeLeft} total={totalTime} isVoting={phase === 'voting'} />
+                {/* Phase-ending warning — fires at the last 10s and surfaces
+                    exactly what phase is about to end. Red when critical. */}
+                {timeLeft <= 10 && (phase === 'voting' || phase === 'speaking') && (
+                  <Text
+                    className={[
+                      'text-[11px] font-bold mt-1 text-center',
+                      timeLeft <= 3 ? 'text-red-400' : 'text-amber-400',
+                    ].join(' ')}
+                    accessibilityLiveRegion="polite"
+                    accessibilityLabel={`${phase === 'voting' ? 'Voting' : 'Clue submission'} ends in ${timeLeft} seconds`}
+                  >
+                    ⏱ {phase === 'voting'
+                      ? `Voting ends in ${timeLeft}s`
+                      : `Clue deadline in ${timeLeft}s`}
+                  </Text>
+                )}
+              </View>
             )}
           </View>
 
@@ -1929,7 +2014,9 @@ export default function GameScreen() {
                 setTwinChatOpen(true)
                 clearTwinUnread()
               }}
-              className="rounded-xl border border-purple-800/40 bg-purple-950/40 px-3 py-2 flex-row items-center gap-2"
+              accessibilityRole="button"
+              accessibilityLabel={`Open twin chat with ${twinPartner.twinUsername}${twinUnread > 0 ? `, ${twinUnread} unread` : ''}`}
+              className="rounded-xl border border-purple-800/40 bg-purple-950/40 px-3 py-3 flex-row items-center gap-2"
               activeOpacity={0.8}
             >
               <Text style={{ fontSize: 14 }}>👯</Text>
@@ -1950,39 +2037,97 @@ export default function GameScreen() {
             </TouchableOpacity>
           )}
 
+          {/* ─── Guardian persistent banner ──────────────────────────────
+              Reminds the Guardian that their protection is still available,
+              even outside the vote phase. One tap opens the picker modal so
+              they never forget to use it and get caught by the timer. */}
+          {myRole === 'guardian' && !guardianProtectUsed && !isEliminated && (
+            <TouchableOpacity
+              onPress={() => setShowGuardianPicker(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Protect a player — Guardian ability ready"
+              className="flex-row items-center gap-2 px-3 py-3 rounded-xl border-2 border-yellow-600/60 bg-yellow-950/40"
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 18 }}>🛡️</Text>
+              <View className="flex-1">
+                <Text className="text-yellow-300 font-bold text-xs uppercase tracking-wider">
+                  Protection ready
+                </Text>
+                <Text className="text-yellow-200/80 text-[11px] mt-0.5" numberOfLines={1}>
+                  Tap to shield a player before the vote
+                </Text>
+              </View>
+              <View className="px-2 py-1 rounded-md bg-yellow-600">
+                <Text className="text-white text-[10px] font-black uppercase tracking-wider">
+                  Protect
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* ─── Speaking phase: clue input (typing mode) ────────────────────── */}
-          {phase === 'speaking' && !isEliminated && !vocalMode && (
+          {phase === 'speaking' && !isEliminated && (!vocalMode || vocalTextFallback) && (
             <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
-              <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
-                Your Clue
-              </Text>
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                  Your Clue
+                </Text>
+                {!hasSubmittedClue && (
+                  <Text
+                    className={[
+                      'text-[10px] font-mono font-semibold',
+                      clueText.length >= 180 ? 'text-red-400'
+                      : clueText.length >= 150 ? 'text-amber-400'
+                      : 'text-neutral-500',
+                    ].join(' ')}
+                    accessibilityLabel={`${clueText.length} of 200 characters`}
+                  >
+                    {clueText.length}/200
+                  </Text>
+                )}
+              </View>
               {hasSubmittedClue ? (
                 <View className="flex-row items-center gap-2 py-2">
-                  <Text className="text-emerald-400 text-sm">✓ Clue submitted — waiting for others...</Text>
+                  <Text
+                    className="text-emerald-400 text-sm"
+                    accessibilityLiveRegion="polite"
+                  >
+                    ✓ Clue submitted — waiting for others...
+                  </Text>
                 </View>
               ) : (
                 <View className="flex-row gap-2">
                   <TextInput
                     className="flex-1 bg-neutral-800 text-white px-4 py-3 rounded-xl border border-neutral-700 text-sm"
                     placeholder="One sentence clue..."
-                    placeholderTextColor="#525252"
+                    placeholderTextColor="#6b7280"
                     value={clueText}
                     onChangeText={setClueText}
                     maxLength={200}
                     returnKeyType="send"
-                    onSubmitEditing={submitClue}
+                    onSubmitEditing={vocalTextFallback ? submitVocalFallbackClue : submitClue}
+                    accessibilityLabel="Clue text input, up to 200 characters"
                   />
                   <TouchableOpacity
-                    onPress={submitClue}
+                    onPress={vocalTextFallback ? submitVocalFallbackClue : submitClue}
                     disabled={!clueText.trim()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Send clue"
+                    accessibilityState={{ disabled: !clueText.trim() }}
                     className={[
-                      'px-4 py-3 rounded-xl items-center justify-center',
+                      'px-4 py-3 rounded-xl items-center justify-center min-w-[64px]',
                       clueText.trim() ? 'bg-violet-600' : 'bg-neutral-800 opacity-40',
                     ].join(' ')}
                   >
                     <Text className="text-white font-semibold text-sm">Send</Text>
                   </TouchableOpacity>
                 </View>
+              )}
+              {vocalTextFallback && !hasSubmittedClue && (
+                <Text className="text-[10px] text-neutral-500 mt-2 italic">
+                  Typing fallback — mic unavailable
+                </Text>
               )}
             </View>
           )}
@@ -1992,11 +2137,13 @@ export default function GameScreen() {
               surface the submitted clues of the current round inline. Visible
               during speaking (so players can read as they come in) and voting
               (so they can re-read before picking), and for eliminated players
-              who are spectating. */}
-          {(phase === 'speaking' || phase === 'voting') && clues.length > 0 && (
+              who are spectating. Empty state keeps the panel visible so players
+              know where clues will appear — avoids a blank-screen feel early
+              in the round. */}
+          {(phase === 'speaking' || phase === 'voting') && (
             <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
               <View className="flex-row items-center justify-between mb-3">
-                <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
                   {t('game.cluesThisRound', 'Clues this round')}
                 </Text>
                 <View className="px-2 py-0.5 rounded-full bg-violet-950/50 border border-violet-800/40">
@@ -2005,6 +2152,32 @@ export default function GameScreen() {
                   </Text>
                 </View>
               </View>
+              {clues.length === 0 && (
+                <View className="py-4 items-center">
+                  <Text className="text-neutral-300 text-xs italic">
+                    Waiting for clues…
+                  </Text>
+                  <Text className="text-neutral-400 text-[10px] mt-1">
+                    Clues will appear here as players submit them
+                  </Text>
+                </View>
+              )}
+              {/* Flagged-clue voter warning — visible in the vote phase so
+                  players notice the instant-elimination risk even if the
+                  flagged author's tile scrolls off-screen. */}
+              {phase === 'voting' && flaggedCluesCount > 0 && (
+                <View
+                  className="mb-3 px-3 py-2 rounded-lg bg-amber-950/60 border border-amber-700/50"
+                  accessibilityLiveRegion="polite"
+                >
+                  <Text className="text-amber-300 text-[11px] font-bold">
+                    ⚠ {flaggedCluesCount === 1 ? '1 clue flagged' : `${flaggedCluesCount} clues flagged`} — said their own word
+                  </Text>
+                  <Text className="text-amber-400/80 text-[10px] mt-0.5">
+                    Flagged players are instantly eliminated if they're the imposter
+                  </Text>
+                </View>
+              )}
               <View style={{ gap: 6 }}>
                 {clues.map((c) => {
                   const author = players.find((p) => p.userId === c.playerId)
@@ -2055,7 +2228,7 @@ export default function GameScreen() {
           )}
 
           {/* ─── Speaking phase: vocal mode (turn-based, no text) ──────────── */}
-          {phase === 'speaking' && !isEliminated && vocalMode && (() => {
+          {phase === 'speaking' && !isEliminated && vocalMode && !vocalTextFallback && (() => {
             const speaker = vocalSpeakerId ? players.find((p) => p.userId === vocalSpeakerId) : null
             const isMyTurn = !!(vocalSpeakerId && user?.id === vocalSpeakerId)
             const pct =
@@ -2070,7 +2243,7 @@ export default function GameScreen() {
                 ].join(' ')}
               >
                 <View className="flex-row items-center justify-between mb-3">
-                  <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-300">
                     Vocal turn {Math.min(vocalTurnIndex + 1, vocalTotalSpeakers || 1)} / {vocalTotalSpeakers || 1}
                   </Text>
                   <Text
@@ -2103,8 +2276,22 @@ export default function GameScreen() {
                 {voiceMicError && (
                   <View className="rounded-xl border border-amber-800 bg-amber-950/40 px-3 py-2 mb-3">
                     <Text className="text-amber-300 text-xs font-semibold">
-                      Microphone unavailable — other players won't hear you. Enable mic in system settings to join the conversation.
+                      Microphone unavailable — other players won't hear you.
                     </Text>
+                    <Text className="text-amber-400/80 text-[11px] mt-1">
+                      Enable mic in system settings, or type your clue as a fallback.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setVocalTextFallback(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Switch to typing a clue instead of speaking"
+                      className="mt-2 self-start px-3 py-1.5 rounded-lg bg-amber-600 border border-amber-400/60"
+                      activeOpacity={0.8}
+                    >
+                      <Text className="text-white text-[11px] font-bold uppercase tracking-wider">
+                        ⌨ Switch to typing
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
                 {speaker ? (
@@ -2145,7 +2332,7 @@ export default function GameScreen() {
           {phase === 'voting' && (
             <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
               <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-300">
                   Vote out the RedHanded
                 </Text>
                 {totalVoters > 0 && (
@@ -2173,6 +2360,30 @@ export default function GameScreen() {
                 </View>
               )}
 
+              {/* Voter avatar row — tiny avatars for everyone who's already
+                  cast a vote (target or skip). Gives a visible "who's left to
+                  decide" cue without revealing targets. */}
+              {votedUserIds.length > 0 && (
+                <View
+                  className="flex-row items-center flex-wrap gap-1 mb-3"
+                  accessibilityLabel={`${votedUserIds.length} of ${totalVoters} players have voted`}
+                >
+                  <Text className="text-[10px] text-neutral-400 mr-1 font-semibold uppercase tracking-wider">
+                    Voted:
+                  </Text>
+                  {votedUserIds.map((uid) => {
+                    const vp = players.find((pp) => pp.userId === uid)
+                    if (!vp) return null
+                    return (
+                      <View key={uid} className="flex-row items-center gap-1 px-1.5 py-0.5 rounded-full bg-neutral-800/70 border border-neutral-700/50">
+                        <Avatar url={vp.avatarUrl} username={vp.username} size={14} />
+                        <Text className="text-[10px] text-neutral-200 font-medium">{vp.username}</Text>
+                      </View>
+                    )
+                  })}
+                </View>
+              )}
+
               {/* All votes in message */}
               {allVotedMsg && (
                 <View className="flex-row items-center gap-2 px-3 py-2 rounded-xl bg-emerald-950/60 border border-emerald-800/40 mb-3">
@@ -2192,7 +2403,9 @@ export default function GameScreen() {
                         log.info('mayor activating double vote (vote panel)')
                         getSocket().emit('mayor:activate-double' as any)
                       }}
-                      className="flex-row items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 border-2 border-indigo-400/60"
+                      accessibilityRole="button"
+                      accessibilityLabel={t('game.mayorDoubleVoteBtn', 'Double my vote') + ' — Mayor power'}
+                      className="flex-row items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 border-2 border-indigo-400/60 min-h-[44px]"
                       activeOpacity={0.8}
                     >
                       <Text style={{ fontSize: 18 }}>⚖️</Text>
@@ -2215,7 +2428,9 @@ export default function GameScreen() {
                         log.info('inverter activating (vote panel)')
                         getSocket().emit('inverter:activate' as any)
                       }}
-                      className="flex-row items-center justify-center gap-2 px-4 py-3 rounded-xl bg-rose-600 border-2 border-rose-400/60"
+                      accessibilityRole="button"
+                      accessibilityLabel={t('game.inverterActivateBtn', 'Invert the vote') + ' — Inverter power'}
+                      className="flex-row items-center justify-center gap-2 px-4 py-3 rounded-xl bg-rose-600 border-2 border-rose-400/60 min-h-[44px]"
                       activeOpacity={0.8}
                     >
                       <Text style={{ fontSize: 18 }}>🔄</Text>
@@ -2235,7 +2450,9 @@ export default function GameScreen() {
                   {myRole === 'guardian' && !guardianProtectUsed && (
                     <TouchableOpacity
                       onPress={() => setShowGuardianPicker(true)}
-                      className="flex-row items-center justify-center gap-2 px-4 py-3 rounded-xl bg-yellow-600 border-2 border-yellow-400/60"
+                      accessibilityRole="button"
+                      accessibilityLabel={t('game.guardianProtectBtn') + ' — Guardian power'}
+                      className="flex-row items-center justify-center gap-2 px-4 py-3 rounded-xl bg-yellow-600 border-2 border-yellow-400/60 min-h-[44px]"
                       activeOpacity={0.8}
                     >
                       <Text style={{ fontSize: 18 }}>🛡️</Text>
@@ -2313,8 +2530,11 @@ export default function GameScreen() {
                 onPress={skipVote}
                 disabled={!!votedFor || isEliminated}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={t('game.skipVote') + ' — abstain from this round'}
+                accessibilityState={{ disabled: !!votedFor || isEliminated, selected: votedFor === '__skip__' }}
                 className={[
-                  'mt-2 flex-row items-center gap-3 px-3 py-2.5 rounded-xl border',
+                  'mt-2 flex-row items-center gap-3 px-3 py-2.5 rounded-xl border min-h-[44px]',
                   votedFor === '__skip__'
                     ? 'border-neutral-500/70 bg-neutral-800/60'
                     : votedFor
@@ -2323,13 +2543,13 @@ export default function GameScreen() {
                 ].join(' ')}
               >
                 <View className="w-8 h-8 rounded-full bg-neutral-800 items-center justify-center">
-                  <Text className="text-neutral-400 text-sm">🚫</Text>
+                  <Text className="text-neutral-300 text-sm">🚫</Text>
                 </View>
-                <Text className="flex-1 font-bold text-neutral-300 text-sm">
+                <Text className="flex-1 font-bold text-neutral-200 text-sm">
                   {t('game.skipVote')}
                 </Text>
                 {votedFor === '__skip__' && (
-                  <Text className="text-neutral-400 text-xs font-bold">
+                  <Text className="text-neutral-300 text-xs font-bold">
                     {t('game.yourVoteLabel')}
                   </Text>
                 )}
@@ -2419,7 +2639,7 @@ export default function GameScreen() {
                   </View>
                 </View>
               )}
-              <Text className="text-[10px] font-semibold uppercase tracking-widest text-neutral-600 mt-4">Next round starting soon...</Text>
+              <Text className="text-[10px] font-semibold uppercase tracking-widest text-neutral-300 mt-4" accessibilityLiveRegion="polite">Next round starting soon...</Text>
               </View>
               <View className="bg-neutral-950 h-1" />
             </View>
@@ -2428,7 +2648,7 @@ export default function GameScreen() {
           {/* ─── Players list ──────────────────────────────────────────────── */}
           <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+              <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
                 Players
               </Text>
               <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-950/50 border border-emerald-800/30">
@@ -2444,11 +2664,14 @@ export default function GameScreen() {
                 const isMe = p.userId === user?.id
                 const canViewHistory = !isMe && (hasSubmittedClue || phase !== 'speaking')
                 const isSpeakingNow = isAlive && vocalMode && phase === 'speaking' && vocalSpeakerId === p.userId
+                const statusLabel = isDisconnected ? 'disconnected' : isSpeakingNow ? 'speaking now' : isAlive ? (isMe ? 'you, alive' : 'alive') : isForfeited ? 'forfeited' : 'eliminated'
                 return (
                   <TouchableOpacity
                     key={p.id}
                     onPress={() => canViewHistory ? setClueHistoryPlayer({ userId: p.userId, username: p.username, avatarUrl: p.avatarUrl }) : undefined}
                     activeOpacity={canViewHistory ? 0.7 : 1}
+                    accessibilityRole={canViewHistory ? 'button' : undefined}
+                    accessibilityLabel={`${p.username}, ${statusLabel}${canViewHistory ? ' — tap to view clue history' : ''}`}
                     className={[
                       'flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-xl border',
                       isDisconnected
@@ -2476,7 +2699,7 @@ export default function GameScreen() {
                     <Text
                       className={[
                         'text-xs font-semibold',
-                        isDisconnected ? 'text-neutral-500 italic' : isSpeakingNow ? 'text-brand-100' : isAlive ? (isMe ? 'text-violet-200' : 'text-white') : 'text-neutral-600',
+                        isDisconnected ? 'text-neutral-400 italic' : isSpeakingNow ? 'text-brand-100' : isAlive ? (isMe ? 'text-violet-200' : 'text-white') : 'text-neutral-500',
                       ].join(' ')}
                     >
                       {p.username}
@@ -2488,16 +2711,16 @@ export default function GameScreen() {
                       <Text className="text-[10px]">🎤</Text>
                     )}
                     {!isDisconnected && !isAlive && !isForfeited && (
-                      <Text className="text-[9px] text-neutral-700">☠</Text>
+                      <Text className="text-[9px] text-neutral-500">☠</Text>
                     )}
                     {!isDisconnected && canViewHistory && isAlive && (
-                      <Text className="text-[9px] text-neutral-600">📜</Text>
+                      <Text className="text-[9px] text-neutral-400">📜</Text>
                     )}
                   </TouchableOpacity>
                 )
               })}
             </View>
-            <Text className="text-[10px] text-neutral-700 mt-2">Tap a player to see their clue history</Text>
+            <Text className="text-[10px] text-neutral-400 mt-2">Tap a player to see their clue history</Text>
           </View>
 
           {/* ─── Emote Reactions Bar ───────────────────────────────────────── */}
@@ -2507,11 +2730,11 @@ export default function GameScreen() {
             return (
               <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3">
                 <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-600">
+                  <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
                     React
                   </Text>
                   {locked && (
-                    <Text className="text-[10px] text-amber-500">
+                    <Text className="text-[10px] text-amber-400" accessibilityLiveRegion="polite">
                       Slow down · {Math.ceil(cooldownRemaining / 1000)}s
                     </Text>
                   )}
@@ -2525,6 +2748,9 @@ export default function GameScreen() {
                         key={id}
                         onPress={() => sendEmote(id)}
                         disabled={locked}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Send ${em.emoji} emote`}
+                        accessibilityState={{ disabled: locked }}
                         className={`w-11 h-11 rounded-xl bg-neutral-800/60 border items-center justify-center ${RARITY_BORDER[em.rarity]} ${locked ? 'opacity-40' : ''}`}
                         activeOpacity={0.7}
                       >
@@ -2543,15 +2769,17 @@ export default function GameScreen() {
               <View className="px-3 py-3 bg-red-950/30">
                 <View className="flex-row items-center justify-between mb-2">
                   <View className="flex-row items-center gap-2">
-                    <Text className="text-xs font-semibold uppercase tracking-widest text-red-500">
+                    <Text className="text-xs font-semibold uppercase tracking-widest text-red-400">
                       Ghost Chat
                     </Text>
-                    <Text className="text-xs text-neutral-600">Ghosts only</Text>
+                    <Text className="text-xs text-neutral-400">Ghosts only</Text>
                   </View>
                 </View>
                 <TouchableOpacity
                   onPress={handleLeaveEliminated}
-                  className="py-2 rounded-xl bg-red-900/60 border border-red-800/40 items-center"
+                  accessibilityRole="button"
+                  accessibilityLabel="Leave game and return to lobby"
+                  className="py-2 rounded-xl bg-red-900/60 border border-red-800/40 items-center min-h-[44px] justify-center"
                   activeOpacity={0.7}
                 >
                   <Text className="text-red-300 text-sm font-bold">← Leave Game</Text>
@@ -2562,9 +2790,10 @@ export default function GameScreen() {
                 className="max-h-40"
                 contentContainerStyle={{ padding: 12, gap: 6 }}
                 showsVerticalScrollIndicator={false}
+                onContentSizeChange={() => deadChatScrollRef.current?.scrollToEnd({ animated: true })}
               >
                 {deadChatMessages.length === 0 ? (
-                  <Text className="text-neutral-700 text-xs italic">
+                  <Text className="text-neutral-500 text-xs italic">
                     Chat with other eliminated players...
                   </Text>
                 ) : (
@@ -2573,31 +2802,35 @@ export default function GameScreen() {
                       <Text
                         className={[
                           'font-semibold',
-                          msg.userId === user?.id ? 'text-red-400' : 'text-neutral-400',
+                          msg.userId === user?.id ? 'text-red-400' : 'text-neutral-300',
                         ].join(' ')}
                       >
                         {msg.username}:{' '}
                       </Text>
-                      <Text className="text-neutral-500">{msg.text}</Text>
+                      <Text className="text-neutral-300">{msg.text}</Text>
                     </Text>
                   ))
                 )}
               </ScrollView>
               <View className="flex-row gap-2 p-3 border-t border-red-900/30">
                 <TextInput
-                  className="flex-1 bg-neutral-900 border border-red-900/40 text-neutral-300 px-3 py-2.5 rounded-xl text-sm"
+                  className="flex-1 bg-neutral-900 border border-red-900/40 text-neutral-200 px-3 py-2.5 rounded-xl text-sm"
                   placeholder="Message ghosts..."
-                  placeholderTextColor="#525252"
+                  placeholderTextColor="#737373"
                   value={deadChatInput}
                   onChangeText={setDeadChatInput}
                   returnKeyType="send"
                   onSubmitEditing={sendDeadChat}
+                  accessibilityLabel="Type a message to other eliminated players"
                 />
                 <TouchableOpacity
                   onPress={sendDeadChat}
                   disabled={!deadChatInput.trim()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Send ghost chat message"
+                  accessibilityState={{ disabled: !deadChatInput.trim() }}
                   className={[
-                    'px-3 py-2.5 rounded-xl items-center justify-center',
+                    'px-3 py-2.5 rounded-xl items-center justify-center min-w-[44px] min-h-[44px]',
                     deadChatInput.trim() ? 'bg-red-950/60' : 'bg-neutral-800 opacity-40',
                   ].join(' ')}
                 >
@@ -2612,13 +2845,16 @@ export default function GameScreen() {
             <>
               <TouchableOpacity
                 onPress={() => setShowChat((s) => !s)}
+                accessibilityRole="button"
+                accessibilityLabel={showChat ? 'Hide chat' : `Show chat${messages.length > 0 ? `, ${messages.length} messages` : ''}`}
+                accessibilityState={{ expanded: showChat }}
                 className="flex-row items-center justify-between px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700"
                 activeOpacity={0.8}
               >
-                <Text className="text-neutral-300 font-medium text-sm">
+                <Text className="text-neutral-200 font-medium text-sm">
                   💬 Chat{messages.length > 0 ? ` (${messages.length})` : ''}
                 </Text>
-                <Text className="text-neutral-500 text-xs">{showChat ? '▴' : '▾'}</Text>
+                <Text className="text-neutral-400 text-xs">{showChat ? '▴' : '▾'}</Text>
               </TouchableOpacity>
 
               {showChat && (
@@ -2628,9 +2864,10 @@ export default function GameScreen() {
                     className="max-h-48"
                     contentContainerStyle={{ padding: 12, gap: 8 }}
                     showsVerticalScrollIndicator={false}
+                    onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
                   >
                     {messages.length === 0 ? (
-                      <Text className="text-neutral-700 text-xs italic">No messages yet</Text>
+                      <Text className="text-neutral-500 text-xs italic">No messages yet</Text>
                     ) : (
                       messages.map((msg) => (
                         <Text key={msg.id} className="text-sm">
@@ -2651,17 +2888,21 @@ export default function GameScreen() {
                     <TextInput
                       className="flex-1 bg-neutral-800 text-white px-3 py-2.5 rounded-xl border border-neutral-700 text-sm"
                       placeholder="Message..."
-                      placeholderTextColor="#525252"
+                      placeholderTextColor="#737373"
                       value={chatInput}
                       onChangeText={setChatInput}
                       returnKeyType="send"
                       onSubmitEditing={sendChat}
+                      accessibilityLabel="Type a chat message"
                     />
                     <TouchableOpacity
                       onPress={sendChat}
                       disabled={!chatInput.trim()}
+                      accessibilityRole="button"
+                      accessibilityLabel="Send chat message"
+                      accessibilityState={{ disabled: !chatInput.trim() }}
                       className={[
-                        'px-3 py-2.5 rounded-xl items-center justify-center',
+                        'px-3 py-2.5 rounded-xl items-center justify-center min-w-[44px] min-h-[44px]',
                         chatInput.trim() ? 'bg-neutral-700' : 'bg-neutral-800 opacity-40',
                       ].join(' ')}
                     >
