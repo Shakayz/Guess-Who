@@ -275,12 +275,14 @@ function PlayerClueHistoryModal({
 
 function VoteOption({
   player,
+  clue,
   isVotedTarget,
   hasVoted,
   disabled,
   onPress,
 }: {
   player: { id: string; userId: string; username: string; avatarUrl?: string | null }
+  clue?: { text: string; flaggedForWord?: boolean }
   isVotedTarget: boolean
   hasVoted: boolean
   disabled: boolean
@@ -338,9 +340,23 @@ function VoteOption({
           size={36}
           borderColor={isVotedTarget ? '#d97706' : undefined}
         />
-        <Text className={['flex-1 font-semibold text-sm', isVotedTarget ? 'text-amber-200' : 'text-white'].join(' ')}>
-          {player.username}
-        </Text>
+        <View className="flex-1">
+          <View className="flex-row items-center gap-1.5 flex-wrap">
+            <Text className={['font-semibold text-sm', isVotedTarget ? 'text-amber-200' : 'text-white'].join(' ')}>
+              {player.username}
+            </Text>
+            {clue?.flaggedForWord && (
+              <Text className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                ⚠ Said the word
+              </Text>
+            )}
+          </View>
+          {clue ? (
+            <Text className="text-xs text-neutral-300 leading-snug mt-0.5" numberOfLines={2}>{clue.text}</Text>
+          ) : (
+            <Text className="text-xs text-neutral-600 italic leading-snug mt-0.5">No clue yet</Text>
+          )}
+        </View>
         {isVotedTarget ? (
           <View className="flex-row items-center gap-1 px-2 py-1 rounded-lg bg-amber-900/60 border border-amber-700/40">
             <Text className="text-amber-300 text-[10px] font-bold">✓ Your Vote</Text>
@@ -805,6 +821,14 @@ export default function GameScreen() {
         router.replace(`/results/${code}`)
       }
     })
+    socket.on('player:connection-changed' as any, ({ userId: uid, disconnected }: { userId: string; disconnected: boolean }) => {
+      const current = useGameStore.getState().room
+      if (!current) return
+      setRoom({
+        ...current,
+        players: current.players.map((p: any) => p.userId === uid ? { ...p, disconnected } : p),
+      } as any)
+    })
 
     // Chat + emotes
     socket.on('chat:message', addMessage)
@@ -846,6 +870,7 @@ export default function GameScreen() {
       socket.off('round:ended')
       socket.off('game:finished')
       socket.off('room:updated')
+      socket.off('player:connection-changed' as any)
       socket.off('chat:message')
       socket.off('deadchat:message' as any)
       socket.off('emote:receive' as any)
@@ -1419,10 +1444,12 @@ export default function GameScreen() {
                     {voteTargets.map((p) => {
                       const isVotedTarget = votedFor === p.userId
                       const hasVoted = !!votedFor
+                      const playerClue = clues.find((c) => c.playerId === p.userId)
                       return (
                         <View key={p.id} style={{ width: itemWidth }}>
                           <VoteOption
                             player={p}
+                            clue={playerClue ? { text: playerClue.text, flaggedForWord: (playerClue as any).flaggedForWord } : undefined}
                             isVotedTarget={isVotedTarget}
                             hasVoted={hasVoted}
                             disabled={hasVoted || isEliminated}
@@ -1550,80 +1577,6 @@ export default function GameScreen() {
             </View>
           )}
 
-          {/* ─── Clues log ─────────────────────────────────────────────────── */}
-          {/* In vocal mode clues aren't typed, so the log is only relevant for
-              post-round review — hide it during the speaking phase. */}
-          {!(vocalMode && phase === 'speaking') && (
-          <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
-            <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
-              Clues — Round {currentRound?.roundNumber ?? 1}
-            </Text>
-            {phase === 'speaking' && !hasSubmittedClue && !isEliminated && !vocalMode ? (
-              <Text className="text-neutral-600 text-sm italic">
-                Submit your clue to see what others wrote
-              </Text>
-            ) : clues.length === 0 ? (
-              <Text className="text-neutral-600 text-sm italic">
-                {vocalMode ? 'No typed clues — this round was spoken aloud' : 'No clues yet...'}
-              </Text>
-            ) : (
-              <View className="gap-3">
-                {clues.map((clue, i) => {
-                  const player = players.find((p) => p.userId === clue.playerId)
-                  const isMe = clue.playerId === user?.id
-                  const flagCount = clueFlagCounts[i] ?? 0
-                  return (
-                    <View
-                      key={i}
-                      className={[
-                        'flex-row items-start gap-2.5 px-3 py-2.5 rounded-xl border',
-                        (clue as any).flaggedForWord
-                          ? 'bg-amber-950/20 border-amber-700/40'
-                          : isMe
-                          ? 'bg-violet-950/30 border-violet-800/30'
-                          : 'bg-neutral-800/30 border-neutral-800/50',
-                      ].join(' ')}
-                    >
-                      <View className="mt-0.5">
-                        <Avatar url={player?.avatarUrl} username={player?.username ?? '?'} size={24} />
-                      </View>
-                      <View className="flex-1">
-                        <View className="flex-row items-center gap-1.5 flex-wrap">
-                          <Text className="text-xs font-semibold text-neutral-400">
-                            {player?.username ?? 'Unknown'}
-                          </Text>
-                          <Text className="text-neutral-700 text-[10px]">#{i + 1}</Text>
-                          {isMe && (
-                            <Text className="text-[10px] text-violet-400 font-bold">YOU</Text>
-                          )}
-                          {(clue as any).flaggedForWord && (
-                            <Text className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
-                              ⚠ Said the word
-                            </Text>
-                          )}
-                        </View>
-                        <Text className="text-sm text-white leading-snug mt-0.5">{clue.text}</Text>
-                      </View>
-                      {/* Flag button */}
-                      {!isMe && (
-                        <TouchableOpacity
-                          onPress={() => flagClue(i)}
-                          className="px-2 py-1 rounded-lg bg-neutral-800/60"
-                          activeOpacity={0.7}
-                        >
-                          <Text className="text-[10px] text-neutral-500">
-                            🚩{flagCount > 0 ? ` ${flagCount}` : ''}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  )
-                })}
-              </View>
-            )}
-          </View>
-          )}
-
           {/* ─── Players list ──────────────────────────────────────────────── */}
           <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
             <View className="flex-row items-center justify-between mb-3">
@@ -1639,6 +1592,7 @@ export default function GameScreen() {
               {players.map((p) => {
                 const isAlive = p.status === 'alive'
                 const isForfeited = p.status === ('forfeited' as any)
+                const isDisconnected = (p as any).disconnected === true
                 const isMe = p.userId === user?.id
                 const canViewHistory = !isMe && (hasSubmittedClue || phase !== 'speaking')
                 const isSpeakingNow = isAlive && vocalMode && phase === 'speaking' && vocalSpeakerId === p.userId
@@ -1649,7 +1603,9 @@ export default function GameScreen() {
                     activeOpacity={canViewHistory ? 0.7 : 1}
                     className={[
                       'flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-xl border',
-                      isSpeakingNow
+                      isDisconnected
+                        ? 'bg-neutral-900/60 border-dashed border-amber-900/40 opacity-70'
+                        : isSpeakingNow
                         ? 'bg-brand-900/60 border-brand-500/70'
                         : isAlive && isMe
                         ? 'bg-violet-950/40 border-violet-700/50'
@@ -1663,27 +1619,30 @@ export default function GameScreen() {
                     <View
                       className={[
                         'w-1.5 h-1.5 rounded-full',
-                        isSpeakingNow ? 'bg-brand-400' : isAlive ? (isMe ? 'bg-violet-400' : 'bg-emerald-400') : isForfeited ? 'bg-orange-600' : 'bg-neutral-700',
+                        isDisconnected ? 'bg-amber-500' : isSpeakingNow ? 'bg-brand-400' : isAlive ? (isMe ? 'bg-violet-400' : 'bg-emerald-400') : isForfeited ? 'bg-orange-600' : 'bg-neutral-700',
                       ].join(' ')}
                     />
-                    <View style={{ opacity: isAlive ? 1 : 0.4 }}>
+                    <View style={{ opacity: isDisconnected ? 0.5 : isAlive ? 1 : 0.4 }}>
                       <Avatar url={p.avatarUrl} username={p.username} size={18} />
                     </View>
                     <Text
                       className={[
                         'text-xs font-semibold',
-                        isSpeakingNow ? 'text-brand-100' : isAlive ? (isMe ? 'text-violet-200' : 'text-white') : 'text-neutral-600',
+                        isDisconnected ? 'text-neutral-500 italic' : isSpeakingNow ? 'text-brand-100' : isAlive ? (isMe ? 'text-violet-200' : 'text-white') : 'text-neutral-600',
                       ].join(' ')}
                     >
                       {p.username}
                     </Text>
-                    {isSpeakingNow && (
+                    {isDisconnected && (
+                      <Text className="text-[9px] font-bold text-amber-400">📵 offline</Text>
+                    )}
+                    {!isDisconnected && isSpeakingNow && (
                       <Text className="text-[10px]">🎤</Text>
                     )}
-                    {!isAlive && !isForfeited && (
+                    {!isDisconnected && !isAlive && !isForfeited && (
                       <Text className="text-[9px] text-neutral-700">☠</Text>
                     )}
-                    {canViewHistory && isAlive && (
+                    {!isDisconnected && canViewHistory && isAlive && (
                       <Text className="text-[9px] text-neutral-600">📜</Text>
                     )}
                   </TouchableOpacity>

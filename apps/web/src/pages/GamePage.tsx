@@ -796,6 +796,14 @@ export default function GamePage() {
         navigate(`/results/${code}`)
       }
     })
+    socket.on('player:connection-changed' as any, ({ userId: uid, disconnected }: { userId: string; disconnected: boolean }) => {
+      const current = useGameStore.getState().room
+      if (!current) return
+      setRoom({
+        ...current,
+        players: current.players.map((p: any) => p.userId === uid ? { ...p, disconnected } : p),
+      } as any)
+    })
     socket.on('error', (err: any) => {
       log.error('socket error', { code: err?.code, message: err?.message })
     })
@@ -836,6 +844,7 @@ export default function GamePage() {
       socket.off('round:tiebreaker-voting' as any)
       socket.off('game:finished')
       socket.off('room:updated')
+      socket.off('player:connection-changed' as any)
       socket.off('error')
       socket.off('chat:message')
       socket.off('deadchat:message' as any)
@@ -1802,7 +1811,9 @@ export default function GamePage() {
             ].join(' ')}>
               {alivePlayers
                 .filter((p) => p.userId !== user?.id && (!tiebreakerActive || tiebreakerPlayerIds.includes(p.userId)))
-                .map((p) => (
+                .map((p) => {
+                  const playerClue = clues.find((c) => c.playerId === p.userId)
+                  return (
                   <button
                     key={p.id}
                     aria-label={`Vote for ${getDisplayName(p.userId, p.username)}`}
@@ -1818,7 +1829,21 @@ export default function GamePage() {
                     ].join(' ')}
                   >
                     <Avatar src={p.avatarUrl} username={p.username} size="sm" />
-                    <span className="flex-1 min-w-0 truncate font-semibold text-white text-sm">{getDisplayName(p.userId, p.username)}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-semibold text-white text-sm">{getDisplayName(p.userId, p.username)}</span>
+                        {playerClue?.flaggedForWord && (
+                          <span className="shrink-0 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                            ⚠ {t('game.saidTheWordBadge')}
+                          </span>
+                        )}
+                      </div>
+                      {playerClue ? (
+                        <p className="text-xs text-neutral-300 leading-snug truncate mt-0.5">{playerClue.text}</p>
+                      ) : (
+                        <p className="text-xs text-neutral-600 italic leading-snug mt-0.5">{t('game.noClueYet', 'No clue yet')}</p>
+                      )}
+                    </div>
                     {votedFor === p.userId && (
                       <span className="shrink-0 text-amber-400 text-xs font-bold">{t('game.yourVoteLabel')}</span>
                     )}
@@ -1826,7 +1851,8 @@ export default function GamePage() {
                       <span className="shrink-0 text-neutral-600 text-xs">{t('game.clickToVote')}</span>
                     )}
                   </button>
-                ))}
+                  )
+                })}
             </div>
             {!tiebreakerActive && !votedFor && (
               <div className="mt-3 flex justify-center">
@@ -1950,58 +1976,6 @@ export default function GamePage() {
           )
         })()}
 
-        {/* Clues log — hidden during clue phase until you submit (prevents copying) */}
-        {/* In vocal mode clues aren't typed, so the log is only relevant for post-round review. */}
-        {!(vocalMode && phase === 'clues') && (
-        <div className="card flex-1">
-          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
-            {t('game.cluesTitle', { round: currentRound?.roundNumber ?? 1 })}
-          </p>
-          {phase === 'clues' && !hasSubmittedClue && !isEliminated && !vocalMode ? (
-            <p className="text-neutral-600 text-sm italic">{t('game.submitClueFirst', 'Submit your clue to see what others wrote')}</p>
-          ) : clues.length === 0 ? (
-            <p className="text-neutral-600 text-sm italic">{vocalMode ? t('game.vocalNoTextClues', 'No typed clues — this round was spoken aloud') : t('game.noClues')}</p>
-          ) : (
-            <div className="space-y-2">
-              {clues.map((clue, i) => {
-                const player = players.find((p) => p.userId === clue.playerId)
-                const isMe = clue.playerId === user?.id
-                return (
-                  <div
-                    key={i}
-                    className={[
-                      'flex items-start gap-2.5 px-3 py-2.5 rounded-xl border transition-all animate-scale-in border-l-2',
-                      clue.flaggedForWord
-                        ? 'ring-1 ring-amber-500/40 bg-amber-950/20 border-amber-700/40 border-l-amber-500'
-                        : isMe
-                          ? 'bg-brand-950/30 border-brand-800/30 border-l-brand-500'
-                          : 'bg-neutral-800/30 border-neutral-800/50 border-l-emerald-700',
-                    ].join(' ')}
-                    style={{ animationDelay: `${i * 0.05}s` }}
-                  >
-                    <Avatar src={player?.avatarUrl} username={player?.username ?? '?'} size="xs" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-semibold text-neutral-400">
-                          {player ? getDisplayName(player.userId, player.username) : 'Unknown'}
-                        </span>
-                        <span className="text-neutral-700 text-[10px]">#{i + 1}</span>
-                        {isMe && <span className="text-[10px] text-brand-400 font-bold">{t('results.you', 'YOU')}</span>}
-                        {clue.flaggedForWord && (
-                          <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider ml-auto">
-                            ⚠ {t('game.saidTheWordBadge')}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-white leading-snug mt-0.5">{clue.text}</p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-        )}
       </div>
 
       {/* ── Chat sidebar ── */}
@@ -2155,11 +2129,13 @@ export default function GamePage() {
                   tabIndex={0}
                   onClick={() => setSelectedPlayerId(p.userId)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedPlayerId(p.userId) }}
-                  aria-label={`${getDisplayName(p.userId, p.username)}, ${p.status}`}
-                  title={`View ${getDisplayName(p.userId, p.username)}'s clue history`}
+                  aria-label={`${getDisplayName(p.userId, p.username)}, ${p.disconnected ? 'disconnected' : p.status}`}
+                  title={p.disconnected ? `${getDisplayName(p.userId, p.username)} is disconnected` : `View ${getDisplayName(p.userId, p.username)}'s clue history`}
                   className={[
                     'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer select-none border active:scale-95 hover:-translate-y-0.5 hover:shadow-lg',
-                    p.status === 'alive'
+                    p.disconnected
+                      ? 'bg-neutral-900/60 text-neutral-500 italic border-dashed border-neutral-700/60 hover:bg-neutral-900/80'
+                      : p.status === 'alive'
                       ? isSpeakingNow
                         ? 'bg-gradient-to-br from-brand-900/70 to-brand-950/80 text-white ring-2 ring-brand-500/60 border-brand-500/60 shadow-lg shadow-brand-900/50 animate-glow-pulse'
                         : 'bg-neutral-800/80 text-white hover:bg-neutral-700 hover:ring-1 hover:ring-neutral-600 border-neutral-700/50 hover:border-neutral-600 hover:shadow-neutral-900/60'
@@ -2170,7 +2146,9 @@ export default function GamePage() {
                 >
                   <span className={[
                     'w-1.5 h-1.5 rounded-full',
-                    p.status === 'alive'
+                    p.disconnected
+                      ? 'bg-amber-500 animate-pulse'
+                      : p.status === 'alive'
                       ? isSpeakingNow ? 'bg-brand-400 animate-heartbeat' : 'bg-emerald-400 animate-pulse'
                       : p.status === 'forfeited' ? 'bg-orange-700' : 'bg-neutral-700',
                   ].join(' ')} />
@@ -2178,9 +2156,15 @@ export default function GamePage() {
                     src={p.avatarUrl}
                     username={p.username}
                     size="xs"
-                    className={p.status !== 'alive' ? 'opacity-50 grayscale' : ''}
+                    className={p.disconnected || p.status !== 'alive' ? 'opacity-50 grayscale' : ''}
                   />
                   {getDisplayName(p.userId, p.username)}
+                  {p.disconnected && (
+                    <span className="ml-0.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-400" title="Disconnected">
+                      <span aria-hidden="true">📵</span>
+                      <span>offline</span>
+                    </span>
+                  )}
                   {canReveal && (
                     <button
                       onClick={() => getSocket().emit('detective:reveal', { targetUserId: p.userId })}
