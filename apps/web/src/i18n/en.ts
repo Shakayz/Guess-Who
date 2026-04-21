@@ -560,6 +560,11 @@ export default {
     roomLanguage: 'Room language',
     roomLanguageHint: 'Players must use this language to join.',
     switchToRoomLanguage: 'Switch to {{language}}',
+    neutralUnlockHint: 'Unlocked at 10+ players.',
+    teamVillagers: 'Villagers',
+    teamRedHanded: 'Imposters',
+    teamPair: 'Pair',
+    teamNeutral: 'Neutral',
   },
   rank: {
     wooden: 'Wooden',
@@ -1009,5 +1014,6 @@ export default {
     // Auth
     playOffline: 'Play Offline',
     playOfflineDesc: 'No account needed',
+    neutralUnlockHint: 'Unlocks at 10+ players.',
   },
 } as const

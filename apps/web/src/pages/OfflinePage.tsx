@@ -395,12 +395,15 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
   const maxJudge      = Math.min(1, judgeCount     + goodHeadroom)
   const maxRevenant   = Math.min(1, revenantCount  + goodHeadroom)
 
-  // Neutral roles (jester) only unlock with ≥ 10 players.
+  // Neutral roles (jester) and pair roles (evil twins) only unlock at ≥ 10 players.
   const neutralUnlocked = filledCount >= 10
+  const pairUnlocked = filledCount >= 10
   const maxJester = neutralUnlocked ? Math.min(1, jesterCount + goodHeadroom) : 0
 
   // Evil Twins (pair): consumes 1 slot on each side.
-  const maxEvilTwins = Math.min(1, evilTwinsCount + Math.min(evilHeadroom, goodHeadroom))
+  const maxEvilTwins = pairUnlocked
+    ? Math.min(1, evilTwinsCount + Math.min(evilHeadroom, goodHeadroom))
+    : 0
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -751,6 +754,7 @@ function SetupPhase({ initialSettings, onStart }: SetupPhaseProps) {
               max={maxEvilTwins}
               onChange={setEvilTwinsCount}
               accent="purple"
+              lockedReason={pairUnlocked ? null : t('offline.neutralUnlockHint', 'Unlocks at 10+ players.')}
             />
           </div>
 

@@ -549,6 +549,11 @@ export default {
     chatPlaceholder: 'اكتب رسالة…',
     chatEmpty: 'ألقِ التحية أثناء الانتظار…',
     chatSend: 'إرسال',
+    neutralUnlockHint: 'يُفتح عند 10+ لاعبين.',
+    teamVillagers: 'القرويون',
+    teamRedHanded: 'المحتالون',
+    teamPair: 'ثنائي',
+    teamNeutral: 'محايد',
   },
   rank: {
     wooden: 'خشبي',
@@ -930,5 +935,6 @@ export default {
     doubleAgent: 'عميل مزدوج',
     playOffline: 'العب بدون إنترنت',
     playOfflineDesc: 'لا حاجة لحساب',
+    neutralUnlockHint: 'يُفتح عند 10+ لاعبين.',
   },
 } as const

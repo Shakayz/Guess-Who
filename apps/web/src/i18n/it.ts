@@ -547,6 +547,11 @@ export default {
     chatPlaceholder: 'Invia un messaggio…',
     chatEmpty: 'Saluta mentre aspetti…',
     chatSend: 'Invia',
+    neutralUnlockHint: 'Si sblocca con 10+ giocatori.',
+    teamVillagers: 'Villici',
+    teamRedHanded: 'Impostori',
+    teamPair: 'Coppia',
+    teamNeutral: 'Neutrale',
   },
   rank: {
     wooden: 'Legno',
@@ -926,5 +931,6 @@ export default {
     doubleAgent: 'Agente Doppio',
     playOffline: 'Gioca Offline',
     playOfflineDesc: 'Nessun account necessario',
+    neutralUnlockHint: 'Si sblocca con 10+ giocatori.',
   },
 } as const

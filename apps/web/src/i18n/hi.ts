@@ -546,6 +546,11 @@ export default {
     chatPlaceholder: 'लॉबी को संदेश भेजें…',
     chatEmpty: 'इंतज़ार करते हुए नमस्ते कहें…',
     chatSend: 'भेजें',
+    neutralUnlockHint: '10+ खिलाड़ियों पर अनलॉक होता है।',
+    teamVillagers: 'ग्रामीण',
+    teamRedHanded: 'इम्पोस्टर',
+    teamPair: 'जोड़ी',
+    teamNeutral: 'तटस्थ',
   },
   rank: {
     wooden: 'लकड़ी',
@@ -942,5 +947,6 @@ export default {
     // Auth
     playOffline: 'ऑफ़लाइन खेलें',
     playOfflineDesc: 'किसी खाते की आवश्यकता नहीं',
+    neutralUnlockHint: '10+ खिलाड़ियों पर अनलॉक होता है।',
   },
 } as const

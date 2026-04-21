@@ -550,6 +550,11 @@ export default {
     roomLanguage: 'Idioma de la sala',
     roomLanguageHint: 'Los jugadores deben usar este idioma para unirse.',
     switchToRoomLanguage: 'Cambiar a {{language}}',
+    neutralUnlockHint: 'Se desbloquea con 10+ jugadores.',
+    teamVillagers: 'Aldeanos',
+    teamRedHanded: 'Impostores',
+    teamPair: 'Dúo',
+    teamNeutral: 'Neutral',
   },
   rank: {
     wooden: 'Madera',
@@ -929,5 +934,6 @@ export default {
     doubleAgent: 'Agente Doble',
     playOffline: 'Jugar Sin Conexión',
     playOfflineDesc: 'Sin cuenta necesaria',
+    neutralUnlockHint: 'Se desbloquea con 10+ jugadores.',
   },
 } as const

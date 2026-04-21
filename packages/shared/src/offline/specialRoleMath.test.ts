@@ -6,6 +6,7 @@ import {
   computeRoleHeadroom,
   getDefaultRedHandedCount,
   isNeutralUnlocked,
+  isPairUnlocked,
   maxRedHandedFor,
   minPlayersFor,
   type SpecialRoleCounts,
@@ -70,6 +71,16 @@ describe('isNeutralUnlocked', () => {
   })
 })
 
+describe('isPairUnlocked', () => {
+  it('locks pairs below 10 players', () => {
+    expect(isPairUnlocked(9)).toBe(false)
+  })
+  it('unlocks pairs at 10+', () => {
+    expect(isPairUnlocked(10)).toBe(true)
+    expect(isPairUnlocked(15)).toBe(true)
+  })
+})
+
 describe('computeRoleHeadroom', () => {
   it('reports remaining slots for an empty special-role lobby', () => {
     const h = computeRoleHeadroom(6, 2, counts())
@@ -113,6 +124,16 @@ describe('computeMaxRoleCounts', () => {
   it('allows jester at 10+ players', () => {
     const max = computeMaxRoleCounts(10, 3, counts())
     expect(max.jester).toBe(1)
+  })
+
+  it('forbids evil twins below 10 players', () => {
+    const max = computeMaxRoleCounts(9, 3, counts())
+    expect(max.evilTwins).toBe(0)
+  })
+
+  it('allows evil twins at 10+ players', () => {
+    const max = computeMaxRoleCounts(10, 3, counts())
+    expect(max.evilTwins).toBe(1)
   })
 
   it('shrinks evil-side max as redHanded slots fill', () => {

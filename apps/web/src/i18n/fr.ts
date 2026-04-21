@@ -543,6 +543,11 @@ export default {
     chatPlaceholder: 'Envoyer un message…',
     chatEmpty: 'Dis bonjour en attendant…',
     chatSend: 'Envoyer',
+    neutralUnlockHint: 'Débloqué à 10+ joueurs.',
+    teamVillagers: 'Villageois',
+    teamRedHanded: 'Imposteurs',
+    teamPair: 'Duo',
+    teamNeutral: 'Neutre',
   },
   rank: {
     wooden: 'Bois',
@@ -967,5 +972,6 @@ export default {
     doubleAgent: 'Agent Double',
     playOffline: 'Jouer Hors Ligne',
     playOfflineDesc: 'Pas de compte nécessaire',
+    neutralUnlockHint: 'Débloqué à 10+ joueurs.',
   },
 } as const

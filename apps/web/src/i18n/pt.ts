@@ -547,6 +547,11 @@ export default {
     chatPlaceholder: 'Envie uma mensagem…',
     chatEmpty: 'Dê um olá enquanto espera…',
     chatSend: 'Enviar',
+    neutralUnlockHint: 'Desbloqueado com 10+ jogadores.',
+    teamVillagers: 'Aldeões',
+    teamRedHanded: 'Impostores',
+    teamPair: 'Dupla',
+    teamNeutral: 'Neutro',
   },
   rank: {
     wooden: 'Madeira',
@@ -926,5 +931,6 @@ export default {
     doubleAgent: 'Agente Duplo',
     playOffline: 'Jogar Offline',
     playOfflineDesc: 'Sem conta necessária',
+    neutralUnlockHint: 'Desbloqueado com 10+ jogadores.',
   },
 } as const

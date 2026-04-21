@@ -298,18 +298,21 @@ function SettingsPanel({
         const maxCorruptor   = Math.min(1, (settings.corruptorCount ?? 0)   + evilHeadroom)
         const maxInverter    = Math.min(1, (settings.inverterCount ?? 0)    + evilHeadroom)
 
-        // Neutral roles (jester) only available with ≥ 10 players.
+        // Neutral roles (jester) and pair roles (evil twins) only available with ≥ 10 players.
         const neutralUnlocked = settings.maxPlayers >= 10
+        const pairUnlocked = settings.maxPlayers >= 10
         const neutralLockReason = neutralUnlocked
+          ? null
+          : t('lobby.neutralUnlockHint', { defaultValue: 'Unlocked at 10+ players.' })
+        const pairLockReason = pairUnlocked
           ? null
           : t('lobby.neutralUnlockHint', { defaultValue: 'Unlocked at 10+ players.' })
         const maxJester = neutralUnlocked ? Math.min(1, (settings.jesterCount ?? 0) + goodHeadroom) : 0
 
         // Evil Twins (pair) takes 2 slots on opposite sides.
-        const maxEvilTwins = Math.min(
-          1,
-          twinSlot + Math.min(evilHeadroom, goodHeadroom),
-        )
+        const maxEvilTwins = pairUnlocked
+          ? Math.min(1, twinSlot + Math.min(evilHeadroom, goodHeadroom))
+          : 0
 
         return (
           <div className="space-y-4">
@@ -432,6 +435,7 @@ function SettingsPanel({
                 max={maxEvilTwins}
                 onChange={(v) => onChange({ ...settings, evilTwinsEnabled: v })}
                 accent="sky"
+                lockedReason={pairLockReason}
               />
             </div>
 

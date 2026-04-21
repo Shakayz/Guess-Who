@@ -539,6 +539,11 @@ export default {
     chatPlaceholder: 'Nachricht an die Lobby…',
     chatEmpty: 'Sag Hallo, während du wartest…',
     chatSend: 'Senden',
+    neutralUnlockHint: 'Wird ab 10+ Spielern freigeschaltet.',
+    teamVillagers: 'Dorfbewohner',
+    teamRedHanded: 'Hochstapler',
+    teamPair: 'Paar',
+    teamNeutral: 'Neutral',
   },
   rank: {
     wooden: 'Holz',
@@ -918,5 +923,6 @@ export default {
     doubleAgent: 'Doppelagent',
     playOffline: 'Offline spielen',
     playOfflineDesc: 'Kein Konto nötig',
+    neutralUnlockHint: 'Wird ab 10+ Spielern freigeschaltet.',
   },
 } as const

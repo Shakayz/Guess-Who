@@ -33,6 +33,7 @@ import {
   finalizeRound as finalizeVoteRound,
   getDefaultRedHandedCount,
   isNeutralUnlocked,
+  isPairUnlocked,
   maxRedHandedFor,
 } from '@red-handed/shared'
 import type {
@@ -401,6 +402,7 @@ function SetupPhase({
     [filledCount, redHandedCount, counts],
   )
   const neutralUnlocked = isNeutralUnlocked(filledCount)
+  const pairUnlocked = isPairUnlocked(filledCount)
 
   const updateName = (i: number, value: string) =>
     setNames((prev) => prev.map((n, idx) => (idx === i ? value : n)))
@@ -719,6 +721,11 @@ function SetupPhase({
                 max={max.evilTwins}
                 onChange={(v) => setCount('evilTwins', v)}
                 accent="purple"
+                lockedReason={
+                  pairUnlocked
+                    ? null
+                    : t('offline.neutralUnlockHint', { defaultValue: 'Unlocks at 10+ players.' })
+                }
                 fontScale={fontScale}
               />
             </View>

@@ -536,6 +536,11 @@ export default {
     chatPlaceholder: 'Написать в лобби…',
     chatEmpty: 'Поздоровайся, пока ждёшь…',
     chatSend: 'Отправить',
+    neutralUnlockHint: 'Открывается при 10+ игроках.',
+    teamVillagers: 'Жители',
+    teamRedHanded: 'Самозванцы',
+    teamPair: 'Пара',
+    teamNeutral: 'Нейтрал',
   },
   rank: {
     wooden: 'Деревянный',
@@ -922,5 +927,6 @@ export default {
     doubleAgent: 'Двойной агент',
     playOffline: 'Играть офлайн',
     playOfflineDesc: 'Аккаунт не нужен',
+    neutralUnlockHint: 'Открывается при 10+ игроках.',
   },
 } as const

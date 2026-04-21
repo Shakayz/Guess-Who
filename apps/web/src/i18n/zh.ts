@@ -547,6 +547,11 @@ export default {
     chatPlaceholder: '在大厅里发消息…',
     chatEmpty: '等待时打个招呼吧…',
     chatSend: '发送',
+    neutralUnlockHint: '10+玩家时解锁。',
+    teamVillagers: '村民',
+    teamRedHanded: '冒牌者',
+    teamPair: '搭档',
+    teamNeutral: '中立',
   },
   rank: {
     wooden: '木头',
@@ -926,5 +931,6 @@ export default {
     doubleAgent: '双面间谍',
     playOffline: '离线游玩',
     playOfflineDesc: '无需账号',
+    neutralUnlockHint: '10+玩家时解锁。',
   },
 } as const
