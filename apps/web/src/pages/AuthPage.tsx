@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
+import { MusicManager } from '../lib/music'
 import { createLogger } from '../lib/logger'
 const log = createLogger('auth-page')
 
@@ -70,6 +71,14 @@ export default function AuthPage() {
   const [chosenUsername, setChosenUsername] = useState('')
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const [usernameLoading, setUsernameLoading] = useState(false)
+  const [musicEnabled, setMusicEnabled] = useState(() => MusicManager.isEnabled())
+
+  const toggleMusic = () => {
+    const next = !MusicManager.isEnabled()
+    MusicManager.setEnabled(next)
+    if (next) MusicManager.play()
+    setMusicEnabled(next)
+  }
 
   // Pre-fill the referral code from `?invite=CODE` in the URL so share links
   // work without the new user having to type anything. Also switch to the
@@ -421,6 +430,27 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
+      <button
+        type="button"
+        onClick={toggleMusic}
+        aria-label={musicEnabled ? 'Mute music' : 'Unmute music'}
+        title={musicEnabled ? 'Mute music' : 'Unmute music'}
+        className="fixed top-4 right-4 z-50 w-10 h-10 rounded-full bg-neutral-800/80 hover:bg-neutral-700/80 border border-neutral-700/50 text-neutral-300 hover:text-white flex items-center justify-center transition-all active:scale-95"
+      >
+        {musicEnabled ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <line x1="23" y1="9" x2="17" y2="15" />
+            <line x1="17" y1="9" x2="23" y2="15" />
+          </svg>
+        )}
+      </button>
       <div className="w-full max-w-sm animate-slide-up">
 
         {/* Language selector */}
