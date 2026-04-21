@@ -284,7 +284,7 @@ export default function FriendsPage() {
                     <button
                       type="button"
                       onClick={() => navigate(`/player/${req.to.id}`)}
-                      className="flex-1 text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
+                      className="flex-1 min-w-0 truncate text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
                     >
                       {req.to.username}
                     </button>
@@ -327,7 +327,7 @@ export default function FriendsPage() {
                       <button
                         type="button"
                         onClick={() => navigate(`/player/${req.from.id}`)}
-                        className="flex-1 text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
+                        className="flex-1 min-w-0 truncate text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
                       >
                         {req.from.username}
                       </button>
@@ -390,7 +390,7 @@ export default function FriendsPage() {
                       </div>
                       <button
                         onClick={() => navigate(`/player/${f.user.id}`)}
-                        className="flex-1 text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
+                        className="flex-1 min-w-0 truncate text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
                       >
                         {f.user.username}
                       </button>
@@ -446,7 +446,7 @@ export default function FriendsPage() {
                       <button
                         type="button"
                         onClick={() => navigate(`/player/${u.id}`)}
-                        className="flex-1 text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
+                        className="flex-1 min-w-0 truncate text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
                       >
                         {u.username}
                       </button>
@@ -519,7 +519,7 @@ export default function FriendsPage() {
                     <button
                       type="button"
                       onClick={() => navigate(`/player/${u.id}`)}
-                      className="flex-1 text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
+                      className="flex-1 min-w-0 truncate text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
                     >
                       {u.username}
                     </button>
