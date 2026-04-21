@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   View,
   Text,
@@ -9,16 +9,19 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  PanResponder,
+  LayoutChangeEvent,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import * as Notifications from 'expo-notifications'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useAuthStore } from '../store/auth'
 import { api } from '../lib/api'
 import i18n from '../i18n'
 import { LANGUAGES } from '../i18n/languages'
+import { SoundManager } from '../lib/sounds'
+import { MusicManager } from '../lib/music'
 
 type LangCode = (typeof LANGUAGES)[number]['code']
 
@@ -50,12 +53,82 @@ function SettingRow({
   )
 }
 
+function VolumeSlider({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string
+  value: number
+  onChange: (v: number) => void
+  disabled?: boolean
+}) {
+  const widthRef = useRef(0)
+  const [pct, setPct] = useState(value)
+
+  useEffect(() => {
+    setPct(value)
+  }, [value])
+
+  const updateFromX = (x: number) => {
+    const w = widthRef.current || 1
+    const p = Math.max(0, Math.min(1, x / w))
+    setPct(p)
+    onChange(Math.round(p * 20) / 20)
+  }
+
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !disabled,
+      onMoveShouldSetPanResponder: () => !disabled,
+      onPanResponderGrant: (e) => updateFromX(e.nativeEvent.locationX),
+      onPanResponderMove: (e) => updateFromX(e.nativeEvent.locationX),
+    }),
+  ).current
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    widthRef.current = e.nativeEvent.layout.width
+  }
+
+  return (
+    <View style={{ opacity: disabled ? 0.5 : 1 }} className="pb-3">
+      <View className="flex-row justify-between items-center mb-1.5">
+        <Text className="text-xs font-medium text-neutral-400">{label}</Text>
+        <Text className="text-xs text-neutral-500">{Math.round(pct * 100)}%</Text>
+      </View>
+      <View
+        onLayout={onLayout}
+        {...pan.panHandlers}
+        className="h-8 justify-center"
+      >
+        <View className="h-1.5 rounded-full bg-neutral-700">
+          <View
+            className="h-1.5 rounded-full bg-violet-600"
+            style={{ width: `${pct * 100}%` }}
+          />
+        </View>
+        <View
+          className="absolute h-4 w-4 rounded-full bg-white shadow"
+          style={{
+            left: `${pct * 100}%`,
+            marginLeft: -8,
+          }}
+        />
+      </View>
+    </View>
+  )
+}
+
 export default function SettingsScreen() {
   const { t } = useTranslation()
   const router = useRouter()
   const { clearAuth } = useAuthStore()
 
   const [soundEnabled, setSoundEnabled] = useState(true)
+  const [soundVolume, setSoundVolume] = useState(1)
+  const [musicEnabled, setMusicEnabled] = useState(true)
+  const [musicVolume, setMusicVolume] = useState(0.4)
   const [notifEnabled, setNotifEnabled] = useState(false)
   const [currentLang, setCurrentLang] = useState<LangCode>(
     (i18n.language?.split('-')[0] as LangCode) ?? 'en'
@@ -76,8 +149,13 @@ export default function SettingsScreen() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
-    AsyncStorage.getItem('sound_enabled').then((val) => {
-      if (val !== null) setSoundEnabled(val !== 'false')
+    SoundManager.init().then(() => {
+      setSoundEnabled(SoundManager.isEnabled())
+      setSoundVolume(SoundManager.getVolume())
+    })
+    MusicManager.init().then(() => {
+      setMusicEnabled(MusicManager.isEnabled())
+      setMusicVolume(MusicManager.getVolume())
     })
     Notifications.getPermissionsAsync().then(({ status }) => {
       setNotifEnabled(status === 'granted')
@@ -86,7 +164,23 @@ export default function SettingsScreen() {
 
   const handleSoundToggle = (value: boolean) => {
     setSoundEnabled(value)
-    AsyncStorage.setItem('sound_enabled', String(value))
+    SoundManager.setEnabled(value)
+  }
+
+  const handleSoundVolume = (v: number) => {
+    setSoundVolume(v)
+    SoundManager.setVolume(v)
+  }
+
+  const handleMusicToggle = (value: boolean) => {
+    setMusicEnabled(value)
+    MusicManager.setEnabled(value)
+    if (value) MusicManager.play()
+  }
+
+  const handleMusicVolume = (v: number) => {
+    setMusicVolume(v)
+    MusicManager.setVolume(v)
   }
 
   const handleNotifToggle = async (value: boolean) => {
@@ -182,6 +276,35 @@ export default function SettingsScreen() {
                 thumbColor="#fff"
               />
             }
+          />
+          <VolumeSlider
+            label="Sound volume"
+            value={soundVolume}
+            onChange={handleSoundVolume}
+            disabled={!soundEnabled}
+          />
+        </View>
+
+        {/* Music */}
+        <View className="bg-neutral-900 border border-neutral-800 rounded-2xl px-4 mb-4">
+          <SectionHeader title="Music" />
+          <SettingRow
+            label="Background Music"
+            subtitle="Looping track in menus and lobby"
+            right={
+              <Switch
+                value={musicEnabled}
+                onValueChange={handleMusicToggle}
+                trackColor={{ false: '#404040', true: '#7c3aed' }}
+                thumbColor="#fff"
+              />
+            }
+          />
+          <VolumeSlider
+            label="Music volume"
+            value={musicVolume}
+            onChange={handleMusicVolume}
+            disabled={!musicEnabled}
           />
         </View>
 
