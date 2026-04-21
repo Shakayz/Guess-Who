@@ -121,6 +121,24 @@ services:
         # pattern as equippedEmotes above.
         echo "ALTER TABLE \"users\" ADD COLUMN IF NOT EXISTS \"lastDailyBonusAt\" TIMESTAMP(3);" \
           | prisma db execute --stdin --schema prisma/schema.prisma || true
+        # Self-heal for 20260421010000_user_last_seen_at. users.lastSeenAt is in
+        # the Prisma schema, so its default SELECT on User includes it for any
+        # find* without an explicit `select` — including POST /auth/signup's
+        # existing-email lookup and the post-create return, so a wedged migration
+        # 500s every signup with the generic "Could not create account" message.
+        # Same self-heal pattern as lastDailyBonusAt above.
+        echo "ALTER TABLE \"users\" ADD COLUMN IF NOT EXISTS \"lastSeenAt\" TIMESTAMP(3);" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        # Self-heal for 20260421000000_add_blocks_and_reports. Both models live
+        # in schema.prisma but the migration can wedge the same way the
+        # friendships / direct_messages / gifts ones did — in which case
+        # prisma.block.create and prisma.report.create 500 the Block User and
+        # Report Player flows. Kept in its own db execute call so a failure
+        # here can't roll back the lastSeenAt ALTER above.
+        echo "CREATE TABLE IF NOT EXISTS \"blocks\" (\"id\" TEXT NOT NULL, \"blockerId\" TEXT NOT NULL, \"blockedId\" TEXT NOT NULL, \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT \"blocks_pkey\" PRIMARY KEY (\"id\"), CONSTRAINT \"blocks_blockerId_fkey\" FOREIGN KEY (\"blockerId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE, CONSTRAINT \"blocks_blockedId_fkey\" FOREIGN KEY (\"blockedId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE); CREATE UNIQUE INDEX IF NOT EXISTS \"blocks_blockerId_blockedId_key\" ON \"blocks\"(\"blockerId\", \"blockedId\");" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
+        echo "CREATE TABLE IF NOT EXISTS \"reports\" (\"id\" TEXT NOT NULL, \"reporterId\" TEXT NOT NULL, \"reportedId\" TEXT NOT NULL, \"reason\" VARCHAR(50) NOT NULL, \"details\" TEXT, \"status\" VARCHAR(20) NOT NULL DEFAULT 'pending', \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT \"reports_pkey\" PRIMARY KEY (\"id\"), CONSTRAINT \"reports_reporterId_fkey\" FOREIGN KEY (\"reporterId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE, CONSTRAINT \"reports_reportedId_fkey\" FOREIGN KEY (\"reportedId\") REFERENCES \"users\"(\"id\") ON DELETE CASCADE ON UPDATE CASCADE); CREATE INDEX IF NOT EXISTS \"reports_reportedId_status_idx\" ON \"reports\"(\"reportedId\", \"status\");" \
+          | prisma db execute --stdin --schema prisma/schema.prisma || true
         # Self-heal for the `friendships` table. The Friendship model lives in
         # schema.prisma but — same as Gift (see b05fec2) — no migration ever
         # CREATE TABLEs it. Staging came up from `prisma migrate deploy`, so
