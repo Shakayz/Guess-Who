@@ -27,6 +27,7 @@ import { ConnectionStatus } from '../components/ConnectionStatus'
 import { AchievementToastBanner } from '../components/achievements/AchievementToast'
 import { GiftToastBanner } from '../components/GiftToast'
 import { DmToastBanner } from '../components/DmToastBanner'
+import { InviteBanner } from '../components/InviteBanner'
 import { GlobalDmChatHost } from '../components/GlobalDmChatHost'
 import { MatchmakingManager } from '../components/MatchmakingManager'
 import { MatchmakingBanner } from '../components/MatchmakingBanner'
@@ -111,7 +112,10 @@ function GlobalSocketListeners() {
     })
 
     socket.on('dm:receive' as any, (data: any) => {
-      incrementUnread(data.senderId)
+      incrementUnread(data.senderId, {
+        username: data.senderUsername,
+        text: data.text,
+      })
       // Suppress toast if the chat with this sender is already open —
       // the modal renders the message inline.
       const { activeDm } = useSocialStore.getState()
@@ -247,46 +251,6 @@ function PushTapHandler() {
   }, [token, router, setActiveDm])
 
   return null
-}
-
-function InviteBanner() {
-  const router = useRouter()
-  const { pendingInvite, setPendingInvite } = useSocialStore()
-  const { width } = useWindowDimensions()
-  const isTablet = width >= 768
-  const bannerStyle = isTablet ? { maxWidth: 500, alignSelf: 'center' as const } : {}
-
-  if (!pendingInvite) return null
-
-  return (
-    <SlideUp
-      distance={-20}
-      style={{ position: 'absolute', top: 56, left: 16, right: 16, zIndex: 50, ...bannerStyle }}
-    >
-      <View className="bg-violet-900 border border-violet-700 rounded-2xl p-4 flex-row items-center gap-3">
-        <Text className="text-2xl">🎮</Text>
-        <View className="flex-1">
-          <Text className="text-white font-semibold text-sm">Game Invite</Text>
-          <Text className="text-violet-300 text-xs">
-            {pendingInvite.fromUsername} invited you to play
-          </Text>
-        </View>
-        <TouchableOpacity
-          onPress={() => {
-            const code = pendingInvite.roomCode
-            setPendingInvite(null)
-            router.push(`/lobby/${code}`)
-          }}
-          className="bg-violet-600 px-3 py-1.5 rounded-lg"
-        >
-          <Text className="text-white font-semibold text-xs">Join</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setPendingInvite(null)}>
-          <Text className="text-violet-400 text-sm">✕</Text>
-        </TouchableOpacity>
-      </View>
-    </SlideUp>
-  )
 }
 
 function FriendRequestBanner() {

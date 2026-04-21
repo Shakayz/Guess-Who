@@ -129,7 +129,13 @@
       "Bash(find /e/Work/Guess-Who-main/apps/api/src -name \"*.ts\" -type f -exec grep -l \"game.*end\\\\|endGame\\\\|closeRoom\\\\|finishGame\" {} \\\\;)",
       "Bash(docker start *)",
       "Bash(pnpm --silent exec tsc --noEmit)",
-      "Bash(npx --workspace apps/web vitest run apps/web/src/__tests__/pages/FriendsPage.test.tsx)"
+      "Bash(npx --workspace apps/web vitest run apps/web/src/__tests__/pages/FriendsPage.test.tsx)",
+      "Bash(python -c \"import yaml, sys; yaml.safe_load\\(open\\('deploy/docker-compose.staging.yml'\\)\\); print\\('YAML OK'\\)\")",
+      "Bash(node -e \"const yaml=require\\('js-yaml'\\);const fs=require\\('fs'\\);try{yaml.load\\(fs.readFileSync\\('deploy/docker-compose.staging.yml','utf8'\\)\\);console.log\\('YAML OK'\\)}catch\\(e\\){console.error\\('FAIL',e.message\\);process.exit\\(1\\)}\")",
+      "Bash(npx vitest *)",
+      "Bash(npx expo *)",
+      "Bash(pnpm --filter @red-handed/web tsc --noEmit)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js\\)$\")"
     ]
   }
 }

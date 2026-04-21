@@ -11,9 +11,9 @@ import {
   Share,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../lib/api'
-import { getSocket } from '../../lib/socket'
 import { useAuthStore } from '../../store/auth'
 import { useSocialStore } from '../../store/social'
 import { useResponsive } from '../../lib/responsive'
@@ -33,9 +33,13 @@ interface SearchUser {
 }
 
 interface FriendRequest {
-  id: string
-  fromId: string
-  fromUsername: string
+  friendshipId: string
+  from: {
+    id: string
+    username: string
+    avatarUrl: string | null
+  }
+  createdAt: string
 }
 
 interface Friend {
@@ -44,6 +48,47 @@ interface Friend {
     id: string
     username: string
     avatarUrl: string | null
+    isOnline?: boolean
+    lastSeenAt?: string | null
+  }
+}
+
+interface OutgoingRequest {
+  friendshipId: string
+  to: {
+    id: string
+    username: string
+    avatarUrl: string | null
+  }
+  createdAt: string
+}
+
+interface BlockedUser {
+  id: string
+  username: string
+  avatarUrl: string | null
+}
+
+/* ---------- Helpers ---------- */
+
+function formatLastSeen(iso: string | null | undefined, online: boolean): string {
+  if (online) return 'Online'
+  if (!iso) return 'Offline'
+  try {
+    const d = new Date(iso)
+    const diffMs = Date.now() - d.getTime()
+    const mins = Math.floor(diffMs / 60000)
+    if (mins < 1) return 'Just now'
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    const days = Math.floor(hrs / 24)
+    if (days < 7) return `${days}d ago`
+    const weeks = Math.floor(days / 7)
+    if (weeks < 4) return `${weeks}w ago`
+    return 'Long ago'
+  } catch {
+    return 'Offline'
   }
 }
 
@@ -55,6 +100,7 @@ const DEBOUNCE_MS = 400
 
 export default function FriendsScreen() {
   const { t } = useTranslation()
+  const router = useRouter()
   const user = useAuthStore((s) => s.user)
 
   // Search
@@ -68,14 +114,27 @@ export default function FriendsScreen() {
   const [requests, setRequests] = useState<FriendRequest[]>([])
   const [requestsLoading, setRequestsLoading] = useState(true)
 
+  // Outgoing requests (sent by me, still pending)
+  const [outgoing, setOutgoing] = useState<OutgoingRequest[]>([])
+
   // Friends
   const [friends, setFriends] = useState<Friend[]>([])
   const [friendsLoading, setFriendsLoading] = useState(true)
-  const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set())
+
+  // Blocked
+  const [blocked, setBlocked] = useState<BlockedUser[]>([])
+  const [blockedLoading, setBlockedLoading] = useState(true)
+  const [pendingBlockActions, setPendingBlockActions] = useState<Set<string>>(new Set())
+
+  // Per-row action lock (unfriend, cancel, accept, decline) so double-taps
+  // don't fire the request twice.
+  const [pendingActions, setPendingActions] = useState<Set<string>>(new Set())
 
   // Active DM chat (driven by social store so the toast tap-to-open flow
   // from other tabs can open the modal via setActiveDm).
   const setActiveDm = useSocialStore((s) => s.setActiveDm)
+  const unreadCounts = useSocialStore((s) => s.unreadCounts)
+  const unreadDmSenders = useSocialStore((s) => s.unreadDmSenders)
 
   /* ---------- Fetch data on mount ---------- */
 
@@ -101,10 +160,41 @@ export default function FriendsScreen() {
     }
   }, [])
 
+  const fetchOutgoing = useCallback(async () => {
+    try {
+      const data = await api.get<{ requests: OutgoingRequest[] }>('/friends/requests/outgoing')
+      setOutgoing(data?.requests ?? [])
+    } catch {
+      // silently fail
+    }
+  }, [])
+
+  const fetchBlocked = useCallback(async () => {
+    try {
+      const data = await api.get<BlockedUser[]>('/users/blocked')
+      setBlocked(Array.isArray(data) ? data : [])
+    } catch {
+      // silently fail
+    } finally {
+      setBlockedLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchRequests()
     fetchFriends()
-  }, [fetchRequests, fetchFriends])
+    fetchOutgoing()
+    fetchBlocked()
+  }, [fetchRequests, fetchFriends, fetchOutgoing, fetchBlocked])
+
+  // Refresh presence + unread-affected data when the tab is re-focused so a
+  // friend coming online while we're elsewhere shows up without pull-to-refresh.
+  useEffect(() => {
+    const iv = setInterval(() => {
+      fetchFriends()
+    }, 30000)
+    return () => clearInterval(iv)
+  }, [fetchFriends])
 
   /* ---------- Search ---------- */
 
@@ -142,9 +232,62 @@ export default function FriendsScreen() {
       try {
         await api.post('/friends/request', { username })
         setSentRequests((prev) => new Set(prev).add(toUserId))
+        // Keep outgoing section in sync so the request shows up immediately
+        fetchOutgoing()
       } catch (err: any) {
         Alert.alert(t('common.error'), err.message)
       }
+    },
+    [t, fetchOutgoing],
+  )
+
+  const handleCancelOutgoing = useCallback(
+    async (friendshipId: string) => {
+      setPendingActions((p) => new Set(p).add(friendshipId))
+      try {
+        await api.delete(`/friends/${friendshipId}`)
+        setOutgoing((prev) => prev.filter((r) => r.friendshipId !== friendshipId))
+      } catch (err: any) {
+        Alert.alert(t('common.error'), err?.message ?? 'Unable to cancel')
+      } finally {
+        setPendingActions((p) => {
+          const next = new Set(p)
+          next.delete(friendshipId)
+          return next
+        })
+      }
+    },
+    [t],
+  )
+
+  const handleUnfriend = useCallback(
+    (friendshipId: string, username: string) => {
+      Alert.alert(
+        'Remove friend?',
+        `${username} will no longer see you as a friend.`,
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('friends.unfriend', 'Unfriend'),
+            style: 'destructive',
+            onPress: async () => {
+              setPendingActions((p) => new Set(p).add(friendshipId))
+              try {
+                await api.delete(`/friends/${friendshipId}`)
+                setFriends((prev) => prev.filter((f) => f.friendshipId !== friendshipId))
+              } catch (err: any) {
+                Alert.alert(t('common.error'), err?.message ?? 'Unable to remove')
+              } finally {
+                setPendingActions((p) => {
+                  const next = new Set(p)
+                  next.delete(friendshipId)
+                  return next
+                })
+              }
+            },
+          },
+        ],
+      )
     },
     [t],
   )
@@ -155,7 +298,7 @@ export default function FriendsScreen() {
     async (id: string) => {
       try {
         await api.put(`/friends/${id}/accept`, {})
-        setRequests((prev) => prev.filter((r) => r.id !== id))
+        setRequests((prev) => prev.filter((r) => r.friendshipId !== id))
         fetchFriends()
       } catch (err: any) {
         Alert.alert(t('common.error'), err.message)
@@ -168,7 +311,7 @@ export default function FriendsScreen() {
     async (id: string) => {
       try {
         await api.delete(`/friends/${id}`)
-        setRequests((prev) => prev.filter((r) => r.id !== id))
+        setRequests((prev) => prev.filter((r) => r.friendshipId !== id))
       } catch (err: any) {
         Alert.alert(t('common.error'), err.message)
       }
@@ -178,18 +321,28 @@ export default function FriendsScreen() {
 
   /* ---------- Friend actions ---------- */
 
-  const handleInvite = useCallback((friendId: string) => {
-    const socket = getSocket()
-    socket.emit('room:invite', { toUserId: friendId })
-    setInvitedIds((prev) => new Set(prev).add(friendId))
-  }, [])
-
   const handleDm = useCallback(
     (friendId: string, friendUsername: string) => {
       setActiveDm({ friendId, friendUsername })
     },
     [setActiveDm],
   )
+
+  const handleUnblock = useCallback(async (userId: string) => {
+    setPendingBlockActions((prev) => new Set(prev).add(userId))
+    try {
+      await api.delete(`/users/${userId}/block`)
+      setBlocked((prev) => prev.filter((u) => u.id !== userId))
+    } catch (err: any) {
+      Alert.alert(t('common.error'), err?.message ?? 'Unable to unblock')
+    } finally {
+      setPendingBlockActions((prev) => {
+        const next = new Set(prev)
+        next.delete(userId)
+        return next
+      })
+    }
+  }, [t])
 
   const handleShareInvite = useCallback(async () => {
     const url = 'https://redhanded.game'
@@ -326,9 +479,11 @@ export default function FriendsScreen() {
             </View>
           ) : (
             <View className="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
-              {requests.map((req, index) => (
+              {requests.map((req, index) => {
+                const fromUsername = req.from?.username ?? ''
+                return (
                 <View
-                  key={req.id}
+                  key={req.friendshipId}
                   className={`flex-row items-center px-4 py-3 ${
                     index < requests.length - 1
                       ? 'border-b border-neutral-800'
@@ -337,15 +492,15 @@ export default function FriendsScreen() {
                 >
                   <View className="w-8 h-8 rounded-full bg-neutral-800 items-center justify-center mr-3">
                     <Text className="text-white text-sm font-bold">
-                      {getInitial(req.fromUsername)}
+                      {getInitial(fromUsername)}
                     </Text>
                   </View>
                   <Text className="text-white text-sm font-semibold flex-1">
-                    {req.fromUsername}
+                    {fromUsername}
                   </Text>
                   <View className="flex-row gap-2">
                     <TouchableOpacity
-                      onPress={() => handleAccept(req.id)}
+                      onPress={() => handleAccept(req.friendshipId)}
                       className="px-3 py-1.5 rounded-lg bg-emerald-600"
                       activeOpacity={0.8}
                     >
@@ -354,7 +509,7 @@ export default function FriendsScreen() {
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      onPress={() => handleDecline(req.id)}
+                      onPress={() => handleDecline(req.friendshipId)}
                       className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700"
                       activeOpacity={0.8}
                     >
@@ -364,16 +519,78 @@ export default function FriendsScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-              ))}
+                )
+              })}
             </View>
           )}
         </View>
 
+        {/* Outgoing Requests */}
+        {outgoing.length > 0 && (
+          <View className="mt-5" style={{ paddingHorizontal: px }}>
+            <View className="flex-row items-center mb-3 px-1">
+              <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                {t('friends.sentRequests', 'Sent Requests')}
+              </Text>
+              <View className="ml-2 bg-neutral-700 rounded-full px-1.5 py-0.5">
+                <Text className="text-neutral-300 text-[10px] font-bold">
+                  {outgoing.length}
+                </Text>
+              </View>
+            </View>
+            <View className="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
+              {outgoing.map((req, index) => {
+                const toUsername = req.to?.username ?? ''
+                const pending = pendingActions.has(req.friendshipId)
+                return (
+                  <View
+                    key={req.friendshipId}
+                    className={`flex-row items-center px-4 py-3 ${
+                      index < outgoing.length - 1
+                        ? 'border-b border-neutral-800'
+                        : ''
+                    }`}
+                  >
+                    <View className="w-8 h-8 rounded-full bg-neutral-800 items-center justify-center mr-3">
+                      <Text className="text-white text-sm font-bold">
+                        {getInitial(toUsername)}
+                      </Text>
+                    </View>
+                    <Text className="text-white text-sm font-semibold flex-1" numberOfLines={1}>
+                      {toUsername}
+                    </Text>
+                    <Text className="text-neutral-500 text-xs mr-2">
+                      {t('friends.requestPending', 'Pending')}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => handleCancelOutgoing(req.friendshipId)}
+                      disabled={pending}
+                      className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700"
+                      activeOpacity={0.8}
+                    >
+                      <Text className="text-neutral-400 text-xs font-semibold">
+                        {pending ? '…' : t('common.cancel', 'Cancel')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )
+              })}
+            </View>
+          </View>
+        )}
+
         {/* Friends List */}
         <View className="mt-5" style={{ paddingHorizontal: px }}>
-          <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3 px-1">
-            {t('nav.friends')}
-          </Text>
+          <View className="flex-row items-center mb-3 px-1">
+            <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+              {t('nav.friends')}
+            </Text>
+            {friends.length > 0 && (
+              <Text className="text-neutral-600 ml-2 text-xs">
+                ({friends.filter((f) => f.user.isOnline).length}/{friends.length} online)
+              </Text>
+            )}
+          </View>
           {friendsLoading ? (
             <View className="py-4 items-center">
               <ActivityIndicator size="small" color="#8b5cf6" />
@@ -388,8 +605,12 @@ export default function FriendsScreen() {
           ) : (
             <View className="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
               {friends.map((friend, index) => {
-                const invited = invitedIds.has(friend.user.id)
                 const username = friend.user.username ?? ''
+                const online = !!friend.user.isOnline
+                const presenceLabel = formatLastSeen(friend.user.lastSeenAt, online)
+                const unread = unreadCounts[friend.user.id] ?? 0
+                const preview = unreadDmSenders[friend.user.id]
+                const pending = pendingActions.has(friend.friendshipId)
 
                 return (
                   <View
@@ -400,45 +621,141 @@ export default function FriendsScreen() {
                         : ''
                     }`}
                   >
-                    <View className="w-10 h-10 rounded-full bg-violet-900/40 border border-violet-700/30 items-center justify-center mr-3">
-                      <Text className="text-violet-400 text-base font-bold">
-                        {getInitial(username)}
+                    <TouchableOpacity
+                      onPress={() => router.push(`/profile/${friend.user.id}`)}
+                      className="flex-row items-center flex-1 min-w-0"
+                      activeOpacity={0.7}
+                    >
+                      <View className="relative mr-3">
+                        <View className="w-11 h-11 rounded-full bg-violet-900/40 border border-violet-700/30 items-center justify-center">
+                          <Text className="text-violet-400 text-base font-bold">
+                            {getInitial(username)}
+                          </Text>
+                        </View>
+                        {online && (
+                          <View className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-neutral-900" />
+                        )}
+                        {unread > 0 && (
+                          <View className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 border-2 border-neutral-900 items-center justify-center">
+                            <Text className="text-white text-[10px] font-bold">
+                              {unread > 9 ? '9+' : unread}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <View className="flex-1 min-w-0">
+                        <Text className="text-white text-sm font-semibold" numberOfLines={1}>
+                          {username}
+                        </Text>
+                        {preview ? (
+                          <Text
+                            className="text-violet-300 text-xs mt-0.5 font-medium"
+                            numberOfLines={1}
+                          >
+                            {preview.lastText}
+                          </Text>
+                        ) : (
+                          <Text
+                            className={[
+                              'text-xs mt-0.5',
+                              online ? 'text-emerald-400' : 'text-neutral-500',
+                            ].join(' ')}
+                            numberOfLines={1}
+                          >
+                            {presenceLabel}
+                          </Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDm(friend.user.id, username)}
+                      className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600/15 border border-violet-700/40 ml-2"
+                      activeOpacity={0.8}
+                    >
+                      <Text className="text-violet-300 text-xs font-semibold">
+                        {t('friends.message', 'Message')}
                       </Text>
-                    </View>
-                    <Text className="text-white text-sm font-semibold flex-1">
-                      {username}
-                    </Text>
-                    <View className="flex-row gap-2">
-                      <TouchableOpacity
-                        onPress={() => handleInvite(friend.user.id)}
-                        disabled={invited}
-                        className={`px-3 py-1.5 rounded-lg ${
-                          invited ? 'bg-neutral-800' : 'bg-violet-600'
-                        }`}
-                        activeOpacity={0.8}
-                      >
-                        <Text
-                          className={`text-xs font-semibold ${
-                            invited ? 'text-neutral-500' : 'text-white'
-                          }`}
-                        >
-                          {invited
-                            ? t('lobby.invited')
-                            : t('lobby.invite')}
+                      {unread > 0 && (
+                        <View className="bg-red-500 rounded-full min-w-[16px] h-[16px] px-1 items-center justify-center">
+                          <Text className="text-white text-[10px] font-bold">
+                            {unread > 9 ? '9+' : unread}
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleUnfriend(friend.friendshipId, username)}
+                      disabled={pending}
+                      accessibilityLabel={t('friends.unfriend', 'Unfriend')}
+                      className="w-8 h-8 rounded-full items-center justify-center ml-1"
+                      activeOpacity={0.7}
+                      hitSlop={6}
+                    >
+                      <Text className="text-neutral-600 text-lg leading-5">×</Text>
+                    </TouchableOpacity>
+                  </View>
+                )
+              })}
+            </View>
+          )}
+        </View>
+
+        {/* Blocked Players */}
+        <View className="mt-5" style={{ paddingHorizontal: px }}>
+          <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3 px-1">
+            {t('friends.blocked', 'Blocked')}
+            {blocked.length > 0 && (
+              <Text className="text-neutral-600"> ({blocked.length})</Text>
+            )}
+          </Text>
+          {blockedLoading ? (
+            <View className="py-4 items-center">
+              <ActivityIndicator size="small" color="#8b5cf6" />
+            </View>
+          ) : blocked.length === 0 ? (
+            <View className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-5 items-center">
+              <Text className="text-neutral-600 text-sm">
+                {t('friends.noBlocked', 'No blocked players')}
+              </Text>
+            </View>
+          ) : (
+            <View className="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden">
+              {blocked.map((u, index) => {
+                const username = u.username ?? ''
+                const pending = pendingBlockActions.has(u.id)
+                return (
+                  <View
+                    key={u.id}
+                    className={`flex-row items-center px-4 py-3 ${
+                      index < blocked.length - 1
+                        ? 'border-b border-neutral-800'
+                        : ''
+                    }`}
+                  >
+                    <TouchableOpacity
+                      onPress={() => router.push(`/profile/${u.id}`)}
+                      className="flex-row items-center flex-1"
+                      activeOpacity={0.7}
+                    >
+                      <View className="w-8 h-8 rounded-full bg-neutral-800 items-center justify-center mr-3">
+                        <Text className="text-white text-sm font-bold">
+                          {getInitial(username)}
                         </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() =>
-                          handleDm(friend.friendId, friend.friendUsername)
-                        }
-                        className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700"
-                        activeOpacity={0.8}
-                      >
-                        <Text className="text-neutral-400 text-xs font-semibold">
-                          DM
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                      </View>
+                      <Text className="text-white text-sm font-semibold flex-1">
+                        {username}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleUnblock(u.id)}
+                      disabled={pending}
+                      className="px-3 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700"
+                      activeOpacity={0.8}
+                    >
+                      <Text className="text-neutral-400 text-xs font-semibold">
+                        {t('friends.unblock', 'Unblock')}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )
               })}

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import {
   View,
   Text,
@@ -6,11 +6,14 @@ import {
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Alert,
   Modal,
   Animated,
   Easing,
+  AccessibilityInfo,
+  ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -20,6 +23,7 @@ import { useAuthStore } from '../../store/auth'
 import { getSocket } from '../../lib/socket'
 import RoleRevealScreen from '../../components/RoleRevealScreen'
 import EliminationOverlay from '../../components/EliminationOverlay'
+import { InGameChatButton } from '../../components/InGameChatButton'
 import { Avatar } from '../../components/Avatar'
 import type { Clue } from '@red-handed/shared'
 import { useResponsive } from '../../lib/responsive'
@@ -36,6 +40,27 @@ import { getEmoteById, DEFAULT_LOADOUT, WORD_CATEGORIES, isRedHandedSideRole, is
 const log = createLogger('game-screen')
 
 type Phase = 'speaking' | 'voting' | 'reveal'
+
+// Respect the system-level "Reduce Motion" accessibility setting so we can
+// shorten or skip long-running animations for vestibular-sensitive players.
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false)
+  useEffect(() => {
+    let mounted = true
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => {
+      if (mounted) setReduced(!!v)
+    }).catch(() => {})
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => {
+      if (mounted) setReduced(!!v)
+    })
+    return () => {
+      mounted = false
+      // RN returns EmitterSubscription in newer versions; handle both shapes.
+      if (sub && typeof (sub as any).remove === 'function') (sub as any).remove()
+    }
+  }, [])
+  return reduced
+}
 
 // Rarity-tinted border for the React bar buttons — mirrors the web game page.
 const RARITY_BORDER: Record<EmoteRarity, string> = {
@@ -273,7 +298,7 @@ function PlayerClueHistoryModal({
 // Mirrors the web's `animate-jelly` keyframes (see apps/web/tailwind.config.ts)
 // 0%→25%→50%→75%→100%: scale(1,1) → (1.12,0.88) → (0.92,1.08) → (1.04,0.96) → (1,1)
 
-function VoteOption({
+const VoteOption = React.memo(function VoteOption({
   player,
   clue,
   isVotedTarget,
@@ -282,6 +307,7 @@ function VoteOption({
   onPress,
   canProtect,
   onProtect,
+  reducedMotion,
 }: {
   player: { id: string; userId: string; username: string; avatarUrl?: string | null }
   clue?: { text: string; flaggedForWord?: boolean }
@@ -291,13 +317,14 @@ function VoteOption({
   onPress: () => void
   canProtect?: boolean
   onProtect?: () => void
+  reducedMotion?: boolean
 }) {
   const scaleX = useRef(new Animated.Value(1)).current
   const scaleY = useRef(new Animated.Value(1)).current
   const prevSelected = useRef(isVotedTarget)
 
   useEffect(() => {
-    if (isVotedTarget && !prevSelected.current) {
+    if (isVotedTarget && !prevSelected.current && !reducedMotion) {
       scaleX.setValue(1)
       scaleY.setValue(1)
       const segment = 150 // 0.6s / 4 keyframe segments
@@ -318,19 +345,30 @@ function VoteOption({
       ]).start()
     }
     prevSelected.current = isVotedTarget
-  }, [isVotedTarget, scaleX, scaleY])
+  }, [isVotedTarget, scaleX, scaleY, reducedMotion])
 
   return (
     <Animated.View style={{ transform: [{ scaleX }, { scaleY }] }}>
       <TouchableOpacity
         onPress={onPress}
         disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={
+          isVotedTarget
+            ? `Your vote is for ${player.username}`
+            : hasVoted
+            ? `Voting locked — you already voted`
+            : `Vote for ${player.username}${clue?.flaggedForWord ? ' (flagged — said the word)' : ''}`
+        }
+        accessibilityState={{ selected: isVotedTarget, disabled }}
         className={[
           'flex-row items-center gap-3 px-3 py-3 rounded-xl border overflow-hidden',
           isVotedTarget
             ? 'border-amber-600/70 bg-amber-950/40'
             : hasVoted
             ? 'border-neutral-800 bg-neutral-900/30 opacity-40'
+            : clue?.flaggedForWord
+            ? 'border-amber-700/50 bg-amber-950/20'
             : 'border-neutral-700/60 bg-neutral-800/40',
         ].join(' ')}
         activeOpacity={0.7}
@@ -358,7 +396,7 @@ function VoteOption({
           {clue ? (
             <Text className="text-xs text-neutral-300 leading-snug mt-0.5" numberOfLines={2}>{clue.text}</Text>
           ) : (
-            <Text className="text-xs text-neutral-600 italic leading-snug mt-0.5">No clue yet</Text>
+            <Text className="text-xs text-neutral-500 italic leading-snug mt-0.5">No clue yet</Text>
           )}
         </View>
         {isVotedTarget ? (
@@ -373,17 +411,30 @@ function VoteOption({
         {canProtect && (
           <TouchableOpacity
             onPress={(e) => { e.stopPropagation?.(); onProtect?.() }}
-            hitSlop={8}
-            className="ml-1 px-1.5 py-1 rounded-md border border-yellow-700/60 bg-yellow-950/40"
+            hitSlop={{ top: 16, bottom: 16, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel={`Protect ${player.username} from elimination`}
+            className="ml-1 w-11 h-11 items-center justify-center rounded-md border border-yellow-700/60 bg-yellow-950/40"
             activeOpacity={0.7}
           >
-            <Text style={{ fontSize: 14 }}>🛡️</Text>
+            <Text style={{ fontSize: 16 }}>🛡️</Text>
           </TouchableOpacity>
         )}
       </TouchableOpacity>
     </Animated.View>
   )
-}
+}, (prev, next) =>
+  prev.isVotedTarget === next.isVotedTarget &&
+  prev.hasVoted === next.hasVoted &&
+  prev.disabled === next.disabled &&
+  prev.canProtect === next.canProtect &&
+  prev.reducedMotion === next.reducedMotion &&
+  prev.player.userId === next.player.userId &&
+  prev.player.username === next.player.username &&
+  prev.player.avatarUrl === next.player.avatarUrl &&
+  prev.clue?.text === next.clue?.text &&
+  prev.clue?.flaggedForWord === next.clue?.flaggedForWord
+)
 
 // ─── GameScreen ───────────────────────────────────────────────────────────────
 
@@ -435,6 +486,7 @@ export default function GameScreen() {
   const user = useAuthStore((s) => s.user)
   const { isTablet, px, fontScale } = useResponsive()
   const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
+  const reducedMotion = useReducedMotion()
 
   // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -483,6 +535,11 @@ export default function GameScreen() {
   const [showCorruptorPicker, setShowCorruptorPicker] = useState(false)
   const [showDetectivePicker, setShowDetectivePicker] = useState(false)
   const [showGuardianPicker, setShowGuardianPicker] = useState(false)
+  // Loading indicator while the server acks a power activation (prevents double-taps).
+  const [pendingPower, setPendingPower] = useState<string | null>(null)
+  // Vocal-mode fallback — if the mic is unavailable, let the player type a clue
+  // so they aren't frozen out of the round.
+  const [vocalTextFallback, setVocalTextFallback] = useState(false)
   // Evil Twins private DM — mirrors web. Ref keeps the live value in the
   // socket handler, which closes over mount-time state otherwise.
   const [twinChatOpen, setTwinChatOpen] = useState(false)
@@ -585,6 +642,32 @@ export default function GameScreen() {
       SoundManager.play('timer_tick')
     }
   }, [timeLeft])
+
+  // ─── Phase-transition haptic ─────────────────────────────────────────────
+  // A soft tap on entering voting and a heavier one on reveal gives the
+  // player a tactile cue that the game state shifted, even if their eyes
+  // were off the screen.
+  const prevPhaseRef = useRef<Phase>(phase)
+  useEffect(() => {
+    if (prevPhaseRef.current !== phase) {
+      if (phase === 'voting') HapticManager.light()
+      else if (phase === 'reveal') HapticManager.medium()
+      prevPhaseRef.current = phase
+    }
+    // Leaving speaking drops any text-fallback affordance from the last round.
+    if (phase !== 'speaking') setVocalTextFallback(false)
+  }, [phase])
+
+  // Clear any pending power-ability spinner once the server acks — the store
+  // setters above already fire on ack, so we just watch the flags that flip.
+  useEffect(() => {
+    if (pendingPower === 'detective' && detectiveRevealUsed) setPendingPower(null)
+    if (pendingPower === 'guardian' && guardianProtectUsed) setPendingPower(null)
+    if (pendingPower === 'corruptor' && corruptorTargetUserId) setPendingPower(null)
+    if (pendingPower === 'mayor' && (mayorDoubleActive || mayorDoubleVoteUsed)) setPendingPower(null)
+    if (pendingPower === 'inverter' && (inverterActive || inverterUsed)) setPendingPower(null)
+    if (pendingPower === 'kamikaze' && !kamikazePrompt) setPendingPower(null)
+  }, [pendingPower, detectiveRevealUsed, guardianProtectUsed, corruptorTargetUserId, mayorDoubleActive, mayorDoubleVoteUsed, inverterActive, inverterUsed, kamikazePrompt])
 
   // ─── Role reveal on mount ──────────────────────────────────────────────────
   // Only show on a FRESH game entry. If the player is mid-game (clues already
@@ -1011,11 +1094,20 @@ export default function GameScreen() {
     }
   }, [messages, showChat])
 
+  // Dead chat autoscroll — also called via onContentSizeChange below so that
+  // messages arriving while the keyboard is opening still land at the bottom.
   useEffect(() => {
     if (isEliminated) {
       setTimeout(() => deadChatScrollRef.current?.scrollToEnd({ animated: true }), 100)
     }
   }, [deadChatMessages, isEliminated])
+
+  // Count of flagged clues in the current round — surfaced to voters so the
+  // instant-elimination risk is visible before they commit a vote.
+  const flaggedCluesCount = useMemo(
+    () => clues.reduce((n, c: any) => (c.flaggedForWord ? n + 1 : n), 0),
+    [clues]
+  )
 
   // ─── Actions ────────────────────────────────────────────────────────────────
 
@@ -1025,6 +1117,8 @@ export default function GameScreen() {
     getSocket().emit('clue:submit', clueText.trim())
     setClueText('')
     setHasSubmittedClue(true)
+    Keyboard.dismiss()
+    HapticManager.light()
   }
 
   const vote = (playerId: string) => {
@@ -1049,12 +1143,25 @@ export default function GameScreen() {
     if (!chatInput.trim()) return
     getSocket().emit('chat:send', chatInput.trim())
     setChatInput('')
+    Keyboard.dismiss()
   }
 
   const sendDeadChat = () => {
     if (!deadChatInput.trim()) return
     getSocket().emit('deadchat:send' as any, { text: deadChatInput.trim() })
     setDeadChatInput('')
+    Keyboard.dismiss()
+  }
+
+  const submitVocalFallbackClue = () => {
+    if (!clueText.trim() || hasSubmittedClue || phase !== 'speaking' || isEliminated) return
+    log.info('clue submitted (vocal fallback)')
+    getSocket().emit('clue:submit', clueText.trim())
+    setClueText('')
+    setHasSubmittedClue(true)
+    setVocalTextFallback(false)
+    Keyboard.dismiss()
+    HapticManager.light()
   }
 
   const sendEmote = (emoteId: string) => {
@@ -1115,6 +1222,9 @@ export default function GameScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-950" edges={['top', 'bottom']}>
+      {/* Persistent DM badge — lets the player pop open a chat mid-game so
+          messages aren't missed once the transient toast fades. */}
+      <InGameChatButton />
       {/* Role reveal overlay */}
       <RoleRevealScreen
         visible={showRoleReveal}

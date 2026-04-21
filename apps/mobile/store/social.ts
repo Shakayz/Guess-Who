@@ -40,11 +40,19 @@ export interface DmToast {
   text: string
 }
 
+interface UnreadDmSender {
+  friendId: string
+  friendUsername: string
+  lastText: string
+  lastAt: number
+}
+
 interface SocialStore {
   activeDm: ActiveDm | null
   setActiveDm: (dm: ActiveDm | null) => void
   unreadCounts: Record<string, number>
-  incrementUnread: (friendId: string) => void
+  unreadDmSenders: Record<string, UnreadDmSender>
+  incrementUnread: (friendId: string, info?: { username: string; text: string }) => void
   clearUnread: (friendId: string) => void
   pendingInvite: { fromUsername: string; roomCode: string } | null
   setPendingInvite: (invite: { fromUsername: string; roomCode: string } | null) => void
@@ -68,17 +76,30 @@ export const useSocialStore = create<SocialStore>((set) => ({
   activeDm: null,
   setActiveDm: (dm) => set({ activeDm: dm }),
   unreadCounts: {},
-  incrementUnread: (friendId) =>
+  unreadDmSenders: {},
+  incrementUnread: (friendId, info) =>
     set((s) => ({
       unreadCounts: {
         ...s.unreadCounts,
         [friendId]: (s.unreadCounts[friendId] ?? 0) + 1,
       },
+      unreadDmSenders: info
+        ? {
+            ...s.unreadDmSenders,
+            [friendId]: {
+              friendId,
+              friendUsername: info.username,
+              lastText: info.text,
+              lastAt: Date.now(),
+            },
+          }
+        : s.unreadDmSenders,
     })),
   clearUnread: (friendId) =>
     set((s) => {
       const { [friendId]: _, ...rest } = s.unreadCounts
-      return { unreadCounts: rest }
+      const { [friendId]: __, ...senderRest } = s.unreadDmSenders
+      return { unreadCounts: rest, unreadDmSenders: senderRest }
     }),
   pendingInvite: null,
   setPendingInvite: (invite) => set({ pendingInvite: invite }),

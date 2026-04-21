@@ -5,7 +5,7 @@ import { evaluateEvent } from '../services/achievements'
 
 export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
 
-  // GET /api/friends — list accepted friends
+  // GET /api/friends — list accepted friends with presence (online + last seen)
   fastify.get('/', { preHandler: [fastify.authenticate] }, async (req, reply) => {
     const userId = req.user.sub
     const friendships = await prisma.friendship.findMany({
@@ -14,15 +14,25 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
         OR: [{ requesterId: userId }, { addresseeId: userId }],
       },
       include: {
-        requester: { select: { id: true, username: true, avatarUrl: true } },
-        addressee: { select: { id: true, username: true, avatarUrl: true } },
+        requester: { select: { id: true, username: true, avatarUrl: true, lastSeenAt: true } },
+        addressee: { select: { id: true, username: true, avatarUrl: true, lastSeenAt: true } },
       },
       take: 200,
     })
-    const friends = friendships.map((f) => ({
-      friendshipId: f.id,
-      user: f.requesterId === userId ? f.addressee : f.requester,
-    }))
+    const online: Map<string, string> | undefined = (fastify as any).onlineUsers
+    const friends = friendships.map((f) => {
+      const other = f.requesterId === userId ? f.addressee : f.requester
+      return {
+        friendshipId: f.id,
+        user: {
+          id: other.id,
+          username: other.username,
+          avatarUrl: other.avatarUrl,
+          lastSeenAt: other.lastSeenAt,
+          isOnline: online ? online.has(other.id) : false,
+        },
+      }
+    })
     return reply.send({ friends })
   })
 

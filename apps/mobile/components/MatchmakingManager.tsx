@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
 import { useMatchmakingStore } from '../store/matchmaking'
+import { useSocialStore } from '../store/social'
 import { connectSocket, getSocket } from '../lib/socket'
 import { createLogger } from '../lib/logger'
 import type { MatchmakingStatus } from '@red-handed/shared'
@@ -41,6 +42,10 @@ export function MatchmakingManager() {
     const handleStatus = (d: MatchmakingStatus) => setStatus(d)
     const handleFound = (d: { roomCode: string }) => {
       stopSearch()
+      // If the user was deep in a DM modal (or any other modal the social
+      // store hosts) when the match resolved, close it first — otherwise the
+      // lobby push happens underneath the modal and the user never sees it.
+      useSocialStore.getState().setActiveDm(null)
       router.push(`/lobby/${d.roomCode}`)
     }
     const handleError = (d: { reason?: string; required?: number; message?: string }) => {
