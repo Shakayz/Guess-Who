@@ -11,7 +11,7 @@ import {
   Share,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../lib/api'
 import { useAuthStore } from '../../store/auth'
@@ -184,8 +184,17 @@ export default function FriendsScreen() {
     fetchRequests()
     fetchFriends()
     fetchOutgoing()
-    fetchBlocked()
-  }, [fetchRequests, fetchFriends, fetchOutgoing, fetchBlocked])
+  }, [fetchRequests, fetchFriends, fetchOutgoing])
+
+  // Blocking happens on the profile screen, which lives in a different tab
+  // stack. The friends tab stays mounted while you navigate there, so a plain
+  // mount-time fetch leaves the blocked list stale when you come back. Refresh
+  // every time the tab regains focus instead.
+  useFocusEffect(
+    useCallback(() => {
+      fetchBlocked()
+    }, [fetchBlocked]),
+  )
 
   // Refresh presence + unread-affected data when the tab is re-focused so a
   // friend coming online while we're elsewhere shows up without pull-to-refresh.
