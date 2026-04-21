@@ -777,6 +777,9 @@ export default {
     sentRequests: 'Sent requests',
     addFriend: '+ Add',
     noResults: 'No users found for "{{query}}"',
+    blocked: 'Blocked',
+    noBlocked: 'No blocked players',
+    unblock: 'Unblock',
   },
   gameDetail: {
     backToHistory: '← Back to History',

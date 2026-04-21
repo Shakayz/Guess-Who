@@ -744,6 +744,9 @@ export default {
     sentRequests: 'Demandes envoyées',
     addFriend: '+ Ajouter',
     noResults: 'Aucun utilisateur trouvé pour "{{query}}"',
+    blocked: 'Bloqués',
+    noBlocked: 'Aucun joueur bloqué',
+    unblock: 'Débloquer',
   },
   gameDetail: {
     backToHistory: '← Retour à l\'historique',

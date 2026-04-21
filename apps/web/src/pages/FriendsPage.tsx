@@ -86,6 +86,8 @@ export default function FriendsPage() {
   const [friends, setFriends] = useState<FriendEntry[]>([])
   const [requests, setRequests] = useState<FriendRequest[]>([])
   const [outgoing, setOutgoing] = useState<OutgoingRequest[]>([])
+  const [blocked, setBlocked] = useState<FriendUser[]>([])
+  const [loadingBlocked, setLoadingBlocked] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchUser[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
@@ -123,11 +125,21 @@ export default function FriendsPage() {
       .catch(() => {})
   }, [])
 
+  const fetchBlocked = useCallback(() => {
+    setLoadingBlocked(true)
+    api
+      .get<FriendUser[]>('/users/blocked')
+      .then((res) => setBlocked(Array.isArray(res) ? res : []))
+      .catch(() => {})
+      .finally(() => setLoadingBlocked(false))
+  }, [])
+
   useEffect(() => {
     fetchFriends()
     fetchRequests()
     fetchOutgoing()
-  }, [fetchFriends, fetchRequests, fetchOutgoing])
+    fetchBlocked()
+  }, [fetchFriends, fetchRequests, fetchOutgoing, fetchBlocked])
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -222,6 +234,16 @@ export default function FriendsPage() {
       }), 3000)
     } finally {
       setPendingActions((p) => ({ ...p, [username]: false }))
+    }
+  }
+
+  const handleUnblock = async (userId: string) => {
+    setPendingActions((p) => ({ ...p, [userId]: true }))
+    try {
+      await api.delete(`/users/${userId}/block`)
+      setBlocked((prev) => prev.filter((u) => u.id !== userId))
+    } finally {
+      setPendingActions((p) => ({ ...p, [userId]: false }))
     }
   }
 
@@ -470,6 +492,47 @@ export default function FriendsPage() {
 
             {!searchLoading && searchQuery.trim() && searchResults.length === 0 && (
               <p className="text-neutral-500 text-sm text-center mt-4">{t('friends.noResults', { query: searchQuery })}</p>
+            )}
+          </section>
+
+          {/* Blocked Players */}
+          <section className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
+              {t('friends.blocked')}
+              {blocked.length > 0 && (
+                <span className="ml-2 text-neutral-600">({blocked.length})</span>
+              )}
+            </p>
+            {loadingBlocked ? (
+              <div className="space-y-2">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="h-12 bg-neutral-800 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            ) : blocked.length === 0 ? (
+              <p className="text-neutral-500 text-sm text-center py-4">{t('friends.noBlocked')}</p>
+            ) : (
+              <div className="space-y-2 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 lg:grid-cols-3">
+                {blocked.map((u) => (
+                  <div key={u.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/40">
+                    <Avatar src={u.avatarUrl} username={u.username} size="sm" className="flex-shrink-0" />
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/player/${u.id}`)}
+                      className="flex-1 text-white font-medium text-sm text-left hover:text-brand-400 transition-colors"
+                    >
+                      {u.username}
+                    </button>
+                    <button
+                      onClick={() => handleUnblock(u.id)}
+                      disabled={pendingActions[u.id]}
+                      className="px-3 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-400 hover:text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                    >
+                      {t('friends.unblock')}
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </section>
 
