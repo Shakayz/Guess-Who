@@ -104,6 +104,105 @@ export async function removeUserFromWaitingLobby(
   }
 }
 
+/**
+ * Unranked "special" mode: when the lobby/matchmaking produced zero configured
+ * role counts (matchmade queues never set them, and a host can leave the
+ * steppers at zero), scatter random special roles across both teams so every
+ * game lands a varied mix — detective / guardian / mayor / judge / revenant on
+ * the villager side, double-agent / infiltrator / kamikaze / corruptor /
+ * inverter on the red-handed side. Prefers unique roles, then allows
+ * duplicates up to each role's cap once the distinct pool is exhausted. From
+ * 10+ players the evil-twins pair (always both halves, never just one) and
+ * the jester are also seeded in.
+ *
+ * Mutates `state` in place. No-op outside 'special' mode, or when the host
+ * has already configured at least one role count (explicit config wins).
+ */
+function maybeRandomizeSpecialRoles(state: any, playerCount: number, redHandedCount: number) {
+  if (state?.gameMode !== 'special') return
+
+  const totalConfigured =
+    (state.detectiveCount   ?? 0) +
+    (state.doubleAgentCount ?? 0) +
+    (state.guardianCount    ?? 0) +
+    (state.mayorCount       ?? 0) +
+    (state.infiltratorCount ?? 0) +
+    (state.jesterCount      ?? 0) +
+    (state.judgeCount       ?? 0) +
+    (state.revenantCount    ?? 0) +
+    (state.kamikazeCount    ?? 0) +
+    (state.corruptorCount   ?? 0) +
+    (state.inverterCount    ?? 0) +
+    (state.evilTwinsEnabled ?? 0)
+  if (totalConfigured > 0) return
+
+  let villagerBudget  = Math.max(0, playerCount - redHandedCount)
+  let redHandedBudget = Math.max(0, redHandedCount)
+
+  // Evil twins are all-or-nothing (both halves, one on each team) and only
+  // unlock at 10+ players, matching the existing jester unlock threshold.
+  if (playerCount >= 10 && villagerBudget >= 2 && redHandedBudget >= 1) {
+    state.evilTwinsEnabled = 1
+    state.jesterCount      = 1
+    villagerBudget  -= 2
+    redHandedBudget -= 1
+  }
+
+  assignRandomSpecials(state, [
+    { key: 'detectiveCount', cap: 3 },
+    { key: 'guardianCount',  cap: 2 },
+    { key: 'mayorCount',     cap: 1 },
+    { key: 'judgeCount',     cap: 1 },
+    { key: 'revenantCount',  cap: 1 },
+  ], villagerBudget)
+
+  assignRandomSpecials(state, [
+    { key: 'doubleAgentCount', cap: 2 },
+    { key: 'infiltratorCount', cap: 2 },
+    { key: 'kamikazeCount',    cap: 2 },
+    { key: 'corruptorCount',   cap: 1 },
+    { key: 'inverterCount',    cap: 1 },
+  ], redHandedBudget)
+}
+
+function assignRandomSpecials(
+  state: any,
+  pool: Array<{ key: string; cap: number }>,
+  budget: number,
+) {
+  if (budget <= 0) return
+
+  const shuffled = pool.map((e) => ({ ...e, remaining: e.cap }))
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+
+  // Aim to fill ~70% of slots with specials, leaving some plain villagers /
+  // red-handed so the normal role isn't extinct. Clamp to pool capacity so
+  // we never exceed the per-role caps.
+  const poolCap = shuffled.reduce((s, e) => s + e.cap, 0)
+  const target  = Math.min(budget, poolCap, Math.max(1, Math.round(budget * 0.7)))
+
+  let assigned = 0
+  for (const entry of shuffled) {
+    if (assigned >= target) break
+    if (entry.remaining > 0) {
+      state[entry.key] = (state[entry.key] ?? 0) + 1
+      entry.remaining -= 1
+      assigned++
+    }
+  }
+  while (assigned < target) {
+    const candidates = shuffled.filter((e) => e.remaining > 0)
+    if (candidates.length === 0) break
+    const pick = candidates[Math.floor(Math.random() * candidates.length)]
+    state[pick.key] = (state[pick.key] ?? 0) + 1
+    pick.remaining -= 1
+    assigned++
+  }
+}
+
 /** Start a game for a room — used by both game:start handler and matchmaking auto-start */
 async function startGameForRoom(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
@@ -144,6 +243,8 @@ async function startGameForRoom(
     // Assign roles
     const players: any[] = shuffleArray([...state.players])
     const redHandedCount = Math.min(room.redHandedCount, Math.floor(players.length / 3))
+    // Unranked special mode with no host-configured counts → scatter random specials.
+    maybeRandomizeSpecialRoles(state, players.length, redHandedCount)
     const detectiveCount    = Math.max(0, state.detectiveCount    ?? (state.enableDetective   ? 1 : 0))
     const doubleAgentCount  = Math.max(0, state.doubleAgentCount  ?? (state.enableDoubleAgent ? 1 : 0))
     const guardianCount     = Math.max(0, state.guardianCount     ?? 0)
