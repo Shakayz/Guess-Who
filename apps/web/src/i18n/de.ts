@@ -612,6 +612,9 @@ export default {
     cancel: 'Abbrechen',
     noGameData: 'Keine Spieldaten verfügbar.',
     backHome: 'Zurück zur Startseite',
+    draw: 'Unentschieden!',
+    drawDesc: 'Das Spiel dauerte 30 Runden — keine Seite konnte sich durchsetzen',
+    drawSubtitle: 'Gut gespielt auf beiden Seiten.',
   },
   history: {
     title: 'Spielhistorie',
