@@ -820,6 +820,21 @@ type GiftTarget =
 function GiftModal({ target, onClose }: { target: GiftTarget; onClose: () => void }) {
   const [username, setUsername] = useState('')
   const [message, setMessage] = useState('')
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+
+  const { data: friends = [] } = useQuery<Array<{ friendshipId: string; user: { id: string; username: string; avatarUrl: string | null } }>>({
+    queryKey: ['friends', 'list'],
+    queryFn: async () => {
+      const res = await api.get<{ friends: Array<{ friendshipId: string; user: { id: string; username: string; avatarUrl: string | null } }> }>('/friends')
+      return res.friends
+    },
+  })
+
+  const query = username.trim().toLowerCase()
+  const suggestions = (query
+    ? friends.filter((f) => f.user.username.toLowerCase().includes(query) && f.user.username.toLowerCase() !== query)
+    : friends
+  ).slice(0, 5)
 
   const checkout = useMutation<{ url: string | null }, Error, void>({
     mutationFn: () => {
@@ -857,15 +872,48 @@ function GiftModal({ target, onClose }: { target: GiftTarget; onClose: () => voi
         <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1.5">
           Friend's username
         </label>
-        <input
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="e.g. alice"
-          autoFocus
-          maxLength={20}
-          className="w-full mb-3 px-3 py-2 rounded-lg bg-neutral-950 border border-neutral-800 text-white text-sm focus:border-brand-500 focus:outline-none"
-        />
+        <div className="relative mb-3">
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => {
+              setUsername(e.target.value)
+              setSuggestionsOpen(true)
+            }}
+            onFocus={() => setSuggestionsOpen(true)}
+            onBlur={() => setTimeout(() => setSuggestionsOpen(false), 150)}
+            placeholder="e.g. alice"
+            autoFocus
+            maxLength={20}
+            className="w-full px-3 py-2 rounded-lg bg-neutral-950 border border-neutral-800 text-white text-sm focus:border-brand-500 focus:outline-none"
+          />
+          {suggestionsOpen && suggestions.length > 0 && (
+            <ul className="absolute z-10 left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-lg bg-neutral-950 border border-neutral-800 shadow-xl">
+              {suggestions.map((f) => (
+                <li key={f.friendshipId}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      setUsername(f.user.username)
+                      setSuggestionsOpen(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-neutral-800 text-white text-sm"
+                  >
+                    {f.user.avatarUrl ? (
+                      <img src={f.user.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-neutral-800 flex items-center justify-center text-[10px] text-neutral-400">
+                        {f.user.username.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="truncate">{f.user.username}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1.5">
           Message <span className="text-neutral-600 normal-case font-normal">(optional)</span>
