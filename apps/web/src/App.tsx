@@ -11,6 +11,7 @@ import { api } from './lib/api'
 import { BottomNav } from './components/BottomNav'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { AchievementToastBanner } from './components/achievements/AchievementToastBanner'
+import { DmChatPanel } from './components/DmChatPanel'
 import { MatchmakingBanner } from './components/MatchmakingBanner'
 import { ActiveLobbyBanner } from './components/ActiveLobbyBanner'
 import type { MatchmakingStatus } from '@red-handed/shared'
@@ -606,6 +607,24 @@ function AuthenticatedConnectionStatus() {
 }
 
 /**
+ * Renders the floating DM chat panel at the app root so it stays visible
+ * across every route — including active games, lobbies, and results — and
+ * isn't tied to the NavBar (which is hidden on game/auth screens).
+ */
+function GlobalDmPanel() {
+  const token = useAuthStore((s) => s.token)
+  const activeDm = useSocialStore((s) => s.activeDm)
+  const setActiveDm = useSocialStore((s) => s.setActiveDm)
+  if (!token || !activeDm) return null
+  return (
+    <DmChatPanel
+      friend={{ id: activeDm.friendId, username: activeDm.friendUsername }}
+      onClose={() => setActiveDm(null)}
+    />
+  )
+}
+
+/**
  * Global matchmaking manager — listens for the matchmaking:status / :found /
  * :error socket events whenever the store reports an active search, so the
  * user can navigate between pages (leaderboard, friends, history, …) without
@@ -747,6 +766,7 @@ export default function App() {
       <DmToastStack />
       <GiftToastStack />
       <AchievementToastBanner />
+      <GlobalDmPanel />
       <MatchmakingBanner />
       <ActiveLobbyBanner />
       <GlobalMatchmakingModals />
