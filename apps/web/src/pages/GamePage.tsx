@@ -1792,7 +1792,14 @@ export default function GamePage() {
                 </div>
               ) : null
             })()}
-            <div className="space-y-2">
+            <div className={[
+              'grid gap-2',
+              alivePlayers.length <= 3
+                ? 'grid-cols-1'
+                : alivePlayers.length > 10
+                  ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                  : 'grid-cols-1 sm:grid-cols-2',
+            ].join(' ')}>
               {alivePlayers
                 .filter((p) => p.userId !== user?.id && (!tiebreakerActive || tiebreakerPlayerIds.includes(p.userId)))
                 .map((p) => (
@@ -1802,7 +1809,7 @@ export default function GamePage() {
                     onClick={() => vote(p.userId)}
                     disabled={!!votedFor}
                     className={[
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 text-left active:scale-[0.98]',
+                      'w-full min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 text-left active:scale-[0.98]',
                       votedFor === p.userId
                         ? 'border-amber-500/70 bg-gradient-to-r from-amber-950/60 to-amber-900/30 shadow-lg shadow-amber-950/50 animate-jelly'
                         : votedFor
@@ -1811,37 +1818,37 @@ export default function GamePage() {
                     ].join(' ')}
                   >
                     <Avatar src={p.avatarUrl} username={p.username} size="sm" />
-                    <span className="flex-1 font-semibold text-white text-sm">{getDisplayName(p.userId, p.username)}</span>
+                    <span className="flex-1 min-w-0 truncate font-semibold text-white text-sm">{getDisplayName(p.userId, p.username)}</span>
                     {votedFor === p.userId && (
-                      <span className="text-amber-400 text-xs font-bold">{t('game.yourVoteLabel')}</span>
+                      <span className="shrink-0 text-amber-400 text-xs font-bold">{t('game.yourVoteLabel')}</span>
                     )}
                     {!votedFor && (
-                      <span className="text-neutral-600 text-xs">{t('game.clickToVote')}</span>
+                      <span className="shrink-0 text-neutral-600 text-xs">{t('game.clickToVote')}</span>
                     )}
                   </button>
                 ))}
-              {!tiebreakerActive && (
-                <button
-                  aria-label={t('game.skipVote')}
-                  onClick={skipVote}
-                  disabled={!!votedFor}
-                  className={[
-                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 text-left active:scale-[0.98]',
-                    votedFor === '__skip__'
-                      ? 'border-neutral-500/70 bg-gradient-to-r from-neutral-800/60 to-neutral-900/30 shadow-lg shadow-neutral-950/50 animate-jelly'
-                      : votedFor
-                      ? 'border-neutral-800 bg-neutral-900/40 opacity-50'
-                      : 'border-neutral-800 bg-neutral-900/40 hover:border-neutral-600 hover:bg-neutral-900/60 hover:-translate-y-0.5',
-                  ].join(' ')}
-                >
-                  <span className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-400 text-sm">🚫</span>
-                  <span className="flex-1 font-semibold text-neutral-300 text-sm">{t('game.skipVote')}</span>
-                  {votedFor === '__skip__' && (
-                    <span className="text-neutral-400 text-xs font-bold">{t('game.yourVoteLabel')}</span>
-                  )}
-                </button>
-              )}
             </div>
+            {!tiebreakerActive && (
+              <button
+                aria-label={t('game.skipVote')}
+                onClick={skipVote}
+                disabled={!!votedFor}
+                className={[
+                  'mt-2 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 text-left active:scale-[0.98]',
+                  votedFor === '__skip__'
+                    ? 'border-neutral-500/70 bg-gradient-to-r from-neutral-800/60 to-neutral-900/30 shadow-lg shadow-neutral-950/50 animate-jelly'
+                    : votedFor
+                    ? 'border-neutral-800 bg-neutral-900/40 opacity-50'
+                    : 'border-neutral-800 bg-neutral-900/40 hover:border-neutral-600 hover:bg-neutral-900/60 hover:-translate-y-0.5',
+                ].join(' ')}
+              >
+                <span className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-400 text-sm">🚫</span>
+                <span className="flex-1 font-semibold text-neutral-300 text-sm">{t('game.skipVote')}</span>
+                {votedFor === '__skip__' && (
+                  <span className="shrink-0 text-neutral-400 text-xs font-bold">{t('game.yourVoteLabel')}</span>
+                )}
+              </button>
+            )}
             </>
             )}
           </div>

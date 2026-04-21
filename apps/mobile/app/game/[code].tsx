@@ -1410,49 +1410,55 @@ export default function GameScreen() {
                   ) : null
                 })()}
 
-              <View className="gap-2">
-                {alivePlayers
-                  .filter((p) => p.userId !== user?.id)
-                  .map((p) => {
-                    const isVotedTarget = votedFor === p.userId
-                    const hasVoted = !!votedFor
-                    return (
-                      <VoteOption
-                        key={p.id}
-                        player={p}
-                        isVotedTarget={isVotedTarget}
-                        hasVoted={hasVoted}
-                        disabled={hasVoted || isEliminated}
-                        onPress={() => vote(p.userId)}
-                      />
-                    )
-                  })}
-                <TouchableOpacity
-                  onPress={skipVote}
-                  disabled={!!votedFor || isEliminated}
-                  activeOpacity={0.8}
-                  className={[
-                    'flex-row items-center gap-3 px-3 py-2.5 rounded-xl border',
-                    votedFor === '__skip__'
-                      ? 'border-neutral-500/70 bg-neutral-800/60'
-                      : votedFor
-                      ? 'border-neutral-800 bg-neutral-900/40 opacity-50'
-                      : 'border-neutral-800 bg-neutral-900/40',
-                  ].join(' ')}
-                >
-                  <View className="w-8 h-8 rounded-full bg-neutral-800 items-center justify-center">
-                    <Text className="text-neutral-400 text-sm">🚫</Text>
+              {(() => {
+                const voteTargets = alivePlayers.filter((p) => p.userId !== user?.id)
+                const voteCols = voteTargets.length <= 3 ? 1 : voteTargets.length > 10 ? 3 : 2
+                const itemWidth = voteCols === 1 ? '100%' : voteCols === 2 ? '49%' : '32%'
+                return (
+                  <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+                    {voteTargets.map((p) => {
+                      const isVotedTarget = votedFor === p.userId
+                      const hasVoted = !!votedFor
+                      return (
+                        <View key={p.id} style={{ width: itemWidth }}>
+                          <VoteOption
+                            player={p}
+                            isVotedTarget={isVotedTarget}
+                            hasVoted={hasVoted}
+                            disabled={hasVoted || isEliminated}
+                            onPress={() => vote(p.userId)}
+                          />
+                        </View>
+                      )
+                    })}
                   </View>
-                  <Text className="flex-1 font-bold text-neutral-300 text-sm">
-                    {t('game.skipVote')}
+                )
+              })()}
+              <TouchableOpacity
+                onPress={skipVote}
+                disabled={!!votedFor || isEliminated}
+                activeOpacity={0.8}
+                className={[
+                  'mt-2 flex-row items-center gap-3 px-3 py-2.5 rounded-xl border',
+                  votedFor === '__skip__'
+                    ? 'border-neutral-500/70 bg-neutral-800/60'
+                    : votedFor
+                    ? 'border-neutral-800 bg-neutral-900/40 opacity-50'
+                    : 'border-neutral-800 bg-neutral-900/40',
+                ].join(' ')}
+              >
+                <View className="w-8 h-8 rounded-full bg-neutral-800 items-center justify-center">
+                  <Text className="text-neutral-400 text-sm">🚫</Text>
+                </View>
+                <Text className="flex-1 font-bold text-neutral-300 text-sm">
+                  {t('game.skipVote')}
+                </Text>
+                {votedFor === '__skip__' && (
+                  <Text className="text-neutral-400 text-xs font-bold">
+                    {t('game.yourVoteLabel')}
                   </Text>
-                  {votedFor === '__skip__' && (
-                    <Text className="text-neutral-400 text-xs font-bold">
-                      {t('game.yourVoteLabel')}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+                )}
+              </TouchableOpacity>
             </View>
           )}
 
