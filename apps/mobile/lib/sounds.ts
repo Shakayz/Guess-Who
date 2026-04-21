@@ -32,7 +32,12 @@ export type SoundType =
   | 'whoosh'
   | 'countdown_final'
 
+function clamp01(v: number) {
+  return Math.max(0, Math.min(1, v))
+}
+
 let soundEnabled = true
+let soundVolume = 1
 let initialized = false
 
 let Audio: any = null
@@ -54,12 +59,24 @@ export const SoundManager = {
     await AsyncStorage.setItem('sound_enabled', String(enabled))
   },
 
+  getVolume: () => soundVolume,
+
+  setVolume: async (v: number) => {
+    soundVolume = clamp01(v)
+    await AsyncStorage.setItem('sound_volume', String(soundVolume))
+  },
+
   init: async () => {
     if (initialized) return
     initialized = true
     try {
       const stored = await AsyncStorage.getItem('sound_enabled')
       if (stored !== null) soundEnabled = stored !== 'false'
+      const vol = await AsyncStorage.getItem('sound_volume')
+      if (vol !== null) {
+        const parsed = parseFloat(vol)
+        if (Number.isFinite(parsed)) soundVolume = clamp01(parsed)
+      }
 
       if (Audio) {
         await Audio.setAudioModeAsync({
@@ -74,6 +91,7 @@ export const SoundManager = {
 
   play: (sound: SoundType) => {
     if (!soundEnabled) return
+    if (soundVolume <= 0) return
     if (!Audio) return
     _playMobileSound(sound)
   },
@@ -89,7 +107,7 @@ async function _playMobileSound(sound: SoundType) {
       uri = generateWavDataUri(recipe.voices, recipe.duration)
       uriCache.set(sound, uri)
     }
-    const { sound: avSound } = await Audio.Sound.createAsync({ uri })
+    const { sound: avSound } = await Audio.Sound.createAsync({ uri }, { volume: soundVolume })
     await avSound.playAsync()
     avSound.setOnPlaybackStatusUpdate((status: any) => {
       if (status.didJustFinish) {
