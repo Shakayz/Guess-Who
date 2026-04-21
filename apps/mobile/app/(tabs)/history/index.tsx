@@ -14,13 +14,16 @@ import { api } from '../../../lib/api'
 import { useResponsive } from '../../../lib/responsive'
 import { findLanguage } from '../../../i18n/languages'
 import { HapticManager } from '../../../lib/haptics'
+import { isVillagerSideRole, isRedHandedSideRole, isJesterRole, isTwinRole } from '@red-handed/shared'
+import type { PlayerRole } from '@red-handed/shared'
 
 type HistoryMode = 'unranked' | 'ranked'
+type WinnerTeam = 'villagers' | 'red_handed' | 'jester' | 'evil_twins' | 'draw'
 
 interface GameSummary {
   id: string
-  winnerTeam: 'villagers' | 'red_handed'
-  myRole: 'villager' | 'red_handed' | 'detective' | 'doubleAgent'
+  winnerTeam: WinnerTeam
+  myRole: PlayerRole
   gameMode?: 'normal' | 'special' | 'ranked'
   roundCount: number
   players: { userId: string; username: string; role: string; survived: boolean }[]
@@ -51,10 +54,17 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 })
 
-function didWin(winner: string, myRole: string): boolean {
-  const villagerTeam = ['villager', 'detective']
-  if (winner === 'villagers') return villagerTeam.includes(myRole)
-  return !villagerTeam.includes(myRole)
+type Outcome = 'win' | 'loss' | 'draw'
+
+function getOutcome(winner: string, myRole: string): Outcome {
+  if (winner === 'draw') return 'draw'
+  const role = myRole as PlayerRole
+  const won =
+    (winner === 'villagers'  && isVillagerSideRole(role)) ||
+    (winner === 'red_handed' && isRedHandedSideRole(role)) ||
+    (winner === 'jester'     && isJesterRole(role)) ||
+    (winner === 'evil_twins' && isTwinRole(role))
+  return won ? 'win' : 'loss'
 }
 
 function startOfDay(d: Date): number {
@@ -106,16 +116,22 @@ interface Stats {
 function computeStats(games: GameSummary[]): Stats {
   if (games.length === 0) return { total: 0, wins: 0, winRate: 0, topRole: null }
   let wins = 0
+  let decided = 0
   const roleCount: Record<string, number> = {}
   for (const g of games) {
-    if (didWin(g.winnerTeam, g.myRole)) wins++
+    const outcome = getOutcome(g.winnerTeam, g.myRole)
+    if (outcome !== 'draw') {
+      decided++
+      if (outcome === 'win') wins++
+    }
     roleCount[g.myRole] = (roleCount[g.myRole] ?? 0) + 1
   }
   let topRole: { role: string; count: number } | null = null
   for (const [role, count] of Object.entries(roleCount)) {
     if (!topRole || count > topRole.count) topRole = { role, count }
   }
-  return { total: games.length, wins, winRate: Math.round((wins / games.length) * 100), topRole }
+  const winRate = decided === 0 ? 0 : Math.round((wins / decided) * 100)
+  return { total: games.length, wins, winRate, topRole }
 }
 
 export default function HistoryScreen() {
@@ -209,7 +225,7 @@ export default function HistoryScreen() {
 
   const renderGame = useCallback(
     ({ item }: { item: GameSummary }) => {
-      const won = didWin(item.winnerTeam, item.myRole)
+      const outcome = getOutcome(item.winnerTeam, item.myRole)
       const role = ROLE_CONFIG[item.myRole] ?? ROLE_CONFIG.villager
       const lang = findLanguage(item.language)
       const dateText = (() => {
@@ -230,17 +246,27 @@ export default function HistoryScreen() {
           <View className="flex-row items-center justify-between mb-2">
             <View
               className={`px-2.5 py-1 rounded-lg ${
-                won
+                outcome === 'win'
                   ? 'bg-emerald-950 border border-emerald-800'
-                  : 'bg-red-950 border border-red-800'
+                  : outcome === 'draw'
+                    ? 'bg-amber-950 border border-amber-800'
+                    : 'bg-red-950 border border-red-800'
               }`}
             >
               <Text
                 className={`text-xs font-bold ${
-                  won ? 'text-emerald-400' : 'text-red-400'
+                  outcome === 'win'
+                    ? 'text-emerald-400'
+                    : outcome === 'draw'
+                      ? 'text-amber-400'
+                      : 'text-red-400'
                 }`}
               >
-                {won ? t('history.victory') : t('history.defeat')}
+                {outcome === 'win'
+                  ? t('history.victory')
+                  : outcome === 'draw'
+                    ? t('history.draw', 'Draw')
+                    : t('history.defeat')}
               </Text>
             </View>
             <View className="flex-row items-center gap-2">

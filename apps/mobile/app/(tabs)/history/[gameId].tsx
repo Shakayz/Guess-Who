@@ -16,6 +16,8 @@ import { api } from '../../../lib/api'
 import { useAuthStore } from '../../../store/auth'
 import { useResponsive } from '../../../lib/responsive'
 import { HapticManager } from '../../../lib/haptics'
+import { isVillagerSideRole, isRedHandedSideRole, isJesterRole, isTwinRole } from '@red-handed/shared'
+import type { PlayerRole } from '@red-handed/shared'
 
 interface DetailPlayer {
   userId: string
@@ -56,11 +58,13 @@ interface ChatMsg {
   createdAt: string
 }
 
+type WinnerTeam = 'villagers' | 'red_handed' | 'jester' | 'evil_twins' | 'draw'
+
 interface GameDetail {
   id: string
   startedAt: string
   endedAt: string
-  winnerTeam: 'villagers' | 'red_handed'
+  winnerTeam: WinnerTeam
   myRole: string
   participations: DetailPlayer[]
   rounds: RoundDetail[]
@@ -93,10 +97,17 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 })
 
-function didWin(winner: string, myRole: string): boolean {
-  const villagerTeam = ['villager', 'detective']
-  if (winner === 'villagers') return villagerTeam.includes(myRole)
-  return !villagerTeam.includes(myRole)
+type Outcome = 'win' | 'loss' | 'draw'
+
+function getOutcome(winner: string, myRole: string): Outcome {
+  if (winner === 'draw') return 'draw'
+  const role = myRole as PlayerRole
+  const won =
+    (winner === 'villagers'  && isVillagerSideRole(role)) ||
+    (winner === 'red_handed' && isRedHandedSideRole(role)) ||
+    (winner === 'jester'     && isJesterRole(role)) ||
+    (winner === 'evil_twins' && isTwinRole(role))
+  return won ? 'win' : 'loss'
 }
 
 export default function GameDetailScreen() {
@@ -152,10 +163,13 @@ export default function GameDetailScreen() {
     () => game?.participations.find((p) => p.userId === user?.id),
     [game, user?.id],
   )
-  const won = useMemo(() => {
-    if (!game || !me) return game?.winnerTeam === 'villagers'
-    return didWin(game.winnerTeam, me.role)
+  const outcome = useMemo<Outcome>(() => {
+    if (!game) return 'loss'
+    if (!me) return game.winnerTeam === 'draw' ? 'draw' : 'loss'
+    return getOutcome(game.winnerTeam, me.role)
   }, [game, me])
+  const won = outcome === 'win'
+  const isDraw = outcome === 'draw'
 
   const toggleRound = useCallback((roundNumber: number) => {
     HapticManager.selection()
@@ -272,24 +286,36 @@ export default function GameDetailScreen() {
           {/* Outcome Banner with share button */}
           <View
             className={`mt-4 p-5 rounded-2xl border items-center ${
-              won
-                ? 'bg-emerald-950/50 border-emerald-800'
-                : 'bg-red-950/50 border-red-800'
+              isDraw
+                ? 'bg-amber-950/50 border-amber-800'
+                : won
+                  ? 'bg-emerald-950/50 border-emerald-800'
+                  : 'bg-red-950/50 border-red-800'
             }`}
             style={{ marginHorizontal: px }}
           >
-            <Text className="text-3xl mb-2">{won ? '🏆' : '💀'}</Text>
+            <Text className="text-3xl mb-2">{isDraw ? '🤝' : won ? '🏆' : '💀'}</Text>
             <Text
               className={`text-xl font-bold ${
-                won ? 'text-emerald-400' : 'text-red-400'
+                isDraw ? 'text-amber-400' : won ? 'text-emerald-400' : 'text-red-400'
               }`}
             >
-              {won ? t('gameDetail.victory', 'Victory') : t('gameDetail.defeat', 'Defeat')}
+              {isDraw
+                ? t('history.draw', 'Draw')
+                : won
+                  ? t('gameDetail.victory', 'Victory')
+                  : t('gameDetail.defeat', 'Defeat')}
             </Text>
             <Text className="text-neutral-500 text-xs mt-1">
-              {game.winnerTeam === 'villagers'
-                ? t('results.villagersWon', 'Villagers found the imposters')
-                : t('results.redHandedWon', 'Imposters escaped detection')}
+              {game.winnerTeam === 'draw'
+                ? t('results.drawDesc', 'The game ended with no winner')
+                : game.winnerTeam === 'villagers'
+                  ? t('results.villagersWon', 'Villagers found the imposters')
+                  : game.winnerTeam === 'red_handed'
+                    ? t('results.redHandedWon', 'Imposters escaped detection')
+                    : game.winnerTeam === 'jester'
+                      ? t('results.jesterWon', 'The Jester won')
+                      : t('results.evilTwinsWon', 'The Evil Twins won')}
             </Text>
             <Text className="text-neutral-600 text-xs mt-2">
               {(() => {

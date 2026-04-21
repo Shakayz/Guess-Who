@@ -596,6 +596,7 @@ export default {
     noGamesHint: 'Joue ta première partie pour la voir ici',
     victory: 'Victoire',
     defeat: 'Défaite',
+    draw: 'Égalité',
     survived: '✓ Survécu',
     eliminated: '✗ Éliminé',
     prev: '← Préc.',

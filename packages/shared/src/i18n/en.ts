@@ -620,6 +620,7 @@ export default {
     noGamesHint: 'Play your first game to see it here',
     victory: 'Victory',
     defeat: 'Defeat',
+    draw: 'Draw',
     survived: '✓ Survived',
     eliminated: '✗ Eliminated',
     prev: '← Prev',
