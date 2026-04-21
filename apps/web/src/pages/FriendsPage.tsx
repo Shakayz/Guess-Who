@@ -94,6 +94,7 @@ export default function FriendsPage() {
 
   const [loadingFriends, setLoadingFriends] = useState(true)
   const [loadingRequests, setLoadingRequests] = useState(true)
+  const [friendsCollapsed, setFriendsCollapsed] = useState(false)
 
   const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({})
   type Feedback = { kind: 'sent' } | { kind: 'error'; messageKey: string }
@@ -354,83 +355,6 @@ export default function FriendsPage() {
             </section>
           )}
 
-          {/* Friends List */}
-          <section className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
-              {t('friends.title')}
-              {friends.length > 0 && (
-                <span className="ml-2 text-neutral-600">({friends.length})</span>
-              )}
-            </p>
-            {loadingFriends ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-14 bg-neutral-800 rounded-xl animate-pulse" />
-                ))}
-              </div>
-            ) : friends.length === 0 ? (
-              <div className="flex flex-col items-center py-8 text-center">
-                <span className="text-4xl mb-2">👥</span>
-                <p className="text-white font-semibold text-sm">{t('friends.noFriends')}</p>
-                <p className="text-neutral-500 text-xs mt-1">{t('friends.noFriendsHint')}</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {friends.map((f) => {
-                  const unread = unreadCounts[f.user.id] ?? 0
-                  return (
-                    <div
-                      key={f.friendshipId}
-                      className="group relative flex flex-col rounded-xl border border-neutral-800 bg-gradient-to-br from-neutral-900/80 to-neutral-900/40 hover:border-brand-700/60 hover:from-neutral-800/80 hover:shadow-lg hover:shadow-brand-900/20 transition-all overflow-hidden"
-                    >
-                      <button
-                        onClick={() => handleUnfriend(f.friendshipId)}
-                        disabled={pendingActions[f.friendshipId]}
-                        title={t('friends.unfriend')}
-                        aria-label={t('friends.unfriend')}
-                        className="absolute top-2 right-2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-neutral-600 hover:text-red-400 hover:bg-red-950/60 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all disabled:opacity-30"
-                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                          <path d="M18 6L6 18M6 6l12 12" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => navigate(`/player/${f.user.id}`)}
-                        className="flex items-center gap-3 p-3 pr-10 text-left hover:bg-neutral-800/30 transition-colors"
-                      >
-                        <div className="relative flex-shrink-0">
-                          <Avatar src={f.user.avatarUrl} username={f.user.username} size="md" />
-                          {unread > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[10px] text-white font-bold px-1 ring-2 ring-neutral-900">
-                              {unread > 9 ? '9+' : unread}
-                            </span>
-                          )}
-                        </div>
-                        <p className="flex-1 min-w-0 truncate text-white font-semibold text-sm group-hover:text-brand-300 transition-colors">
-                          {f.user.username}
-                        </p>
-                      </button>
-                      <button
-                        onClick={() => setActiveDm({ friendId: f.user.id, friendUsername: f.user.username })}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 border-t border-neutral-800 bg-brand-600/10 hover:bg-brand-600/25 text-brand-300 hover:text-brand-200 text-xs font-semibold transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                        </svg>
-                        <span>{t('friends.message')}</span>
-                        {unread > 0 && (
-                          <span className="ml-0.5 min-w-[18px] h-[18px] bg-red-500 text-white rounded-full px-1 flex items-center justify-center text-[10px] font-bold">
-                            {unread > 9 ? '9+' : unread}
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </section>
-
           {/* Search */}
           <section className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">{t('friends.findPlayers')}</p>
@@ -508,6 +432,102 @@ export default function FriendsPage() {
             {!searchLoading && searchQuery.trim() && searchResults.length === 0 && (
               <p className="text-neutral-500 text-sm text-center mt-4">{t('friends.noResults', { query: searchQuery })}</p>
             )}
+          </section>
+
+          {/* Friends List */}
+          <section className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
+            <button
+              type="button"
+              onClick={() => setFriendsCollapsed((v) => !v)}
+              aria-expanded={!friendsCollapsed}
+              className={`w-full flex items-center justify-between text-left group ${friendsCollapsed ? '' : 'mb-3'}`}
+            >
+              <span className="text-xs font-semibold uppercase tracking-widest text-neutral-500 group-hover:text-neutral-300 transition-colors">
+                {t('friends.title')}
+                {friends.length > 0 && (
+                  <span className="ml-2 text-neutral-600">({friends.length})</span>
+                )}
+              </span>
+              <svg
+                className={`w-4 h-4 text-neutral-500 group-hover:text-neutral-300 transition-transform ${friendsCollapsed ? '-rotate-90' : ''}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {!friendsCollapsed && (loadingFriends ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-14 bg-neutral-800 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            ) : friends.length === 0 ? (
+              <div className="flex flex-col items-center py-8 text-center">
+                <span className="text-4xl mb-2">👥</span>
+                <p className="text-white font-semibold text-sm">{t('friends.noFriends')}</p>
+                <p className="text-neutral-500 text-xs mt-1">{t('friends.noFriendsHint')}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {friends.map((f) => {
+                  const unread = unreadCounts[f.user.id] ?? 0
+                  return (
+                    <div
+                      key={f.friendshipId}
+                      className="group relative flex flex-col rounded-xl border border-neutral-800 bg-gradient-to-br from-neutral-900/80 to-neutral-900/40 hover:border-brand-700/60 hover:from-neutral-800/80 hover:shadow-lg hover:shadow-brand-900/20 transition-all overflow-hidden"
+                    >
+                      <button
+                        onClick={() => handleUnfriend(f.friendshipId)}
+                        disabled={pendingActions[f.friendshipId]}
+                        title={t('friends.unfriend')}
+                        aria-label={t('friends.unfriend')}
+                        className="absolute top-2 right-2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-neutral-600 hover:text-red-400 hover:bg-red-950/60 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all disabled:opacity-30"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                          <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => navigate(`/player/${f.user.id}`)}
+                        className="flex items-center gap-3 p-3 pr-10 text-left hover:bg-neutral-800/30 transition-colors"
+                      >
+                        <div className="relative flex-shrink-0">
+                          <Avatar src={f.user.avatarUrl} username={f.user.username} size="md" />
+                          {unread > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[10px] text-white font-bold px-1 ring-2 ring-neutral-900">
+                              {unread > 9 ? '9+' : unread}
+                            </span>
+                          )}
+                        </div>
+                        <p className="flex-1 min-w-0 truncate text-white font-semibold text-sm group-hover:text-brand-300 transition-colors">
+                          {f.user.username}
+                        </p>
+                      </button>
+                      <button
+                        onClick={() => setActiveDm({ friendId: f.user.id, friendUsername: f.user.username })}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 border-t border-neutral-800 bg-brand-600/10 hover:bg-brand-600/25 text-brand-300 hover:text-brand-200 text-xs font-semibold transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                        <span>{t('friends.message')}</span>
+                        {unread > 0 && (
+                          <span className="ml-0.5 min-w-[18px] h-[18px] bg-red-500 text-white rounded-full px-1 flex items-center justify-center text-[10px] font-bold">
+                            {unread > 9 ? '9+' : unread}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
           </section>
 
           {/* Blocked Players */}
