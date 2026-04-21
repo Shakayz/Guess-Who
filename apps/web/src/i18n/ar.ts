@@ -540,6 +540,10 @@ export default {
     max: 'حد',
     roundsInfinity: '∞ جولات',
     roundsCount: '{{count}} جولات',
+    chatTitle: 'دردشة الغرفة',
+    chatPlaceholder: 'اكتب رسالة…',
+    chatEmpty: 'ألقِ التحية أثناء الانتظار…',
+    chatSend: 'إرسال',
   },
   rank: {
     wooden: 'خشبي',

@@ -8,6 +8,7 @@ import { connectSocket, getSocket } from '../lib/socket'
 import { api } from '../lib/api'
 import { RoomCodeDisplay, PlayerCard, Avatar } from '@red-handed/ui'
 import { NavBar } from '../components/NavBar'
+import { LobbyChat } from '../components/LobbyChat'
 import { LANGUAGES, findLanguage } from '../i18n/languages'
 import { WORD_CATEGORIES } from '@red-handed/shared'
 import type { Room, GameMode, WordCategory, Player } from '@red-handed/shared'
@@ -1266,6 +1267,9 @@ export default function LobbyPage() {
               <span>{t('lobby.needMore', { min: minPlayers, more: minPlayers - players.length })}</span>
             </div>
           )}
+
+          {/* Lobby chat — chat with other players while waiting to start */}
+          <LobbyChat />
 
           {/* Settings toggle (host) */}
           {isHost && (

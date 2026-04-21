@@ -538,6 +538,10 @@ export default {
     max: 'max',
     roundsInfinity: '∞ round',
     roundsCount: '{{count}} round',
+    chatTitle: 'Chat della lobby',
+    chatPlaceholder: 'Invia un messaggio…',
+    chatEmpty: 'Saluta mentre aspetti…',
+    chatSend: 'Invia',
   },
   rank: {
     wooden: 'Legno',

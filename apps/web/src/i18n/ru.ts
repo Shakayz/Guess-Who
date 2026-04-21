@@ -527,6 +527,10 @@ export default {
     max: 'макс',
     roundsInfinity: '∞ раундов',
     roundsCount: '{{count}} раундов',
+    chatTitle: 'Чат лобби',
+    chatPlaceholder: 'Написать в лобби…',
+    chatEmpty: 'Поздоровайся, пока ждёшь…',
+    chatSend: 'Отправить',
   },
   rank: {
     wooden: 'Деревянный',

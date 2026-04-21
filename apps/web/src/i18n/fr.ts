@@ -534,6 +534,10 @@ export default {
     max: 'max',
     roundsInfinity: '∞ manches',
     roundsCount: '{{count}} manches',
+    chatTitle: 'Chat du salon',
+    chatPlaceholder: 'Envoyer un message…',
+    chatEmpty: 'Dis bonjour en attendant…',
+    chatSend: 'Envoyer',
   },
   rank: {
     wooden: 'Bois',
