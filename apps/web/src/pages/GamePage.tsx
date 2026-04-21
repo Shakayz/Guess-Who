@@ -13,6 +13,7 @@ import { EliminationReveal } from '../components/EliminationReveal'
 import { FloatingEmote } from '../components/emotes/FloatingEmote'
 import { useEmotesStore } from '../store/emotes'
 import { getEmoteById, DEFAULT_LOADOUT, WORD_CATEGORIES, isRedHandedSideRole, isVillagerSideRole, isJesterRole } from '@red-handed/shared'
+import { findLanguage } from '../i18n/languages'
 // Overlays removed — they blocked gameplay and caused desync between players
 
 const log = createLogger('game-page')
@@ -1473,8 +1474,43 @@ export default function GamePage() {
                     </span>
                   )}
                 </div>
-                <span className="text-xs text-neutral-500">
-                  {t('game.aliveCount', { count: alivePlayers.length })} · {t('game.roundNumber', { number: currentRound?.roundNumber ?? 1 })}
+                <span className="text-xs text-neutral-500 flex items-center gap-1.5 flex-wrap">
+                  <span>{t('game.aliveCount', { count: alivePlayers.length })}</span>
+                  <span>·</span>
+                  <span>{t('game.roundNumber', { number: currentRound?.roundNumber ?? 1 })}</span>
+                  {(() => {
+                    const gm = (room?.settings as any)?.gameMode as 'normal' | 'special' | 'ranked' | undefined
+                    if (!gm) return null
+                    const modeLabel =
+                      gm === 'ranked' ? `🏆 ${t('lobby.rankedLabel', 'Ranked')}`
+                      : gm === 'special' ? `✨ ${t('lobby.special', 'Special')}`
+                      : `🎮 ${t('lobby.normal', 'Normal')}`
+                    const color = gm === 'ranked' ? 'text-amber-400' : gm === 'special' ? 'text-purple-400' : 'text-brand-400'
+                    return (
+                      <>
+                        <span>·</span>
+                        <span className={`${color} font-semibold`}>{modeLabel}</span>
+                      </>
+                    )
+                  })()}
+                  {(() => {
+                    const langCode = (room?.settings as any)?.language as string | undefined
+                    if (!langCode) return null
+                    const lang = findLanguage(langCode)
+                    return (
+                      <>
+                        <span>·</span>
+                        <span className="inline-flex items-center gap-1">
+                          <img
+                            src={`https://flagcdn.com/w20/${lang.country}.png`}
+                            alt=""
+                            className="w-4 h-3 object-cover rounded-sm"
+                          />
+                          <span>{lang.label}</span>
+                        </span>
+                      </>
+                    )
+                  })()}
                 </span>
               </div>
             </div>
