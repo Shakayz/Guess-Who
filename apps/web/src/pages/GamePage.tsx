@@ -1513,24 +1513,19 @@ export default function GamePage() {
               <p className="text-xs text-neutral-600 mt-2">{t('game.giveClueHint')}</p>
             </div>
           ) : (
-            <div className="relative flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl shrink-0 bg-brand-950/50 border border-brand-800/40 shadow-sm shadow-brand-950/40">
-                🔤
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                    {t('game.yourWordLabel')}
-                  </p>
-                  <CategoryBadge categoryKey={myCategory} />
-                </div>
-                <p className="text-3xl font-extrabold tracking-tight text-white" style={{ textShadow: '0 0 20px rgba(139,92,246,0.3)' }}>
-                  {myWord ?? '???'}
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  {t('game.yourWordLabel')}
                 </p>
-                <p className="text-xs text-neutral-600 mt-0.5">
-                  {t('game.giveClueHint')}
-                </p>
+                <CategoryBadge categoryKey={myCategory} />
               </div>
+              <p className="text-3xl font-extrabold tracking-tight text-white" style={{ textShadow: '0 0 20px rgba(139,92,246,0.3)' }}>
+                {myWord ?? '???'}
+              </p>
+              <p className="text-xs text-neutral-600 mt-0.5">
+                {t('game.giveClueHint')}
+              </p>
             </div>
           )}
         </div>
