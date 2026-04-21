@@ -2361,7 +2361,6 @@ export default function GamePage() {
           )}
           <div className="flex flex-wrap gap-2" role="list" aria-label="Players">
             {players.map((p) => {
-              const canReveal = myRole === 'detective' && !detectiveRevealUsed && p.userId !== user?.id && p.status === 'alive' && (phase === 'clues' || phase === 'voting')
               const canProtect = myRole === 'guardian' && !guardianProtectUsed && p.status === 'alive' && phase === 'voting'
               const isSpeakingNow = phase === 'clues' && (vocalMode ? vocalSpeakerId === p.userId : currentSpeakerId === p.userId)
               return (
@@ -2406,15 +2405,6 @@ export default function GamePage() {
                       <span aria-hidden="true">📵</span>
                       <span>offline</span>
                     </span>
-                  )}
-                  {canReveal && (
-                    <button
-                      onClick={() => getSocket().emit('detective:reveal', { targetUserId: p.userId })}
-                      className="ml-0.5 text-blue-400 hover:text-blue-300 text-[10px] font-bold border border-blue-800/50 rounded px-1 transition-colors"
-                      title={t('game.detectiveRevealBtn')}
-                    >
-                      🔍
-                    </button>
                   )}
                   {canProtect && (
                     <button
