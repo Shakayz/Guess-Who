@@ -2,8 +2,6 @@ import React, { useRef, useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store/auth'
-import { useSocialStore } from '../store/social'
-import { DmChatPanel } from './DmChatPanel'
 import { api } from '../lib/api'
 import { getSocket } from '../lib/socket'
 import { LANGUAGES, findLanguage } from '../i18n/languages'
@@ -18,9 +16,6 @@ export function NavBar() {
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const [langOpen, setLangOpen] = useState(false)
   const langRef = useRef<HTMLDivElement>(null)
-
-  const activeDm = useSocialStore((s) => s.activeDm)
-  const setActiveDm = useSocialStore((s) => s.setActiveDm)
 
   // Coin balance for the header chip. Plain useState+fetch instead of
   // react-query to keep the many NavBar tests (which don't wrap in a
@@ -246,14 +241,6 @@ export function NavBar() {
         </button>
       </div>
     </header>
-
-    {/* DM Chat Panel */}
-    {activeDm && (
-      <DmChatPanel
-        friend={{ id: activeDm.friendId, username: activeDm.friendUsername }}
-        onClose={() => setActiveDm(null)}
-      />
-    )}
   </>
   )
 }

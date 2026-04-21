@@ -10,6 +10,7 @@ import { api } from './lib/api'
 import { BottomNav } from './components/BottomNav'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { AchievementToastBanner } from './components/achievements/AchievementToastBanner'
+import { DmChatPanel } from './components/DmChatPanel'
 import { createLogger } from './lib/logger'
 import { lazyWithRetry } from './lib/lazyWithRetry'
 
@@ -342,6 +343,24 @@ function AuthenticatedConnectionStatus() {
   return <ConnectionStatus />
 }
 
+/**
+ * Renders the floating DM chat panel at the app root so it stays visible
+ * across every route — including active games, lobbies, and results — and
+ * isn't tied to the NavBar (which is hidden on game/auth screens).
+ */
+function GlobalDmPanel() {
+  const token = useAuthStore((s) => s.token)
+  const activeDm = useSocialStore((s) => s.activeDm)
+  const setActiveDm = useSocialStore((s) => s.setActiveDm)
+  if (!token || !activeDm) return null
+  return (
+    <DmChatPanel
+      friend={{ id: activeDm.friendId, username: activeDm.friendUsername }}
+      onClose={() => setActiveDm(null)}
+    />
+  )
+}
+
 export default function App() {
   return (
     <Suspense fallback={<Spinner />}>
@@ -355,6 +374,7 @@ export default function App() {
       <InviteBanner />
       <FriendRequestBanner />
       <AchievementToastBanner />
+      <GlobalDmPanel />
       <BottomNav />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
