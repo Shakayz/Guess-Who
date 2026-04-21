@@ -734,6 +734,13 @@ export default {
     maxRank: 'Max Rank',
     usernameTaken: 'Username already taken or invalid',
     minChars: 'Min 2 characters',
+    onlineNow: 'Online now',
+    lastSeen: 'Last seen {{when}}',
+    lastSeenJustNow: 'just now',
+    lastSeenMinutes: '{{count}}m ago',
+    lastSeenHours: '{{count}}h ago',
+    lastSeenDays: '{{count}}d ago',
+    lastSeenLongAgo: 'a long time ago',
   },
   achievements: {
     title: 'Achievements',

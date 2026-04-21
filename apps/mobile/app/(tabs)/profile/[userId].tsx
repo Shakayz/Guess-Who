@@ -43,6 +43,8 @@ interface PlayerProfile {
   losses: number
   friendship?: ProfileFriendship | null
   isSelf?: boolean
+  lastSeenAt?: string | null
+  isOnline?: boolean
 }
 
 export default function PlayerProfileScreen() {
@@ -175,6 +177,20 @@ export default function PlayerProfileScreen() {
 
   if (!profile) return null
 
+  const formatLastSeen = (iso: string): string => {
+    const diffMs = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diffMs / 60_000)
+    if (mins < 1) return t('profile.lastSeenJustNow', 'just now')
+    if (mins < 60) return t('profile.lastSeenMinutes', { count: mins, defaultValue: `${mins}m ago` })
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return t('profile.lastSeenHours', { count: hours, defaultValue: `${hours}h ago` })
+    const days = Math.floor(hours / 24)
+    if (days < 30) return t('profile.lastSeenDays', { count: days, defaultValue: `${days}d ago` })
+    return t('profile.lastSeenLongAgo', 'a long time ago')
+  }
+
+  const showPresence = profile.friendship?.status === 'accepted' && (profile.isOnline || profile.lastSeenAt)
+
   const rankCfg = RANK_CONFIG[profile.rank] ?? RANK_CONFIG.wooden
   const winRate =
     profile.gamesPlayed > 0
@@ -217,6 +233,23 @@ export default function PlayerProfileScreen() {
           <Text className="text-white text-xl font-bold">
             {profile.username}
           </Text>
+          {showPresence && (
+            <View className="flex-row items-center gap-1.5 mt-1">
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: profile.isOnline ? '#34d399' : '#737373',
+                }}
+              />
+              <Text className={profile.isOnline ? 'text-emerald-400 text-xs' : 'text-neutral-500 text-xs'}>
+                {profile.isOnline
+                  ? t('profile.onlineNow', 'Online now')
+                  : t('profile.lastSeen', { when: formatLastSeen(profile.lastSeenAt!), defaultValue: `Last seen ${formatLastSeen(profile.lastSeenAt!)}` })}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Rank */}

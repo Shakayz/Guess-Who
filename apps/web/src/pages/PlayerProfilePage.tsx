@@ -57,6 +57,8 @@ interface PlayerProfile {
   isPremium?: boolean
   friendship?: ProfileFriendship | null
   isSelf?: boolean
+  lastSeenAt?: string | null
+  isOnline?: boolean
   stats: UserStats
   statsRanked?: UserStats
   statsUnranked?: UserStats
@@ -131,6 +133,18 @@ export default function PlayerProfilePage() {
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+
+  const formatLastSeen = (iso: string): string => {
+    const diffMs = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diffMs / 60_000)
+    if (mins < 1) return t('profile.lastSeenJustNow')
+    if (mins < 60) return t('profile.lastSeenMinutes', { count: mins })
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return t('profile.lastSeenHours', { count: hours })
+    const days = Math.floor(hours / 24)
+    if (days < 30) return t('profile.lastSeenDays', { count: days })
+    return t('profile.lastSeenLongAgo')
+  }
 
   const handleBlock = async () => {
     if (!userId || blocked) return
@@ -247,6 +261,22 @@ export default function PlayerProfilePage() {
                 {profile.createdAt && (
                   <p className="text-neutral-600 text-xs mt-0.5">
                     {t('profile.joinedDate', { date: formatDate(profile.createdAt) })}
+                  </p>
+                )}
+                {friendship?.status === 'accepted' && (profile.isOnline || profile.lastSeenAt) && (
+                  <p className="flex items-center gap-1.5 text-xs mt-0.5">
+                    <span
+                      className={[
+                        'inline-block w-2 h-2 rounded-full',
+                        profile.isOnline ? 'bg-emerald-400' : 'bg-neutral-500',
+                      ].join(' ')}
+                      aria-hidden
+                    />
+                    <span className={profile.isOnline ? 'text-emerald-400' : 'text-neutral-500'}>
+                      {profile.isOnline
+                        ? t('profile.onlineNow')
+                        : t('profile.lastSeen', { when: formatLastSeen(profile.lastSeenAt!) })}
+                    </span>
                   </p>
                 )}
                 <div className="flex items-center gap-2 mt-2 flex-wrap">

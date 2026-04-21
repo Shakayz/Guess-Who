@@ -51,6 +51,10 @@ model User {
   sharedAppAt             DateTime?
   pushToken     String?
   lastPlayedAt     DateTime?
+  // Last socket connection timestamp. Written on socket connect and disconnect
+  // so we can show "last seen" on a friend's profile. Only surfaced to other
+  // users when they are accepted friends — non-friends never see it.
+  lastSeenAt       DateTime?
   dailyStreakCount Int       @default(0)
   // Timestamp of the last `/auth/me` call that credited the +20 daily login
   // bonus. Separate from `lastPlayedAt` because the login bonus is awarded

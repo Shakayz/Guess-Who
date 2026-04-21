@@ -5,6 +5,7 @@ import { redis } from '../config/redis'
 import { xpProgressInLevel, USERNAME_CHANGE_COST, SOCIAL_SHARE_REWARD } from '@red-handed/shared'
 import { evaluateEvent } from '../services/achievements'
 import { ensureReferralCode } from '../services/referral'
+import { onlineUsers } from '../socket/onlineUsers'
 import bcrypt from 'bcryptjs'
 
 const patchMeSchema = z.object({
@@ -466,7 +467,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         id: true, username: true, avatarUrl: true, rankTier: true,
         rankPoints: true, honorPoints: true, createdAt: true,
         level: true, xp: true, hasPlayedRanked: true,
-        premiumUntil: true,
+        premiumUntil: true, lastSeenAt: true,
       },
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
@@ -636,7 +637,11 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Drop the raw `premiumUntil` from the public payload — callers only see
     // the derived boolean so the exact subscription end date stays private.
-    const { premiumUntil: _omitProfile, ...publicProfile } = user
+    // `lastSeenAt` is also private by default — only surfaced to accepted
+    // friends (and the user themselves) so strangers can't track activity.
+    const { premiumUntil: _omitProfile, lastSeenAt, ...publicProfile } = user
+    const isFriendOrSelf = viewerId === id || friendship?.status === 'accepted'
+    const isOnline = isFriendOrSelf ? onlineUsers.has(id) : undefined
     return reply.send({
       ...publicProfile,
       rankTier: user.hasPlayedRanked ? user.rankTier : 'unranked',
@@ -645,6 +650,8 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       isPremium: isPremiumProfile,
       friendship,
       isSelf: viewerId === id,
+      lastSeenAt: isFriendOrSelf ? lastSeenAt : null,
+      isOnline,
       stats: {
         totalGames,
         wins,

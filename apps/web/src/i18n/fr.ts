@@ -701,6 +701,13 @@ export default {
     maxRank: 'Rang maximum',
     usernameTaken: 'Pseudo déjà pris ou invalide',
     minChars: 'Min 2 caractères',
+    onlineNow: 'En ligne',
+    lastSeen: 'Vu {{when}}',
+    lastSeenJustNow: 'à l\'instant',
+    lastSeenMinutes: 'il y a {{count}} min',
+    lastSeenHours: 'il y a {{count}} h',
+    lastSeenDays: 'il y a {{count}} j',
+    lastSeenLongAgo: 'il y a longtemps',
   },
   achievements: {
     title: 'Succès',
