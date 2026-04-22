@@ -4,18 +4,16 @@
  *
  * Structure:
  *  - PROPER_*: proper-noun categories (mangas, celebrities, movies, music, history).
- *    Same pairs across all 8 locales — only the `locale` field differs.
+ *    Same pairs across all 8 locales — emitted once per locale.
  *  - TR_*:   translatable categories (food, animals, places, jobs, sports, variety).
  *    One array per locale with index-aligned translations.
  */
 
-type Diff = 'easy' | 'medium' | 'hard'
-type Triple = [string, string, Diff]
+type Triple = [string, string] | [string, string, string]
 
 type PairData = {
   wordA: string
   wordB: string
-  difficulty: Diff
   category: string
   locale: string
 }
@@ -25,15 +23,15 @@ const LOCALES = ['en', 'fr', 'es', 'de', 'ar', 'it', 'pt', 'zh', 'ru', 'hi'] as 
 function expandProper(category: string, triples: Triple[]): PairData[] {
   const out: PairData[] = []
   for (const locale of LOCALES) {
-    for (const [a, b, d] of triples) {
-      out.push({ wordA: a, wordB: b, difficulty: d, category, locale })
+    for (const [a, b] of triples) {
+      out.push({ wordA: a, wordB: b, category, locale })
     }
   }
   return out
 }
 
 function expandLocale(category: string, locale: string, triples: Triple[]): PairData[] {
-  return triples.map(([a, b, d]) => ({ wordA: a, wordB: b, difficulty: d, category, locale }))
+  return triples.map(([a, b]) => ({ wordA: a, wordB: b, category, locale }))
 }
 
 // ═════════════════════════════════════════════════════════════════════════

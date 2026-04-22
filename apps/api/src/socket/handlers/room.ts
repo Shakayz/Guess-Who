@@ -199,7 +199,7 @@ async function startGameForRoom(
       const pack = room.wordPackId && room.wordPackId !== 'default'
         ? await prisma.wordPack.findUnique({
             where: { id: room.wordPackId },
-            include: { pairs: { where: { ...categoryFilter, locale: roomLocale } } },
+            include: { pairs: { where: categoryFilter } },
           })
         : await prisma.wordPack.findFirst({
             where: { isPremium: false, isApproved: true, locale: roomLocale, authorId: null },
