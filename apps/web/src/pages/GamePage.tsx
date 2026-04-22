@@ -815,6 +815,9 @@ export default function GamePage() {
     socket.on('game:finished', (data) => {
       log.info('game finished', { winner: (data as any)?.winner })
       SoundManager.play('game_end')
+      if ((data as any)?.yourRole) {
+        useGameStore.setState({ myRole: (data as any).yourRole })
+      }
       setResult(data)
       // Mark room as finished so ActiveGameGuard stops blocking
       const currentRoom = useGameStore.getState().room

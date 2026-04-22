@@ -671,6 +671,7 @@ async function finishGameWithWinner(
         winner: winner as any,
         finalRound: roundPayload as any,
         rewards,
+        yourRole: p.role,
       })
     }
     // Fallback: if nobody was online for a per-socket emit (everyone
@@ -1295,6 +1296,7 @@ async function _resolveRound(io: IO, roomId: string) {
               achievements: [],
               levelUpCoinsEarned: survivalLevelUpRewards.get(p.userId) ?? 0,
             },
+            yourRole: p.role,
           })
         }
         if (!emitted) {

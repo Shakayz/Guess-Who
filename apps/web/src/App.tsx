@@ -278,6 +278,9 @@ function GlobalSocketListeners() {
       const store = useGameStore.getState()
       // Only act if the game store still has an active room (not yet reset)
       if (store.room && !store.result) {
+        if (data?.yourRole) {
+          useGameStore.setState({ myRole: data.yourRole })
+        }
         store.setResult(data)
         store.setRoom({ ...store.room, status: 'finished' as any })
         navigate(`/results/${store.room.code}`)

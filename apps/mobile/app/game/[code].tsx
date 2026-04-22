@@ -1021,6 +1021,9 @@ export default function GameScreen() {
     socket.on('game:finished', (data) => {
       log.info('game finished', { winner: (data as any)?.winner })
       SoundManager.play('game_end')
+      if ((data as any)?.yourRole) {
+        useGameStore.setState({ myRole: (data as any).yourRole })
+      }
       setResult(data)
       HapticManager.success()
       router.replace(`/results/${code}`)
