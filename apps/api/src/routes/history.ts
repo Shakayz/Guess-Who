@@ -126,6 +126,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
       startedAt: game.startedAt,
       endedAt: game.endedAt,
       winnerTeam: game.winnerTeam,
+      gameMode: game.gameMode,
       myRole: participation.role,
       participations: game.participations.map((p) => ({
         userId: p.userId,

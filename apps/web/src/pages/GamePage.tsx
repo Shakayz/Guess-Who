@@ -828,9 +828,26 @@ export default function GamePage() {
     })
     // Keep room state in sync (player list, status changes)
     socket.on('room:updated', (roomData: any) => {
+      const prevStatus = (useGameStore.getState().room as any)?.status
       setRoom(roomData)
       // If game ended externally (e.g. all forfeited), navigate to results
       if (roomData.status === 'finished' && useGameStore.getState().result) {
+        navigate(`/results/${code}`)
+        return
+      }
+      // Safety net: the server resets the room to 'waiting' immediately after
+      // emitting per-user `game:finished`. If the per-user emit was missed
+      // (iOS Safari backgrounding, transient disconnect, dropped packet), the
+      // player would otherwise stay frozen on the game page with an empty
+      // player list. Detect the in-progress → waiting transition and bounce
+      // to /results/ — if we have the result payload it renders normally,
+      // otherwise the page's built-in fallback gives the player a Home button
+      // instead of a dead screen.
+      if (
+        roomData.status === 'waiting' &&
+        prevStatus &&
+        prevStatus !== 'waiting'
+      ) {
         navigate(`/results/${code}`)
       }
     })

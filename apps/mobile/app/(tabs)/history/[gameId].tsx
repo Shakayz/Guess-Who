@@ -65,6 +65,7 @@ interface GameDetail {
   startedAt: string
   endedAt: string
   winnerTeam: WinnerTeam
+  gameMode?: 'normal' | 'special' | 'ranked'
   myRole: string
   participations: DetailPlayer[]
   rounds: RoundDetail[]
@@ -351,6 +352,33 @@ export default function GameDetailScreen() {
                       count: durationMin,
                       defaultValue: `${durationMin} min`,
                     })}
+                  </Text>
+                </View>
+              )}
+              {game.gameMode && (
+                <View
+                  className={`px-2.5 py-1 rounded-full border ${
+                    game.gameMode === 'special'
+                      ? 'bg-fuchsia-950/60 border-fuchsia-800'
+                      : game.gameMode === 'ranked'
+                        ? 'bg-sky-950/60 border-sky-800'
+                        : 'bg-neutral-800/60 border-neutral-700'
+                  }`}
+                >
+                  <Text
+                    className={`text-[11px] font-bold ${
+                      game.gameMode === 'special'
+                        ? 'text-fuchsia-400'
+                        : game.gameMode === 'ranked'
+                          ? 'text-sky-400'
+                          : 'text-neutral-300'
+                    }`}
+                  >
+                    {game.gameMode === 'special'
+                      ? t('gameDetail.gameTypeSpecial', 'Special')
+                      : game.gameMode === 'ranked'
+                        ? t('gameDetail.gameTypeRanked', 'Ranked')
+                        : t('gameDetail.gameTypeNormal', 'Normal')}
                   </Text>
                 </View>
               )}
