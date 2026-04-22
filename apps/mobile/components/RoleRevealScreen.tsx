@@ -6,10 +6,18 @@ import { useTranslation } from 'react-i18next'
 
 interface RoleRevealScreenProps {
   visible: boolean
-  role: string
+  /** Null when the role is hidden (blind mode). */
+  role: string | null
   word: string
   villagerWord?: string
   category?: WordCategory | null
+  /** Pass-through for downstream card styling; the component currently
+   *  only branches on blind vs non-blind, but the signature allows for
+   *  future mode-specific flourishes without another breaking change. */
+  gameMode?: 'normal' | 'special' | 'ranked'
+  /** When true, the back of the card says "role hidden" instead of the role
+   *  name. The word is still shown. Mirrors the web blind-mode overlay. */
+  blindMode?: boolean
   onDismiss: () => void
 }
 
@@ -52,12 +60,23 @@ const ROLE_CONFIG: Record<string, { emoji: string; label: string; color: string;
   },
 }
 
+const BLIND_CONFIG = {
+  emoji: '🙈',
+  label: 'Role hidden',
+  color: 'text-neutral-300',
+  bg: 'bg-neutral-900/40',
+  border: 'border-neutral-700',
+  accent: '#a3a3a3',
+  glow: 'rgba(163,163,163,0.45)',
+}
+
 export default function RoleRevealScreen({
   visible,
   role,
   word,
   villagerWord,
   category,
+  blindMode,
   onDismiss,
 }: RoleRevealScreenProps) {
   const { t } = useTranslation()
@@ -73,7 +92,10 @@ export default function RoleRevealScreen({
   const fade        = useRef(new Animated.Value(1)).current
   const glow        = useRef(new Animated.Value(0)).current    // bg breathing
 
-  const config = ROLE_CONFIG[role] ?? ROLE_CONFIG.villager
+  // In blind mode, the reveal card intentionally doesn't disclose a role —
+  // use a neutral config that renders a "role hidden" placeholder instead.
+  const hideRole = !!blindMode || !role
+  const config = hideRole ? BLIND_CONFIG : (ROLE_CONFIG[role as string] ?? ROLE_CONFIG.villager)
 
   // ── Sparkle particles that bloom after the flip ───────────────────
   const sparkles = useMemo(() => Array.from({ length: 12 }, (_, i) => {
@@ -191,9 +213,10 @@ export default function RoleRevealScreen({
   })
 
   // Friendly roles (villager, detective) get a confetti celebration on flip;
-  // impostor roles get a brief red screen flash to punch the reveal.
-  const isFriendly = role === 'villager' || role === 'detective'
-  const flashColor = isFriendly ? '#fbbf24' : '#ef4444'
+  // impostor roles get a brief red screen flash to punch the reveal. Blind
+  // mode suppresses both — the card should never hint at team alignment.
+  const isFriendly = !hideRole && (role === 'villager' || role === 'detective')
+  const flashColor = hideRole ? '#8b8b8b' : isFriendly ? '#fbbf24' : '#ef4444'
   const flashTrigger = visible ? 1 : 0
 
   return (
@@ -296,7 +319,9 @@ export default function RoleRevealScreen({
                 <View
                   className={[
                     'absolute top-0 left-6 right-6 h-0.5 rounded-full',
-                    role === 'red_handed' || role === 'double_agent'
+                    hideRole
+                      ? 'bg-neutral-500'
+                      : role === 'red_handed' || role === 'double_agent'
                       ? 'bg-red-500'
                       : role === 'detective'
                       ? 'bg-sky-500'
@@ -318,7 +343,7 @@ export default function RoleRevealScreen({
                 </Text>
 
                 <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-1">
-                  You are
+                  {hideRole ? 'Role hidden' : 'You are'}
                 </Text>
                 <Text
                   className={['text-2xl font-extrabold tracking-tight mb-6', config.color].join(' ')}
@@ -328,7 +353,7 @@ export default function RoleRevealScreen({
                     textShadowRadius: 10,
                   }}
                 >
-                  {config.label}
+                  {hideRole ? 'Guess who you are' : config.label}
                 </Text>
 
                 {catInfo ? (
@@ -340,7 +365,7 @@ export default function RoleRevealScreen({
                   </View>
                 ) : null}
 
-                {role === 'double_agent' && villagerWord ? (
+                {!hideRole && role === 'double_agent' && villagerWord ? (
                   <View className="w-full gap-3">
                     <View className="bg-neutral-900/60 rounded-2xl px-4 py-3 items-center">
                       <Text className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500 mb-1">
@@ -365,7 +390,9 @@ export default function RoleRevealScreen({
                 )}
 
                 <Text className="text-neutral-600 text-xs mt-6 text-center">
-                  {role === 'red_handed'
+                  {hideRole
+                    ? 'Your role is a secret — even to you. It will be revealed when you are eliminated or when the game ends.'
+                    : role === 'red_handed'
                     ? "Blend in -- don't reveal you have a different word"
                     : role === 'double_agent'
                     ? 'You know both words -- use this to your advantage'

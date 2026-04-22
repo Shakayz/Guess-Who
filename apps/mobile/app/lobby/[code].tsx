@@ -248,6 +248,9 @@ interface Settings {
   // Only available in unranked modes.
   vocalMode: boolean
   vocalSpeakingTimeSeconds: number
+  // Blind role mode (normal-mode only). Each player sees only their word;
+  // their role stays hidden until they're eliminated or the game ends.
+  blindMode: boolean
   // Room language — controls which UI locale players must match to join.
   language: Locale
 }
@@ -742,6 +745,42 @@ function SettingsPanel({
             )}
           </View>
         )}
+
+        {/* Blind role mode — normal-mode only. Players see their word but
+            not their role; roles are revealed on elimination / game end. */}
+        {settings.gameMode === 'normal' && (
+          <View className="pt-2 border-t border-neutral-800">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 pr-3">
+                <View className="flex-row items-center gap-1.5">
+                  <Text className="text-sm">🙈</Text>
+                  <Text className="text-white font-semibold text-sm">Blind role mode</Text>
+                </View>
+                <Text className="text-xs text-neutral-500 mt-0.5">
+                  You only see your word — not your role. Roles are revealed on elimination and at game end.
+                </Text>
+              </View>
+              <TouchableOpacity
+                accessibilityRole="switch"
+                accessibilityState={{ checked: settings.blindMode }}
+                onPress={() =>
+                  onChange({ ...settings, blindMode: !settings.blindMode })
+                }
+                className={[
+                  'w-11 h-6 rounded-full p-0.5 justify-center',
+                  settings.blindMode ? 'bg-violet-600' : 'bg-neutral-700',
+                ].join(' ')}
+              >
+                <View
+                  className={[
+                    'w-5 h-5 bg-white rounded-full',
+                    settings.blindMode ? 'self-end' : 'self-start',
+                  ].join(' ')}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </View>
   )
@@ -887,6 +926,7 @@ const DEFAULT_SETTINGS: Settings = {
   evilTwinsEnabled: 0,
   vocalMode: false,
   vocalSpeakingTimeSeconds: 10,
+  blindMode: false,
   language: 'en',
 }
 
@@ -949,6 +989,7 @@ export default function LobbyScreen() {
       evilTwinsEnabled: s.evilTwinsEnabled,
       vocalMode: s.vocalMode,
       vocalSpeakingTimeSeconds: s.vocalSpeakingTimeSeconds,
+      blindMode: s.blindMode,
       language: s.language,
     })
   }
@@ -1060,6 +1101,7 @@ export default function LobbyScreen() {
           evilTwinsEnabled: rs.evilTwinsEnabled ?? 0,
           vocalMode: rs.vocalMode ?? false,
           vocalSpeakingTimeSeconds: rs.vocalSpeakingTimeSeconds ?? 10,
+          blindMode: rs.blindMode ?? false,
           language: (rs.language ?? 'en') as Locale,
         }))
         // Any successful room:updated means our locale is now aligned with

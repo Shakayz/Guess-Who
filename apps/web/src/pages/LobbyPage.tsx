@@ -48,6 +48,9 @@ interface Settings {
   vocalMode: boolean
   /** Seconds per player when vocal mode is on. */
   vocalSpeakingTimeSeconds: number
+  /** Blind role mode: in normal mode only, players see their word but not
+   *  their role. Roles are revealed on elimination and at game end. */
+  blindMode: boolean
 }
 
 function NumStepper({
@@ -191,6 +194,8 @@ function SettingsPanel({
       evilTwinsEnabled: mode === 'normal' ? 0 : settings.evilTwinsEnabled,
       // Ranked never supports vocal mode — force-disable when switching in.
       vocalMode:        mode === 'ranked' ? false : settings.vocalMode,
+      // Blind mode is a normal-mode exclusive — clear it when switching away.
+      blindMode:        mode === 'normal' ? settings.blindMode : false,
     })
   }
 
@@ -647,6 +652,41 @@ function SettingsPanel({
             )}
           </div>
         )}
+
+        {/* ── Blind role mode (normal only) ──────────────────────────────── */}
+        {settings.gameMode === 'normal' && (
+          <div className="pt-2 border-t border-neutral-800/60">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white flex items-center gap-2">
+                  <span>🙈</span>
+                  <span>{t('lobby.blindMode', 'Blind role mode')}</span>
+                </p>
+                <p className="text-[11px] text-neutral-500 mt-0.5">
+                  {t('lobby.blindModeDesc', 'You only see your word — not your role. Roles are revealed on elimination and at game end.')}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={settings.blindMode}
+                aria-label={t('lobby.blindMode', 'Blind role mode')}
+                onClick={() => onChange({ ...settings, blindMode: !settings.blindMode })}
+                className={[
+                  'relative w-11 h-6 rounded-full transition-colors shrink-0',
+                  settings.blindMode ? 'bg-brand-600' : 'bg-neutral-800',
+                ].join(' ')}
+              >
+                <span
+                  className={[
+                    'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform',
+                    settings.blindMode ? 'translate-x-5' : 'translate-x-0',
+                  ].join(' ')}
+                />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -804,6 +844,7 @@ export default function LobbyPage() {
     language: (i18n.language.split('-')[0] as Locale) || 'en',
     vocalMode: false,
     vocalSpeakingTimeSeconds: 10,
+    blindMode: false,
   })
   const [copied, setCopied] = useState(false)
 
@@ -840,6 +881,7 @@ export default function LobbyPage() {
       language: s.language,
       vocalMode: s.vocalMode,
       vocalSpeakingTimeSeconds: s.vocalSpeakingTimeSeconds,
+      blindMode: s.blindMode,
     })
     setSettingsSaved(true)
     setTimeout(() => setSettingsSaved(false), 1500)
@@ -947,6 +989,7 @@ export default function LobbyPage() {
           language: roomLang,
           vocalMode: (r.settings as any).vocalMode ?? false,
           vocalSpeakingTimeSeconds: (r.settings as any).vocalSpeakingTimeSeconds ?? 10,
+          blindMode: (r.settings as any).blindMode ?? false,
         }))
         // Switch UI language to match the room's language (only on first join)
         if (!langSyncedRef.current && i18n.language.split('-')[0] !== roomLang) {
