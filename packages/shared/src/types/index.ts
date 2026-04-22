@@ -248,7 +248,7 @@ export interface ServerToClientEvents {
   'round:vote-cast': (data: { voterId: string; hasVoted: boolean }) => void
   'round:ended': (data: { round: Round; nextRound?: Round }) => void
   'round:word-said': (data: { playerId: string; username: string; clueText: string; role: PlayerRole }) => void
-  'game:finished': (data: { winner: 'villagers' | 'red_handed' | 'draw' | 'jester' | 'evil_twins'; finalRound: Round; rewards: RewardSummary }) => void
+  'game:finished': (data: { winner: 'villagers' | 'red_handed' | 'draw' | 'jester' | 'evil_twins'; finalRound: Round; rewards: RewardSummary; yourRole?: PlayerRole }) => void
   'game:start:failed': (data: { reason: 'INSUFFICIENT_STARS'; userId: string; required: number }) => void
   'mayor:double-ack': (data: { userId: string }) => void
   'inverter:activate-ack': (data: { userId: string }) => void
