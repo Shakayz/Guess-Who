@@ -9,10 +9,9 @@ const createPackSchema = z.object({
   locale:      z.enum(['en', 'fr', 'ar', 'es', 'de']).default('en'),
   isPublic:    z.boolean().default(false),
   pairs:       z.array(z.object({
-    wordA:      z.string().min(1).max(60),
-    wordB:      z.string().min(1).max(60),
-    difficulty: z.enum(['easy', 'medium', 'hard']).default('medium'),
-    category:   z.string().default('general'),
+    wordA:    z.string().min(1).max(60),
+    wordB:    z.string().min(1).max(60),
+    category: z.string().default('general'),
   })).min(1).max(100),
 })
 
@@ -104,7 +103,6 @@ export const wordPacksRoutes: FastifyPluginAsync = async (fastify) => {
           create: body.pairs.map((p) => ({
             wordA: p.wordA,
             wordB: p.wordB,
-            difficulty: p.difficulty,
             category: p.category,
           })),
         },

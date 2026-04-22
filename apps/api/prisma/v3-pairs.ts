@@ -11,13 +11,11 @@
  * (offline pass-and-play generation).
  */
 
-type Diff = 'easy' | 'medium' | 'hard'
-type V3Triple = [string, string, Diff]
+type V3Triple = [string, string] | [string, string, string]
 
 export type V3PairData = {
   wordA: string
   wordB: string
-  difficulty: Diff
   category: string
   locale: string
 }
@@ -25,7 +23,7 @@ export type V3PairData = {
 const V3_LOCALES = ['en', 'fr', 'es', 'de', 'ar', 'it', 'pt', 'zh', 'ru', 'hi'] as const
 
 const v3p = (cat: string, loc: string, ts: V3Triple[]): V3PairData[] =>
-  ts.map(([a, b, d]) => ({ wordA: a, wordB: b, difficulty: d, category: cat, locale: loc }))
+  ts.map(([a, b]) => ({ wordA: a, wordB: b, category: cat, locale: loc }))
 
 // ── INVARIANT POOLS (same pairs across all 10 locales) ──────────────────────
 

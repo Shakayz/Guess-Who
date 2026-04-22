@@ -240,17 +240,15 @@ model WordPack {
 }
 
 model WordPair {
-  id         String   @id @default(cuid())
-  packId     String
-  wordA      String
-  wordB      String
-  difficulty String   @default("medium") @db.VarChar(10)
-  category   String   @default("general")
-  locale     String   @default("en") @db.VarChar(5)
+  id       String @id @default(cuid())
+  packId   String
+  wordA    String
+  wordB    String
+  category String @default("general")
 
   pack WordPack @relation(fields: [packId], references: [id])
 
-  @@index([packId, locale, category])
+  @@index([packId, category])
   @@map("word_pairs")
 }
 

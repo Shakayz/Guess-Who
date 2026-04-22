@@ -13,13 +13,11 @@
  * scripts/generate-offline-words.mjs (for offline/pass-and-play generation).
  */
 
-type Diff = 'easy' | 'medium' | 'hard'
-type V2Triple = [string, string, Diff]
+type V2Triple = [string, string] | [string, string, string]
 
 export type V2PairData = {
   wordA: string
   wordB: string
-  difficulty: Diff
   category: string
   locale: string
 }
@@ -27,7 +25,7 @@ export type V2PairData = {
 const V2_LOCALES = ['en', 'fr', 'es', 'de', 'ar', 'it', 'pt', 'zh', 'ru', 'hi'] as const
 
 const v2p = (cat: string, loc: string, ts: V2Triple[]): V2PairData[] =>
-  ts.map(([a, b, d]) => ({ wordA: a, wordB: b, difficulty: d, category: cat, locale: loc }))
+  ts.map(([a, b]) => ({ wordA: a, wordB: b, category: cat, locale: loc }))
 
 // ── INVARIANT POOLS (same pairs across all 10 locales) ──────────────────────
 const V2_MANGAS: V2Triple[] = [

@@ -380,7 +380,7 @@ async function startGameForRoom(
         const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
         const pack = await prisma.wordPack.findUnique({
           where: { id: room.wordPackId },
-          include: { pairs: { where: { ...categoryFilter, locale: roomLocale } } },
+          include: { pairs: { where: categoryFilter } },
         })
         if (pack && pack.pairs.length > 0) {
           const pair = pack.pairs[Math.floor(Math.random() * pack.pairs.length)]

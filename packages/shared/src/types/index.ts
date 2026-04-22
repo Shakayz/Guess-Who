@@ -232,7 +232,6 @@ export interface WordPair {
   id: string
   wordA: string
   wordB: string
-  difficulty: 'easy' | 'medium' | 'hard'
   category: string
 }
 

@@ -39,7 +39,9 @@ const POOL_SIZE = 40
 
 // ---------------------------------------------------------------------------
 // Parse seed.ts base pairs via regex.
-// Format: `{ wordA: '...', wordB: '...', difficulty: '...', category: '...', locale: '...' }`
+// Format: `{ wordA: '...', wordB: '...', category: '...' }`
+// Locale is inferred from the enclosing `const XX: PairData[] = [ ... ]`
+// block (EN, FR, ES, DE, AR, IT, PT, ZH, RU, HI).
 // Handles escaped apostrophes inside strings (e.g. `'Jeanne d\'Arc'`).
 // ---------------------------------------------------------------------------
 
@@ -47,18 +49,28 @@ function unescape(s) {
   return s.replace(/\\(['"\\])/g, '$1')
 }
 
+const LOCALE_BY_CONST = {
+  EN: 'en', FR: 'fr', ES: 'es', DE: 'de', AR: 'ar',
+  IT: 'it', PT: 'pt', ZH: 'zh', RU: 'ru', HI: 'hi',
+}
+
 function parseSeed(content) {
-  const re = /\{\s*wordA:\s*'((?:[^'\\]|\\.)*)',\s*wordB:\s*'((?:[^'\\]|\\.)*)',\s*difficulty:\s*'(\w+)',\s*category:\s*'(\w+)',\s*locale:\s*'(\w+)'\s*\}/g
+  const blockRe = /const\s+(EN|FR|ES|DE|AR|IT|PT|ZH|RU|HI)\s*:\s*PairData\[\]\s*=\s*\[([\s\S]*?)\n\]/g
+  const pairRe = /\{\s*wordA:\s*'((?:[^'\\]|\\.)*)',\s*wordB:\s*'((?:[^'\\]|\\.)*)',\s*category:\s*'(\w+)'\s*\}/g
   const out = []
-  let m
-  while ((m = re.exec(content)) !== null) {
-    out.push({
-      wordA: unescape(m[1]),
-      wordB: unescape(m[2]),
-      difficulty: m[3],
-      category: m[4],
-      locale: m[5],
-    })
+  let block
+  while ((block = blockRe.exec(content)) !== null) {
+    const locale = LOCALE_BY_CONST[block[1]]
+    const body = block[2]
+    let m
+    while ((m = pairRe.exec(body)) !== null) {
+      out.push({
+        wordA: unescape(m[1]),
+        wordB: unescape(m[2]),
+        category: m[3],
+        locale,
+      })
+    }
   }
   return out
 }
