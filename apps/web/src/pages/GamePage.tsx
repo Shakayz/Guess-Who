@@ -383,7 +383,11 @@ export default function GamePage() {
   const [isTie, setIsTie] = useState(false)
   const [totalTime, setTotalTime] = useState(30)
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
-  const [showRoleCard, setShowRoleCard] = useState(!!myRole)
+  // Blind role mode hides the role at game start — the reveal card is still
+  // shown (so the player gets a moment to read their word) but the role slot
+  // displays a "role hidden" placeholder instead of villager/imposter.
+  const blindMode = !!(room?.settings as any)?.blindMode && (room?.settings?.gameMode ?? 'normal') === 'normal'
+  const [showRoleCard, setShowRoleCard] = useState(!!myRole || (!!myWord && blindMode))
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null)
   const [tiebreakerActive, setTiebreakerActive] = useState(false)
   const [tiebreakerPlayerIds, setTiebreakerPlayerIds] = useState<string[]>([])
@@ -1239,7 +1243,7 @@ export default function GamePage() {
       )}
 
       {/* ── Role reveal overlay ── */}
-      {showRoleCard && myRole && (
+      {showRoleCard && (myRole || blindMode) && (
         <>
           <style>{`
             @keyframes role-drop { 0% { transform: translateY(-60px) scale(0.7); opacity: 0; } 60% { transform: translateY(8px) scale(1.05); } 100% { transform: translateY(0) scale(1); opacity: 1; } }
@@ -1308,23 +1312,31 @@ export default function GamePage() {
                     filter: 'drop-shadow(0 6px 20px rgba(139,92,246,0.55))',
                   }}
                 >
-                  {roleInfo.icon}
+                  {myRole ? roleInfo.icon : '🙈'}
                 </div>
                 <p
-                  className={['text-xs font-bold uppercase tracking-[0.3em] mt-4', roleInfo.color].join(' ')}
+                  className={['text-xs font-bold uppercase tracking-[0.3em] mt-4', myRole ? roleInfo.color : 'text-neutral-400'].join(' ')}
                   style={{ animation: 'role-rise 0.4s ease 0.5s both' }}
                 >
-                  {t('game.yourRole', 'YOUR ROLE')}
+                  {myRole ? t('game.yourRole', 'YOUR ROLE') : t('game.roleHiddenLabel', 'ROLE HIDDEN')}
                 </p>
                 <h1
-                  className={['text-4xl sm:text-5xl font-black tracking-tight mt-1', roleInfo.color].join(' ')}
+                  className={['text-4xl sm:text-5xl font-black tracking-tight mt-1', myRole ? roleInfo.color : 'text-neutral-200'].join(' ')}
                   style={{
                     animation: 'role-rise 0.4s ease 0.6s both',
                     textShadow: '0 0 28px rgba(139,92,246,0.55)',
                   }}
                 >
-                  {roleInfo.label}
+                  {myRole ? roleInfo.label : t('game.blindModeTitle', 'Guess who you are')}
                 </h1>
+                {!myRole && (
+                  <p
+                    className="text-xs text-neutral-500 mt-2 max-w-xs mx-auto"
+                    style={{ animation: 'role-rise 0.4s ease 0.65s both' }}
+                  >
+                    {t('game.blindModeHint', 'Your role is a secret — even to you. It will be revealed when you are eliminated or when the game ends.')}
+                  </p>
+                )}
                 <div className="mt-5 flex flex-col items-center gap-2" style={{ animation: 'role-rise 0.4s ease 0.75s both' }}>
                   <CategoryBadge categoryKey={myCategory} />
                   {myVillagerWord ? (
@@ -1819,7 +1831,7 @@ export default function GamePage() {
                   {t('game.yourWordLabel')}
                 </p>
                 <CategoryBadge categoryKey={myCategory} />
-                {myRole && (
+                {myRole ? (
                   <span className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${showCamp && camp ? CAMP_META[camp].ring : 'ring-neutral-700/40'} bg-neutral-900/60`}>
                     {showCamp && camp && (
                       <>
@@ -1831,7 +1843,15 @@ export default function GamePage() {
                     <span>{roleInfo.icon}</span>
                     <span className={roleInfo.color}>{roleInfo.label}</span>
                   </span>
-                )}
+                ) : blindMode ? (
+                  <span
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-neutral-700/40 bg-neutral-900/60 text-neutral-400"
+                    title={t('game.blindModeHint', 'Your role is a secret — even to you. It will be revealed when you are eliminated or when the game ends.')}
+                  >
+                    <span>🙈</span>
+                    <span>{t('game.roleHiddenLabel', 'ROLE HIDDEN')}</span>
+                  </span>
+                ) : null}
               </div>
               <p className="text-3xl font-extrabold tracking-tight text-white" style={{ textShadow: '0 0 20px rgba(139,92,246,0.3)' }}>
                 {myWord ?? '???'}

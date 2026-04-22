@@ -110,6 +110,11 @@ export interface RoomSettings {
   vocalMode?: boolean
   /** Seconds per player when `vocalMode` is on. Defaults to 10 for unranked. */
   vocalSpeakingTimeSeconds?: number
+  /** Blind role mode (normal-mode only). When true, each player only learns
+   *  their word at game start — not whether they're a villager or an imposter.
+   *  Roles are still revealed on elimination (to everyone) and in the final
+   *  results screen. Ignored outside of normal mode. */
+  blindMode?: boolean
 }
 
 // ─── Player ──────────────────────────────────────────────────────────────────
@@ -235,7 +240,7 @@ export interface WordPair {
 
 export interface ServerToClientEvents {
   'room:updated': (room: Room) => void
-  'game:started': (data: { round: Round; yourWord: string; yourRole: PlayerRole; yourVillagerWord?: string; yourCategory?: WordCategory; isReconnect?: boolean }) => void
+  'game:started': (data: { round: Round; yourWord: string; yourRole?: PlayerRole; yourVillagerWord?: string; yourCategory?: WordCategory; isReconnect?: boolean }) => void
   'detective:result': (data: { targetUserId: string; targetUsername: string; role: PlayerRole }) => void
   'round:speaking-turn': (data: { playerId: string | null; timeSeconds: number; speakingOrder: string[] }) => void
   'round:clue-submitted': (clue: Clue) => void

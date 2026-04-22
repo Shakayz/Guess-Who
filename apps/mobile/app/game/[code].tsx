@@ -599,6 +599,10 @@ export default function GameScreen() {
   }, [startTimer])
 
   const isRedHanded = myRole === 'red_handed' || myRole === 'double_agent'
+  // Blind role mode hides the player's role at game start. The server omits
+  // `yourRole` in the game:started payload; the UI shows a "role hidden"
+  // placeholder until elimination or game end.
+  const blindMode = !!(room?.settings as any)?.blindMode && ((room?.settings as any)?.gameMode ?? 'normal') === 'normal'
   const players = room?.players ?? []
   const alivePlayers = players.filter((p) => p.status === 'alive')
 
@@ -622,7 +626,10 @@ export default function GameScreen() {
     twin_villager:   { emoji: '👯', border: 'border-purple-700/60',    bg: 'bg-purple-950/25',   accent: 'bg-purple-500',   tile: 'bg-purple-900/50 border-purple-700/40',   text: 'text-purple-300',   headlineKey: 'game.headlineTwinVillager', headlineFallback: 'You are an Evil Twin',     hintKey: 'game.hintTwinVillager', hintFallback: "You share a secret bond — don't get caught" },
     twin_red_handed: { emoji: '👯', border: 'border-purple-700/60',    bg: 'bg-purple-950/25',   accent: 'bg-purple-500',   tile: 'bg-purple-900/50 border-purple-700/40',   text: 'text-purple-400',   headlineKey: 'game.headlineTwinRedHanded',headlineFallback: 'You are an Evil Twin',     hintKey: 'game.hintTwinRedHanded',hintFallback: "You share a secret bond — don't get caught" },
   }
-  const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
+  // When the role is hidden (blind mode, pre-elimination), we deliberately
+  // don't fall back to a default role — callers must branch on `myRole` and
+  // render a "role hidden" variant instead.
+  const roleInfo = myRole ? (ROLE_CONFIG[myRole] ?? ROLE_CONFIG.villager) : null
 
   const gameMode = (room?.settings as any)?.gameMode ?? 'normal'
   const showCamp = gameMode !== 'normal'
@@ -678,7 +685,11 @@ export default function GameScreen() {
   // submitted or past round 1), this is a remount/resume — skip the reveal.
 
   useEffect(() => {
-    if (!myRole || !myWord) return
+    // Blind mode skips the role reveal (role is still hidden to this player)
+    // but we still want to show the word on first mount so the player knows
+    // what they're defending — use the screen's blind variant in that case.
+    if (!myWord) return
+    if (!myRole && !blindMode) return
     const s = useGameStore.getState()
     const isMidGame =
       (s.completedRounds?.length ?? 0) > 0 ||
@@ -1239,11 +1250,12 @@ export default function GameScreen() {
       {/* Role reveal overlay */}
       <RoleRevealScreen
         visible={showRoleReveal}
-        role={myRole ?? 'villager'}
+        role={myRole ?? null}
         word={myWord ?? '???'}
         villagerWord={myVillagerWord ?? undefined}
         category={myCategory}
         gameMode={gameMode as 'normal' | 'special' | 'ranked'}
+        blindMode={blindMode}
         onDismiss={() => setShowRoleReveal(false)}
       />
 
@@ -1825,7 +1837,7 @@ export default function GameScreen() {
                 You know both words — use this to your advantage
               </Text>
             </View>
-          ) : (
+          ) : roleInfo ? (
             <View
               className={['rounded-2xl border-2 p-5 overflow-hidden', roleInfo.border, roleInfo.bg].join(' ')}
             >
@@ -1862,6 +1874,35 @@ export default function GameScreen() {
                   </Text>
                   <Text className="text-xs text-neutral-500 mt-1 leading-relaxed">
                     {t(roleInfo.hintKey, roleInfo.hintFallback)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : (
+            /* Blind role mode: render a neutral "role hidden" word card.
+               Deliberately uses grey neutral styling so nothing about the
+               card can leak the player's team. */
+            <View className="rounded-2xl border-2 border-neutral-700 bg-neutral-900/40 p-5 overflow-hidden">
+              <View className="absolute top-0 left-0 right-0 h-0.5 bg-neutral-500" />
+              <View className="flex-row items-center gap-4">
+                <View className="w-14 h-14 rounded-2xl items-center justify-center border border-neutral-700 bg-neutral-800/60">
+                  <Text style={{ fontSize: 28 }}>🙈</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 mb-1">
+                    Role hidden
+                  </Text>
+                  <View className="flex-row items-center flex-wrap gap-1.5 mb-1">
+                    {myCategory ? <CategoryBadge categoryKey={myCategory} /> : null}
+                  </View>
+                  <Text
+                    className="font-extrabold tracking-tight text-neutral-100"
+                    style={{ fontSize: 28 }}
+                  >
+                    {myWord ?? '???'}
+                  </Text>
+                  <Text className="text-xs text-neutral-500 mt-1 leading-relaxed">
+                    Your role will be revealed when you are eliminated or when the game ends.
                   </Text>
                 </View>
               </View>

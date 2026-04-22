@@ -23,6 +23,9 @@ const createRoomSchema = z.object({
     // force-disabled below when the room is actually created.
     vocalMode:                z.boolean().default(false),
     vocalSpeakingTimeSeconds: z.number().min(5).max(60).default(10),
+    // Blind role mode (normal-mode only). Players see their word but not
+    // their role; roles reveal on elimination / game end.
+    blindMode:                z.boolean().default(false),
   })
     .refine(
       (s) => s.gameMode === 'ranked' || s.redHandedCount <= Math.floor(s.maxPlayers / 3),
@@ -97,6 +100,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
           enableDoubleAgent: state.enableDoubleAgent ?? false,
           vocalMode: state.vocalMode ?? false,
           vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+          blindMode: state.blindMode ?? false,
         },
       },
     })
@@ -142,6 +146,8 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
     // Ranked never uses vocal mode — it's typed-clue only.
     const vocalMode = !isRanked && (settings?.vocalMode ?? false)
     const vocalSpeakingTimeSeconds = Math.min(60, Math.max(5, settings?.vocalSpeakingTimeSeconds ?? 10))
+    // Blind role mode is a normal-mode exclusive.
+    const blindMode = (settings?.gameMode ?? 'normal') === 'normal' && !!settings?.blindMode
 
     await redis.set(`room:${room.id}:state`, JSON.stringify({
       players: [],
@@ -150,6 +156,7 @@ export const roomRoutes: FastifyPluginAsync = async (fastify) => {
       gameMode: settings?.gameMode ?? 'normal',
       vocalMode,
       vocalSpeakingTimeSeconds,
+      blindMode,
     }), 'EX', 21600)
     req.log.info({ userId: payload.sub, roomId: room.id, roomCode: room.code }, 'room created')
     return reply.status(201).send(room)

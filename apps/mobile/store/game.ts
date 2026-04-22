@@ -69,7 +69,7 @@ interface GameState {
   setRoom: (room: Room) => void
   setRound: (round: Round) => void
   addCompletedRound: (round: Round) => void
-  setRoleAndWord: (role: string, word: string, villagerWord?: string, category?: WordCategory) => void
+  setRoleAndWord: (role: string | null | undefined, word: string, villagerWord?: string, category?: WordCategory) => void
   setDetectiveRevealUsed: () => void
   setRevealedPlayer: (player: { userId: string; username: string; role: string } | null) => void
   setTwinPartner: (partner: TwinPartner | null) => void
@@ -124,8 +124,8 @@ export const useGameStore = create<GameState>()(
   addCompletedRound: (round) =>
     set((s) => ({ completedRounds: [...s.completedRounds.slice(-19), round] })),
   setRoleAndWord: (myRole, myWord, myVillagerWord, myCategory) => {
-    log.info('role and word set', { role: myRole })
-    set({ myRole, myWord, myVillagerWord: myVillagerWord ?? null, myCategory: myCategory ?? null })
+    log.info('role and word set', { role: myRole ?? null })
+    set({ myRole: myRole ?? null, myWord, myVillagerWord: myVillagerWord ?? null, myCategory: myCategory ?? null })
   },
   setDetectiveRevealUsed: () => set({ detectiveRevealUsed: true }),
   setRevealedPlayer: (revealedPlayer) => set({ revealedPlayer }),

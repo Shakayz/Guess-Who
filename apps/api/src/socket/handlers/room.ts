@@ -548,6 +548,7 @@ async function startGameForRoom(
         evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
         vocalMode: state.vocalMode ?? false,
         vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+        blindMode: state.blindMode ?? false,
       },
     } as any)
 
@@ -559,12 +560,16 @@ async function startGameForRoom(
       'red_handed', 'double_agent', 'kamikaze', 'corruptor', 'inverter', 'twin_red_handed',
     ])
 
+    // Blind role mode hides each player's role in the initial reveal payload.
+    // Server-side logic still uses the true role; the client just doesn't
+    // learn it until elimination / game end.
+    const blindMode = state.gameMode === 'normal' && !!state.blindMode
     for (const playerData of players) {
       const getsRedHandedWord = redHandedWordRoles.has(playerData.role)
       const payload = {
         round: roundPayload as any,
         yourWord: getsRedHandedWord ? wordPair.wordB : wordPair.wordA,
-        yourRole: playerData.role,
+        yourRole: blindMode ? undefined : playerData.role,
         yourVillagerWord: playerData.role === 'double_agent' ? wordPair.wordA : undefined,
         yourCategory: wordCategory,
       }
@@ -780,10 +785,17 @@ export function registerRoomHandlers(
             const getsRedHandedWord = alreadyIn.role === 'red_handed' || alreadyIn.role === 'double_agent'
             const rounds: any[] = state.rounds ?? []
             const currentRoundData = rounds.find((r: any) => r.roundNumber === state.currentRound) ?? null
+            const reconnectBlind = state.gameMode === 'normal' && !!state.blindMode
+            // Preserve blind mode across reconnects: once a player is
+            // eliminated their role is publicly known anyway, so unhide it
+            // in that case to match the elimination reveal the rest of the
+            // table already saw.
+            const revealRoleOnReconnect =
+              !reconnectBlind || alreadyIn.status === 'eliminated'
             socket.emit('game:started', {
               round: currentRoundData,
               yourWord: getsRedHandedWord ? state.redHandedWord : state.villagerWord,
-              yourRole: alreadyIn.role,
+              yourRole: revealRoleOnReconnect ? alreadyIn.role : undefined,
               yourVillagerWord: alreadyIn.role === 'double_agent' ? state.villagerWord : undefined,
               yourCategory: state.wordCategory,
               isReconnect: true,
@@ -850,6 +862,7 @@ export function registerRoomHandlers(
           evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
           vocalMode: state.vocalMode ?? false,
           vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+          blindMode: state.blindMode ?? false,
           isMatchmade: state.isMatchmade ?? false,
         },
       }
@@ -911,6 +924,12 @@ export function registerRoomHandlers(
       state.vocalMode = false
     }
 
+    // Blind role mode — normal-mode exclusive. Host sees/sends the flag only
+    // while in normal mode; any other mode force-clears it below.
+    if (newSettings.blindMode !== undefined) {
+      state.blindMode = !!newSettings.blindMode
+    }
+
     // Special roles only allowed in 'special' mode — force-disable in normal mode
     if (state.gameMode === 'normal') {
       state.detectiveCount    = 0
@@ -926,6 +945,8 @@ export function registerRoomHandlers(
       state.inverterCount     = 0
       state.evilTwinsEnabled  = 0
     } else {
+      // Blind role mode is normal-only — wipe it anywhere else.
+      state.blindMode = false
       if (newSettings.detectiveCount    !== undefined) state.detectiveCount    = Math.max(0, Math.min(3, newSettings.detectiveCount))
       if (newSettings.doubleAgentCount  !== undefined) state.doubleAgentCount  = Math.max(0, Math.min(2, newSettings.doubleAgentCount))
       if (newSettings.guardianCount     !== undefined) state.guardianCount     = Math.max(0, Math.min(2, newSettings.guardianCount))
@@ -1030,6 +1051,7 @@ export function registerRoomHandlers(
         evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
         vocalMode: state.vocalMode ?? false,
         vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+        blindMode: state.blindMode ?? false,
         isMatchmade: state.isMatchmade ?? false,
       },
     }
@@ -1079,6 +1101,7 @@ export function registerRoomHandlers(
         evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
         vocalMode: state.vocalMode ?? false,
         vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+        blindMode: state.blindMode ?? false,
         isMatchmade: state.isMatchmade ?? false,
       },
     }
@@ -1464,6 +1487,7 @@ export function registerRoomHandlers(
           evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
           vocalMode: state.vocalMode ?? false,
           vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+          blindMode: state.blindMode ?? false,
           isMatchmade: state.isMatchmade ?? false,
         },
       }
@@ -1547,6 +1571,7 @@ export function registerRoomHandlers(
           evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
           vocalMode: state.vocalMode ?? false,
           vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+          blindMode: state.blindMode ?? false,
           isMatchmade: state.isMatchmade ?? false,
         },
       }
