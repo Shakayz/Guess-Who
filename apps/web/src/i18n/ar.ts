@@ -345,6 +345,8 @@ export default {
     roleDetective: 'محققاً',
     itsTie: 'تعادل!',
     tieDesc: 'الأصوات متساوية — لم يُقصَ أحد',
+    itsTieYou: 'أنت في تعادل!',
+    tieDescYou: 'أصواتك متعادلة مع لاعب آخر — لم يُقصَ أحد',
     noEliminatedRound: 'لم يُقصَ أحد في هذه الجولة',
     tiebreakerTitle: 'تعادل! جولة فاصلة',
     tiebreakerDesc: '{{names}} متعادلون — يجب على كل منهم تقديم تلميح إضافي',

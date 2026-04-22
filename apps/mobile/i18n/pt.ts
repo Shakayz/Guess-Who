@@ -172,6 +172,8 @@ export default {
     roleDetective: 'Detetive',
     itsTie: 'Empate!',
     tieDesc: 'Os votos estão divididos — ninguém é eliminado',
+    itsTieYou: 'Você está empatado!',
+    tieDescYou: 'Seus votos estão empatados com outro jogador — ninguém é eliminado',
     noEliminatedRound: 'Ninguém foi eliminado nesta rodada',
     villagerWord: 'Palavra dos Aldeões',
     redHandedWord: 'Palavra dos Impostores',

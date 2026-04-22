@@ -211,6 +211,8 @@ export default {
     twinPartnerBanner: 'आपका जुड़वाँ: {{name}}',
     itsTie: 'यह टाई है!',
     tieDesc: 'वोट बराबर बंटे — कोई नहीं हटाया गया',
+    itsTieYou: 'आप बराबरी पर हैं!',
+    tieDescYou: 'आपके वोट दूसरे खिलाड़ी के साथ बराबर हैं — कोई नहीं हटाया गया',
     noEliminatedRound: 'इस राउंड में कोई नहीं हटाया गया',
     villagerWord: 'ग्रामीण शब्द',
     redHandedWord: 'इम्पोस्टर शब्द',

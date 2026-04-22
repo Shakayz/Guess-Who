@@ -228,6 +228,8 @@ export default {
     twinPartnerBanner: 'توأمك: {{name}}',
     itsTie: 'تعادل!',
     tieDesc: 'الأصوات متساوية — لم يُقصَ أحد',
+    itsTieYou: 'أنت في تعادل!',
+    tieDescYou: 'أصواتك متعادلة مع لاعب آخر — لم يُقصَ أحد',
     noEliminatedRound: 'لم يُقصَ أحد في هذه الجولة',
     villagerWord: 'كلمة القرويين',
     redHandedWord: 'كلمة المتسللين',

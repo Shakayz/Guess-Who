@@ -528,6 +528,7 @@ export default function GameScreen() {
   const [votedUserIds, setVotedUserIds] = useState<string[]>([])
   const [allVotedMsg, setAllVotedMsg] = useState(false)
   const [isTie, setIsTie] = useState(false)
+  const [tieIds, setTieIds] = useState<string[]>([])
   const [wordReveal, setWordReveal] = useState<{
     villagerWord: string
     redHandedWord: string
@@ -765,6 +766,7 @@ export default function GameScreen() {
       setEliminated(null)
       setWordReveal(null)
       setIsTie(false)
+      setTieIds([])
       setVoteCount(0)
       setTotalVoters(0)
       setAllVotedMsg(false)
@@ -854,6 +856,7 @@ export default function GameScreen() {
         setEliminated(null)
         setWordReveal(null)
         setIsTie(false)
+        setTieIds([])
         setVoteCount(0)
         setAllVotedMsg(false)
         setClueFlagCounts({})
@@ -935,7 +938,10 @@ export default function GameScreen() {
         HapticManager.heavy()
         showElimination(elimName, elimRole, 'voted')
       } else {
-        if (round?.votes?.length > 0) setIsTie(true)
+        if (round?.votes?.length > 0) {
+          setIsTie(true)
+          setTieIds((round as any)?.tiedPlayerIds ?? [])
+        }
       }
     })
 
@@ -2695,8 +2701,16 @@ export default function GameScreen() {
                 </>
               ) : isTie ? (
                 <>
-                  <Text className="text-white font-bold text-lg mb-1">It's a tie!</Text>
-                  <Text className="text-neutral-400 text-sm">No one was eliminated this round</Text>
+                  <Text className="text-white font-bold text-lg mb-1">
+                    {user?.id && tieIds.includes(user.id)
+                      ? t('game.itsTieYou', "You're tied!")
+                      : t('game.itsTie', "It's a tie!")}
+                  </Text>
+                  <Text className="text-neutral-400 text-sm">
+                    {user?.id && tieIds.includes(user.id)
+                      ? t('game.tieDescYou', 'Your votes were tied with another player — no one is eliminated')
+                      : t('game.tieDesc', 'Votes were split equally — no one is eliminated')}
+                  </Text>
                 </>
               ) : (
                 <Text className="text-neutral-400 text-sm">No one was eliminated this round</Text>

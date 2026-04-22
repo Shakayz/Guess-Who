@@ -346,6 +346,8 @@ export default {
     roleDetective: 'Detective',
     itsTie: "It's a tie!",
     tieDesc: 'Votes were split equally — no one is eliminated',
+    itsTieYou: "You're tied!",
+    tieDescYou: 'Your votes were tied with another player — no one is eliminated',
     noEliminatedRound: 'No one was eliminated this round',
     tiebreakerTitle: 'Tie! Extra Clue Round',
     tiebreakerDesc: '{{names}} are tied — they must each give one more clue',

@@ -343,6 +343,8 @@ export default {
     roleDetective: 'Detective',
     itsTie: 'Pareggio!',
     tieDesc: 'I voti sono divisi — nessuno è eliminato',
+    itsTieYou: 'Sei in parità!',
+    tieDescYou: 'I tuoi voti sono in parità con un altro giocatore — nessuno è eliminato',
     noEliminatedRound: 'Nessuno è stato eliminato questo round',
     tiebreakerTitle: 'Pareggio! Round di spareggio',
     tiebreakerDesc: '{{names}} sono in parità — devono dare un altro indizio',

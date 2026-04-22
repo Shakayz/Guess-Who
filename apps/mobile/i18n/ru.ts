@@ -172,6 +172,8 @@ export default {
     roleDetective: 'Детектив',
     itsTie: 'Ничья!',
     tieDesc: 'Голоса разделились — никто не исключён',
+    itsTieYou: 'Вы в ничьей!',
+    tieDescYou: 'Ваши голоса разделились поровну с другим игроком — никто не исключён',
     noEliminatedRound: 'Никто не был исключён в этом раунде',
     villagerWord: 'Слово Жителей',
     redHandedWord: 'Слово Самозванцев',

@@ -343,6 +343,8 @@ export default {
     roleDetective: 'Detective',
     itsTie: '¡Empate!',
     tieDesc: 'Los votos están divididos — nadie es eliminado',
+    itsTieYou: '¡Estás empatado!',
+    tieDescYou: 'Tus votos están empatados con otro jugador — nadie es eliminado',
     noEliminatedRound: 'Nadie fue eliminado esta ronda',
     tiebreakerTitle: '¡Empate! Ronda de desempate',
     tiebreakerDesc: '{{names}} están empatados — deben dar una pista más',

@@ -211,6 +211,8 @@ export default {
     twinPartnerBanner: 'Ваш близнец: {{name}}',
     itsTie: 'Ничья!',
     tieDesc: 'Голоса разделились поровну — никто не устранён',
+    itsTieYou: 'Вы в ничьей!',
+    tieDescYou: 'Ваши голоса разделились поровну с другим игроком — никто не устранён',
     noEliminatedRound: 'В этом раунде никто не устранён',
     villagerWord: 'Слово Жителя',
     redHandedWord: 'Слово Самозванца',

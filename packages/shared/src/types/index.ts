@@ -190,6 +190,7 @@ export interface Round {
   eliminatedRole: PlayerRole | null
   eliminationReason?: 'vote' | 'said_word'
   wordReveal: WordReveal | null
+  tiedPlayerIds?: string[]
 }
 
 export interface Clue {

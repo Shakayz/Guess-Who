@@ -343,6 +343,8 @@ export default {
     roleDetective: '侦探',
     itsTie: '平局！',
     tieDesc: '票数相同 — 无人淘汰',
+    itsTieYou: '你们平局！',
+    tieDescYou: '你与另一位玩家的票数相同 — 无人淘汰',
     noEliminatedRound: '本回合无人被淘汰',
     tiebreakerTitle: '平局！加时线索回合',
     tiebreakerDesc: '{{names}} 票数相同 — 他们各需再给一个线索',

@@ -172,6 +172,8 @@ export default {
     roleDetective: 'जासूस',
     itsTie: 'टाई!',
     tieDesc: 'वोट बराबर हैं — कोई बाहर नहीं हुआ',
+    itsTieYou: 'आप बराबरी पर हैं!',
+    tieDescYou: 'आपके वोट दूसरे खिलाड़ी के साथ बराबर हैं — कोई बाहर नहीं हुआ',
     noEliminatedRound: 'इस राउंड में कोई बाहर नहीं हुआ',
     villagerWord: 'ग्रामीणों का शब्द',
     redHandedWord: 'भेदिया का शब्द',

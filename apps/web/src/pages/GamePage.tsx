@@ -381,6 +381,7 @@ export default function GamePage() {
   const [allVotedMsg, setAllVotedMsg] = useState(false)
   const [wordReveal, setWordReveal] = useState<{ villagerWord: string; redHandedWord: string } | null>(null)
   const [isTie, setIsTie] = useState(false)
+  const [tieIds, setTieIds] = useState<string[]>([])
   const [totalTime, setTotalTime] = useState(30)
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
   // Blind role mode hides the role at game start — the reveal card is still
@@ -529,6 +530,7 @@ export default function GamePage() {
       setEliminated(null)
       setWordReveal(null)
       setIsTie(false)
+      setTieIds([])
       setVoteCount(0)
       setTotalVoters(0)
       setAllVotedMsg(false)
@@ -622,6 +624,7 @@ export default function GamePage() {
         setEliminated(null)
         setWordReveal(null)
         setIsTie(false)
+        setTieIds([])
         setVoteCount(0)
         setAllVotedMsg(false)
       }
@@ -725,7 +728,10 @@ export default function GamePage() {
         }
       } else {
         // Check if it was a tie (votes were cast but no majority)
-        if (round?.votes?.length > 0) setIsTie(true)
+        if (round?.votes?.length > 0) {
+          setIsTie(true)
+          setTieIds((round as any)?.tiedPlayerIds ?? [])
+        }
       }
     })
 
@@ -2311,13 +2317,13 @@ export default function GamePage() {
                 ) : isTie ? (
                   <>
                     <p className="text-7xl mb-3" style={{ animation: 'role-drop 0.5s cubic-bezier(0.34,1.56,0.64,1) both' }}>
-                      🤝
+                      {user?.id && tieIds.includes(user.id) ? '🎯' : '🤝'}
                     </p>
                     <p className="text-white font-bold text-xl mb-1" style={{ animation: 'role-rise 0.4s ease 0.2s both' }}>
-                      {t('game.itsTie')}
+                      {user?.id && tieIds.includes(user.id) ? t('game.itsTieYou') : t('game.itsTie')}
                     </p>
                     <p className="text-neutral-400 text-sm" style={{ animation: 'role-rise 0.4s ease 0.35s both' }}>
-                      {t('game.tieDesc')}
+                      {user?.id && tieIds.includes(user.id) ? t('game.tieDescYou') : t('game.tieDesc')}
                     </p>
                   </>
                 ) : (

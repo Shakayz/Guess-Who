@@ -170,6 +170,7 @@ function buildRoundPayload(round: any) {
     eliminatedRole: round.eliminatedRole ?? null,
     eliminationReason: round.eliminationReason ?? undefined,
     wordReveal: round.wordReveal ?? null,
+    tiedPlayerIds: round.tiedPlayerIds ?? [],
   }
 }
 
@@ -1091,6 +1092,7 @@ async function _resolveRound(io: IO, roomId: string) {
     )
     currentRound.eliminatedPlayerId = null
     currentRound.eliminatedRole = null
+    currentRound.tiedPlayerIds = tiedPlayerIds
 
     // Persist votes to RoundVote table before tiebreaker (skip abstain votes)
     const dbRoundForTie = await prisma.round.findUnique({ where: { id: currentRound.id } }).catch(() => null)
@@ -1561,6 +1563,13 @@ async function finalizeTiebreakerElimination(
   let kamikazePending = false
 
   const currentRound = state.rounds?.[state.currentRound - 1]
+
+  // Stamp tied ids on the round so clients can differentiate the tie message
+  // for tied vs non-tied players. Safe to set regardless of outcome — when the
+  // tiebreaker resolves to an elimination, the UI branches on eliminated first.
+  if (currentRound) {
+    currentRound.tiedPlayerIds = state.tiebreakerPlayerIds ?? []
+  }
 
   if (eliminatedId) {
     const player = state.players.find((p: any) => p.userId === eliminatedId)

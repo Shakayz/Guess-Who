@@ -228,6 +228,8 @@ export default {
     twinPartnerBanner: 'Your twin: {{name}}',
     itsTie: "It's a tie!",
     tieDesc: 'Votes were split equally — no one is eliminated',
+    itsTieYou: "You're tied!",
+    tieDescYou: 'Your votes were tied with another player — no one is eliminated',
     noEliminatedRound: 'No one was eliminated this round',
     villagerWord: 'Villager Word',
     redHandedWord: 'Imposter Word',

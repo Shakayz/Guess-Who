@@ -174,6 +174,8 @@ export default {
     roleDetective: 'Detektiv',
     itsTie: 'Gleichstand!',
     tieDesc: 'Die Stimmen sind geteilt — niemand wird eliminiert',
+    itsTieYou: 'Du bist im Gleichstand!',
+    tieDescYou: 'Deine Stimmen sind gleichauf mit einem anderen Spieler — niemand wird eliminiert',
     noEliminatedRound: 'Niemand wurde in dieser Runde eliminiert',
     villagerWord: 'Wort der Dorfbewohner',
     redHandedWord: 'Wort der Hochstapler',

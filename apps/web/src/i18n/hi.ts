@@ -346,6 +346,8 @@ export default {
     roleDetective: 'जासूस',
     itsTie: 'बराबरी है!',
     tieDesc: 'वोट बराबर बंटे — कोई बाहर नहीं हुआ',
+    itsTieYou: 'आप बराबरी पर हैं!',
+    tieDescYou: 'आपके वोट दूसरे खिलाड़ी के साथ बराबर हैं — कोई बाहर नहीं हुआ',
     noEliminatedRound: 'इस राउंड में कोई बाहर नहीं हुआ',
     tiebreakerTitle: 'बराबरी! अतिरिक्त सुराग राउंड',
     tiebreakerDesc: '{{names}} बराबरी पर हैं — उन्हें एक और सुराग देना होगा',

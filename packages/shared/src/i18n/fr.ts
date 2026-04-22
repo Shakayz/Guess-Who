@@ -228,6 +228,8 @@ export default {
     twinPartnerBanner: 'Ton jumeau : {{name}}',
     itsTie: 'Égalité !',
     tieDesc: 'Les votes sont partagés — personne n\'est éliminé',
+    itsTieYou: 'Tu es à égalité !',
+    tieDescYou: 'Tes votes sont à égalité avec un autre joueur — personne n\'est éliminé',
     noEliminatedRound: "Personne n'a été éliminé cette manche",
     villagerWord: 'Mot des Villageois',
     redHandedWord: 'Mot des Imposteurs',

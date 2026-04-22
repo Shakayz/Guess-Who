@@ -339,6 +339,8 @@ export default {
     roleDetective: 'Detektiv',
     itsTie: 'Unentschieden!',
     tieDesc: 'Stimmen waren gleich verteilt — niemand scheidet aus',
+    itsTieYou: 'Du bist im Gleichstand!',
+    tieDescYou: 'Deine Stimmen sind gleichauf mit einem anderen Spieler — niemand scheidet aus',
     noEliminatedRound: 'Niemand ist diese Runde ausgeschieden',
     tiebreakerTitle: 'Unentschieden! Extra-Hinweis-Runde',
     tiebreakerDesc: '{{names}} sind gleichauf — sie müssen je einen weiteren Hinweis geben',
