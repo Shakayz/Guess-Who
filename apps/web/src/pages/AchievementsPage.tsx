@@ -44,6 +44,12 @@ export default function AchievementsPage() {
         old ? { ...old, starCoins: data.newBalance } : old,
       )
       queryClient.invalidateQueries({ queryKey: ['achievements-summary'] })
+      // NavBar keeps its own local state (not wired through react-query), so
+      // push the new balance to it directly — otherwise the chip stays stale
+      // until the next route change / game:finished event.
+      window.dispatchEvent(
+        new CustomEvent('wallet:balance', { detail: { starCoins: data.newBalance } }),
+      )
       // Trigger the burst animation over the claimed card
       setBurst({ key, stars: data.starsGranted })
     },

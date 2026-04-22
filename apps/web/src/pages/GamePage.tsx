@@ -10,6 +10,10 @@ import { createLogger } from '../lib/logger'
 import { SoundManager } from '../lib/sounds'
 import { VoiceChannel } from '../lib/webrtc'
 import { EliminationReveal } from '../components/EliminationReveal'
+import { FloatingEmote } from '../components/emotes/FloatingEmote'
+import { useEmotesStore } from '../store/emotes'
+import { getEmoteById, DEFAULT_LOADOUT, WORD_CATEGORIES, isRedHandedSideRole, isVillagerSideRole, isJesterRole } from '@red-handed/shared'
+import { findLanguage } from '../i18n/languages'
 // Overlays removed — they blocked gameplay and caused desync between players
 
 const log = createLogger('game-page')
@@ -18,7 +22,6 @@ type Phase = 'clues' | 'voting' | 'reveal'
 
 const PHASE_STEP_IDS: Phase[] = ['clues', 'voting', 'reveal']
 const PHASE_ICONS: Record<Phase, string> = { clues: '✏️', voting: '🗳', reveal: '📋' }
-const EMOTES = ['👍', '😮', '🤔', '😂', '😱']
 
 /** SVG circular countdown timer — visually prominent */
 const CircularTimer = memo(({ seconds, total, phase }: { seconds: number; total: number; phase: Phase }) => {
@@ -315,11 +318,33 @@ const PlayerClueHistoryModal = memo(({
   )
 })
 
+/** Small pill that shows the word's category (icon + localised label). Rendered
+ *  above every secret-word reveal so players know what theme the pair was drawn
+ *  from — otherwise a word like "Crane" could mean the bird or the machine. */
+function CategoryBadge({ categoryKey, className }: { categoryKey: string | null | undefined; className?: string }) {
+  const { t } = useTranslation()
+  if (!categoryKey) return null
+  const cat = WORD_CATEGORIES.find((c) => c.key === categoryKey)
+  if (!cat) return null
+  return (
+    <span
+      className={[
+        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest',
+        'bg-brand-950/60 border border-brand-700/40 text-brand-300',
+        className ?? '',
+      ].join(' ')}
+    >
+      <span>{cat.icon}</span>
+      <span>{t(`home.cat.${cat.key}`, cat.label)}</span>
+    </span>
+  )
+}
+
 export default function GamePage() {
   const { code } = useParams<{ code: string }>()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { room, currentRound, completedRounds, myRole, myWord, myVillagerWord, detectiveRevealUsed, guardianProtectUsed, guardianProtectedPlayer, mayorDoubleVoteUsed, mayorDoubleActive, inverterUsed, inverterActive, corruptorTargetUserId, twinPartner, revenantVotesRemaining, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setGuardianProtectUsed, setGuardianProtectedPlayer, setMayorDoubleActive, resetMayorDoubleActive, setInverterActive, resetInverterActive, setCorruptorTarget, setTwinPartner, setRevenantVotesRemaining, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
+  const { room, currentRound, completedRounds, myRole, myWord, myVillagerWord, myCategory, detectiveRevealUsed, guardianProtectUsed, guardianProtectedPlayer, mayorDoubleVoteUsed, mayorDoubleActive, inverterUsed, inverterActive, corruptorTargetUserId, twinPartner, twinMessages, twinUnread, addTwinMessage, clearTwinUnread, revenantVotesRemaining, revealedPlayer, messages, addMessage, setResult, setRound, addCompletedRound, setDetectiveRevealUsed, setGuardianProtectUsed, setGuardianProtectedPlayer, setMayorDoubleActive, resetMayorDoubleActive, setInverterActive, resetInverterActive, setCorruptorTarget, setTwinPartner, setRevenantVotesRemaining, setRevealedPlayer, setRoom, setRoleAndWord, result, reset } = useGameStore()
   const user = useAuthStore((s) => s.user)
   const [clueText, setClueText] = useState('')
   const [clues, setClues] = useState<Clue[]>([])
@@ -327,7 +352,19 @@ export default function GamePage() {
   const [deadChatInput, setDeadChatInput] = useState('')
   const [deadChatMessages, setDeadChatMessages] = useState<{ id: string; userId: string; username: string; text: string }[]>([])
   const [isEliminated, setIsEliminated] = useState(false)
-  const [floatingEmotes, setFloatingEmotes] = useState<{ id: string; emoji: string; username: string; x: number }[]>([])
+  const [floatingEmotes, setFloatingEmotes] = useState<{ id: string; emoteId?: string; emoji: string; username: string; x: number }[]>([])
+  const [emoteCooldownUntil, setEmoteCooldownUntil] = useState(0)
+  const [emoteNow, setEmoteNow] = useState(0)
+  const lastEmoteTime = useRef(0)
+  // Loadout comes from the server (so equipping on Profile takes effect in-game
+  // immediately on next mount). Falls back to the free basics if the fetch
+  // hasn't landed yet — don't want an empty React bar during a live match.
+  const emotesMe = useEmotesStore((s) => s.me)
+  const fetchEmotesMe = useEmotesStore((s) => s.fetchMe)
+  useEffect(() => { fetchEmotesMe() }, [fetchEmotesMe])
+  const activeLoadout = emotesMe?.loadout && emotesMe.loadout.length > 0
+    ? emotesMe.loadout
+    : [...DEFAULT_LOADOUT]
   const [phase, setPhase] = useState<Phase>('clues')
   const [votedFor, setVotedFor] = useState<string | null>(null)
   const [eliminated, setEliminated] = useState<{ username: string; role: string } | null>(null)
@@ -346,19 +383,42 @@ export default function GamePage() {
   const [isTie, setIsTie] = useState(false)
   const [totalTime, setTotalTime] = useState(30)
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false)
-  const [showRoleCard, setShowRoleCard] = useState(!!myRole)
+  // Blind role mode hides the role at game start — the reveal card is still
+  // shown (so the player gets a moment to read their word) but the role slot
+  // displays a "role hidden" placeholder instead of villager/imposter.
+  const blindMode = !!(room?.settings as any)?.blindMode && (room?.settings?.gameMode ?? 'normal') === 'normal'
+  const [showRoleCard, setShowRoleCard] = useState(!!myRole || (!!myWord && blindMode))
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null)
   const [tiebreakerActive, setTiebreakerActive] = useState(false)
   const [tiebreakerPlayerIds, setTiebreakerPlayerIds] = useState<string[]>([])
   const [tiebreakerUsernames, setTiebreakerUsernames] = useState<string[]>([])
   const [tiebreakerPhase, setTiebreakerPhase] = useState<'clue' | 'vote' | 'judge' | null>(null)
-  // Kamikaze post-death target picker. When kamikazePrompt is non-null, a full-screen
-  // modal lets the kamikaze pick a target from candidateUserIds.
-  const [kamikazePrompt, setKamikazePrompt] = useState<{ candidateUserIds: string[]; timeSeconds: number } | null>(null)
+  // Kamikaze post-death target picker. When kamikazePrompt is non-null:
+  // - if kamikazeUserId === me → picker modal with candidates + "Spare everyone"
+  // - else → passive "Kamikaze is choosing…" banner (no candidate leak)
+  const [kamikazePrompt, setKamikazePrompt] = useState<{
+    candidateUserIds: string[]
+    kamikazeUserId: string
+    kamikazeUsername: string
+    timeSeconds: number
+  } | null>(null)
   // Judge tiebreaker decision prompt. Only the judge sees this.
   const [judgePrompt, setJudgePrompt] = useState<{ candidateUserIds: string[]; candidateUsernames: string[]; timeSeconds: number } | null>(null)
-  // Corruptor target picker. Shown once at game start to the corruptor.
+  // Corruptor target picker. Opens on demand from the ability banner — the
+  // corruptor may swap plans mid-game, so picking is not gated to game start.
   const [showCorruptorPicker, setShowCorruptorPicker] = useState(false)
+  // Detective reveal picker. Same pattern as the corruptor — a banner button
+  // opens the picker at any moment, so the detective doesn't have to hunt
+  // through player pills/modals to use their one reveal.
+  const [showDetectivePicker, setShowDetectivePicker] = useState(false)
+  const [showGuardianPicker, setShowGuardianPicker] = useState(false)
+  // Evil Twins private DM channel — only rendered for the two twins.
+  const [twinChatOpen, setTwinChatOpen] = useState(false)
+  const [twinChatInput, setTwinChatInput] = useState('')
+  const twinChatEndRef = useRef<HTMLDivElement>(null)
+  const twinChatOpenRef = useRef(twinChatOpen)
+  useEffect(() => { twinChatOpenRef.current = twinChatOpen }, [twinChatOpen])
+  const isTwin = myRole === 'twin_villager' || myRole === 'twin_red_handed'
   // ── Vocal mode state ──────────────────────────────────────────────────────
   // `vocalMode` mirrors the room setting; when true the clue phase becomes a
   // turn-based "speak out loud" round (no text input). The per-turn speaker
@@ -457,10 +517,10 @@ export default function GamePage() {
     }
 
     // On game start, reset ALL UI state and set new role/word
-    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord }: any) => {
+    socket.on('game:started', ({ yourWord, yourRole, yourVillagerWord, yourCategory }: any) => {
       log.info('game started', { role: yourRole })
       SoundManager.play('game_start')
-      setRoleAndWord(yourRole, yourWord, yourVillagerWord)
+      setRoleAndWord(yourRole, yourWord, yourVillagerWord, yourCategory)
       setShowRoleCard(true)
       // Clear all per-round UI state from any previous game
       setClues([])
@@ -477,11 +537,10 @@ export default function GamePage() {
       setCurrentSpeakerId(null)
       phaseRef.current = 'clues'
       setPhase('clues')
-      // Corruptor: immediately show the target-picker modal on game start.
-      // The player has to pick their one target before the first clue phase matters.
-      if (yourRole === 'corruptor') {
-        setShowCorruptorPicker(true)
-      }
+      // Corruptor: the picker is *not* auto-opened — at game start there's no
+      // information yet about who's who, so forcing a blind pick is bad UX.
+      // The corruptor taps the "Pick" button in the ability banner whenever
+      // they're ready (vote phase reveals who looks suspicious).
     })
 
     // Full phase sync on reconnect — restores timer, clues, votes, speaking order and tiebreaker state
@@ -698,9 +757,14 @@ export default function GamePage() {
       setCorruptorTarget(targetUserId)
       setShowCorruptorPicker(false)
     })
-    socket.on('kamikaze:select-prompt' as any, ({ candidateUserIds, timeSeconds }: any) => {
-      log.info('kamikaze prompt received', { candidateUserIds })
-      setKamikazePrompt({ candidateUserIds: candidateUserIds ?? [], timeSeconds: timeSeconds ?? 15 })
+    socket.on('kamikaze:select-prompt' as any, ({ candidateUserIds, kamikazeUserId, kamikazeUsername, timeSeconds }: any) => {
+      log.info('kamikaze prompt received', { candidateUserIds, kamikazeUserId })
+      setKamikazePrompt({
+        candidateUserIds: candidateUserIds ?? [],
+        kamikazeUserId: kamikazeUserId ?? '',
+        kamikazeUsername: kamikazeUsername ?? '',
+        timeSeconds: timeSeconds ?? 15,
+      })
     })
     socket.on('kamikaze:target-chosen' as any, ({ kamikazeUserId, targetUserId, targetUsername }: any) => {
       log.info('kamikaze target chosen', { kamikazeUserId, targetUserId, targetUsername })
@@ -722,6 +786,14 @@ export default function GamePage() {
     socket.on('twin:partner' as any, ({ twinUserId, twinUsername, twinRole }: any) => {
       log.info('twin partner revealed', { twinUserId, twinUsername, twinRole })
       setTwinPartner({ twinUserId, twinUsername, twinRole })
+    })
+    // Evil Twins private DM. Server delivers to both twins' `user:${id}` rooms
+    // only — never broadcast — so bystanders can't intercept. Increment the
+    // unread badge only for inbound messages when the chat panel is closed.
+    socket.on('twin:message' as any, (msg: any) => {
+      const incoming = msg?.userId !== user?.id
+      addTwinMessage(msg, { incrementUnread: incoming && !twinChatOpenRef.current })
+      if (incoming) SoundManager.play('chat_message')
     })
     socket.on('round:word-said' as any, ({ playerId, username, role }: any) => {
       if (room) {
@@ -759,6 +831,14 @@ export default function GamePage() {
         navigate(`/results/${code}`)
       }
     })
+    socket.on('player:connection-changed' as any, ({ userId: uid, disconnected }: { userId: string; disconnected: boolean }) => {
+      const current = useGameStore.getState().room
+      if (!current) return
+      setRoom({
+        ...current,
+        players: current.players.map((p: any) => p.userId === uid ? { ...p, disconnected } : p),
+      } as any)
+    })
     socket.on('error', (err: any) => {
       log.error('socket error', { code: err?.code, message: err?.message })
     })
@@ -766,12 +846,15 @@ export default function GamePage() {
       if (msg?.userId !== user?.id) SoundManager.play('chat_message')
       addMessage(msg)
     })
-    socket.on('emote:receive' as any, ({ username, emoji }: { username: string; emoji: string }) => {
+    socket.on('emote:receive' as any, ({ username, emoji, emoteId }: { username: string; emoji: string; emoteId?: string }) => {
       const id = `${Date.now()}_${Math.random()}`
       const x = 10 + Math.random() * 80
-      setFloatingEmotes((prev) => prev.length >= 20 ? prev : [...prev, { id, emoji, username, x }])
+      setFloatingEmotes((prev) => prev.length >= 20 ? prev : [...prev, { id, emoteId, emoji, username, x }])
       const tid = setTimeout(() => setFloatingEmotes((prev) => prev.filter((e) => e.id !== id)), 2800)
       timeoutRefs.current.push(tid)
+    })
+    socket.on('emote:cooldown' as any, ({ until }: { until: number }) => {
+      setEmoteCooldownUntil((prev) => (until > prev ? until : prev))
     })
 
     // Register all handlers BEFORE emitting room:join so we don't miss the response
@@ -796,10 +879,12 @@ export default function GamePage() {
       socket.off('round:tiebreaker-voting' as any)
       socket.off('game:finished')
       socket.off('room:updated')
+      socket.off('player:connection-changed' as any)
       socket.off('error')
       socket.off('chat:message')
       socket.off('deadchat:message' as any)
       socket.off('emote:receive' as any)
+      socket.off('emote:cooldown' as any)
       socket.off('detective:result')
       socket.off('guardian:protect-ack' as any)
       socket.off('guardian:protection-triggered' as any)
@@ -811,6 +896,7 @@ export default function GamePage() {
       socket.off('judge:decide-prompt' as any)
       socket.off('judge:decided' as any)
       socket.off('twin:partner' as any)
+      socket.off('twin:message' as any)
       socket.off('round:word-said' as any)
       socket.off('vote:update' as any)
       socket.off('vote:all-cast' as any)
@@ -823,6 +909,12 @@ export default function GamePage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, deadChatMessages])
+
+  // Auto-scroll twin DM to the newest message when open or on new arrivals.
+  useEffect(() => {
+    if (!twinChatOpen) return
+    twinChatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [twinMessages, twinChatOpen])
 
   // ── Voice channel: request mic + open peer mesh ────────────────────────
   // We do NOT auto-start the channel — browsers gate getUserMedia on a user
@@ -876,11 +968,11 @@ export default function GamePage() {
     if (room?.status === 'finished' || room?.status === 'waiting') stopVoice()
   }, [room?.status, stopVoice])
 
-  // Auto-mute the local mic when it's not our turn to speak. The user can
-  // override via the mute button (`voiceMutedManually`), in which case their
-  // explicit choice wins. We only enforce the auto behaviour during the
-  // vocal clue phase — at all other times the mic stays open so peers can
-  // still hear ambient reactions during voting / reveal.
+  // Auto-mute the local mic based on game phase in vocal mode. Players can
+  // only speak when it's their turn during clues, and during the reveal
+  // (end-of-round result). Voting keeps every mic muted so players can't
+  // influence each other. The manual mute button always wins — players can
+  // silence themselves at any time regardless of the auto state.
   useEffect(() => {
     const vc = voiceChannelRef.current
     if (!vc || voiceStatus !== 'connected') return
@@ -888,9 +980,14 @@ export default function GamePage() {
       vc.setMicEnabled(false)
       return
     }
-    if (phase === 'clues' && vocalMode && vocalSpeakerId) {
-      const isMyTurn = vocalSpeakerId === user?.id
-      vc.setMicEnabled(isMyTurn)
+    if (vocalMode) {
+      if (phase === 'clues') {
+        vc.setMicEnabled(!!vocalSpeakerId && vocalSpeakerId === user?.id)
+      } else if (phase === 'voting') {
+        vc.setMicEnabled(false)
+      } else {
+        vc.setMicEnabled(true)
+      }
     } else {
       vc.setMicEnabled(true)
     }
@@ -917,6 +1014,15 @@ export default function GamePage() {
     getSocket().emit('vote:cast', playerId)
   }
 
+  const skipVote = () => {
+    if (votedFor || phase !== 'voting') return
+    if (tiebreakerActive) return
+    log.info('vote skipped')
+    SoundManager.play('vote')
+    setVotedFor('__skip__')
+    getSocket().emit('vote:cast', null)
+  }
+
   const sendChat = (e: React.FormEvent) => {
     e.preventDefault()
     if (!chatInput.trim()) return
@@ -924,9 +1030,20 @@ export default function GamePage() {
     setChatInput('')
   }
 
-  const sendEmote = (emoji: string) => {
-    getSocket().emit('emote:send' as any, { emoji })
+  const sendEmote = (emoteId: string) => {
+    const now = Date.now()
+    if (now < emoteCooldownUntil) return
+    if (now - lastEmoteTime.current < 1000) return
+    lastEmoteTime.current = now
+    getSocket().emit('emote:send' as any, { emoteId })
   }
+
+  // Tick while a server lockout is active so disabled buttons re-enable.
+  useEffect(() => {
+    if (emoteCooldownUntil <= Date.now()) return
+    const id = setInterval(() => setEmoteNow(Date.now()), 250)
+    return () => clearInterval(id)
+  }, [emoteCooldownUntil])
 
   const sendDeadChat = (e: React.FormEvent) => {
     e.preventDefault()
@@ -987,6 +1104,118 @@ export default function GamePage() {
   }
   const roleInfo = ROLE_CONFIG[myRole ?? 'villager'] ?? ROLE_CONFIG.villager
 
+  // Camp (team) derivation — shown in the word-card role chip for special/ranked modes,
+  // where knowing the role alone isn't enough to infer the winning team.
+  const gameMode = room?.settings?.gameMode ?? 'normal'
+  const showCamp = gameMode !== 'normal'
+  const camp: 'villager' | 'red_handed' | 'jester' | null =
+    myRole && isRedHandedSideRole(myRole as any) ? 'red_handed'
+    : myRole && isVillagerSideRole(myRole as any) ? 'villager'
+    : myRole && isJesterRole(myRole as any) ? 'jester'
+    : null
+  const CAMP_META: Record<'villager' | 'red_handed' | 'jester', { label: string; color: string; ring: string; dot: string }> = {
+    villager:   { label: t('game.campVillager', 'Villagers'),  color: 'text-emerald-400', ring: 'ring-emerald-700/40', dot: 'bg-emerald-500' },
+    red_handed: { label: t('game.campRedHanded', 'Imposters'), color: 'text-red-400',     ring: 'ring-red-700/40',     dot: 'bg-red-500' },
+    jester:     { label: t('game.campJester', 'Solo'),         color: 'text-pink-400',    ring: 'ring-pink-700/40',    dot: 'bg-pink-500' },
+  }
+
+  // Mic controls shown inside the vocal clue card and as a standalone banner
+  // during voting / reveal so players can always mute themselves.
+  const voiceControlsBlock = (
+    <>
+      {voiceStatus === 'idle' && (
+        <button
+          type="button"
+          onClick={startVoice}
+          className="w-full px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+        >
+          <span>🎙️</span>
+          <span>{t('game.voiceEnable', 'Enable microphone')}</span>
+        </button>
+      )}
+      {voiceStatus === 'requesting' && (
+        <p className="text-xs text-neutral-400 text-center py-2">
+          {t('game.voiceRequesting', 'Requesting microphone permission...')}
+        </p>
+      )}
+      {voiceStatus === 'denied' && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-amber-400 flex-1">
+            {t('game.voiceDenied', 'Mic permission denied. Allow it in your browser settings, then retry.')}
+          </p>
+          <button
+            type="button"
+            onClick={startVoice}
+            className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
+          >
+            {t('game.voiceRetry', 'Retry')}
+          </button>
+        </div>
+      )}
+      {voiceStatus === 'unsupported' && (
+        <p className="text-xs text-neutral-500 text-center py-1">
+          {t('game.voiceUnsupported', 'Audio streaming is not supported in this browser.')}
+        </p>
+      )}
+      {voiceStatus === 'error' && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-red-400 flex-1">
+            {t('game.voiceError', 'Microphone capture failed.')}
+          </p>
+          <button
+            type="button"
+            onClick={startVoice}
+            className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
+          >
+            {t('game.voiceRetry', 'Retry')}
+          </button>
+        </div>
+      )}
+      {voiceStatus === 'connected' && (() => {
+        const autoMicLive = !voiceMutedManually && (
+          vocalMode
+            ? phase === 'clues'
+              ? !!vocalSpeakerId && vocalSpeakerId === user?.id
+              : phase !== 'voting'
+            : true
+        )
+        return (
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-neutral-400">
+              <span className={[
+                'w-2 h-2 rounded-full',
+                autoMicLive ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-600',
+              ].join(' ')} />
+              <span>
+                {autoMicLive
+                  ? t('game.voiceMicLive', 'Mic live')
+                  : t('game.voiceMicMuted', 'Mic muted')}
+              </span>
+              <span className="text-neutral-600">·</span>
+              <span>
+                {t('game.voicePeerCount', '{{count}} connected', { count: voicePeerCount })}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setVoiceMutedManually((m) => !m)}
+              aria-pressed={voiceMutedManually}
+              aria-label={voiceMutedManually ? 'Unmute microphone' : 'Mute microphone'}
+              className={[
+                'px-2 py-1 rounded text-xs font-medium transition-colors',
+                voiceMutedManually
+                  ? 'bg-red-600/20 text-red-300 hover:bg-red-600/30'
+                  : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700',
+              ].join(' ')}
+            >
+              {voiceMutedManually ? t('game.voiceUnmute', 'Unmute') : t('game.voiceMute', 'Mute')}
+            </button>
+          </div>
+        )
+      })()}
+    </>
+  )
+
   return (
     <div id="main-content" role="main" className="min-h-screen flex flex-col md:flex-row">
       {/* ── Player clue history modal ── */}
@@ -1014,7 +1243,7 @@ export default function GamePage() {
       )}
 
       {/* ── Role reveal overlay ── */}
-      {showRoleCard && myRole && (
+      {showRoleCard && (myRole || blindMode) && (
         <>
           <style>{`
             @keyframes role-drop { 0% { transform: translateY(-60px) scale(0.7); opacity: 0; } 60% { transform: translateY(8px) scale(1.05); } 100% { transform: translateY(0) scale(1); opacity: 1; } }
@@ -1083,24 +1312,33 @@ export default function GamePage() {
                     filter: 'drop-shadow(0 6px 20px rgba(139,92,246,0.55))',
                   }}
                 >
-                  {roleInfo.icon}
+                  {myRole ? roleInfo.icon : '🙈'}
                 </div>
                 <p
-                  className={['text-xs font-bold uppercase tracking-[0.3em] mt-4', roleInfo.color].join(' ')}
+                  className={['text-xs font-bold uppercase tracking-[0.3em] mt-4', myRole ? roleInfo.color : 'text-neutral-400'].join(' ')}
                   style={{ animation: 'role-rise 0.4s ease 0.5s both' }}
                 >
-                  {t('game.yourRole', 'YOUR ROLE')}
+                  {myRole ? t('game.yourRole', 'YOUR ROLE') : t('game.roleHiddenLabel', 'ROLE HIDDEN')}
                 </p>
                 <h1
-                  className={['text-4xl sm:text-5xl font-black tracking-tight mt-1', roleInfo.color].join(' ')}
+                  className={['text-4xl sm:text-5xl font-black tracking-tight mt-1', myRole ? roleInfo.color : 'text-neutral-200'].join(' ')}
                   style={{
                     animation: 'role-rise 0.4s ease 0.6s both',
                     textShadow: '0 0 28px rgba(139,92,246,0.55)',
                   }}
                 >
-                  {roleInfo.label}
+                  {myRole ? roleInfo.label : t('game.blindModeTitle', 'Guess who you are')}
                 </h1>
-                <div className="mt-5" style={{ animation: 'role-rise 0.4s ease 0.75s both' }}>
+                {!myRole && (
+                  <p
+                    className="text-xs text-neutral-500 mt-2 max-w-xs mx-auto"
+                    style={{ animation: 'role-rise 0.4s ease 0.65s both' }}
+                  >
+                    {t('game.blindModeHint', 'Your role is a secret — even to you. It will be revealed when you are eliminated or when the game ends.')}
+                  </p>
+                )}
+                <div className="mt-5 flex flex-col items-center gap-2" style={{ animation: 'role-rise 0.4s ease 0.75s both' }}>
+                  <CategoryBadge categoryKey={myCategory} />
                   {myVillagerWord ? (
                     <div className="flex gap-3 justify-center">
                       <div className="rounded-xl bg-emerald-950/60 border border-emerald-800/40 px-4 py-2 text-center hover:scale-105 transition-transform">
@@ -1128,14 +1366,91 @@ export default function GamePage() {
         </>
       )}
 
-      {/* ── Corruptor target picker modal — shown once at game start ── */}
+      {/* ── Detective reveal picker modal — opened on demand from the banner.
+          Confirmation-style: clicking a name fires `detective:reveal` and
+          closes the modal. The server enforces the one-shot guard. ── */}
+      {showDetectivePicker && myRole === 'detective' && !detectiveRevealUsed && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-neutral-900 border border-blue-800/60 p-6 shadow-2xl">
+            <div className="text-center mb-4">
+              <div className="text-5xl mb-2">🔍</div>
+              <h2 className="text-xl font-black text-blue-400">{t('game.detectiveRevealTitle', 'Reveal an Identity')}</h2>
+              <p className="text-xs text-neutral-500 mt-2">{t('game.detectiveRevealDesc', 'Pick a player — their role will be shown only to you. One-shot.')}</p>
+            </div>
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {players
+                .filter((p) => p.userId !== user?.id && p.status === 'alive')
+                .map((p) => (
+                  <button
+                    key={p.userId}
+                    onClick={() => {
+                      log.info('detective revealing', { targetUserId: p.userId })
+                      getSocket().emit('detective:reveal', { targetUserId: p.userId })
+                      setShowDetectivePicker(false)
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-neutral-800 hover:bg-blue-950/60 border border-neutral-700 hover:border-blue-700 text-left text-sm font-semibold text-white transition-all"
+                  >
+                    {getDisplayName(p.userId, p.username)}
+                  </button>
+                ))}
+            </div>
+            <button
+              onClick={() => setShowDetectivePicker(false)}
+              className="mt-4 w-full px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-semibold text-neutral-400 transition-all"
+            >
+              {t('game.detectiveLater', 'Not yet — decide later')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Guardian protect picker modal — opens from the vote panel button.
+          Clicking a name fires `guardian:protect` and closes the modal. The
+          server enforces one-shot + alive checks. ── */}
+      {showGuardianPicker && myRole === 'guardian' && !guardianProtectUsed && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-neutral-900 border border-yellow-800/60 p-6 shadow-2xl">
+            <div className="text-center mb-4">
+              <div className="text-5xl mb-2">🛡️</div>
+              <h2 className="text-xl font-black text-yellow-400">{t('game.guardianProtectBtn')}</h2>
+              <p className="text-xs text-neutral-500 mt-2">{t('game.guardianAvailable')}</p>
+            </div>
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {players
+                .filter((p) => p.userId !== user?.id && p.status === 'alive')
+                .map((p) => (
+                  <button
+                    key={p.userId}
+                    onClick={() => {
+                      log.info('guardian protecting', { targetUserId: p.userId })
+                      getSocket().emit('guardian:protect' as any, { targetUserId: p.userId })
+                      setShowGuardianPicker(false)
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-neutral-800 hover:bg-yellow-950/60 border border-neutral-700 hover:border-yellow-700 text-left text-sm font-semibold text-white transition-all flex items-center gap-2"
+                  >
+                    <span>🛡️</span>
+                    <span>{getDisplayName(p.userId, p.username)}</span>
+                  </button>
+                ))}
+            </div>
+            <button
+              onClick={() => setShowGuardianPicker(false)}
+              className="mt-4 w-full px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-semibold text-neutral-400 transition-all"
+            >
+              {t('game.detectiveLater', 'Not yet — decide later')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Corruptor target picker modal — opened on demand from the banner ── */}
       {showCorruptorPicker && myRole === 'corruptor' && !corruptorTargetUserId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl bg-neutral-900 border border-orange-800/60 p-6 shadow-2xl">
             <div className="text-center mb-4">
               <div className="text-5xl mb-2">🕷️</div>
               <h2 className="text-xl font-black text-orange-400">{t('game.corruptorPickTitle', 'Pick Your Target')}</h2>
-              <p className="text-xs text-neutral-500 mt-2">{t('game.corruptorPickDesc', 'Their votes will be silently dropped until you die.')}</p>
+              <p className="text-xs text-neutral-500 mt-2">{t('game.corruptorPickDesc', 'Their votes will be silently dropped until you die. One-shot — choose wisely.')}</p>
             </div>
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {players
@@ -1153,19 +1468,28 @@ export default function GamePage() {
                   </button>
                 ))}
             </div>
+            <button
+              onClick={() => setShowCorruptorPicker(false)}
+              className="mt-4 w-full px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-semibold text-neutral-400 transition-all"
+            >
+              {t('game.corruptorLater', 'Not yet — decide later')}
+            </button>
           </div>
         </div>
       )}
 
-      {/* ── Kamikaze post-death target picker modal ── */}
-      {kamikazePrompt && (
+      {/* ── Kamikaze post-death modal ──
+          Two branches so we never leak candidates to bystanders:
+          • the kamikaze sees the picker + "Spare everyone"
+          • everyone else sees a passive waiting banner with no names */}
+      {kamikazePrompt && kamikazePrompt.kamikazeUserId === user?.id && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl bg-neutral-900 border border-red-800/60 p-6 shadow-2xl animate-pulse">
             <div className="text-center mb-4">
               <div className="text-5xl mb-2">💥</div>
               <h2 className="text-xl font-black text-red-400">{t('game.kamikazePickTitle', 'Take Someone With You')}</h2>
               <p className="text-xs text-neutral-500 mt-2">
-                {t('game.kamikazePickDesc', 'Pick a player to eliminate alongside you. Choose quickly!')}
+                {t('game.kamikazePickDesc', 'Pick a player to eliminate alongside you — or spare them all.')}
               </p>
             </div>
             <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -1184,6 +1508,113 @@ export default function GamePage() {
                   </button>
                 ))}
             </div>
+            <button
+              onClick={() => {
+                log.info('kamikaze sparing everyone')
+                getSocket().emit('kamikaze:skip' as any)
+              }}
+              className="mt-4 w-full px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-sm font-semibold text-neutral-300 transition-all"
+            >
+              {t('game.kamikazeSkipBtn', 'Spare everyone')}
+            </button>
+          </div>
+        </div>
+      )}
+      {kamikazePrompt && kamikazePrompt.kamikazeUserId !== user?.id && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 pointer-events-none">
+          <div className="w-full max-w-md rounded-2xl bg-neutral-900 border border-red-900/60 p-6 shadow-2xl text-center">
+            <div className="text-5xl mb-2 animate-pulse">💥</div>
+            <h2 className="text-lg font-black text-red-400">
+              {t('game.kamikazeWaitingTitle', 'The Kamikaze was eliminated')}
+            </h2>
+            <p className="text-xs text-neutral-400 mt-2">
+              {t('game.kamikazeWaitingDesc', { name: kamikazePrompt.kamikazeUsername, defaultValue: '{{name}} is deciding whether to take someone with them…' })}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Evil Twins private DM panel ──
+          Only the two twins ever mount this. Messages travel user-to-user on
+          the server (never broadcast), so there's no eavesdropping surface. */}
+      {isTwin && twinChatOpen && twinPartner && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:justify-end bg-black/40 backdrop-blur-[2px] p-0 sm:p-4">
+          <div
+            className="w-full sm:max-w-sm h-[70vh] sm:h-[520px] flex flex-col rounded-t-2xl sm:rounded-2xl bg-neutral-950 border border-purple-700/60 shadow-2xl shadow-purple-950/40 overflow-hidden animate-slide-up"
+            role="dialog"
+            aria-label={t('game.twinChatAria', 'Evil Twins private chat')}
+          >
+            <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-950/80 to-fuchsia-950/80 border-b border-purple-800/50">
+              <span className="text-xl">👯</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-purple-300 uppercase tracking-wider">
+                  {t('game.twinChatTitle', 'Twin Link')}
+                </p>
+                <p className="text-sm font-semibold text-white truncate">
+                  {twinPartner.twinUsername}
+                </p>
+              </div>
+              <button
+                onClick={() => setTwinChatOpen(false)}
+                className="w-8 h-8 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white flex items-center justify-center transition-colors"
+                aria-label={t('common.close', 'Close')}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 bg-neutral-950">
+              {twinMessages.length === 0 ? (
+                <p className="text-xs text-neutral-600 italic text-center py-8">
+                  {t('game.twinChatEmpty', 'No messages yet. Coordinate with your twin — stay in sync.')}
+                </p>
+              ) : (
+                twinMessages.map((m) => {
+                  const mine = m.userId === user?.id
+                  return (
+                    <div key={m.id} className={['flex', mine ? 'justify-end' : 'justify-start'].join(' ')}>
+                      <div
+                        className={[
+                          'max-w-[75%] px-3 py-2 rounded-2xl text-sm break-words',
+                          mine
+                            ? 'bg-purple-700/70 text-white rounded-br-sm'
+                            : 'bg-neutral-800 text-purple-100 rounded-bl-sm border border-purple-900/40',
+                        ].join(' ')}
+                      >
+                        {m.text}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+              <div ref={twinChatEndRef} />
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                const text = twinChatInput.trim()
+                if (!text) return
+                getSocket().emit('twin:send' as any, { text })
+                setTwinChatInput('')
+              }}
+              className="flex items-center gap-2 px-3 py-3 bg-neutral-900 border-t border-purple-900/40"
+            >
+              <input
+                type="text"
+                value={twinChatInput}
+                onChange={(e) => setTwinChatInput(e.target.value)}
+                maxLength={200}
+                placeholder={t('game.twinChatPlaceholder', 'Whisper to your twin…')}
+                className="flex-1 px-3 py-2 rounded-xl bg-neutral-800 border border-purple-900/40 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-purple-600/60"
+                autoFocus
+              />
+              <button
+                type="submit"
+                disabled={!twinChatInput.trim()}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:bg-neutral-800 disabled:text-neutral-600 text-white text-sm font-bold transition-colors"
+              >
+                {t('game.twinChatSend', 'Send')}
+              </button>
+            </form>
           </div>
         </div>
       )}
@@ -1223,16 +1654,17 @@ export default function GamePage() {
       {/* ── Main game area ── */}
       <div className="relative flex-1 flex flex-col p-4 md:p-6 lg:p-8 gap-4 overflow-y-auto">
 
-        {/* Floating emote reactions */}
+        {/* Floating emote reactions — rarity-aware renderer adds halos,
+            entrance animations, and particle bursts based on the emote's
+            catalog entry. See components/emotes/FloatingEmote.tsx. */}
         {floatingEmotes.map((e) => (
-          <div
+          <FloatingEmote
             key={e.id}
-            className="pointer-events-none absolute bottom-20 z-50 flex flex-col items-center animate-float-up"
-            style={{ left: `${e.x}%` }}
-          >
-            <span className="text-3xl drop-shadow-lg">{e.emoji}</span>
-            <span className="text-[10px] text-white/70 font-semibold mt-0.5 bg-black/40 px-1.5 py-0.5 rounded-full">{e.username}</span>
-          </div>
+            emoteId={e.emoteId}
+            emoji={e.emoji}
+            username={e.username}
+            x={e.x}
+          />
         ))}
 
         {/* Detective role reveal — small non-blocking toast */}
@@ -1294,8 +1726,43 @@ export default function GamePage() {
                     </span>
                   )}
                 </div>
-                <span className="text-xs text-neutral-500">
-                  {t('game.aliveCount', { count: alivePlayers.length })} · {t('game.roundNumber', { number: currentRound?.roundNumber ?? 1 })}
+                <span className="text-xs text-neutral-500 flex items-center gap-1.5 flex-wrap">
+                  <span>{t('game.aliveCount', { count: alivePlayers.length })}</span>
+                  <span>·</span>
+                  <span>{t('game.roundNumber', { number: currentRound?.roundNumber ?? 1 })}</span>
+                  {(() => {
+                    const gm = (room?.settings as any)?.gameMode as 'normal' | 'special' | 'ranked' | undefined
+                    if (!gm) return null
+                    const modeLabel =
+                      gm === 'ranked' ? `🏆 ${t('lobby.rankedLabel', 'Ranked')}`
+                      : gm === 'special' ? `✨ ${t('lobby.special', 'Special')}`
+                      : `🎮 ${t('lobby.normal', 'Normal')}`
+                    const color = gm === 'ranked' ? 'text-amber-400' : gm === 'special' ? 'text-purple-400' : 'text-brand-400'
+                    return (
+                      <>
+                        <span>·</span>
+                        <span className={`${color} font-semibold`}>{modeLabel}</span>
+                      </>
+                    )
+                  })()}
+                  {(() => {
+                    const langCode = (room?.settings as any)?.language as string | undefined
+                    if (!langCode) return null
+                    const lang = findLanguage(langCode)
+                    return (
+                      <>
+                        <span>·</span>
+                        <span className="inline-flex items-center gap-1">
+                          <img
+                            src={`https://flagcdn.com/w20/${lang.country}.png`}
+                            alt=""
+                            className="w-4 h-3 object-cover rounded-sm"
+                          />
+                          <span>{lang.label}</span>
+                        </span>
+                      </>
+                    )
+                  })()}
                 </span>
               </div>
             </div>
@@ -1338,11 +1805,12 @@ export default function GamePage() {
           {myVillagerWord ? (
             /* Double agent: two word chips */
             <div className="relative">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <span className="text-lg">🎭</span>
                 <p className="text-xs font-semibold uppercase tracking-widest text-orange-500">
                   {t('game.roleDoubleAgent')}
                 </p>
+                <CategoryBadge categoryKey={myCategory} className="ml-auto" />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-xl bg-emerald-950/40 border border-emerald-800/40 p-3 shadow-sm shadow-emerald-950/40">
@@ -1357,21 +1825,40 @@ export default function GamePage() {
               <p className="text-xs text-neutral-600 mt-2">{t('game.giveClueHint')}</p>
             </div>
           ) : (
-            <div className="relative flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl shrink-0 bg-brand-950/50 border border-brand-800/40 shadow-sm shadow-brand-950/40">
-                🔤
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-0.5">
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
                   {t('game.yourWordLabel')}
                 </p>
-                <p className="text-3xl font-extrabold tracking-tight text-white" style={{ textShadow: '0 0 20px rgba(139,92,246,0.3)' }}>
-                  {myWord ?? '???'}
-                </p>
-                <p className="text-xs text-neutral-600 mt-0.5">
-                  {t('game.giveClueHint')}
-                </p>
+                <CategoryBadge categoryKey={myCategory} />
+                {myRole ? (
+                  <span className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${showCamp && camp ? CAMP_META[camp].ring : 'ring-neutral-700/40'} bg-neutral-900/60`}>
+                    {showCamp && camp && (
+                      <>
+                        <span className={`w-1.5 h-1.5 rounded-full ${CAMP_META[camp].dot}`} />
+                        <span className={CAMP_META[camp].color}>{CAMP_META[camp].label}</span>
+                        <span className="text-neutral-600">·</span>
+                      </>
+                    )}
+                    <span>{roleInfo.icon}</span>
+                    <span className={roleInfo.color}>{roleInfo.label}</span>
+                  </span>
+                ) : blindMode ? (
+                  <span
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-neutral-700/40 bg-neutral-900/60 text-neutral-400"
+                    title={t('game.blindModeHint', 'Your role is a secret — even to you. It will be revealed when you are eliminated or when the game ends.')}
+                  >
+                    <span>🙈</span>
+                    <span>{t('game.roleHiddenLabel', 'ROLE HIDDEN')}</span>
+                  </span>
+                ) : null}
               </div>
+              <p className="text-3xl font-extrabold tracking-tight text-white" style={{ textShadow: '0 0 20px rgba(139,92,246,0.3)' }}>
+                {myWord ?? '???'}
+              </p>
+              <p className="text-xs text-neutral-600 mt-0.5">
+                {t('game.giveClueHint')}
+              </p>
             </div>
           )}
         </div>
@@ -1430,7 +1917,7 @@ export default function GamePage() {
                 </div>
                 {speaker ? (
                   <div className="flex items-center gap-3 mb-3">
-                    <Avatar username={speaker.username} size="md" />
+                    <Avatar src={speaker.avatarUrl} username={speaker.username} size="md" />
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-bold truncate">
                         {isMyTurn
@@ -1451,94 +1938,7 @@ export default function GamePage() {
                 )}
                 {/* ── Microphone controls (real audio streaming) ───────── */}
                 <div className="mt-3 mb-3 pt-3 border-t border-neutral-800/60">
-                  {voiceStatus === 'idle' && (
-                    <button
-                      type="button"
-                      onClick={startVoice}
-                      className="w-full px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <span>🎙️</span>
-                      <span>{t('game.voiceEnable', 'Enable microphone')}</span>
-                    </button>
-                  )}
-                  {voiceStatus === 'requesting' && (
-                    <p className="text-xs text-neutral-400 text-center py-2">
-                      {t('game.voiceRequesting', 'Requesting microphone permission...')}
-                    </p>
-                  )}
-                  {voiceStatus === 'denied' && (
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-amber-400 flex-1">
-                        {t('game.voiceDenied', 'Mic permission denied. Allow it in your browser settings, then retry.')}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={startVoice}
-                        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
-                      >
-                        {t('game.voiceRetry', 'Retry')}
-                      </button>
-                    </div>
-                  )}
-                  {voiceStatus === 'unsupported' && (
-                    <p className="text-xs text-neutral-500 text-center py-1">
-                      {t('game.voiceUnsupported', 'Audio streaming is not supported in this browser.')}
-                    </p>
-                  )}
-                  {voiceStatus === 'error' && (
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-red-400 flex-1">
-                        {t('game.voiceError', 'Microphone capture failed.')}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={startVoice}
-                        className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-xs text-white"
-                      >
-                        {t('game.voiceRetry', 'Retry')}
-                      </button>
-                    </div>
-                  )}
-                  {voiceStatus === 'connected' && (() => {
-                    // Mic is "live" when track is enabled. We mirror the same
-                    // logic the auto-mute effect uses to decide what to show.
-                    const autoMicLive = !voiceMutedManually && (
-                      !(phase === 'clues' && vocalMode && vocalSpeakerId) || vocalSpeakerId === user?.id
-                    )
-                    return (
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-xs text-neutral-400">
-                          <span className={[
-                            'w-2 h-2 rounded-full',
-                            autoMicLive ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-600',
-                          ].join(' ')} />
-                          <span>
-                            {autoMicLive
-                              ? t('game.voiceMicLive', 'Mic live')
-                              : t('game.voiceMicMuted', 'Mic muted')}
-                          </span>
-                          <span className="text-neutral-600">·</span>
-                          <span>
-                            {t('game.voicePeerCount', '{{count}} connected', { count: voicePeerCount })}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setVoiceMutedManually((m) => !m)}
-                          aria-pressed={voiceMutedManually}
-                          aria-label={voiceMutedManually ? 'Unmute microphone' : 'Mute microphone'}
-                          className={[
-                            'px-2 py-1 rounded text-xs font-medium transition-colors',
-                            voiceMutedManually
-                              ? 'bg-red-600/20 text-red-300 hover:bg-red-600/30'
-                              : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700',
-                          ].join(' ')}
-                        >
-                          {voiceMutedManually ? t('game.voiceUnmute', 'Unmute') : t('game.voiceMute', 'Mute')}
-                        </button>
-                      </div>
-                    )
-                  })()}
+                  {voiceControlsBlock}
                 </div>
                 {isMyTurn && (
                   <button
@@ -1593,6 +1993,14 @@ export default function GamePage() {
           </div>
         )}
 
+        {/* Mic controls during voting / reveal (vocal mode) — lets players
+            see their auto-mute state and manually toggle their own mic. */}
+        {vocalMode && (phase === 'voting' || phase === 'reveal') && !isEliminated && (
+          <div className="card">
+            {voiceControlsBlock}
+          </div>
+        )}
+
         {/* Voting phase */}
         {phase === 'voting' && (
           <div className="card">
@@ -1621,6 +2029,65 @@ export default function GamePage() {
                 <span className="text-sm font-semibold text-emerald-400">{t('game.everyoneVoted')}</span>
               </div>
             )}
+            {/* ── Vote-phase power strip ──
+                Mayor + Inverter activation buttons surface here (right where
+                the action happens) so they can't be missed. The sidebar
+                still shows a status banner for permanence. */}
+            {!isEliminated && !tiebreakerActive && (
+              <div className="flex flex-col gap-2 mb-3">
+                {myRole === 'mayor' && !mayorDoubleVoteUsed && !mayorDoubleActive && (
+                  <button
+                    onClick={() => {
+                      log.info('mayor activating double vote (vote panel)')
+                      getSocket().emit('mayor:activate-double' as any)
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-700 to-indigo-600 hover:from-indigo-600 hover:to-indigo-500 border-2 border-indigo-400/60 text-white text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-950/50 animate-pulse-subtle transition-all"
+                  >
+                    <span className="text-lg">⚖️</span>
+                    <span>{t('game.mayorDoubleVoteBtn', 'Double my vote')}</span>
+                  </button>
+                )}
+                {myRole === 'mayor' && mayorDoubleActive && (
+                  <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-900/50 border border-indigo-500/60 text-indigo-200 text-xs font-bold">
+                    <span>⚖️</span>
+                    <span>{t('game.mayorDoubleVoteActive', 'Double vote active this round')}</span>
+                  </div>
+                )}
+                {myRole === 'inverter' && !inverterUsed && !inverterActive && (
+                  <button
+                    onClick={() => {
+                      log.info('inverter activating (vote panel)')
+                      getSocket().emit('inverter:activate' as any)
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-rose-700 to-rose-600 hover:from-rose-600 hover:to-rose-500 border-2 border-rose-400/60 text-white text-sm font-black uppercase tracking-wide shadow-lg shadow-rose-950/50 animate-pulse-subtle transition-all"
+                  >
+                    <span className="text-lg">🔄</span>
+                    <span>{t('game.inverterActivateBtn', 'Invert the vote')}</span>
+                  </button>
+                )}
+                {myRole === 'inverter' && inverterActive && (
+                  <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-900/50 border border-rose-500/60 text-rose-200 text-xs font-bold">
+                    <span>🔄</span>
+                    <span>{t('game.inverterActive', 'Vote inversion active this round')}</span>
+                  </div>
+                )}
+                {myRole === 'guardian' && !guardianProtectUsed && (
+                  <button
+                    onClick={() => setShowGuardianPicker(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-700 to-yellow-600 hover:from-yellow-600 hover:to-yellow-500 border-2 border-yellow-400/60 text-white text-sm font-black uppercase tracking-wide shadow-lg shadow-yellow-950/50 animate-pulse-subtle transition-all"
+                  >
+                    <span className="text-lg">🛡️</span>
+                    <span>{t('game.guardianProtectBtn')}</span>
+                  </button>
+                )}
+                {myRole === 'guardian' && guardianProtectUsed && (
+                  <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-yellow-900/50 border border-yellow-500/60 text-yellow-200 text-xs font-bold">
+                    <span>🛡️</span>
+                    <span>{t('game.guardianUsed')}</span>
+                  </div>
+                )}
+              </div>
+            )}
             {/* Tied players cannot vote during tiebreaker — show waiting message */}
             {tiebreakerActive && iAmTiedPlayer ? (
               <div className="flex items-center gap-2 py-3 text-amber-400 text-sm animate-slide-up">
@@ -1630,7 +2097,12 @@ export default function GamePage() {
             ) : (
             <>
             {/* Your vote summary */}
-            {votedFor && (() => {
+            {votedFor === '__skip__' ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-neutral-900/60 border border-neutral-700/40 mb-3">
+                <span className="text-neutral-400 text-xs">🚫</span>
+                <span className="text-xs text-neutral-300 font-semibold">{t('game.youSkippedVote')}</span>
+              </div>
+            ) : votedFor && (() => {
               const votedPlayer = alivePlayers.find(p => p.userId === votedFor)
               return votedPlayer ? (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-950/30 border border-amber-800/30 mb-3">
@@ -1639,17 +2111,26 @@ export default function GamePage() {
                 </div>
               ) : null
             })()}
-            <div className="space-y-2">
+            <div className={[
+              'grid gap-2',
+              alivePlayers.length <= 3
+                ? 'grid-cols-1'
+                : alivePlayers.length > 10
+                  ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                  : 'grid-cols-1 sm:grid-cols-2',
+            ].join(' ')}>
               {alivePlayers
                 .filter((p) => p.userId !== user?.id && (!tiebreakerActive || tiebreakerPlayerIds.includes(p.userId)))
-                .map((p) => (
+                .map((p) => {
+                  const playerClue = clues.find((c) => c.playerId === p.userId)
+                  return (
                   <button
                     key={p.id}
                     aria-label={`Vote for ${getDisplayName(p.userId, p.username)}`}
                     onClick={() => vote(p.userId)}
                     disabled={!!votedFor}
                     className={[
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 text-left active:scale-[0.98]',
+                      'w-full min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 text-left active:scale-[0.98]',
                       votedFor === p.userId
                         ? 'border-amber-500/70 bg-gradient-to-r from-amber-950/60 to-amber-900/30 shadow-lg shadow-amber-950/50 animate-jelly'
                         : votedFor
@@ -1658,16 +2139,42 @@ export default function GamePage() {
                     ].join(' ')}
                   >
                     <Avatar src={p.avatarUrl} username={p.username} size="sm" />
-                    <span className="flex-1 font-semibold text-white text-sm">{getDisplayName(p.userId, p.username)}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-semibold text-white text-sm">{getDisplayName(p.userId, p.username)}</span>
+                        {playerClue?.flaggedForWord && (
+                          <span className="shrink-0 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                            ⚠ {t('game.saidTheWordBadge')}
+                          </span>
+                        )}
+                      </div>
+                      {playerClue ? (
+                        <p className="text-xs text-neutral-300 leading-snug truncate mt-0.5">{playerClue.text}</p>
+                      ) : (
+                        <p className="text-xs text-neutral-600 italic leading-snug mt-0.5">{t('game.noClueYet', 'No clue yet')}</p>
+                      )}
+                    </div>
                     {votedFor === p.userId && (
-                      <span className="text-amber-400 text-xs font-bold">{t('game.yourVoteLabel')}</span>
+                      <span className="shrink-0 text-amber-400 text-xs font-bold">{t('game.yourVoteLabel')}</span>
                     )}
                     {!votedFor && (
-                      <span className="text-neutral-600 text-xs">{t('game.clickToVote')}</span>
+                      <span className="shrink-0 text-neutral-600 text-xs">{t('game.clickToVote')}</span>
                     )}
                   </button>
-                ))}
+                  )
+                })}
             </div>
+            {!tiebreakerActive && !votedFor && (
+              <div className="mt-3 flex justify-center">
+                <button
+                  aria-label={t('game.skipVote')}
+                  onClick={skipVote}
+                  className="text-xs text-neutral-500 hover:text-neutral-300 underline underline-offset-4 decoration-dotted transition-colors px-2 py-1"
+                >
+                  {t('game.skipVote')}
+                </button>
+              </div>
+            )}
             </>
             )}
           </div>
@@ -1760,14 +2267,17 @@ export default function GamePage() {
                 )}
               </div>
               {wordReveal && (
-                <div className="grid grid-cols-2 gap-3 mt-5 relative" style={{ animation: 'role-rise 0.4s ease 0.5s both' }}>
-                  <div className="rounded-xl bg-brand-950/40 border border-brand-800/40 p-3 text-center">
-                    <p className="text-xs text-neutral-500 mb-1">{t('game.villagerWord')}</p>
-                    <p className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</p>
-                  </div>
-                  <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
-                    <p className="text-xs text-neutral-500 mb-1">{t('game.redHandedWord')}</p>
-                    <p className="text-amber-300 font-extrabold text-xl">{wordReveal.redHandedWord}</p>
+                <div className="mt-5 relative flex flex-col items-center gap-2" style={{ animation: 'role-rise 0.4s ease 0.5s both' }}>
+                  <CategoryBadge categoryKey={(wordReveal as any).category ?? myCategory} />
+                  <div className="grid grid-cols-2 gap-3 w-full">
+                    <div className="rounded-xl bg-brand-950/40 border border-brand-800/40 p-3 text-center">
+                      <p className="text-xs text-neutral-500 mb-1">{t('game.villagerWord')}</p>
+                      <p className="text-white font-extrabold text-xl">{wordReveal.villagerWord}</p>
+                    </div>
+                    <div className="rounded-xl bg-amber-950/40 border border-amber-800/40 p-3 text-center">
+                      <p className="text-xs text-neutral-500 mb-1">{t('game.redHandedWord')}</p>
+                      <p className="text-amber-300 font-extrabold text-xl">{wordReveal.redHandedWord}</p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1776,58 +2286,6 @@ export default function GamePage() {
           )
         })()}
 
-        {/* Clues log — hidden during clue phase until you submit (prevents copying) */}
-        {/* In vocal mode clues aren't typed, so the log is only relevant for post-round review. */}
-        {!(vocalMode && phase === 'clues') && (
-        <div className="card flex-1">
-          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3">
-            {t('game.cluesTitle', { round: currentRound?.roundNumber ?? 1 })}
-          </p>
-          {phase === 'clues' && !hasSubmittedClue && !isEliminated && !vocalMode ? (
-            <p className="text-neutral-600 text-sm italic">{t('game.submitClueFirst', 'Submit your clue to see what others wrote')}</p>
-          ) : clues.length === 0 ? (
-            <p className="text-neutral-600 text-sm italic">{vocalMode ? t('game.vocalNoTextClues', 'No typed clues — this round was spoken aloud') : t('game.noClues')}</p>
-          ) : (
-            <div className="space-y-2">
-              {clues.map((clue, i) => {
-                const player = players.find((p) => p.userId === clue.playerId)
-                const isMe = clue.playerId === user?.id
-                return (
-                  <div
-                    key={i}
-                    className={[
-                      'flex items-start gap-2.5 px-3 py-2.5 rounded-xl border transition-all animate-scale-in border-l-2',
-                      clue.flaggedForWord
-                        ? 'ring-1 ring-amber-500/40 bg-amber-950/20 border-amber-700/40 border-l-amber-500'
-                        : isMe
-                          ? 'bg-brand-950/30 border-brand-800/30 border-l-brand-500'
-                          : 'bg-neutral-800/30 border-neutral-800/50 border-l-emerald-700',
-                    ].join(' ')}
-                    style={{ animationDelay: `${i * 0.05}s` }}
-                  >
-                    <Avatar src={player?.avatarUrl} username={player?.username ?? '?'} size="xs" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-semibold text-neutral-400">
-                          {player ? getDisplayName(player.userId, player.username) : 'Unknown'}
-                        </span>
-                        <span className="text-neutral-700 text-[10px]">#{i + 1}</span>
-                        {isMe && <span className="text-[10px] text-brand-400 font-bold">{t('results.you', 'YOU')}</span>}
-                        {clue.flaggedForWord && (
-                          <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider ml-auto">
-                            ⚠ {t('game.saidTheWordBadge')}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-white leading-snug mt-0.5">{clue.text}</p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-        )}
       </div>
 
       {/* ── Chat sidebar ── */}
@@ -1837,16 +2295,29 @@ export default function GamePage() {
           <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">
             {t('game.playersLabel', { count: alivePlayers.length })}
           </p>
-          {/* Detective ability banner */}
+          {/* Detective ability banner.
+              One-shot reveal is usable any time (clues or voting phase). The
+              button here is the primary entry point — player pills still
+              expose a small reveal icon as a shortcut. */}
           {myRole === 'detective' && (
             <div className={[
-              'flex items-center gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold',
+              'flex flex-col gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold',
               detectiveRevealUsed
                 ? 'bg-neutral-900/40 border-neutral-800 text-neutral-600'
                 : 'bg-blue-950/40 border-blue-800/40 text-blue-400',
             ].join(' ')}>
-              <span>🔍</span>
-              <span>{detectiveRevealUsed ? t('game.detectiveUsed') : t('game.detectiveAvailable')}</span>
+              <div className="flex items-center gap-2">
+                <span>🔍</span>
+                <span>{detectiveRevealUsed ? t('game.detectiveUsed') : t('game.detectiveAvailable')}</span>
+              </div>
+              {!detectiveRevealUsed && !isEliminated && (phase === 'clues' || phase === 'voting') && (
+                <button
+                  onClick={() => setShowDetectivePicker(true)}
+                  className="w-full px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors"
+                >
+                  {t('game.detectiveRevealOpenBtn', 'Reveal an identity')}
+                </button>
+              )}
             </div>
           )}
           {/* Guardian ability banner */}
@@ -1861,92 +2332,72 @@ export default function GamePage() {
               <span>{guardianProtectUsed ? t('game.guardianUsed') : t('game.guardianAvailable')}</span>
             </div>
           )}
-          {/* Mayor ability banner */}
+          {/* Mayor / Inverter status banners — the *action* lives in the vote
+              panel so it's visible exactly when it's actionable. These are
+              just persistent status pills so the player remembers what they
+              have left. */}
           {myRole === 'mayor' && (
             <div className={[
-              'flex flex-col gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold',
+              'flex items-center gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold',
               mayorDoubleActive
                 ? 'bg-indigo-900/50 border-indigo-600/60 text-indigo-300'
                 : mayorDoubleVoteUsed
                   ? 'bg-neutral-900/40 border-neutral-800 text-neutral-600'
                   : 'bg-indigo-950/40 border-indigo-800/40 text-indigo-400',
             ].join(' ')}>
-              <div className="flex items-center gap-2">
-                <span>⚖️</span>
-                <span>
-                  {mayorDoubleActive
-                    ? t('game.mayorDoubleVoteActive', 'Double vote active this round')
-                    : mayorDoubleVoteUsed
-                      ? t('game.mayorDoubleVoteUsed', 'Double vote used')
-                      : t('game.mayorAvailable', 'Double vote ready')}
-                </span>
-              </div>
-              {!mayorDoubleVoteUsed && !mayorDoubleActive && phase === 'voting' && !isEliminated && (
-                <button
-                  onClick={() => {
-                    log.info('mayor activating double vote')
-                    getSocket().emit('mayor:activate-double' as any)
-                  }}
-                  className="w-full px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors"
-                >
-                  {t('game.mayorDoubleVoteBtn', 'Double my vote')}
-                </button>
-              )}
+              <span>⚖️</span>
+              <span>
+                {mayorDoubleActive
+                  ? t('game.mayorDoubleVoteActive', 'Double vote active this round')
+                  : mayorDoubleVoteUsed
+                    ? t('game.mayorDoubleVoteUsed', 'Double vote used')
+                    : t('game.mayorAvailable', 'Double vote ready')}
+              </span>
             </div>
           )}
-          {/* Inverter ability banner */}
           {myRole === 'inverter' && (
             <div className={[
-              'flex flex-col gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold',
+              'flex items-center gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold',
               inverterActive
                 ? 'bg-rose-900/50 border-rose-600/60 text-rose-300'
                 : inverterUsed
                   ? 'bg-neutral-900/40 border-neutral-800 text-neutral-600'
                   : 'bg-rose-950/40 border-rose-800/40 text-rose-400',
             ].join(' ')}>
-              <div className="flex items-center gap-2">
-                <span>🔄</span>
-                <span>
-                  {inverterActive
-                    ? t('game.inverterActive', 'Vote inversion active this round')
-                    : inverterUsed
-                      ? t('game.inverterUsed', 'Vote inversion used')
-                      : t('game.inverterAvailable', 'Vote inversion ready')}
-                </span>
-              </div>
-              {!inverterUsed && !inverterActive && phase === 'voting' && !isEliminated && (
-                <button
-                  onClick={() => {
-                    log.info('inverter activating')
-                    getSocket().emit('inverter:activate' as any)
-                  }}
-                  className="w-full px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors"
-                >
-                  {t('game.inverterActivateBtn', 'Invert the vote')}
-                </button>
-              )}
+              <span>🔄</span>
+              <span>
+                {inverterActive
+                  ? t('game.inverterActive', 'Vote inversion active this round')
+                  : inverterUsed
+                    ? t('game.inverterUsed', 'Vote inversion used')
+                    : t('game.inverterAvailable', 'Vote inversion ready')}
+              </span>
             </div>
           )}
-          {/* Corruptor ability banner */}
+          {/* Corruptor ability banner.
+              Picking isn't forced at game start — the corruptor can wait
+              until they know who to silence, then tap the button any time. */}
           {myRole === 'corruptor' && (
             <div className={[
-              'flex items-center gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold',
+              'flex flex-col gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold',
               corruptorTargetUserId
                 ? 'bg-orange-900/40 border-orange-800/40 text-orange-300'
-                : 'bg-orange-950/50 border-orange-700/60 text-orange-300 animate-pulse',
+                : 'bg-orange-950/50 border-orange-700/60 text-orange-300',
             ].join(' ')}>
-              <span>🕷️</span>
-              <span>
-                {corruptorTargetUserId
-                  ? t('game.corruptorTargetLocked', 'Your target is silenced')
-                  : t('game.corruptorMustPick', 'Pick your corruption target')}
-              </span>
-              {!corruptorTargetUserId && (
+              <div className="flex items-center gap-2">
+                <span>🕷️</span>
+                <span>
+                  {corruptorTargetUserId
+                    ? t('game.corruptorTargetLocked', 'Your target is silenced')
+                    : t('game.corruptorAvailableAnyTime', 'Corruption ready — silence anyone, any time')}
+                </span>
+              </div>
+              {!corruptorTargetUserId && !isEliminated && (
                 <button
                   onClick={() => setShowCorruptorPicker(true)}
-                  className="ml-auto px-2 py-0.5 rounded bg-orange-700 hover:bg-orange-600 text-white text-[10px] font-bold"
+                  className="w-full px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold transition-colors"
                 >
-                  {t('game.corruptorPickBtn', 'Pick')}
+                  {t('game.corruptorPickBtn', 'Pick a target')}
                 </button>
               )}
             </div>
@@ -1960,20 +2411,33 @@ export default function GamePage() {
               </span>
             </div>
           )}
-          {/* Twin partner banner */}
-          {(myRole === 'twin_villager' || myRole === 'twin_red_handed') && twinPartner && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold bg-purple-950/40 border-purple-800/40 text-purple-300">
+          {/* Twin partner banner — clickable to open the private DM channel. */}
+          {isTwin && twinPartner && (
+            <button
+              onClick={() => {
+                setTwinChatOpen(true)
+                clearTwinUnread()
+              }}
+              className="relative w-full flex items-center gap-2 px-3 py-2 rounded-xl border mb-2 text-xs font-semibold bg-purple-950/40 border-purple-800/40 text-purple-300 hover:bg-purple-900/50 hover:border-purple-600/60 transition-all text-left"
+            >
               <span>👯</span>
-              <span>
+              <span className="flex-1 truncate">
                 {t('game.twinPartnerBanner', { name: twinPartner.twinUsername, defaultValue: 'Your twin: {{name}}' })}
               </span>
-            </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-200/80">
+                {t('game.twinChatOpen', 'DM')}
+              </span>
+              {twinUnread > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center shadow shadow-rose-900/50 animate-pulse">
+                  {twinUnread > 9 ? '9+' : twinUnread}
+                </span>
+              )}
+            </button>
           )}
           <div className="flex flex-wrap gap-2" role="list" aria-label="Players">
             {players.map((p) => {
-              const canReveal = myRole === 'detective' && !detectiveRevealUsed && p.userId !== user?.id && p.status === 'alive' && (phase === 'clues' || phase === 'voting')
               const canProtect = myRole === 'guardian' && !guardianProtectUsed && p.status === 'alive' && phase === 'voting'
-              const isSpeakingNow = currentSpeakerId === p.userId && phase === 'clues'
+              const isSpeakingNow = phase === 'clues' && (vocalMode ? vocalSpeakerId === p.userId : currentSpeakerId === p.userId)
               return (
                 <div
                   key={p.id}
@@ -1981,11 +2445,13 @@ export default function GamePage() {
                   tabIndex={0}
                   onClick={() => setSelectedPlayerId(p.userId)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedPlayerId(p.userId) }}
-                  aria-label={`${getDisplayName(p.userId, p.username)}, ${p.status}`}
-                  title={`View ${getDisplayName(p.userId, p.username)}'s clue history`}
+                  aria-label={`${getDisplayName(p.userId, p.username)}, ${p.disconnected ? 'disconnected' : p.status}`}
+                  title={p.disconnected ? `${getDisplayName(p.userId, p.username)} is disconnected` : `View ${getDisplayName(p.userId, p.username)}'s clue history`}
                   className={[
                     'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer select-none border active:scale-95 hover:-translate-y-0.5 hover:shadow-lg',
-                    p.status === 'alive'
+                    p.disconnected
+                      ? 'bg-neutral-900/60 text-neutral-500 italic border-dashed border-neutral-700/60 hover:bg-neutral-900/80'
+                      : p.status === 'alive'
                       ? isSpeakingNow
                         ? 'bg-gradient-to-br from-brand-900/70 to-brand-950/80 text-white ring-2 ring-brand-500/60 border-brand-500/60 shadow-lg shadow-brand-900/50 animate-glow-pulse'
                         : 'bg-neutral-800/80 text-white hover:bg-neutral-700 hover:ring-1 hover:ring-neutral-600 border-neutral-700/50 hover:border-neutral-600 hover:shadow-neutral-900/60'
@@ -1996,7 +2462,9 @@ export default function GamePage() {
                 >
                   <span className={[
                     'w-1.5 h-1.5 rounded-full',
-                    p.status === 'alive'
+                    p.disconnected
+                      ? 'bg-amber-500 animate-pulse'
+                      : p.status === 'alive'
                       ? isSpeakingNow ? 'bg-brand-400 animate-heartbeat' : 'bg-emerald-400 animate-pulse'
                       : p.status === 'forfeited' ? 'bg-orange-700' : 'bg-neutral-700',
                   ].join(' ')} />
@@ -2004,17 +2472,14 @@ export default function GamePage() {
                     src={p.avatarUrl}
                     username={p.username}
                     size="xs"
-                    className={p.status !== 'alive' ? 'opacity-50 grayscale' : ''}
+                    className={p.disconnected || p.status !== 'alive' ? 'opacity-50 grayscale' : ''}
                   />
                   {getDisplayName(p.userId, p.username)}
-                  {canReveal && (
-                    <button
-                      onClick={() => getSocket().emit('detective:reveal', { targetUserId: p.userId })}
-                      className="ml-0.5 text-blue-400 hover:text-blue-300 text-[10px] font-bold border border-blue-800/50 rounded px-1 transition-colors"
-                      title={t('game.detectiveRevealBtn')}
-                    >
-                      🔍
-                    </button>
+                  {p.disconnected && (
+                    <span className="ml-0.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-400" title="Disconnected">
+                      <span aria-hidden="true">📵</span>
+                      <span>offline</span>
+                    </span>
                   )}
                   {canProtect && (
                     <button
@@ -2086,20 +2551,47 @@ export default function GamePage() {
           <div className="flex-1 flex flex-col justify-end p-3 gap-3">
             {/* Chat disabled notice */}
             <p className="text-xs text-neutral-600 text-center">{t('game.chatDisabled')}</p>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600 mb-2">{t('game.react')}</p>
-              <div className="flex gap-2 flex-wrap">
-                {EMOTES.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => sendEmote(emoji)}
-                    className="text-2xl w-11 h-11 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/80 hover:scale-110 active:scale-95 transition-all border border-neutral-700/50"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {(() => {
+              const cooldownRemaining = Math.max(0, emoteCooldownUntil - (emoteNow || Date.now()))
+              const locked = cooldownRemaining > 0
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600">{t('game.react')}</p>
+                    {locked && (
+                      <span className="text-[10px] text-amber-500">Slow down · {Math.ceil(cooldownRemaining / 1000)}s</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {activeLoadout.map((id) => {
+                      const em = getEmoteById(id)
+                      if (!em) return null
+                      const rarityRing =
+                        em.rarity === 'legendary' ? 'border-amber-500/60 hover:border-amber-400/90' :
+                        em.rarity === 'epic'      ? 'border-fuchsia-600/50 hover:border-fuchsia-400/80' :
+                        em.rarity === 'rare'      ? 'border-indigo-600/50 hover:border-indigo-400/80' :
+                        em.rarity === 'common'    ? 'border-sky-700/40 hover:border-sky-500/70' :
+                                                    'border-neutral-700/50 hover:border-neutral-500/70'
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => sendEmote(id)}
+                          disabled={locked}
+                          title={em.name}
+                          className={[
+                            'text-2xl w-11 h-11 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/80 hover:scale-110 active:scale-95 transition-all border',
+                            rarityRing,
+                            locked ? 'opacity-40 cursor-not-allowed hover:scale-100' : '',
+                          ].join(' ')}
+                        >
+                          {em.emoji}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
             {/* Quit & Forfeit */}
             {showForfeitConfirm ? (
               <div className="rounded-xl border border-orange-800/50 bg-orange-950/30 p-3 space-y-2">

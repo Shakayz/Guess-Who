@@ -3,6 +3,7 @@ import { prisma } from '@/config/prisma'
 import {
   computeStreakTransition,
   applyGameEndRewards,
+  grantDailyLoginBonus,
   DAILY_COST,
   DAILY_BONUS,
   STREAK_BONUS,
@@ -129,7 +130,7 @@ describe('applyGameEndRewards', () => {
     ;(prisma as any).$transaction = vi.fn(async (fn: any) => fn(mockTx))
   })
 
-  it('credits base + daily bonus on first-ever game and updates streak/lastPlayedAt', async () => {
+  it('credits only the base reward on first-ever game and ticks the streak', async () => {
     mockTx.user.findUnique.mockResolvedValue({
       lastPlayedAt: null,
       dailyStreakCount: 0,
@@ -139,23 +140,26 @@ describe('applyGameEndRewards', () => {
     const now = new Date('2026-04-09T12:00:00.000Z')
     const result = await applyGameEndRewards('user-1', 50, now)
 
+    // The +20 daily bonus moved to /auth/me — game end only credits base +
+    // streak bonus. `dailyBonusEarned` stays on the payload but is always 0.
     expect(result).toEqual({
       baseStarCoinsEarned: 50,
-      dailyBonusEarned: DAILY_BONUS,
+      dailyBonusEarned: 0,
       streakBonusEarned: 0,
       newStreakCount: 1,
+      streakTicked: true,
     })
     expect(mockTx.user.update).toHaveBeenCalledWith({
       where: { id: 'user-1' },
       data: {
-        starCoins: { increment: 50 + DAILY_BONUS },
+        starCoins: { increment: 50 },
         lastPlayedAt: now,
         dailyStreakCount: 1,
       },
     })
   })
 
-  it('credits only the base reward (no bonus) when the user already played today', async () => {
+  it('credits only the base reward when the user already played today', async () => {
     const now = new Date('2026-04-09T18:00:00.000Z')
     mockTx.user.findUnique.mockResolvedValue({
       lastPlayedAt: new Date('2026-04-09T08:00:00.000Z'),
@@ -168,6 +172,7 @@ describe('applyGameEndRewards', () => {
     expect(result.dailyBonusEarned).toBe(0)
     expect(result.streakBonusEarned).toBe(0)
     expect(result.newStreakCount).toBe(4)
+    expect(result.streakTicked).toBe(false)
     // Streak/lastPlayedAt must NOT be touched when the day hasn't changed.
     expect(mockTx.user.update).toHaveBeenCalledWith({
       where: { id: 'user-1' },
@@ -175,7 +180,7 @@ describe('applyGameEndRewards', () => {
     })
   })
 
-  it('credits base + daily + streak bonus when the player hits day 7', async () => {
+  it('credits base + streak bonus when the player hits day 7', async () => {
     mockTx.user.findUnique.mockResolvedValue({
       lastPlayedAt: new Date('2026-04-08T12:00:00.000Z'),
       dailyStreakCount: 6,
@@ -185,13 +190,15 @@ describe('applyGameEndRewards', () => {
     const now = new Date('2026-04-09T12:00:00.000Z')
     const result = await applyGameEndRewards('user-1', 50, now)
 
-    expect(result.dailyBonusEarned).toBe(DAILY_BONUS)
+    // Daily bonus is login-only now; streak bonus is still game-end only.
+    expect(result.dailyBonusEarned).toBe(0)
     expect(result.streakBonusEarned).toBe(STREAK_BONUS)
     expect(result.newStreakCount).toBe(7)
+    expect(result.streakTicked).toBe(true)
     expect(mockTx.user.update).toHaveBeenCalledWith({
       where: { id: 'user-1' },
       data: {
-        starCoins: { increment: 50 + DAILY_BONUS + STREAK_BONUS },
+        starCoins: { increment: 50 + STREAK_BONUS },
         lastPlayedAt: now,
         dailyStreakCount: 7,
       },
@@ -208,6 +215,7 @@ describe('applyGameEndRewards', () => {
       dailyBonusEarned: 0,
       streakBonusEarned: 0,
       newStreakCount: 0,
+      streakTicked: false,
     })
     expect(mockTx.user.update).not.toHaveBeenCalled()
   })
@@ -224,8 +232,59 @@ describe('applyGameEndRewards', () => {
       dailyBonusEarned: 0,
       streakBonusEarned: 0,
       newStreakCount: 0,
+      streakTicked: false,
     })
     // Silence unused-var lint for the mocked user.
     expect(mockPrismaUser).toBeDefined()
+  })
+})
+
+// ─── grantDailyLoginBonus: DB interaction ────────────────────────────────────
+// Login-based +20 bonus that replaces the old first-game-of-the-day grant.
+// Uses a single `updateMany` with a UTC-day WHERE clause, so the test just
+// asserts on the query shape and the returned `bonusGranted` amount.
+
+describe('grantDailyLoginBonus', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('credits DAILY_BONUS on the first call of a UTC day', async () => {
+    ;(prisma.user as any).updateMany = vi.fn().mockResolvedValue({ count: 1 })
+
+    const now = new Date('2026-04-09T12:00:00.000Z')
+    const result = await grantDailyLoginBonus('user-1', now)
+
+    expect(result.bonusGranted).toBe(DAILY_BONUS)
+    expect((prisma.user as any).updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'user-1',
+        OR: [
+          { lastDailyBonusAt: null },
+          { lastDailyBonusAt: { lt: new Date('2026-04-09T00:00:00.000Z') } },
+        ],
+      },
+      data: {
+        starCoins: { increment: DAILY_BONUS },
+        lastDailyBonusAt: now,
+      },
+    })
+  })
+
+  it('is a no-op on subsequent calls within the same UTC day', async () => {
+    // The conditional WHERE doesn't match, so Prisma reports count: 0.
+    ;(prisma.user as any).updateMany = vi.fn().mockResolvedValue({ count: 0 })
+
+    const result = await grantDailyLoginBonus('user-1', new Date('2026-04-09T23:00:00.000Z'))
+
+    expect(result.bonusGranted).toBe(0)
+  })
+
+  it('swallows prisma errors and returns bonusGranted: 0', async () => {
+    ;(prisma.user as any).updateMany = vi.fn().mockRejectedValue(new Error('db down'))
+
+    const result = await grantDailyLoginBonus('user-1')
+
+    expect(result.bonusGranted).toBe(0)
   })
 })

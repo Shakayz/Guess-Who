@@ -23,6 +23,12 @@
       "autoPort": true
     },
     {
+      "name": "Web only (Vite strict 5180)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "web", "exec", "vite", "--port", "5180", "--strictPort"],
+      "port": 5180
+    },
+    {
       "name": "API only (Fastify)",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "api", "dev"],

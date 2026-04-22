@@ -5,6 +5,7 @@ import { redis } from '../config/redis'
 import { xpProgressInLevel, USERNAME_CHANGE_COST, SOCIAL_SHARE_REWARD } from '@red-handed/shared'
 import { evaluateEvent } from '../services/achievements'
 import { ensureReferralCode } from '../services/referral'
+import { onlineUsers } from '../socket/onlineUsers'
 import bcrypt from 'bcryptjs'
 
 const patchMeSchema = z.object({
@@ -35,6 +36,21 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       if (!current) return reply.status(404).send({ error: 'User not found' })
 
       if (body.username !== current.username) {
+        // Case-insensitive collision against OTHER users: "Shakayz" can't
+        // pick a name that only differs in casing from an existing account.
+        // The same user re-casing their own name is allowed (it's a real
+        // rename from their perspective, and the display case will update).
+        const collision = await prisma.user.findFirst({
+          where: {
+            username: { equals: body.username, mode: 'insensitive' },
+            NOT: { id: userId },
+          },
+          select: { id: true },
+        })
+        if (collision) {
+          return reply.status(409).send({ error: 'Username already taken' })
+        }
+
         if (current.starCoins < USERNAME_CHANGE_COST) {
           req.log.info(
             { userId, balance: current.starCoins, cost: USERNAME_CHANGE_COST },
@@ -273,12 +289,17 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     const cached = await redis.get(cacheKey)
     if (cached) return reply.send(JSON.parse(cached))
 
-    const users = await prisma.user.findMany({
+    const rows = await prisma.user.findMany({
       where: { locale: lang },
-      select: { id: true, username: true, avatarUrl: true, rankTier: true, rankPoints: true },
+      select: { id: true, username: true, avatarUrl: true, rankTier: true, rankPoints: true, premiumUntil: true },
       orderBy: { rankPoints: 'desc' },
       take: 100,
     })
+    const now = Date.now()
+    const users = rows.map(({ premiumUntil, ...rest }) => ({
+      ...rest,
+      isPremium: !!(premiumUntil && premiumUntil.getTime() > now),
+    }))
     await redis.set(cacheKey, JSON.stringify(users), 'EX', 300) // 5 min cache
     return reply.send(users)
   })
@@ -341,16 +362,21 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         id: true, username: true, avatarUrl: true, rankTier: true,
         rankPoints: true, honorPoints: true, createdAt: true,
         level: true, xp: true, hasPlayedRanked: true,
+        premiumUntil: true,
         _count: { select: { gameParticipations: true } },
       },
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
     const progress = xpProgressInLevel(user.xp ?? 0)
+    const isPremium = !!(user.premiumUntil && user.premiumUntil.getTime() > Date.now())
+    // Don't leak the exact subscription end-date to other users — just the flag.
+    const { premiumUntil: _omit, ...publicUser } = user
     return reply.send({
-      ...user,
+      ...publicUser,
       rankTier: user.hasPlayedRanked ? user.rankTier : 'unranked',
       xpInLevel: progress.current,
       xpForNextLevel: progress.needed,
+      isPremium,
     })
   })
 
@@ -423,15 +449,46 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/:id/profile', async (req, reply) => {
     type HonorCount = { type: string; count: number }
     const { id } = req.params as { id: string }
+
+    // Opportunistically resolve the viewer so we can surface their friendship
+    // status with this profile (Add / Pending / Friend). The route stays
+    // publicly readable — no token still returns the profile minus friendship.
+    let viewerId: string | null = null
+    try {
+      await (req as any).jwtVerify()
+      viewerId = (req as any).user?.sub ?? null
+    } catch {
+      viewerId = null
+    }
+
     const user = await prisma.user.findUnique({
       where: { id },
       select: {
         id: true, username: true, avatarUrl: true, rankTier: true,
         rankPoints: true, honorPoints: true, createdAt: true,
         level: true, xp: true, hasPlayedRanked: true,
+        premiumUntil: true,
       },
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
+    const isPremiumProfile = !!(user.premiumUntil && user.premiumUntil.getTime() > Date.now())
+
+    // Best-effort read of `lastSeenAt`. Kept separate from the main select so a
+    // fresh environment where the migration hasn't converged yet (column
+    // missing) still renders the profile instead of 500-ing the whole page —
+    // same defensive spirit as the friendship lookup further down.
+    const readLastSeenAt = async (): Promise<Date | null> => {
+      try {
+        const row = await prisma.user.findUnique({
+          where: { id },
+          select: { lastSeenAt: true },
+        })
+        return row?.lastSeenAt ?? null
+      } catch (err) {
+        req.log.warn({ err, targetId: id }, 'profile: lastSeenAt lookup failed, returning null')
+        return null
+      }
+    }
 
     // Helper that builds the same set of stat queries scoped by gameMode.
     // mode = 'ranked' → only games where game.gameMode === 'ranked'
@@ -516,13 +573,13 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       return { ranked: toArray(rankedCounts), unranked: toArray(unrankedCounts) }
     }
 
-    const [statsRanked, statsUnranked, honorBuckets, recentParticipations] = await Promise.all([
+    const [statsRanked, statsUnranked, honorBuckets, recentParticipations, lastSeenAt] = await Promise.all([
       statsForMode('ranked'),
       statsForMode('unranked'),
       computeHonorBuckets(),
       prisma.gameParticipation.findMany({
         where: { userId: id },
-        take: 8,
+        take: 3,
         orderBy: { game: { startedAt: 'desc' } },
         include: {
           game: {
@@ -533,6 +590,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
           },
         },
       }),
+      readLastSeenAt(),
     ])
 
     const { ranked: honorsRanked, unranked: honorsUnranked } = honorBuckets
@@ -567,11 +625,51 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     for (const h of honorsRanked)   lifetimeHonors.set(h.type, (lifetimeHonors.get(h.type) ?? 0) + h.count)
     for (const h of honorsUnranked) lifetimeHonors.set(h.type, (lifetimeHonors.get(h.type) ?? 0) + h.count)
 
+    // Resolve the viewer ↔ profile friendship so the client can show the
+    // correct action without first clicking and hitting a 400 error.
+    // Wrapped in try/catch so a failure here (e.g. missing table on a fresh
+    // environment, stale Prisma client) never takes down the whole profile.
+    let friendship: { id: string; status: 'accepted' | 'pending_outgoing' | 'pending_incoming' } | null = null
+    if (viewerId && viewerId !== id) {
+      try {
+        const f = await prisma.friendship.findFirst({
+          where: {
+            OR: [
+              { requesterId: viewerId, addresseeId: id },
+              { requesterId: id, addresseeId: viewerId },
+            ],
+          },
+          select: { id: true, requesterId: true, status: true },
+        })
+        if (f) {
+          let fstatus: 'accepted' | 'pending_outgoing' | 'pending_incoming'
+          if (f.status === 'accepted') fstatus = 'accepted'
+          else if (f.requesterId === viewerId) fstatus = 'pending_outgoing'
+          else fstatus = 'pending_incoming'
+          friendship = { id: f.id, status: fstatus }
+        }
+      } catch (err) {
+        req.log.warn({ err, viewerId, targetId: id }, 'profile: friendship lookup failed, returning null')
+      }
+    }
+
+    // Drop the raw `premiumUntil` from the public payload — callers only see
+    // the derived boolean so the exact subscription end date stays private.
+    // `lastSeenAt` is also private by default — only surfaced to accepted
+    // friends (and the user themselves) so strangers can't track activity.
+    const { premiumUntil: _omitProfile, ...publicProfile } = user
+    const isFriendOrSelf = viewerId === id || friendship?.status === 'accepted'
+    const isOnline = isFriendOrSelf ? onlineUsers.has(id) : undefined
     return reply.send({
-      ...user,
+      ...publicProfile,
       rankTier: user.hasPlayedRanked ? user.rankTier : 'unranked',
       xpInLevel: progress.current,
       xpForNextLevel: progress.needed,
+      isPremium: isPremiumProfile,
+      friendship,
+      isSelf: viewerId === id,
+      lastSeenAt: isFriendOrSelf ? lastSeenAt : null,
+      isOnline,
       stats: {
         totalGames,
         wins,

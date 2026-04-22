@@ -113,10 +113,22 @@ export const EliminationReveal = memo(function EliminationReveal({
           100% { transform: perspective(900px) rotateY(180deg) scale(1); }
         }
         @keyframes elim-stamp   {
-          0%   { opacity:0; transform: translate(-50%,-50%) scale(2.8) rotate(-16deg); filter: blur(6px); }
-          55%  { opacity:1; transform: translate(-50%,-50%) scale(0.92) rotate(-4deg); filter: blur(0); }
-          80%  {             transform: translate(-50%,-50%) scale(1.08) rotate(-10deg); }
-          100% { opacity:1; transform: translate(-50%,-50%) scale(1)    rotate(-8deg); }
+          0%   { opacity:0;   transform: translate(-50%,-50%) scale(3.4)  rotate(-22deg); filter: blur(10px); }
+          35%  { opacity:0.55; transform: translate(-50%,-50%) scale(2.1)  rotate(-16deg); filter: blur(4px); }
+          60%  { opacity:1;   transform: translate(-50%,-50%) scale(0.84) rotate(-3deg);  filter: blur(0); }
+          72%  {               transform: translate(-50%,-50%) scale(1.14) rotate(-11deg); }
+          82%  {               transform: translate(-50%,-50%) scale(0.96) rotate(-6deg);  }
+          92%  {               transform: translate(-50%,-50%) scale(1.03) rotate(-9deg);  }
+          100% { opacity:1;   transform: translate(-50%,-50%) scale(1)    rotate(-8deg);  }
+        }
+        @keyframes elim-stamp-pulse {
+          0%,100% { transform: translate(-50%,-50%) rotate(-8deg) scale(1); }
+          50%     { transform: translate(-50%,-50%) rotate(-8deg) scale(1.035); }
+        }
+        @keyframes elim-stamp-shock {
+          0%   { opacity: 0;    transform: translate(-50%,-50%) scale(0.4); }
+          20%  { opacity: 0.85; }
+          100% { opacity: 0;    transform: translate(-50%,-50%) scale(2.6); }
         }
         @keyframes elim-sparkle {
           0%   { transform: translate(-50%,-50%) scale(0) rotate(0deg);   opacity: 0; }
@@ -350,30 +362,47 @@ export const EliminationReveal = memo(function EliminationReveal({
             </div>
           </div>
 
-          {/* Rotated "STAMP" overlay on top of the card after flip */}
+          {/* Rotated "STAMP" overlay on top of the card after flip.
+              Two layers: a shock ring that radiates at impact, and the stamp
+              itself which slams in then breathes during hold. */}
           {(stage === 'stamp' || stage === 'hold' || stage === 'outro') && (
-            <div
-              className="absolute top-1/2 left-1/2 pointer-events-none"
-              style={{
-                transform: 'translate(-50%,-50%) rotate(-8deg)',
-                animation: 'elim-stamp 0.55s cubic-bezier(0.34,1.56,0.64,1) both',
-              }}
-            >
+            <>
               <div
-                className="px-4 py-1 rounded-lg border-[3px] text-xs font-black tracking-[0.35em] uppercase"
+                className="absolute top-1/2 left-1/2 rounded-full border-[3px] pointer-events-none"
                 style={{
-                  color: primary,
+                  width: 180,
+                  height: 180,
                   borderColor: primary,
-                  background: 'rgba(0,0,0,0.45)',
-                  boxShadow: `0 0 22px ${primaryGlow}, inset 0 0 10px ${primaryGlow}`,
-                  letterSpacing: '0.3em',
+                  boxShadow: `0 0 30px ${primaryGlow}, inset 0 0 20px ${primaryGlow}`,
+                  animation: 'elim-stamp-shock 0.75s cubic-bezier(0.16,1,0.3,1) 0.38s both',
+                }}
+              />
+              <div
+                className="absolute top-1/2 left-1/2 pointer-events-none"
+                style={{
+                  transform: 'translate(-50%,-50%) rotate(-8deg)',
+                  animation: stage === 'stamp'
+                    ? 'elim-stamp 0.85s cubic-bezier(0.34,1.56,0.64,1) both'
+                    : 'elim-stamp-pulse 1.8s ease-in-out infinite',
                 }}
               >
-                {caughtEvil
-                  ? t('elimReveal.stampCaught', 'CAUGHT')
-                  : t('elimReveal.stampDown', 'DOWN')}
+                <div
+                  className="px-4 py-1 rounded-lg border-[3px] text-xs font-black tracking-[0.35em] uppercase"
+                  style={{
+                    color: primary,
+                    borderColor: primary,
+                    background: 'rgba(0,0,0,0.55)',
+                    boxShadow: `0 0 28px ${primaryGlow}, inset 0 0 12px ${primaryGlow}`,
+                    letterSpacing: '0.3em',
+                    textShadow: `0 0 14px ${primaryGlow}`,
+                  }}
+                >
+                  {caughtEvil
+                    ? t('elimReveal.stampCaught', 'CAUGHT')
+                    : t('elimReveal.stampDown', 'DOWN')}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
 

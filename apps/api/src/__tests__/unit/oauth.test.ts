@@ -332,7 +332,8 @@ describe('OAuth Routes', () => {
     it('sets username for a new OAuth user', async () => {
       const setupToken = app.jwt.sign({ sub: 'user-new', setup: true })
 
-      mockPrismaUser.findUnique.mockResolvedValue(null)
+      // Collision check is findFirst (case-insensitive) — no existing row.
+      ;(mockPrismaUser as any).findFirst.mockResolvedValue(null)
       mockPrismaUser.update.mockResolvedValue({
         id: 'user-new',
         username: 'coolplayer',
@@ -354,7 +355,9 @@ describe('OAuth Routes', () => {
     it('returns 409 when username is already taken by another user', async () => {
       const setupToken = app.jwt.sign({ sub: 'user-new', setup: true })
 
-      mockPrismaUser.findUnique.mockResolvedValue({ id: 'other-user', username: 'takenname' })
+      // Setup-username collision uses findFirst (case-insensitive) so
+      // "TakenName" and "takenname" are treated as the same claim.
+      ;(mockPrismaUser as any).findFirst.mockResolvedValue({ id: 'other-user', username: 'takenname' })
 
       const res = await app.inject({
         method: 'POST',
@@ -415,8 +418,8 @@ describe('OAuth Routes', () => {
     it('allows username if it belongs to the same user (no conflict)', async () => {
       const setupToken = app.jwt.sign({ sub: 'user-new', setup: true })
 
-      // findUnique returns user with same id as token sub → not a conflict
-      mockPrismaUser.findUnique.mockResolvedValue({ id: 'user-new', username: 'coolplayer' })
+      // findFirst returns user with same id as token sub → not a conflict
+      ;(mockPrismaUser as any).findFirst.mockResolvedValue({ id: 'user-new', username: 'coolplayer' })
       mockPrismaUser.update.mockResolvedValue({
         id: 'user-new',
         username: 'coolplayer',

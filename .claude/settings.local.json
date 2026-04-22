@@ -113,7 +113,29 @@
       "Bash(pnpm --filter @red-handed/shared build)",
       "Bash(pnpm --filter \"@red-handed/shared\" build)",
       "Bash(pnpm --filter \"@red-handed/ui\" build)",
-      "Bash(pnpm --filter @red-handed/api typecheck)"
+      "Bash(pnpm --filter @red-handed/api typecheck)",
+      "Bash(git log *)",
+      "Bash(git ls-tree *)",
+      "Bash(curl -sf --max-time 2 http://localhost:14740/ -o /dev/null)",
+      "Bash(curl -sf --max-time 2 http://localhost:5175/ -o /dev/null)",
+      "Bash(curl -s -o /dev/null -w \"14740:%{http_code}\\\\n\" http://localhost:14740/)",
+      "Bash(curl -s -o /dev/null -w \"5175:%{http_code}\\\\n\" http://localhost:5175/)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(grep -E \"\\\\.\\(tsx?|prisma\\)$\")",
+      "Bash(node -e \"require\\('esbuild'\\).buildSync\\({entryPoints:['apps/web/src/i18n/ar.ts','apps/web/src/i18n/fr.ts','apps/web/src/i18n/de.ts','apps/web/src/i18n/it.ts','apps/web/src/i18n/es.ts','apps/web/src/i18n/pt.ts','apps/web/src/i18n/zh.ts','apps/web/src/i18n/hi.ts','apps/web/src/i18n/ru.ts','apps/mobile/i18n/de.ts','apps/mobile/i18n/es.ts','apps/mobile/i18n/it.ts','apps/mobile/i18n/pt.ts','apps/mobile/i18n/ru.ts','apps/mobile/i18n/zh.ts','apps/mobile/i18n/hi.ts','packages/shared/src/i18n/en.ts','packages/shared/src/i18n/fr.ts','packages/shared/src/i18n/ar.ts'],write:false,bundle:false}\\);console.log\\('OK'\\)\")",
+      "Bash(git -C .claude/worktrees/fix-502 log --oneline -5)",
+      "Bash(git -C .claude/worktrees/fix-502 status --short)",
+      "Bash(timeout 120 npx vitest run src/__tests__/unit/friends.test.ts)",
+      "Bash(find /e/Work/Guess-Who-main/apps/api/src -name \"*.ts\" -type f -exec grep -l \"game.*end\\\\|endGame\\\\|closeRoom\\\\|finishGame\" {} \\\\;)",
+      "Bash(docker start *)",
+      "Bash(pnpm --silent exec tsc --noEmit)",
+      "Bash(npx --workspace apps/web vitest run apps/web/src/__tests__/pages/FriendsPage.test.tsx)",
+      "Bash(python -c \"import yaml, sys; yaml.safe_load\\(open\\('deploy/docker-compose.staging.yml'\\)\\); print\\('YAML OK'\\)\")",
+      "Bash(node -e \"const yaml=require\\('js-yaml'\\);const fs=require\\('fs'\\);try{yaml.load\\(fs.readFileSync\\('deploy/docker-compose.staging.yml','utf8'\\)\\);console.log\\('YAML OK'\\)}catch\\(e\\){console.error\\('FAIL',e.message\\);process.exit\\(1\\)}\")",
+      "Bash(npx vitest *)",
+      "Bash(npx expo *)",
+      "Bash(pnpm --filter @red-handed/web tsc --noEmit)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js\\)$\")"
     ]
   }
 }

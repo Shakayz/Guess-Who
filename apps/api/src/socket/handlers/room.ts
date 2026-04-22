@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io'
-import type { ServerToClientEvents, ClientToServerEvents } from '@red-handed/shared'
-import { shuffleArray } from '@red-handed/shared'
+import type { ServerToClientEvents, ClientToServerEvents, WordCategory } from '@red-handed/shared'
+import { shuffleArray, pickRandomWordPair } from '@red-handed/shared'
 import { prisma } from '../../config/prisma'
 import { redis } from '../../config/redis'
 import { childLogger } from '../../config/logger'
@@ -19,6 +19,189 @@ const FALLBACK_WORDS = [
   { wordA: 'Beach',   wordB: 'Desert' },
   { wordA: 'Coffee',  wordB: 'Tea'    },
 ]
+
+/**
+ * Remove a user from a waiting lobby's Redis state. Idempotent and safe to
+ * call when the user isn't actually a member. Handles three outcomes:
+ *
+ *  - Lobby is empty after removal → delete Redis state and flip the Postgres
+ *    row to `status='closed'` so the public browser drops it immediately.
+ *  - Removed player was the host → promote the next remaining player and
+ *    broadcast `room:host-changed`.
+ *  - Otherwise → persist the updated state and broadcast `player:left`.
+ *
+ * Bails out without mutating state if the game has already started
+ * (`in_progress` / `voting` / `starting`) — mid-game departures go through
+ * `forfeitPlayer` in the `room:leave` handler, not here. Takes a per-room
+ * mutex so concurrent joins/leaves can't clobber each other.
+ *
+ * Returns `true` if the lobby was torn down (last player out).
+ */
+export async function removeUserFromWaitingLobby(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+  roomId: string,
+  userId: string,
+  leavingSocketId?: string,
+): Promise<boolean> {
+  const lockKey = `room:${roomId}:join-lock`
+  let lockAcquired = false
+  for (let i = 0; i < 15; i++) {
+    const result = await (redis as any).set(lockKey, '1', 'PX', 5000, 'NX')
+    if (result === 'OK') { lockAcquired = true; break }
+    await new Promise((r) => setTimeout(r, 25))
+  }
+  if (!lockAcquired) {
+    log.warn({ roomId, userId }, 'removeUserFromWaitingLobby: could not acquire lock, skipping')
+    return false
+  }
+
+  try {
+    const stateRaw = await redis.get(`room:${roomId}:state`)
+    if (!stateRaw) return false
+    const state = JSON.parse(stateRaw)
+
+    // Only this helper's concern — mid-game handling is up to the caller.
+    if (state.status !== 'waiting') return false
+
+    const wasMember = Array.isArray(state.players) && state.players.some((p: any) => p.userId === userId)
+    if (!wasMember) return false
+
+    state.players = state.players.filter((p: any) => p.userId !== userId)
+    const roomKey = `room:${roomId}`
+
+    if (state.players.length === 0) {
+      await redis.del(`room:${roomId}:state`)
+      await prisma.room.update({
+        where: { id: roomId },
+        data:  { status: 'closed' },
+      }).catch(() => {})
+      log.info({ roomId, userId }, 'waiting lobby closed (last player removed)')
+      if (leavingSocketId) io.to(roomKey).emit('player:left', leavingSocketId)
+      return true
+    }
+
+    // Someone remains — reassign host if the leaver was hosting.
+    const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
+    if (room && room.hostId === userId) {
+      const newHost = state.players[0]
+      newHost.isHost  = true
+      newHost.isReady = true
+      await prisma.room.update({
+        where: { id: roomId },
+        data:  { hostId: newHost.userId },
+      }).catch(() => {})
+      io.to(roomKey).emit('room:host-changed' as any, {
+        newHostId:       newHost.userId,
+        newHostUsername: newHost.username,
+      })
+    }
+
+    await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+    if (leavingSocketId) io.to(roomKey).emit('player:left', leavingSocketId)
+    return false
+  } finally {
+    await redis.del(lockKey).catch(() => {})
+  }
+}
+
+/**
+ * Unranked "special" mode: when the lobby/matchmaking produced zero configured
+ * role counts (matchmade queues never set them, and a host can leave the
+ * steppers at zero), scatter random special roles across both teams so every
+ * game lands a varied mix — detective / guardian / mayor / judge / revenant on
+ * the villager side, double-agent / infiltrator / kamikaze / corruptor /
+ * inverter on the red-handed side. Prefers unique roles, then allows
+ * duplicates up to each role's cap once the distinct pool is exhausted. From
+ * 10+ players the evil-twins pair (always both halves, never just one) and
+ * the jester are also seeded in.
+ *
+ * Mutates `state` in place. No-op outside 'special' mode, or when the host
+ * has already configured at least one role count (explicit config wins).
+ */
+function maybeRandomizeSpecialRoles(state: any, playerCount: number, redHandedCount: number) {
+  if (state?.gameMode !== 'special') return
+
+  const totalConfigured =
+    (state.detectiveCount   ?? 0) +
+    (state.doubleAgentCount ?? 0) +
+    (state.guardianCount    ?? 0) +
+    (state.mayorCount       ?? 0) +
+    (state.infiltratorCount ?? 0) +
+    (state.jesterCount      ?? 0) +
+    (state.judgeCount       ?? 0) +
+    (state.revenantCount    ?? 0) +
+    (state.kamikazeCount    ?? 0) +
+    (state.corruptorCount   ?? 0) +
+    (state.inverterCount    ?? 0) +
+    (state.evilTwinsEnabled ?? 0)
+  if (totalConfigured > 0) return
+
+  let villagerBudget  = Math.max(0, playerCount - redHandedCount)
+  let redHandedBudget = Math.max(0, redHandedCount)
+
+  // Evil twins are all-or-nothing (both halves, one on each team) and only
+  // unlock at 10+ players, matching the existing jester unlock threshold.
+  if (playerCount >= 10 && villagerBudget >= 2 && redHandedBudget >= 1) {
+    state.evilTwinsEnabled = 1
+    state.jesterCount      = 1
+    villagerBudget  -= 2
+    redHandedBudget -= 1
+  }
+
+  assignRandomSpecials(state, [
+    { key: 'detectiveCount', cap: 3 },
+    { key: 'guardianCount',  cap: 2 },
+    { key: 'mayorCount',     cap: 1 },
+    { key: 'judgeCount',     cap: 1 },
+    { key: 'revenantCount',  cap: 1 },
+  ], villagerBudget)
+
+  assignRandomSpecials(state, [
+    { key: 'doubleAgentCount', cap: 2 },
+    { key: 'infiltratorCount', cap: 2 },
+    { key: 'kamikazeCount',    cap: 2 },
+    { key: 'corruptorCount',   cap: 1 },
+    { key: 'inverterCount',    cap: 1 },
+  ], redHandedBudget)
+}
+
+function assignRandomSpecials(
+  state: any,
+  pool: Array<{ key: string; cap: number }>,
+  budget: number,
+) {
+  if (budget <= 0) return
+
+  const shuffled = pool.map((e) => ({ ...e, remaining: e.cap }))
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+
+  // Aim to fill ~70% of slots with specials, leaving some plain villagers /
+  // red-handed so the normal role isn't extinct. Clamp to pool capacity so
+  // we never exceed the per-role caps.
+  const poolCap = shuffled.reduce((s, e) => s + e.cap, 0)
+  const target  = Math.min(budget, poolCap, Math.max(1, Math.round(budget * 0.7)))
+
+  let assigned = 0
+  for (const entry of shuffled) {
+    if (assigned >= target) break
+    if (entry.remaining > 0) {
+      state[entry.key] = (state[entry.key] ?? 0) + 1
+      entry.remaining -= 1
+      assigned++
+    }
+  }
+  while (assigned < target) {
+    const candidates = shuffled.filter((e) => e.remaining > 0)
+    if (candidates.length === 0) break
+    const pick = candidates[Math.floor(Math.random() * candidates.length)]
+    state[pick.key] = (state[pick.key] ?? 0) + 1
+    pick.remaining -= 1
+    assigned++
+  }
+}
 
 /** Start a game for a room — used by both game:start handler and matchmaking auto-start */
 async function startGameForRoom(
@@ -55,20 +238,13 @@ async function startGameForRoom(
     // so the host can retry.
     const previousStatus: string = state.status
     state.status = 'starting'
-    // We also consume `hostPrepaid` here when it applies — atomically with
-    // the status pin so concurrent `game:start` calls cannot double-spend
-    // the prepayment from POST /rooms. The actual *charge* happens inside
-    // the big $transaction further down; this flag just tracks whether the
-    // host owes money for this specific start.
-    const consumedHostPrepaid = room.isPrivate === true && state.hostPrepaid === true
-    if (consumedHostPrepaid) {
-      state.hostPrepaid = false
-    }
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
     // Assign roles
     const players: any[] = shuffleArray([...state.players])
     const redHandedCount = Math.min(room.redHandedCount, Math.floor(players.length / 3))
+    // Unranked special mode with no host-configured counts → scatter random specials.
+    maybeRandomizeSpecialRoles(state, players.length, redHandedCount)
     const detectiveCount    = Math.max(0, state.detectiveCount    ?? (state.enableDetective   ? 1 : 0))
     const doubleAgentCount  = Math.max(0, state.doubleAgentCount  ?? (state.enableDoubleAgent ? 1 : 0))
     const guardianCount     = Math.max(0, state.guardianCount     ?? 0)
@@ -190,26 +366,37 @@ async function startGameForRoom(
       'roles assigned for new game',
     )
 
-    // Pick words
+    // Pick words. The default path draws from the shared offline pair bank so
+    // online/unranked/ranked/create-lobby games use the *exact same* curated
+    // pairs as offline mode, locale-aware and with working category filtering.
+    // Only custom word packs (room.wordPackId set to a real pack id) still go
+    // through the DB — that's where user-authored content lives.
     const selectedCategories: string[] = state.categories ?? []
+    const roomLocale: string = (room as any).language ?? 'en'
     let wordPair = FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)]
+    let wordCategory: WordCategory | undefined
     try {
-      const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
-      const roomLocale: string = (room as any).language ?? 'en'
-      const pack = room.wordPackId && room.wordPackId !== 'default'
-        ? await prisma.wordPack.findUnique({
-            where: { id: room.wordPackId },
-            include: { pairs: { where: categoryFilter } },
-          })
-        : await prisma.wordPack.findFirst({
-            where: { isPremium: false, isApproved: true, locale: roomLocale, authorId: null },
-            include: { pairs: { where: categoryFilter } },
-          })
-      if (pack && pack.pairs.length > 0) {
-        const pair = pack.pairs[Math.floor(Math.random() * pack.pairs.length)]
-        wordPair = { wordA: pair.wordA, wordB: pair.wordB }
+      if (room.wordPackId && room.wordPackId !== 'default') {
+        const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
+        const pack = await prisma.wordPack.findUnique({
+          where: { id: room.wordPackId },
+          include: { pairs: { where: categoryFilter } },
+        })
+        if (pack && pack.pairs.length > 0) {
+          const pair = pack.pairs[Math.floor(Math.random() * pack.pairs.length)]
+          wordPair = { wordA: pair.wordA, wordB: pair.wordB }
+          wordCategory = pair.category as WordCategory
+        } else {
+          const pair = pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
+          wordPair = { wordA: pair.villagerWord, wordB: pair.redHandedWord }
+          wordCategory = pair.category
+        }
+      } else {
+        const pair = pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
+        wordPair = { wordA: pair.villagerWord, wordB: pair.redHandedWord }
+        wordCategory = pair.category
       }
-    } catch { /* use fallback */ }
+    } catch { /* use FALLBACK_WORDS */ }
 
     // Randomly swap which word goes to villagers vs redHanded
     if (Math.random() < 0.5) {
@@ -217,28 +404,43 @@ async function startGameForRoom(
     }
 
     // ── Atomic: charge 10 ⭐ per game + create Game/Round/GameParticipation in
-    // ONE transaction. Before this change the debit and the game-creation
-    // lived in TWO separate transactions with ~150 lines of logic between
-    // them; if the second transaction failed, coins had already committed
-    // and players lost 10 ⭐ with no game. Now any failure — insufficient
-    // stars, DB error during game create, anything — rolls the entire thing
-    // back so no one is ever charged for a game that didn't start.
+    // ONE transaction. Any failure — insufficient stars, DB error during game
+    // create, anything — rolls the entire thing back so no one is ever
+    // charged for a game that didn't start.
     //
-    // Three charging cases:
+    // Two charging cases:
     //   1. Public/matchmade room → every player pays 10 ⭐ at every start.
-    //   2. Private lobby, FIRST game → `state.hostPrepaid` flag (set at POST
-    //      /rooms) covers it; we already consumed the flag above when pinning
-    //      status to 'starting'.
-    //   3. Private lobby, subsequent game → charge the host 10 ⭐. The flag
-    //      is never re-set (buildResetState drops it), so the host cannot
-    //      farm unlimited games on a single 10 ⭐ commitment fee.
+    //   2. Private lobby → charge the host 10 ⭐ at every start. Nothing is
+    //      charged at lobby creation, so a host who never starts a game
+    //      never loses coins.
+    // Premium subscribers play for free — the "Unlimited Games" perk.
+    // Resolve premium status for every user who might be charged in this
+    // transaction so we can skip their debit without an extra round-trip
+    // inside the $transaction.
+    const chargeableUserIds = room.isPrivate === false
+      ? players.map((p: any) => p.userId as string)
+      : [room.hostId]
+    const premiumRows = chargeableUserIds.length === 0
+      ? []
+      : await prisma.user.findMany({
+          where: { id: { in: chargeableUserIds } },
+          select: { id: true, premiumUntil: true },
+        })
+    const now = Date.now()
+    const premiumUserIds = new Set(
+      premiumRows
+        .filter((u) => u.premiumUntil && u.premiumUntil.getTime() > now)
+        .map((u) => u.id),
+    )
+
     let game: { id: string }
     let round: { id: string; roundNumber: number }
     try {
       const result = await prisma.$transaction(async (tx) => {
         if (room.isPrivate === false) {
-          // Case 1 — charge everyone
+          // Case 1 — charge everyone except premium subscribers
           for (const p of players) {
+            if (premiumUserIds.has(p.userId)) continue
             const debit = await tx.user.updateMany({
               where: { id: p.userId, starCoins: { gte: DAILY_COST } },
               data:  { starCoins: { decrement: DAILY_COST } },
@@ -249,8 +451,8 @@ async function startGameForRoom(
               throw err
             }
           }
-        } else if (!consumedHostPrepaid) {
-          // Case 3 — subsequent private-lobby game, charge host
+        } else if (!premiumUserIds.has(room.hostId)) {
+          // Case 2 — private lobby, charge host every start (free for premium).
           const debit = await tx.user.updateMany({
             where: { id: room.hostId, starCoins: { gte: DAILY_COST } },
             data:  { starCoins: { decrement: DAILY_COST } },
@@ -261,7 +463,6 @@ async function startGameForRoom(
             throw err
           }
         }
-        // Case 2 — prepaid, nothing to debit. Flag was already consumed above.
         const game = await tx.game.create({
           data: {
             roomId,
@@ -283,13 +484,8 @@ async function startGameForRoom(
       game = result.game
       round = result.round
     } catch (err: any) {
-      // Rewind Redis state on failure — put the status back AND restore the
-      // hostPrepaid flag we consumed speculatively, so the host can retry
-      // without losing their commitment fee.
+      // Rewind Redis state on failure so the host can retry.
       state.status = previousStatus
-      if (consumedHostPrepaid) {
-        state.hostPrepaid = true
-      }
       await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
       if (err?.message === 'INSUFFICIENT_STARS') {
         log.warn({ roomId, failedUserId: err.failedUserId }, 'game start refused: insufficient stars (charges rolled back)')
@@ -317,6 +513,7 @@ async function startGameForRoom(
     state.currentRound = 1
     state.villagerWord = wordPair.wordA
     state.redHandedWord = wordPair.wordB
+    state.wordCategory = wordCategory
     state.rounds = [{ id: round.id, roundNumber: 1, votes: [], clues: [],
       speakingOrder: players.map((p: any) => p.userId) }]
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
@@ -336,7 +533,7 @@ async function startGameForRoom(
       settings: {
         maxPlayers: room.maxPlayers, minPlayers: 3, redHandedCount: room.redHandedCount,
         speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
-        wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
+        wordPackId: room.wordPackId, isPrivate: room.isPrivate, isPublic: room.isPublic, language: room.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0), doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
         guardianCount: state.guardianCount ?? 0,
@@ -351,6 +548,7 @@ async function startGameForRoom(
         evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
         vocalMode: state.vocalMode ?? false,
         vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+        blindMode: state.blindMode ?? false,
       },
     } as any)
 
@@ -362,13 +560,18 @@ async function startGameForRoom(
       'red_handed', 'double_agent', 'kamikaze', 'corruptor', 'inverter', 'twin_red_handed',
     ])
 
+    // Blind role mode hides each player's role in the initial reveal payload.
+    // Server-side logic still uses the true role; the client just doesn't
+    // learn it until elimination / game end.
+    const blindMode = state.gameMode === 'normal' && !!state.blindMode
     for (const playerData of players) {
       const getsRedHandedWord = redHandedWordRoles.has(playerData.role)
       const payload = {
         round: roundPayload as any,
         yourWord: getsRedHandedWord ? wordPair.wordB : wordPair.wordA,
-        yourRole: playerData.role,
+        yourRole: blindMode ? undefined : playerData.role,
         yourVillagerWord: playerData.role === 'double_agent' ? wordPair.wordA : undefined,
+        yourCategory: wordCategory,
       }
       const sid = onlineUsers.get(playerData.userId)
       if (sid) io.to(sid).emit('game:started', payload)
@@ -440,18 +643,50 @@ export function registerRoomHandlers(
         return
       }
 
+      const joiningUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { locale: true, premiumUntil: true, avatarUrl: true },
+      })
+      const isPremium = !!(joiningUser?.premiumUntil && joiningUser.premiumUntil.getTime() > Date.now())
+
       // ── Language check: joiner must speak the room's language ────────────────
       // The host is exempt (they set the room language). Normalize both codes to
       // 2-letter base so 'en-US' matches 'en', etc.
       if (room.hostId !== userId) {
-        const playerUser = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
-        const playerLocale = (playerUser?.locale ?? 'en').split('-')[0]
+        const playerLocale = (joiningUser?.locale ?? 'en').split('-')[0]
         const roomLanguage = room.language.split('-')[0]
         if (roomLanguage !== playerLocale) {
-          socket.emit('error', { code: 'LANGUAGE_MISMATCH', message: 'This room is in a different language. You can only join rooms that match your language.' })
+          socket.emit('error', {
+            code: 'LANGUAGE_MISMATCH',
+            message: 'This room is in a different language. You can only join rooms that match your language.',
+            // Include the room's language so the client can show a CTA
+            // ("Switch to Spanish to join") without guessing.
+            roomLanguage,
+          } as any)
           await socket.leave(`room:${room.id}`)
           return
         }
+      }
+
+      // ── Evict from any stale waiting lobbies before joining the new one ──
+      // If the player navigated away from a previous lobby page without clicking
+      // "Leave" (browser back, creating a new lobby from Home, closing a duplicate
+      // tab), the socket is still a member of the old socket.io room AND the old
+      // Redis state still lists them as a player. That's how ghost rows ended up
+      // in the public browser ("hosted by X" showing 1/10 when X is actually in
+      // a different lobby). Evicting here keeps a user in at most one waiting
+      // lobby at a time, and tears the old one down if it empties out.
+      const staleRoomKeys = [...socket.rooms].filter(
+        (r) => r.startsWith('room:') && r !== `room:${room.id}`,
+      )
+      for (const staleRoomKey of staleRoomKeys) {
+        const staleRoomId = staleRoomKey.split(':')[1]
+        try {
+          await removeUserFromWaitingLobby(io, staleRoomId, userId, socket.id)
+        } catch (err) {
+          log.error({ err, staleRoomId, userId }, 'failed to evict user from stale lobby on join')
+        }
+        await socket.leave(staleRoomKey)
       }
 
       await socket.join(`room:${room.id}`)
@@ -477,6 +712,15 @@ export function registerRoomHandlers(
         const stateRaw = await redis.get(`room:${room.id}:state`)
         state = stateRaw ? JSON.parse(stateRaw) : { players: [], status: 'waiting' }
         const alreadyIn = state.players.find((p: any) => p.userId === userId)
+
+        // ── Block kicked players from rejoining this lobby ──────────────────────
+        // Host can re-invite to clear the ban (see room:invite handler).
+        const bannedList: string[] = Array.isArray(state.bannedUserIds) ? state.bannedUserIds : []
+        if (!alreadyIn && room.hostId !== userId && bannedList.includes(userId)) {
+          socket.emit('error', { code: 'KICKED_FROM_ROOM', message: 'You were removed from this lobby by the host' })
+          await socket.leave(`room:${room.id}`)
+          return
+        }
 
         // ── Block forfeited players from rejoining the same game ────────────────
         if (alreadyIn && alreadyIn.status === 'forfeited') {
@@ -513,7 +757,8 @@ export function registerRoomHandlers(
             id: socket.id,
             userId,
             username,
-            avatarUrl: null,
+            avatarUrl: joiningUser?.avatarUrl ?? null,
+            isPremium,
             role: undefined,
             status: 'alive',
             isHost: room.hostId === userId,
@@ -524,18 +769,36 @@ export function registerRoomHandlers(
         } else {
           // Reconnection: update socket.id for the existing player entry
           alreadyIn.id = socket.id
+          const wasDisconnected = alreadyIn.disconnected === true
+          if (wasDisconnected) alreadyIn.disconnected = false
           await redis.set(`room:${room.id}:state`, JSON.stringify(state), 'EX', 21600)
+
+          // Notify peers that this player is back so the UI can drop the
+          // disconnected indicator. (Mid-game disconnects mark the player as
+          // eliminated for fairness — that status is preserved on reconnect.)
+          if (wasDisconnected) {
+            io.to(`room:${room.id}`).emit('player:connection-changed', { userId, disconnected: false })
+          }
 
           // Re-send word/role + full phase sync if game is already in progress
           if (state.status === 'in_progress' || state.status === 'voting') {
             const getsRedHandedWord = alreadyIn.role === 'red_handed' || alreadyIn.role === 'double_agent'
             const rounds: any[] = state.rounds ?? []
             const currentRoundData = rounds.find((r: any) => r.roundNumber === state.currentRound) ?? null
+            const reconnectBlind = state.gameMode === 'normal' && !!state.blindMode
+            // Preserve blind mode across reconnects: once a player is
+            // eliminated their role is publicly known anyway, so unhide it
+            // in that case to match the elimination reveal the rest of the
+            // table already saw.
+            const revealRoleOnReconnect =
+              !reconnectBlind || alreadyIn.status === 'eliminated'
             socket.emit('game:started', {
               round: currentRoundData,
               yourWord: getsRedHandedWord ? state.redHandedWord : state.villagerWord,
-              yourRole: alreadyIn.role,
+              yourRole: revealRoleOnReconnect ? alreadyIn.role : undefined,
               yourVillagerWord: alreadyIn.role === 'double_agent' ? state.villagerWord : undefined,
+              yourCategory: state.wordCategory,
+              isReconnect: true,
             })
 
             // Emit full phase sync so reconnecting client can resume at the correct phase
@@ -581,6 +844,7 @@ export function registerRoomHandlers(
           votingTimeSeconds: room.votingTimeSeconds,
           wordPackId: room.wordPackId,
           isPrivate: room.isPrivate,
+          isPublic: room.isPublic,
           language: room.language as any,
           gameMode: state.gameMode ?? 'normal',
           categories: state.categories ?? [],
@@ -598,6 +862,7 @@ export function registerRoomHandlers(
           evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
           vocalMode: state.vocalMode ?? false,
           vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+          blindMode: state.blindMode ?? false,
           isMatchmade: state.isMatchmade ?? false,
         },
       }
@@ -659,6 +924,12 @@ export function registerRoomHandlers(
       state.vocalMode = false
     }
 
+    // Blind role mode — normal-mode exclusive. Host sees/sends the flag only
+    // while in normal mode; any other mode force-clears it below.
+    if (newSettings.blindMode !== undefined) {
+      state.blindMode = !!newSettings.blindMode
+    }
+
     // Special roles only allowed in 'special' mode — force-disable in normal mode
     if (state.gameMode === 'normal') {
       state.detectiveCount    = 0
@@ -674,6 +945,8 @@ export function registerRoomHandlers(
       state.inverterCount     = 0
       state.evilTwinsEnabled  = 0
     } else {
+      // Blind role mode is normal-only — wipe it anywhere else.
+      state.blindMode = false
       if (newSettings.detectiveCount    !== undefined) state.detectiveCount    = Math.max(0, Math.min(3, newSettings.detectiveCount))
       if (newSettings.doubleAgentCount  !== undefined) state.doubleAgentCount  = Math.max(0, Math.min(2, newSettings.doubleAgentCount))
       if (newSettings.guardianCount     !== undefined) state.guardianCount     = Math.max(0, Math.min(2, newSettings.guardianCount))
@@ -690,7 +963,7 @@ export function registerRoomHandlers(
     await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
 
     // Persist numeric and language settings to Prisma
-    const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de']
+    const SUPPORTED_LOCALES = ['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de', 'ru', 'hi']
     const dbUpdate: Record<string, number | string> = {}
     // Min 3 players (was incorrectly clamped to 4 here, even though the rest
     // of the codebase advertises 3 as the minimum).
@@ -762,7 +1035,7 @@ export function registerRoomHandlers(
       settings: {
         maxPlayers: updatedRoom.maxPlayers, minPlayers: 3, redHandedCount: updatedRoom.redHandedCount,
         speakingTimeSeconds: updatedRoom.speakingTimeSeconds, votingTimeSeconds: updatedRoom.votingTimeSeconds,
-        wordPackId: updatedRoom.wordPackId, isPrivate: updatedRoom.isPrivate, language: updatedRoom.language as any,
+        wordPackId: updatedRoom.wordPackId, isPrivate: updatedRoom.isPrivate, isPublic: updatedRoom.isPublic, language: updatedRoom.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
         doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
@@ -778,6 +1051,7 @@ export function registerRoomHandlers(
         evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
         vocalMode: state.vocalMode ?? false,
         vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+        blindMode: state.blindMode ?? false,
         isMatchmade: state.isMatchmade ?? false,
       },
     }
@@ -811,7 +1085,7 @@ export function registerRoomHandlers(
       settings: {
         maxPlayers: room.maxPlayers, minPlayers: 3, redHandedCount: room.redHandedCount,
         speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
-        wordPackId: room.wordPackId, isPrivate: room.isPrivate, language: room.language as any,
+        wordPackId: room.wordPackId, isPrivate: room.isPrivate, isPublic: room.isPublic, language: room.language as any,
         gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
         detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
         doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
@@ -827,6 +1101,7 @@ export function registerRoomHandlers(
         evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
         vocalMode: state.vocalMode ?? false,
         vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+        blindMode: state.blindMode ?? false,
         isMatchmade: state.isMatchmade ?? false,
       },
     }
@@ -1029,6 +1304,30 @@ export function registerRoomHandlers(
     }
   })
 
+  // ── Kamikaze: actively spare everyone (no second elimination) ────────────────
+  // Same guards as pick-target. Resolves the pending state with null target.
+  socket.on('kamikaze:skip' as any, async () => {
+    try {
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      if (state.kamikazePendingUserId !== userId) return
+      const kamikaze = state.players.find((p: any) => p.userId === userId)
+      if (!kamikaze || kamikaze.role !== 'kamikaze') return
+
+      const { resolveKamikazeSkip } = await import('../gameLoop')
+      await resolveKamikazeSkip(io, roomId, userId)
+      log.info({ userId, roomId }, 'kamikaze:skip used')
+    } catch (err) {
+      log.error({ err, userId }, 'kamikaze:skip error')
+    }
+  })
+
   // ── Judge: decide who to eliminate during a tiebreaker ──────────────────────
   socket.on('judge:pick-elimination' as any, async ({ targetUserId }: { targetUserId: string }) => {
     try {
@@ -1130,6 +1429,159 @@ export function registerRoomHandlers(
     }
   })
 
+  socket.on('room:transfer-host', async ({ targetUserId }) => {
+    try {
+      if (!targetUserId || targetUserId === userId) return
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const room = await prisma.room.findUnique({ where: { id: roomId } })
+      if (!room || room.hostId !== userId) return
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      // Host transfer is only meaningful before the game starts — role
+      // assignments bake in the current host during game:start.
+      if (state.status !== 'waiting') return
+
+      const target = state.players.find((p: any) => p.userId === targetUserId)
+      if (!target) return
+
+      state.players.forEach((p: any) => {
+        p.isHost = p.userId === targetUserId
+        if (p.userId === targetUserId) p.isReady = true
+      })
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+      await prisma.room.update({ where: { id: roomId }, data: { hostId: targetUserId } }).catch(() => {})
+
+      io.to(roomKey).emit('room:host-changed' as any, {
+        newHostId:       targetUserId,
+        newHostUsername: target.username,
+      })
+
+      const roomPayload = {
+        id: room.id, code: room.code, hostId: targetUserId,
+        status: state.status, players: state.players,
+        currentRound: state.currentRound ?? 0,
+        maxRounds: state.maxRounds ?? 0,
+        createdAt: room.createdAt.toISOString(),
+        settings: {
+          maxPlayers: room.maxPlayers, minPlayers: 3, redHandedCount: room.redHandedCount,
+          speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
+          wordPackId: room.wordPackId, isPrivate: room.isPrivate, isPublic: room.isPublic, language: room.language as any,
+          gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
+          detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
+          doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
+          guardianCount: state.guardianCount ?? 0,
+          mayorCount: state.mayorCount ?? 0,
+          infiltratorCount: state.infiltratorCount ?? 0,
+          jesterCount: state.jesterCount ?? 0,
+          judgeCount: state.judgeCount ?? 0,
+          revenantCount: state.revenantCount ?? 0,
+          kamikazeCount: state.kamikazeCount ?? 0,
+          corruptorCount: state.corruptorCount ?? 0,
+          inverterCount: state.inverterCount ?? 0,
+          evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
+          vocalMode: state.vocalMode ?? false,
+          vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+          blindMode: state.blindMode ?? false,
+          isMatchmade: state.isMatchmade ?? false,
+        },
+      }
+      io.to(roomKey).emit('room:updated', roomPayload as any)
+      log.info({ userId, roomId, targetUserId }, 'room:transfer-host succeeded')
+    } catch (err) {
+      log.error({ err, userId, targetUserId }, 'room:transfer-host error')
+    }
+  })
+
+  socket.on('room:kick-player', async ({ targetUserId }) => {
+    try {
+      if (!targetUserId || targetUserId === userId) return
+      const roomKey = [...socket.rooms].find((r) => r.startsWith('room:'))
+      if (!roomKey) return
+      const roomId = roomKey.split(':')[1]
+
+      const room = await prisma.room.findUnique({ where: { id: roomId } })
+      if (!room || room.hostId !== userId) return
+
+      const stateRaw = await redis.get(`room:${roomId}:state`)
+      if (!stateRaw) return
+      const state = JSON.parse(stateRaw)
+
+      // Kicks only make sense in the waiting lobby. Once the game has started,
+      // player removal flows through forfeit instead.
+      if (state.status !== 'waiting') return
+
+      const target = state.players.find((p: any) => p.userId === targetUserId)
+      if (!target) return
+      // Host cannot kick themselves through this path (defense-in-depth).
+      if (target.isHost) return
+
+      state.players = state.players.filter((p: any) => p.userId !== targetUserId)
+      const banned: string[] = Array.isArray(state.bannedUserIds) ? state.bannedUserIds : []
+      if (!banned.includes(targetUserId)) banned.push(targetUserId)
+      state.bannedUserIds = banned
+      await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
+
+      // Boot the target's socket from the room channel and notify them.
+      const targetSocketId = target.id as string | undefined
+      if (targetSocketId) {
+        const targetSocket = io.sockets.sockets.get(targetSocketId)
+        if (targetSocket) {
+          targetSocket.emit('room:kicked', { byUsername: username })
+          await targetSocket.leave(roomKey)
+        } else {
+          io.to(targetSocketId).emit('room:kicked', { byUsername: username })
+        }
+      }
+      // Also notify the user anywhere else they may be connected (different tab).
+      const liveSocketId = onlineUsers.get(targetUserId)
+      if (liveSocketId && liveSocketId !== targetSocketId) {
+        io.to(liveSocketId).emit('room:kicked', { byUsername: username })
+      }
+
+      io.to(roomKey).emit('player:left', targetSocketId ?? '')
+
+      const roomPayload = {
+        id: room.id, code: room.code, hostId: room.hostId,
+        status: state.status, players: state.players,
+        currentRound: state.currentRound ?? 0,
+        maxRounds: state.maxRounds ?? 0,
+        createdAt: room.createdAt.toISOString(),
+        settings: {
+          maxPlayers: room.maxPlayers, minPlayers: 3, redHandedCount: room.redHandedCount,
+          speakingTimeSeconds: room.speakingTimeSeconds, votingTimeSeconds: room.votingTimeSeconds,
+          wordPackId: room.wordPackId, isPrivate: room.isPrivate, isPublic: room.isPublic, language: room.language as any,
+          gameMode: state.gameMode ?? 'normal', categories: state.categories ?? [],
+          detectiveCount: state.detectiveCount ?? (state.enableDetective ? 1 : 0),
+          doubleAgentCount: state.doubleAgentCount ?? (state.enableDoubleAgent ? 1 : 0),
+          guardianCount: state.guardianCount ?? 0,
+          mayorCount: state.mayorCount ?? 0,
+          infiltratorCount: state.infiltratorCount ?? 0,
+          jesterCount: state.jesterCount ?? 0,
+          judgeCount: state.judgeCount ?? 0,
+          revenantCount: state.revenantCount ?? 0,
+          kamikazeCount: state.kamikazeCount ?? 0,
+          corruptorCount: state.corruptorCount ?? 0,
+          inverterCount: state.inverterCount ?? 0,
+          evilTwinsEnabled: state.evilTwinsEnabled ?? 0,
+          vocalMode: state.vocalMode ?? false,
+          vocalSpeakingTimeSeconds: state.vocalSpeakingTimeSeconds ?? 10,
+          blindMode: state.blindMode ?? false,
+          isMatchmade: state.isMatchmade ?? false,
+        },
+      }
+      io.to(roomKey).emit('room:updated', roomPayload as any)
+      log.info({ userId, roomId, targetUserId }, 'room:kick-player succeeded')
+    } catch (err) {
+      log.error({ err, userId, targetUserId }, 'room:kick-player error')
+    }
+  })
+
   socket.on('room:leave', async () => {
     log.info({ userId }, 'room:leave')
     const roomKeys = [...socket.rooms].filter((r) => r.startsWith('room:'))
@@ -1141,28 +1593,16 @@ export function registerRoomHandlers(
         const isInGame = state.status === 'in_progress' || state.status === 'voting'
 
         if (isInGame) {
-          // Voluntary leave during game = forfeit (guaranteed LP loss)
+          // Voluntary leave during game = forfeit (guaranteed LP loss).
+          // forfeitPlayer persists its own state mutations; we just broadcast.
           await forfeitPlayer(io, roomId, userId)
+          io.to(roomKey).emit('player:left', socket.id)
         } else {
-          // In lobby: remove the player entirely
-          state.players = state.players.filter((p: any) => p.userId !== userId)
-
-          // ── Host reassignment ─────────────────────────────────────────────
-          const room = await prisma.room.findUnique({ where: { id: roomId } }).catch(() => null)
-          if (room && room.hostId === userId && state.players.length > 0) {
-            const newHost = state.players[0]
-            newHost.isHost  = true
-            newHost.isReady = true
-            await prisma.room.update({
-              where: { id: roomId },
-              data:  { hostId: newHost.userId },
-            }).catch(() => {})
-            io.to(roomKey).emit('room:host-changed' as any, { newHostId: newHost.userId, newHostUsername: newHost.username })
-          }
+          // Waiting lobby: delegate to the shared helper so the empty→close
+          // and host-reassignment paths stay consistent with room:join's
+          // stale-lobby eviction.
+          await removeUserFromWaitingLobby(io, roomId, userId, socket.id)
         }
-
-        await redis.set(`room:${roomId}:state`, JSON.stringify(state), 'EX', 21600)
-        io.to(roomKey).emit('player:left', socket.id)
       }
       await socket.leave(roomKey)
     }

@@ -11,9 +11,13 @@ import { getSocket } from '../lib/socket'
 import { SoundManager } from '../lib/sounds'
 import { PlayerActionMenu } from '../components/PlayerActionMenu'
 import { CoinsRevealCard } from '../components/CoinsRevealCard'
+import { AdInterstitialModal } from '../components/AdInterstitialModal'
+import { shouldShowAd } from '../lib/ads'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../lib/api'
 
 /** Full-screen cinematic intro overlay that auto-dismisses */
-const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: () => void }) => {
+const OutcomeCinematic = memo(({ didWin, isDraw, onDone }: { didWin: boolean; isDraw: boolean; onDone: () => void }) => {
   const { t } = useTranslation()
   const [stage, setStage] = useState<'in' | 'hold' | 'out'>('in')
 
@@ -51,7 +55,8 @@ const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: ()
 
   const victoryHues = ['#fbbf24','#f59e0b','#fde68a','#ffffff','#34d399','#60a5fa']
   const defeatHues  = ['#f87171','#ef4444','#fca5a5','#fda4af','#a3a3a3','#ffffff']
-  const palette = didWin ? victoryHues : defeatHues
+  const drawHues    = ['#f59e0b','#fb923c','#fdba74','#fed7aa','#ffffff','#fbbf24']
+  const palette = isDraw ? drawHues : didWin ? victoryHues : defeatHues
 
   return (
     <>
@@ -105,16 +110,18 @@ const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: ()
         className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
         onClick={onDone}
         style={{
-          background: didWin
-            ? 'radial-gradient(ellipse at center, rgba(16,80,40,0.97) 0%, rgba(5,10,5,0.99) 80%)'
-            : 'radial-gradient(ellipse at center, rgba(80,10,10,0.97) 0%, rgba(5,5,10,0.99) 80%)',
+          background: isDraw
+            ? 'radial-gradient(ellipse at center, rgba(120,60,10,0.97) 0%, rgba(10,8,5,0.99) 80%)'
+            : didWin
+              ? 'radial-gradient(ellipse at center, rgba(16,80,40,0.97) 0%, rgba(5,10,5,0.99) 80%)'
+              : 'radial-gradient(ellipse at center, rgba(80,10,10,0.97) 0%, rgba(5,5,10,0.99) 80%)',
           opacity: stage === 'out' ? 0 : 1,
           transition: stage === 'out' ? 'opacity 0.5s ease' : 'opacity 0.3s ease',
         }}
       >
         {/* Screen flash */}
         <div
-          className={['absolute inset-0 pointer-events-none', didWin ? 'bg-amber-300' : 'bg-red-600'].join(' ')}
+          className={['absolute inset-0 pointer-events-none', isDraw ? 'bg-amber-500' : didWin ? 'bg-amber-300' : 'bg-red-600'].join(' ')}
           style={{ animation: 'cin-flash 0.7s ease forwards', animationDelay: '0.05s', opacity: 0 }}
         />
 
@@ -146,8 +153,8 @@ const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: ()
           style={{
             width: 260,
             height: 260,
-            borderColor: didWin ? '#fbbf24' : '#ef4444',
-            boxShadow: `0 0 80px ${didWin ? 'rgba(251,191,36,0.65)' : 'rgba(239,68,68,0.65)'}`,
+            borderColor: isDraw ? '#f59e0b' : didWin ? '#fbbf24' : '#ef4444',
+            boxShadow: `0 0 80px ${isDraw ? 'rgba(245,158,11,0.65)' : didWin ? 'rgba(251,191,36,0.65)' : 'rgba(239,68,68,0.65)'}`,
             animation: 'cin-shock 1.0s cubic-bezier(0.16,1,0.3,1) forwards',
           }}
         />
@@ -193,7 +200,7 @@ const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: ()
 
         <div
           className="text-center pointer-events-none select-none relative z-10 px-4"
-          style={{ animation: !didWin && stage !== 'in' ? 'cin-shake 0.5s ease 0.2s both' : undefined }}
+          style={{ animation: !didWin && !isDraw && stage !== 'in' ? 'cin-shake 0.5s ease 0.2s both' : undefined }}
         >
           <div
             style={{
@@ -201,26 +208,30 @@ const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: ()
                 ? 'cin-drop 0.75s cubic-bezier(0.34,1.56,0.64,1) both, cin-icon-pulse 2.4s ease-in-out 0.8s infinite'
                 : undefined,
               fontSize: 112,
-              filter: didWin
-                ? 'drop-shadow(0 8px 24px rgba(251,191,36,0.7))'
-                : 'drop-shadow(0 8px 24px rgba(239,68,68,0.6))',
+              filter: isDraw
+                ? 'drop-shadow(0 8px 24px rgba(245,158,11,0.7))'
+                : didWin
+                  ? 'drop-shadow(0 8px 24px rgba(251,191,36,0.7))'
+                  : 'drop-shadow(0 8px 24px rgba(239,68,68,0.6))',
             }}
           >
-            {didWin ? '🏆' : '💀'}
+            {isDraw ? '🤝' : didWin ? '🏆' : '💀'}
           </div>
           <h1
             className="font-black mt-3"
             style={{
               fontSize: 64,
-              color: didWin ? '#fbbf24' : '#f87171',
-              textShadow: didWin
-                ? '0 0 40px rgba(251,191,36,0.85), 0 0 80px rgba(251,191,36,0.4)'
-                : '0 0 40px rgba(248,113,113,0.7), 0 0 80px rgba(248,113,113,0.3)',
+              color: isDraw ? '#f59e0b' : didWin ? '#fbbf24' : '#f87171',
+              textShadow: isDraw
+                ? '0 0 40px rgba(245,158,11,0.85), 0 0 80px rgba(245,158,11,0.4)'
+                : didWin
+                  ? '0 0 40px rgba(251,191,36,0.85), 0 0 80px rgba(251,191,36,0.4)'
+                  : '0 0 40px rgba(248,113,113,0.7), 0 0 80px rgba(248,113,113,0.3)',
               animation: stage !== 'in' ? 'cin-rise 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both' : undefined,
               opacity: stage === 'in' ? 0 : 1,
             }}
           >
-            {didWin ? t('results.victory', 'VICTORY') : t('results.defeat', 'DEFEAT')}
+            {isDraw ? t('results.draw', "It's a Draw!") : didWin ? t('results.victory', 'VICTORY') : t('results.defeat', 'DEFEAT')}
           </h1>
           <p
             className="text-neutral-300 text-sm mt-4 uppercase tracking-[0.3em] font-semibold"
@@ -229,9 +240,11 @@ const OutcomeCinematic = memo(({ didWin, onDone }: { didWin: boolean; onDone: ()
               opacity: stage === 'in' ? 0 : 0.8,
             }}
           >
-            {didWin
-              ? t('results.victorySubtitle', 'Sharp minds. Bright team.')
-              : t('results.defeatSubtitle', 'Try again. The village awaits.')}
+            {isDraw
+              ? t('results.drawSubtitle', 'Well fought on both sides.')
+              : didWin
+                ? t('results.victorySubtitle', 'Sharp minds. Bright team.')
+                : t('results.defeatSubtitle', 'Try again. The village awaits.')}
           </p>
           <p
             className="text-neutral-500 text-xs mt-6"
@@ -274,7 +287,7 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
                 💀 <span className="font-semibold text-white">{eliminated.username}</span>
                 {' '}
                 <span className="text-neutral-500 text-xs">
-                  ({round.eliminatedRole === 'red_handed' ? `🎭 ${t('game.roleRedHanded', 'Imposter')}` : round.eliminatedRole === 'double_agent' ? `🕵️ ${t('game.roleDoubleAgent', 'Double Agent')}` : round.eliminatedRole === 'detective' ? `🔍 ${t('game.roleDetective', 'Detective')}` : `👤 ${t('game.roleVillager', 'Villager')}`})
+                  ({round.eliminatedRole === 'red_handed' ? `🎭 ${t('game.roleRedHanded', 'Imposter')}` : round.eliminatedRole === 'double_agent' ? `🕵️ ${t('game.roleDoubleAgent', 'Double Agent')}` : round.eliminatedRole === 'detective' ? `🔍 ${t('game.roleDetective', 'Detective')}` : `🏠 ${t('game.roleVillager', 'Villager')}`})
                 </span>
               </span>
             ) : (
@@ -331,7 +344,11 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
                   <div key={i} className="flex items-center gap-1.5 text-xs">
                     <span className="text-neutral-400">{getName(v.voterId)}</span>
                     <span className="text-neutral-700">→</span>
-                    <span className="text-white font-medium">{getName(v.targetId)}</span>
+                    {v.targetId === null ? (
+                      <span className="text-neutral-500 italic">🚫</span>
+                    ) : (
+                      <span className="text-white font-medium">{getName(v.targetId)}</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -401,6 +418,13 @@ export default function ResultsPage() {
   const [showCinematic, setShowCinematic] = useState(true)
   const [honorGiven, setHonorGiven] = useState<Record<string, HonorType>>({})
   const [honorTarget, setHonorTarget] = useState<string | null>(null)
+  const [pendingAdNav, setPendingAdNav] = useState<string | null>(null)
+  const meQuery = useQuery<{ level?: number; isPremium?: boolean }>({
+    queryKey: ['me'],
+    queryFn: () => api.get('/auth/me'),
+    retry: false,
+  })
+  const hasGivenHonor = Object.keys(honorGiven).length > 0
   const [rankUp, setRankUp] = useState<{ oldTier: RankTier; newTier: RankTier; newLP: number } | null>(null)
   const [showRankCelebration, setShowRankCelebration] = useState(false)
 
@@ -445,7 +469,7 @@ export default function ResultsPage() {
 
   // Play outcome sound on mount
   useEffect(() => {
-    SoundManager.play(didWin ? 'success' : 'error')
+    SoundManager.play(didWin || isDraw ? 'success' : 'error')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -512,10 +536,23 @@ export default function ResultsPage() {
     getSocket().emit('honor:give' as any, { targetUserId, honorType })
   }
 
+  // Defers `reset()` until *just before* `navigate()` runs so we don't clear
+  // the game store while the ResultsPage is still mounted — otherwise the
+  // `!result` guard below kicks in and strands the user on the "No game data
+  // available" fallback (the AdInterstitialModal lives in the main return
+  // path and would never mount).
+  const navigateWithAd = (dest: string) => {
+    if (shouldShowAd({ level: meQuery.data?.level, isPremium: meQuery.data?.isPremium })) {
+      setPendingAdNav(dest)
+    } else {
+      reset()
+      navigate(dest)
+    }
+  }
+
   const handlePlayAgain = () => {
     const roomCode = code ?? room?.code   // route param is most reliable
-    reset()
-    navigate(roomCode ? `/lobby/${roomCode}` : '/')
+    navigateWithAd(roomCode ? `/lobby/${roomCode}` : '/')
   }
 
   // Guard: if no game result data, show fallback
@@ -533,7 +570,7 @@ export default function ResultsPage() {
   return (
     <div className="min-h-screen flex flex-col">
       {showCinematic && (
-        <OutcomeCinematic didWin={didWin} onDone={() => setShowCinematic(false)} />
+        <OutcomeCinematic didWin={didWin} isDraw={isDraw} onDone={() => setShowCinematic(false)} />
       )}
 
       <NavBar />
@@ -569,35 +606,40 @@ export default function ResultsPage() {
           {/* Outcome hero */}
           <div className={[
             'card relative overflow-hidden text-center py-8',
-            winner === 'jester'     ? 'border-pink-700/40'
-            : winner === 'evil_twins' ? 'border-purple-700/40'
-            : didWin                  ? 'border-emerald-700/40'
-            :                           'border-red-800/40',
+            isDraw                      ? 'border-amber-600/40'
+            : winner === 'jester'       ? 'border-pink-700/40'
+            : winner === 'evil_twins'   ? 'border-purple-700/40'
+            : didWin                    ? 'border-emerald-700/40'
+            :                             'border-red-800/40',
           ].join(' ')}>
             <div className={[
               'absolute inset-0 opacity-10',
-              winner === 'jester'       ? 'bg-gradient-to-br from-pink-500 to-transparent'
+              isDraw                    ? 'bg-gradient-to-br from-amber-500 to-transparent'
+              : winner === 'jester'     ? 'bg-gradient-to-br from-pink-500 to-transparent'
               : winner === 'evil_twins' ? 'bg-gradient-to-br from-purple-500 to-transparent'
               : didWin                  ? 'bg-gradient-to-br from-emerald-500 to-transparent'
               :                           'bg-gradient-to-br from-red-600 to-transparent',
             ].join(' ')} />
             <div className={[
               'absolute top-0 inset-x-0 h-0.5',
-              winner === 'jester'       ? 'bg-gradient-to-r from-transparent via-pink-500 to-transparent'
+              isDraw                    ? 'bg-gradient-to-r from-transparent via-amber-500 to-transparent'
+              : winner === 'jester'     ? 'bg-gradient-to-r from-transparent via-pink-500 to-transparent'
               : winner === 'evil_twins' ? 'bg-gradient-to-r from-transparent via-purple-500 to-transparent'
               : didWin                  ? 'bg-gradient-to-r from-transparent via-emerald-500 to-transparent'
               :                           'bg-gradient-to-r from-transparent via-red-500 to-transparent',
             ].join(' ')} />
             <div className="relative">
-              <p className={['text-6xl mb-3', didWin ? 'animate-bounce-in' : ''].join(' ')}>
-                {winner === 'jester'       ? '🃏'
+              <p className={['text-6xl mb-3', (didWin || isDraw) ? 'animate-bounce-in' : ''].join(' ')}>
+                {isDraw                    ? '🤝'
+                 : winner === 'jester'     ? '🃏'
                  : winner === 'evil_twins' ? '👯'
                  : didWin                  ? '🏆'
                  :                           '💀'}
               </p>
               <h1 className={[
                 'text-3xl font-extrabold tracking-tight mb-1',
-                winner === 'jester'       ? 'text-pink-400'
+                isDraw                    ? 'text-amber-400'
+                : winner === 'jester'     ? 'text-pink-400'
                 : winner === 'evil_twins' ? 'text-purple-400'
                 : didWin                  ? 'text-emerald-400'
                 :                           'text-red-400',
@@ -818,7 +860,7 @@ export default function ResultsPage() {
                         {HONOR_ICON[honorGiven[p.userId]]}{' '}
                         {t(`honor.${honorGiven[p.userId] === 'sharp_mind' ? 'sharpMind' : honorGiven[p.userId] === 'good_sport' ? 'goodSport' : 'teamplayer'}`)}
                       </span>
-                    ) : honorTarget === p.userId ? (
+                    ) : hasGivenHonor ? null : honorTarget === p.userId ? (
                       <div className="flex flex-col gap-1.5 items-end animate-slide-up">
                         {(['teamplayer', 'sharp_mind', 'good_sport'] as HonorType[]).map((type) => {
                           const honorColors: Record<HonorType, string> = {
@@ -931,7 +973,7 @@ export default function ResultsPage() {
               {t('results.playAgain')}
             </button>
             <button
-              onClick={() => { reset(); navigate('/') }}
+              onClick={() => navigateWithAd('/')}
               className="px-5 py-3.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold transition-colors"
             >
               {t('results.exit', 'Exit')}
@@ -940,6 +982,17 @@ export default function ResultsPage() {
 
         </div>
       </main>
+      <AdInterstitialModal
+        open={!!pendingAdNav}
+        onClose={() => {
+          const dest = pendingAdNav
+          setPendingAdNav(null)
+          if (dest) {
+            reset()
+            navigate(dest)
+          }
+        }}
+      />
     </div>
   )
 }

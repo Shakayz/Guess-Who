@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
   Animated,
   Easing,
+  Image,
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTranslation } from 'react-i18next'
@@ -197,9 +198,13 @@ function StepWelcome({ t }: { t: TFn }) {
   return (
     <View className="items-center gap-4">
       <View
-        className="w-24 h-24 rounded-3xl bg-violet-900/40 border border-violet-700/40 items-center justify-center"
+        className="w-24 h-24 rounded-3xl bg-neutral-50 border border-white/10 items-center justify-center"
       >
-        <Text style={{ fontSize: 56 }}>🎭</Text>
+        <Image
+          source={require('../assets/masks.png')}
+          style={{ width: 64, height: 64 }}
+          resizeMode="contain"
+        />
       </View>
       <View>
         <Text className="text-2xl font-extrabold text-white text-center mb-2">

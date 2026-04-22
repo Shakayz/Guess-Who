@@ -15,6 +15,7 @@ model User {
   passwordHash  String?
   googleId      String?  @unique
   appleId       String?  @unique
+  discordId     String?  @unique
   avatarUrl     String?
   locale        String   @default("en") @db.VarChar(5)
   starCoins     Int      @default(20)
@@ -50,11 +51,42 @@ model User {
   sharedAppAt             DateTime?
   pushToken     String?
   lastPlayedAt     DateTime?
+  // Last socket connection timestamp. Written on socket connect and disconnect
+  // so we can show "last seen" on a friend's profile. Only surfaced to other
+  // users when they are accepted friends — non-friends never see it.
+  lastSeenAt       DateTime?
   dailyStreakCount Int       @default(0)
+  // Timestamp of the last `/auth/me` call that credited the +20 daily login
+  // bonus. Separate from `lastPlayedAt` because the login bonus is awarded
+  // for *connecting* (so a broke player can't be locked out of the economy
+  // by the entry fee), while the 7-day streak bonus remains tied to actually
+  // finishing a game. Compared at UTC-day granularity.
+  lastDailyBonusAt DateTime?
+  // ── Premium subscription ────────────────────────────────────────────────────
+  // `premiumUntil` is the single source of truth: a user is premium iff this
+  // column is non-null and strictly in the future. The webhook writes
+  // `current_period_end` here on every Stripe subscription event, so a
+  // cancelled sub keeps its perks until the paid period actually ends.
+  // `stripeCustomerId` is created the first time a user starts a subscription
+  // checkout and reused across renewals so returning customers see saved cards
+  // and a single billing history. `stripeSubscriptionId` lets the webhook and
+  // billing-portal route look up the live subscription without scanning.
+  premiumUntil         DateTime?
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  // ── Emote loadout ───────────────────────────────────────────────────────────
+  // Ordered list of emote ids the player has equipped on their in-game React
+  // bar. Stored as a JSON string so the "equipped" set is one row-read instead
+  // of a join; capped to MAX_LOADOUT_SIZE (10) by the API. Unknown ids and ids
+  // the user no longer owns are filtered out on read — see
+  // apps/api/src/routes/emotes.ts for the resolution logic. Empty/null means
+  // "fall back to DEFAULT_LOADOUT" (the 5 free basics).
+  equippedEmotes String?  @db.Text
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   rooms               Room[]
+  emotes              UserEmote[]
   gameParticipations  GameParticipation[]
   sentHonors          Honor[]             @relation("sender")
   receivedHonors      Honor[]             @relation("receiver")
@@ -87,6 +119,12 @@ model Room {
   votingTimeSeconds   Int      @default(30)
   wordPackId          String   @default("default")
   isPrivate           Boolean  @default(false)
+  // Discoverability flag for Custom Lobbies: when true, the lobby is surfaced
+  // in the "Join Public Lobby" browser. Pricing is unaffected — a public
+  // Custom Lobby still has isPrivate=true (the host pays the commitment fee
+  // and per-game fees, players play free). Only ranked matchmaking rooms set
+  // isPrivate=false, which keeps the host-vs-player charging logic untouched.
+  isPublic            Boolean  @default(false)
   language            String   @default("en") @db.VarChar(5)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -94,6 +132,7 @@ model Room {
   host  User   @relation(fields: [hostId], references: [id])
   games Game[]
 
+  @@index([isPublic, status])
   @@map("rooms")
 }
 
@@ -360,6 +399,11 @@ model Gift {
   senderId    String
   receiverId  String
   coinAmount  Int      @default(0)
+  // When set, this gift delivers a Premium subscription extension. The value
+  // matches a PremiumPlan id ('monthly' | 'yearly') from shared constants,
+  // and the claim route extends `receiver.premiumUntil` by that plan's
+  // interval (monotonically — never shortens existing entitlement).
+  premiumPlanId String? @db.VarChar(16)
   message     String?  @db.VarChar(200)
   claimed     Boolean  @default(false)
   createdAt   DateTime @default(now())
@@ -408,11 +452,56 @@ model Purchase {
   starCoins       Int
   priceCents      Int
   currency        String   @default("usd") @db.VarChar(5)
+  // Payment platform. "stripe" for web checkout, "apple" for iOS StoreKit /
+  // App Store IAP, "google" for Android Play Billing. Drives which verifier
+  // ran and which id columns are populated.
+  platform        String   @default("stripe") @db.VarChar(16)
   stripeSessionId String?  @unique
+  // Platform-specific transaction id for idempotent crediting:
+  //   - Apple: originalTransactionId from the signed JWS payload
+  //   - Google: purchaseToken returned by Play Billing
+  // Unique so a retried verify call for the same receipt can't double-credit.
+  platformTxId    String?  @unique
   status          String   @default("pending") @db.VarChar(20) // pending | completed | failed
+  // Gift fields. When `giftReceiverId` is set, the payment is made by `userId`
+  // but the entitlement is delivered to the receiver through a Gift row on
+  // checkout completion. `premiumPlanId` marks one-time premium gifts (not a
+  // recurring subscription on the buyer's account) so the webhook knows to
+  // create a premium-bearing Gift instead of crediting the buyer.
+  giftReceiverId  String?
+  premiumPlanId   String?  @db.VarChar(16)
   createdAt       DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
 
+  @@index([userId, platform])
   @@map("purchases")
+}
+
+// ─── Emotes (in-game reactions) ───────────────────────────────────────────────
+// The emote catalog itself lives in /shared/constants/emotes.ts — it's static
+// content and keeping it in code (a) lets the client validate locally without
+// a round-trip, and (b) removes a seed step from onboarding.
+//
+// UserEmote only stores *ownership* — which paid emote ids a given user has
+// unlocked. Free emotes (rarity: 'free') are not written here; the resolution
+// layer implicitly grants them. Equipped selection is stored on
+// User.equippedEmotes as a JSON array, not here, because equip/unequip is the
+// hot path and a single column read is cheaper than a join.
+model UserEmote {
+  id         String   @id @default(cuid())
+  userId     String
+  emoteId    String   @db.VarChar(40)
+  priceCents Int      @default(0)
+  // Snapshot of the star-coin price charged at purchase time. The catalog
+  // price can change later (balance patches, sales, etc.); we keep the
+  // original so refunds and analytics have an authoritative source.
+  starCoins  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, emoteId])
+  @@index([userId])
+  @@map("user_emotes")
 }

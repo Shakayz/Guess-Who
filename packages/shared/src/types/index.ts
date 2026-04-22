@@ -1,6 +1,6 @@
 // ─── User & Auth ────────────────────────────────────────────────────────────
 
-export type Locale = 'en' | 'fr' | 'ar' | 'es' | 'it' | 'pt' | 'zh' | 'de'
+export type Locale = 'en' | 'fr' | 'ar' | 'es' | 'it' | 'pt' | 'zh' | 'de' | 'ru' | 'hi'
 
 export interface User {
   id: string
@@ -78,6 +78,7 @@ export const WORD_CATEGORIES = [
   { key: 'jobs',         label: 'Jobs',           icon: '💼' },
   { key: 'sports',       label: 'Sports',         icon: '⚽' },
   { key: 'movies',       label: 'Movies',         icon: '🎬' },
+  { key: 'tech',         label: 'Tech',           icon: '💻' },
   { key: 'history',      label: 'History',        icon: '📜' },
   { key: 'mangas',       label: 'Mangas',         icon: '🈶' },
   { key: 'celebrities',  label: 'Celebrities',    icon: '⭐' },
@@ -94,6 +95,11 @@ export interface RoomSettings {
   votingTimeSeconds: number
   wordPackId: string
   isPrivate: boolean
+  /** Discoverability toggle for Custom Lobbies. When true, the lobby is listed
+   *  in the public browser (GET /rooms/public). Pricing is identical either
+   *  way — this is purely a visibility flag. Ranked rooms always have this
+   *  false. Optional in transit for backwards compatibility with old clients. */
+  isPublic?: boolean
   language: Locale
   gameMode: GameMode
   categories: WordCategory[]   // empty = all categories
@@ -104,6 +110,11 @@ export interface RoomSettings {
   vocalMode?: boolean
   /** Seconds per player when `vocalMode` is on. Defaults to 10 for unranked. */
   vocalSpeakingTimeSeconds?: number
+  /** Blind role mode (normal-mode only). When true, each player only learns
+   *  their word at game start — not whether they're a villager or an imposter.
+   *  Roles are still revealed on elimination (to everyone) and in the final
+   *  results screen. Ignored outside of normal mode. */
+  blindMode?: boolean
 }
 
 // ─── Player ──────────────────────────────────────────────────────────────────
@@ -131,6 +142,13 @@ export interface Player {
   userId: string
   username: string
   avatarUrl: string | null
+  /**
+   * Populated from User.premiumUntil at the moment the player joins a room,
+   * so every lobby/voting UI can render the crown badge without a per-render
+   * /users/:id round-trip. Stale within a single game is fine — entitlement
+   * only matters here for the badge itself.
+   */
+  isPremium?: boolean
   role?: PlayerRole
   status: PlayerStatus
   word?: string
@@ -155,6 +173,9 @@ export interface Player {
   revenantVotesRemaining?: number
   /** Twin pairing: userId of the other twin (known to both twins from game start). */
   twinPartnerUserId?: string
+  /** Socket dropped mid-game and the player hasn't rejoined yet. Distinct from
+   *  `status === 'eliminated'`, which can also happen via vote or said-word. */
+  disconnected?: boolean
 }
 
 // ─── Round ───────────────────────────────────────────────────────────────────
@@ -181,13 +202,17 @@ export interface Clue {
 
 export interface Vote {
   voterId: string
-  targetId: string
+  // null = skipped / abstained vote — counts toward "has voted" but not toward elimination
+  targetId: string | null
   timestamp: string
 }
 
 export interface WordReveal {
   villagerWord: string
   redHandedWord: string
+  /** Category key the pair was drawn from (e.g. 'food', 'movies'). Optional
+   *  for backwards compatibility with older payloads. */
+  category?: WordCategory
 }
 
 // ─── Word Packs ───────────────────────────────────────────────────────────────
@@ -214,7 +239,7 @@ export interface WordPair {
 
 export interface ServerToClientEvents {
   'room:updated': (room: Room) => void
-  'game:started': (data: { round: Round; yourWord: string; yourRole: PlayerRole; yourVillagerWord?: string }) => void
+  'game:started': (data: { round: Round; yourWord: string; yourRole?: PlayerRole; yourVillagerWord?: string; yourCategory?: WordCategory; isReconnect?: boolean }) => void
   'detective:result': (data: { targetUserId: string; targetUsername: string; role: PlayerRole }) => void
   'round:speaking-turn': (data: { playerId: string | null; timeSeconds: number; speakingOrder: string[] }) => void
   'round:clue-submitted': (clue: Clue) => void
@@ -228,8 +253,10 @@ export interface ServerToClientEvents {
   'mayor:double-ack': (data: { userId: string }) => void
   'inverter:activate-ack': (data: { userId: string }) => void
   'corruptor:target-ack': (data: { targetUserId: string; targetUsername: string }) => void
-  'kamikaze:select-prompt': (data: { candidateUserIds: string[]; timeSeconds: number }) => void
-  'kamikaze:target-chosen': (data: { kamikazeUserId: string; targetUserId: string; targetUsername: string }) => void
+  'kamikaze:select-prompt': (data: { candidateUserIds: string[]; kamikazeUserId: string; kamikazeUsername: string; timeSeconds: number }) => void
+  'kamikaze:target-chosen': (data: { kamikazeUserId: string; targetUserId: string | null; targetUsername: string | null }) => void
+  /** Private twin-to-twin message — only delivered to the two Evil Twins. */
+  'twin:message': (data: { id: string; userId: string; username: string; text: string; createdAt: string }) => void
   'judge:decide-prompt': (data: { candidateUserIds: string[]; candidateUsernames: string[]; timeSeconds: number }) => void
   'judge:decided': (data: { judgeUserId: string; targetUserId: string; targetUsername: string }) => void
   'twin:partner': (data: { twinUserId: string; twinUsername: string; twinRole: PlayerRole }) => void
@@ -237,10 +264,12 @@ export interface ServerToClientEvents {
   'round:tiebreaker-voting': (data: { tiedPlayerIds: string[]; timeSeconds: number }) => void
   'game:sync': (data: { phase: 'speaking' | 'voting'; currentSpeakerId: string | null; speakingOrder: string[]; clues: Clue[]; votes: Vote[]; timeRemainingSeconds: number; currentRound: Round | null; tiebreakerActive?: boolean; tiebreakerPlayerIds?: string[]; tiebreakerPhase?: 'clue' | 'vote' }) => void
   'game:player-forfeited': (data: { userId: string; username: string }) => void
+  'player:connection-changed': (data: { userId: string; disconnected: boolean }) => void
   'rank:updated': (data: { oldTier: RankTier; newTier: RankTier; newLP: number; promoted: boolean }) => void
   'player:joined': (player: Player) => void
   'player:left': (playerId: string) => void
   'player:ready': (data: { playerId: string; isReady: boolean }) => void
+  'room:kicked': (data: { byUsername?: string }) => void
   'chat:message': (message: ChatMessage) => void
   'achievement:unlocked': (data: { key: string; name: string; icon: string; difficulty: string; category: string; starsReward: number; xpReward: number }) => void
   // ── Voice (WebRTC) signaling — vocal mode mic streaming ────────────────────
@@ -258,6 +287,8 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   'room:join': (data: { roomCode: string }) => void
   'room:leave': () => void
+  'room:kick-player': (data: { targetUserId: string }) => void
+  'room:transfer-host': (data: { targetUserId: string }) => void
   'player:ready': (isReady: boolean) => void
   'game:start': () => void
   'game:forfeit': () => void
@@ -265,7 +296,7 @@ export interface ClientToServerEvents {
   'clue:submit': (text: string) => void
   'clue:flag': (data: { cluePlayerId: string }) => void
   'vocal:skip-turn': () => void
-  'vote:cast': (targetPlayerId: string) => void
+  'vote:cast': (targetPlayerId: string | null) => void
   'chat:send': (text: string) => void
   'honor:give': (data: { targetPlayerId: string; honorType: HonorType }) => void
   'detective:reveal': (data: { targetUserId: string }) => void
@@ -273,7 +304,11 @@ export interface ClientToServerEvents {
   'inverter:activate': () => void
   'corruptor:pick-target': (data: { targetUserId: string }) => void
   'kamikaze:pick-target': (data: { targetUserId: string }) => void
+  /** Kamikaze: actively choose to spare everyone (no second elimination). */
+  'kamikaze:skip': () => void
   'judge:pick-elimination': (data: { targetUserId: string }) => void
+  /** Evil Twin private DM — sends a message to the other twin only. */
+  'twin:send': (data: { text: string }) => void
   // ── Voice (WebRTC) signaling — vocal mode mic streaming ────────────────────
   /** Join the voice channel for the current room. Server replies with `voice:peers`. */
   'voice:join': () => void
