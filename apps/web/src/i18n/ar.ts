@@ -14,6 +14,13 @@ export default {
     votes: 'الأصوات',
     send: 'إرسال',
     or: 'أو',
+    reconnected: '✓ تمت إعادة الاتصال',
+    connectionLost: 'انقطع الاتصال. جارٍ إعادة الاتصال...',
+    errorTitle: 'حدث خطأ ما',
+    errorUnknown: 'حدث خطأ غير متوقع',
+    reloadApp: 'إعادة تحميل',
+    advertisement: 'إعلان',
+    adContinuing: 'سيستأنف بعد لحظة…',
   },
   nav: {
     play: 'العب',
@@ -443,6 +450,7 @@ export default {
     leaveWarningTitle: 'اللعبة جارية!',
     leaveWarningText: 'لا يمكنك المغادرة أثناء اللعبة. استسلم أولاً إذا أردت الخروج.',
     stayInGame: 'البقاء في اللعبة',
+    emoteCooldown: 'تمهّل · {{seconds}} ث',
   },
   publicLobbies: {
     title: 'الانضمام إلى غرفة عامة',
@@ -639,6 +647,9 @@ export default {
     streakProgress: 'اليوم {{count}} / 7',
     gameCost: 'رسوم المشاركة',
     insufficientStars: 'لا توجد نجوم كافية — تحتاج {{required}} ⭐ للعب.',
+    gameRecap: 'ملخص اللعبة',
+    roundCount_one: 'جولة واحدة',
+    roundCount_other: '{{count}} جولات',
   },
   history: {
     title: 'سجل الألعاب',

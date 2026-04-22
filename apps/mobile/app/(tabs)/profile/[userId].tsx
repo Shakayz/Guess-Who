@@ -114,12 +114,12 @@ export default function PlayerProfileScreen() {
   const handleBlock = async () => {
     if (!userId || blocked) return
     Alert.alert(
-      'Block Player',
-      `Block ${profile?.username}? They won't be able to join your rooms or send you messages.`,
+      t('profile.blockPlayerTitle', 'Block Player'),
+      t('profile.blockPlayerMessage', "Block {{username}}? They won't be able to join your rooms or send you messages.", { username: profile?.username ?? '' }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Block',
+          text: t('profile.block', 'Block'),
           style: 'destructive',
           onPress: async () => {
             setBlockLoading(true)

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ADSENSE_CLIENT, ADSENSE_INTERSTITIAL_SLOT, adsConfigured, ensureAdSenseScript } from '../lib/ads'
 
 declare global {
@@ -16,6 +17,7 @@ export function AdInterstitialModal({
   open: boolean
   onClose: () => void
 }) {
+  const { t } = useTranslation()
   const [skippable, setSkippable] = useState(false)
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export function AdInterstitialModal({
       <div className="relative w-full max-w-md rounded-2xl border border-neutral-800 bg-neutral-950 p-4 shadow-2xl">
         <button
           type="button"
-          aria-label="Close"
+          aria-label={t('common.close', 'Close')}
           disabled={!skippable}
           onClick={onClose}
           className={`absolute -top-2 -right-2 h-8 w-8 rounded-full border text-sm font-bold transition-colors ${
@@ -66,13 +68,13 @@ export function AdInterstitialModal({
               data-full-width-responsive="true"
             />
           ) : (
-            <span className="text-xs text-neutral-600">Advertisement</span>
+            <span className="text-xs text-neutral-600">{t('common.advertisement', 'Advertisement')}</span>
           )}
         </div>
 
         {!skippable && (
           <p className="mt-3 text-center text-[11px] uppercase tracking-widest text-neutral-600">
-            Continuing in a moment…
+            {t('common.adContinuing', 'Continuing in a moment…')}
           </p>
         )}
       </div>

@@ -14,6 +14,13 @@ export default {
     votes: '票数',
     send: '发送',
     or: '或',
+    reconnected: '✓ 已重新连接',
+    connectionLost: '连接已断开。正在重新连接...',
+    errorTitle: '出了点问题',
+    errorUnknown: '发生了意外错误',
+    reloadApp: '重新加载',
+    advertisement: '广告',
+    adContinuing: '马上继续…',
   },
   nav: {
     play: '游戏',
@@ -441,6 +448,7 @@ export default {
     leaveWarningTitle: '游戏进行中！',
     leaveWarningText: '游戏进行中无法离开。如需退出，请先认输。',
     stayInGame: '留在游戏中',
+    emoteCooldown: '慢一点 · {{seconds}}秒',
   },
   publicLobbies: {
     title: '加入公开房间',
@@ -632,6 +640,9 @@ export default {
     drawSubtitle: '双方都表现出色。',
     noGameData: '没有游戏数据。',
     backHome: '返回首页',
+    gameRecap: '游戏回顾',
+    roundCount_one: '{{count}} 回合',
+    roundCount_other: '{{count}} 回合',
   },
   history: {
     title: '游戏历史',

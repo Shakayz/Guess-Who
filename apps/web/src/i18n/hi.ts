@@ -14,6 +14,13 @@ export default {
     votes: 'वोट',
     send: 'भेजें',
     or: 'या',
+    reconnected: '✓ फिर से कनेक्ट हो गया',
+    connectionLost: 'कनेक्शन टूट गया। फिर से कनेक्ट हो रहा है...',
+    errorTitle: 'कुछ गलत हो गया',
+    errorUnknown: 'एक अप्रत्याशित त्रुटि हुई',
+    reloadApp: 'पुनः लोड करें',
+    advertisement: 'विज्ञापन',
+    adContinuing: 'एक क्षण में जारी…',
   },
   nav: {
     play: 'खेलें',
@@ -440,6 +447,7 @@ export default {
     goodCatch: 'बढ़िया पकड़!',
     forfeit: 'फॉर्फ़िट',
     tiebreakerCannotVote: 'आप बराबरी पर हैं — दूसरों के वोट देने का इंतज़ार...',
+    emoteCooldown: 'थोड़ा धीमे · {{seconds}}से',
   },
   publicLobbies: {
     title: 'सार्वजनिक लॉबी में शामिल हों',
@@ -639,6 +647,9 @@ export default {
     baseReward: 'मैच',
     gameCost: 'गेम प्रवेश शुल्क',
     insufficientStars: 'पर्याप्त स्टार नहीं — खेलने के लिए आपको {{required}} ⭐ चाहिए।',
+    gameRecap: 'गेम सारांश',
+    roundCount_one: '{{count}} राउंड',
+    roundCount_other: '{{count}} राउंड',
   },
   history: {
     title: 'गेम इतिहास',

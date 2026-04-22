@@ -201,11 +201,11 @@ export default function SettingsScreen() {
   const handleChangePassword = async () => {
     setPwError(null)
     if (pwForm.next.length < 8) {
-      setPwError('New password must be at least 8 characters')
+      setPwError(t('settings.passwordMinLengthError', 'New password must be at least 8 characters'))
       return
     }
     if (pwForm.next !== pwForm.confirm) {
-      setPwError('New passwords do not match')
+      setPwError(t('settings.passwordMismatchError', 'New passwords do not match'))
       return
     }
     setPwLoading(true)
@@ -217,9 +217,9 @@ export default function SettingsScreen() {
       setPwSuccess(true)
       setPwForm({ current: '', next: '', confirm: '' })
       setShowPwForm(false)
-      Alert.alert('Success', 'Your password has been changed.')
+      Alert.alert(t('common.success', 'Success'), t('settings.passwordChangedMessage', 'Your password has been changed.'))
     } catch (err: any) {
-      setPwError(err.message ?? 'Failed to change password')
+      setPwError(err.message ?? t('settings.passwordChangeFailed', 'Failed to change password'))
     } finally {
       setPwLoading(false)
     }
@@ -264,10 +264,10 @@ export default function SettingsScreen() {
       >
         {/* Sound */}
         <View className="bg-neutral-900 border border-neutral-800 rounded-2xl px-4 mb-4">
-          <SectionHeader title="Sound" />
+          <SectionHeader title={t('settings.soundSection', 'Sound')} />
           <SettingRow
-            label="Sound Effects"
-            subtitle="Play sounds during the game"
+            label={t('settings.soundEffects', 'Sound Effects')}
+            subtitle={t('settings.soundEffectsDesc', 'Play sounds during the game')}
             right={
               <Switch
                 value={soundEnabled}
@@ -278,7 +278,7 @@ export default function SettingsScreen() {
             }
           />
           <VolumeSlider
-            label="Sound volume"
+            label={t('settings.soundVolume', 'Sound volume')}
             value={soundVolume}
             onChange={handleSoundVolume}
             disabled={!soundEnabled}
@@ -287,10 +287,10 @@ export default function SettingsScreen() {
 
         {/* Music */}
         <View className="bg-neutral-900 border border-neutral-800 rounded-2xl px-4 mb-4">
-          <SectionHeader title="Music" />
+          <SectionHeader title={t('settings.musicSection', 'Music')} />
           <SettingRow
-            label="Background Music"
-            subtitle="Looping track in menus and lobby"
+            label={t('settings.backgroundMusic', 'Background Music')}
+            subtitle={t('settings.backgroundMusicDesc', 'Looping track in menus and lobby')}
             right={
               <Switch
                 value={musicEnabled}
@@ -301,7 +301,7 @@ export default function SettingsScreen() {
             }
           />
           <VolumeSlider
-            label="Music volume"
+            label={t('settings.musicVolume', 'Music volume')}
             value={musicVolume}
             onChange={handleMusicVolume}
             disabled={!musicEnabled}
@@ -310,10 +310,10 @@ export default function SettingsScreen() {
 
         {/* Notifications */}
         <View className="bg-neutral-900 border border-neutral-800 rounded-2xl px-4 mb-4">
-          <SectionHeader title="Notifications" />
+          <SectionHeader title={t('settings.notificationsSection', 'Notifications')} />
           <SettingRow
-            label="Push Notifications"
-            subtitle="Get notified about game invites"
+            label={t('settings.pushNotifications', 'Push Notifications')}
+            subtitle={t('settings.pushNotificationsDesc', 'Get notified about game invites')}
             right={
               <Switch
                 value={notifEnabled}
@@ -327,13 +327,13 @@ export default function SettingsScreen() {
 
         {/* Language */}
         <View className="bg-neutral-900 border border-neutral-800 rounded-2xl px-4 mb-4">
-          <SectionHeader title="Language" />
+          <SectionHeader title={t('settings.languageSection', 'Language')} />
           <TouchableOpacity
             onPress={() => setShowLangPicker((v) => !v)}
             className="flex-row items-center justify-between py-3"
           >
             <View>
-              <Text className="text-sm font-semibold text-white">App Language</Text>
+              <Text className="text-sm font-semibold text-white">{t('settings.appLanguage', 'App Language')}</Text>
               <Text className="text-xs text-neutral-500 mt-0.5">{currentLangLabel}</Text>
             </View>
             <Text className="text-neutral-500 text-sm">{showLangPicker ? '▲' : '▼'}</Text>
@@ -368,7 +368,7 @@ export default function SettingsScreen() {
 
         {/* Account */}
         <View className="bg-neutral-900 border border-neutral-800 rounded-2xl px-4 mb-4">
-          <SectionHeader title="Account" />
+          <SectionHeader title={t('settings.accountSection', 'Account')} />
 
           {/* Change Password */}
           <TouchableOpacity
@@ -379,7 +379,7 @@ export default function SettingsScreen() {
             }}
             className="flex-row items-center justify-between py-3 border-b border-neutral-800"
           >
-            <Text className="text-sm font-semibold text-white">Change Password</Text>
+            <Text className="text-sm font-semibold text-white">{t('settings.changePassword', 'Change Password')}</Text>
             <Text className="text-neutral-500 text-sm">{showPwForm ? '▲' : '▼'}</Text>
           </TouchableOpacity>
 
@@ -387,7 +387,7 @@ export default function SettingsScreen() {
             <View className="pt-3 pb-2 space-y-2">
               <TextInput
                 secureTextEntry
-                placeholder="Current password"
+                placeholder={t('settings.currentPasswordPlaceholder', 'Current password')}
                 placeholderTextColor="#525252"
                 value={pwForm.current}
                 onChangeText={(v) => setPwForm((f) => ({ ...f, current: v }))}
@@ -395,7 +395,7 @@ export default function SettingsScreen() {
               />
               <TextInput
                 secureTextEntry
-                placeholder="New password"
+                placeholder={t('settings.newPasswordPlaceholder', 'New password')}
                 placeholderTextColor="#525252"
                 value={pwForm.next}
                 onChangeText={(v) => setPwForm((f) => ({ ...f, next: v }))}
@@ -403,7 +403,7 @@ export default function SettingsScreen() {
               />
               <TextInput
                 secureTextEntry
-                placeholder="Confirm new password"
+                placeholder={t('settings.confirmPasswordPlaceholder', 'Confirm new password')}
                 placeholderTextColor="#525252"
                 value={pwForm.confirm}
                 onChangeText={(v) => setPwForm((f) => ({ ...f, confirm: v }))}
@@ -413,7 +413,7 @@ export default function SettingsScreen() {
                 <Text className="text-red-400 text-xs mb-1">{pwError}</Text>
               )}
               {pwSuccess && (
-                <Text className="text-emerald-400 text-xs mb-1">Password changed successfully.</Text>
+                <Text className="text-emerald-400 text-xs mb-1">{t('settings.passwordChangedSuccess', 'Password changed successfully.')}</Text>
               )}
               <TouchableOpacity
                 onPress={handleChangePassword}
@@ -424,7 +424,7 @@ export default function SettingsScreen() {
                 {pwLoading ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text className="text-white font-semibold text-sm">Update Password</Text>
+                  <Text className="text-white font-semibold text-sm">{t('settings.updatePassword', 'Update Password')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -436,8 +436,8 @@ export default function SettingsScreen() {
             className="flex-row items-center justify-between py-3 mt-1"
           >
             <View>
-              <Text className="text-sm font-semibold text-red-400">Delete Account</Text>
-              <Text className="text-xs text-neutral-500 mt-0.5">Permanently delete all data</Text>
+              <Text className="text-sm font-semibold text-red-400">{t('settings.deleteAccount', 'Delete Account')}</Text>
+              <Text className="text-xs text-neutral-500 mt-0.5">{t('settings.deleteAccountDesc', 'Permanently delete all data')}</Text>
             </View>
             <Text className="text-neutral-600 text-sm">›</Text>
           </TouchableOpacity>
@@ -445,23 +445,23 @@ export default function SettingsScreen() {
 
         {/* Legal */}
         <View className="bg-neutral-900 border border-neutral-800 rounded-2xl px-4 mb-4">
-          <SectionHeader title="Legal" />
+          <SectionHeader title={t('settings.legalSection', 'Legal')} />
           <TouchableOpacity
             onPress={() => router.push('/terms')}
             className="flex-row items-center justify-between py-3 border-b border-neutral-800"
           >
-            <Text className="text-sm font-semibold text-white">Terms of Service</Text>
+            <Text className="text-sm font-semibold text-white">{t('settings.termsOfService', 'Terms of Service')}</Text>
             <Text className="text-neutral-500 text-sm">›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.push('/privacy')}
             className="flex-row items-center justify-between py-3 border-b border-neutral-800"
           >
-            <Text className="text-sm font-semibold text-white">Privacy Policy</Text>
+            <Text className="text-sm font-semibold text-white">{t('settings.privacyPolicy', 'Privacy Policy')}</Text>
             <Text className="text-neutral-500 text-sm">›</Text>
           </TouchableOpacity>
           <View className="flex-row items-center justify-between py-3">
-            <Text className="text-sm text-neutral-500">App Version</Text>
+            <Text className="text-sm text-neutral-500">{t('settings.appVersion', 'App Version')}</Text>
             <Text className="text-xs text-neutral-600 font-mono">1.0.0</Text>
           </View>
         </View>
@@ -477,19 +477,17 @@ export default function SettingsScreen() {
       >
         <View className="flex-1 bg-black/70 items-center justify-center px-4">
           <View className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full" style={{ maxWidth: 400 }}>
-            <Text className="text-lg font-bold text-white mb-3">Delete Account</Text>
+            <Text className="text-lg font-bold text-white mb-3">{t('settings.deleteAccount', 'Delete Account')}</Text>
             <Text className="text-sm text-neutral-400 mb-3 leading-5">
-              This action is{' '}
-              <Text className="text-red-400 font-semibold">permanent and irreversible</Text>. All your data
-              including rank, coins, and game history will be deleted.
+              {t('settings.deleteWarning', 'This action is permanent and irreversible. All your data including rank, coins, and game history will be deleted.')}
             </Text>
             <Text className="text-sm text-neutral-400 mb-3">
-              Type <Text className="font-mono text-white">DELETE</Text> to confirm.
+              {t('settings.deleteTypeToConfirm', 'Type DELETE to confirm.')}
             </Text>
             <TextInput
               value={deleteConfirmText}
               onChangeText={setDeleteConfirmText}
-              placeholder="Type DELETE to confirm"
+              placeholder={t('settings.deletePlaceholder', 'Type DELETE to confirm')}
               placeholderTextColor="#525252"
               autoCapitalize="characters"
               autoCorrect={false}
@@ -505,7 +503,7 @@ export default function SettingsScreen() {
                 className="flex-1 py-2.5 rounded-xl bg-neutral-800 items-center"
                 activeOpacity={0.7}
               >
-                <Text className="text-neutral-300 text-sm font-semibold">Cancel</Text>
+                <Text className="text-neutral-300 text-sm font-semibold">{t('common.cancel', 'Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleConfirmDelete}
@@ -517,7 +515,7 @@ export default function SettingsScreen() {
                 {deleteLoading ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text className="text-white text-sm font-semibold">Delete Account</Text>
+                  <Text className="text-white text-sm font-semibold">{t('settings.deleteAccount', 'Delete Account')}</Text>
                 )}
               </TouchableOpacity>
             </View>

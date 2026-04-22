@@ -272,8 +272,8 @@ export default function FriendsScreen() {
   const handleUnfriend = useCallback(
     (friendshipId: string, username: string) => {
       Alert.alert(
-        'Remove friend?',
-        `${username} will no longer see you as a friend.`,
+        t('friends.removeFriendTitle', 'Remove friend?'),
+        t('friends.removeFriendMessage', '{{username}} will no longer see you as a friend.', { username }),
         [
           { text: t('common.cancel'), style: 'cancel' },
           {
@@ -285,7 +285,7 @@ export default function FriendsScreen() {
                 await api.delete(`/friends/${friendshipId}`)
                 setFriends((prev) => prev.filter((f) => f.friendshipId !== friendshipId))
               } catch (err: any) {
-                Alert.alert(t('common.error'), err?.message ?? 'Unable to remove')
+                Alert.alert(t('common.error'), err?.message ?? t('friends.unableToRemove', 'Unable to remove'))
               } finally {
                 setPendingActions((p) => {
                   const next = new Set(p)
@@ -387,7 +387,7 @@ export default function FriendsScreen() {
         <View className="pt-3 pb-1" style={{ paddingHorizontal: px }}>
           <TextInput
             className="bg-neutral-900 text-white px-4 py-3 rounded-xl border border-neutral-800 text-sm"
-            placeholder="Search players by username..."
+            placeholder={t('friends.searchPlaceholder', 'Search players by username...')}
             placeholderTextColor="#525252"
             value={searchQuery}
             onChangeText={handleSearch}

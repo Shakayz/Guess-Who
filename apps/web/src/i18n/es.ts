@@ -14,6 +14,13 @@ export default {
     votes: 'Votos',
     send: 'Enviar',
     or: 'o',
+    reconnected: '✓ Reconectado',
+    connectionLost: 'Conexión perdida. Reconectando...',
+    errorTitle: 'Algo salió mal',
+    errorUnknown: 'Ocurrió un error inesperado',
+    reloadApp: 'Recargar',
+    advertisement: 'Publicidad',
+    adContinuing: 'Continuando en un momento…',
   },
   nav: {
     play: 'Jugar',
@@ -441,6 +448,7 @@ export default {
     leaveWarningTitle: '¡Partida en curso!',
     leaveWarningText: 'No puedes salir mientras la partida está en curso. Ríndete primero si quieres salir.',
     stayInGame: 'Quedarse en la partida',
+    emoteCooldown: 'Más despacio · {{seconds}}s',
   },
   publicLobbies: {
     title: 'Unirse a sala pública',
@@ -635,6 +643,9 @@ export default {
     drawSubtitle: 'Bien jugado por ambos lados.',
     noGameData: 'No hay datos de juego disponibles.',
     backHome: 'Volver al inicio',
+    gameRecap: 'Resumen de la partida',
+    roundCount_one: '{{count}} ronda',
+    roundCount_other: '{{count}} rondas',
   },
   history: {
     title: 'Historial de partidas',

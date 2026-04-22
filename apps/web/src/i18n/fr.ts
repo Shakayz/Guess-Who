@@ -15,6 +15,13 @@ export default {
     votes: 'Votes',
     send: 'Envoyer',
     or: 'ou',
+    reconnected: '✓ Reconnecté',
+    connectionLost: 'Connexion perdue. Reconnexion...',
+    errorTitle: 'Une erreur s\'est produite',
+    errorUnknown: 'Une erreur inattendue s\'est produite',
+    reloadApp: 'Recharger',
+    advertisement: 'Publicité',
+    adContinuing: 'Reprise dans un instant…',
   },
   nav: {
     play: 'Jouer',
@@ -437,6 +444,7 @@ export default {
     goodCatch: 'Bien joué !',
     forfeit: 'Abandonner',
     tiebreakerCannotVote: 'Vous êtes à égalité — en attente du vote des autres...',
+    emoteCooldown: 'Ralentis · {{seconds}}s',
   },
   publicLobbies: {
     title: 'Rejoindre un lobby public',
@@ -663,6 +671,9 @@ export default {
     streakProgress: 'Jour {{count}} / 7',
     gameCost: 'Frais de participation',
     insufficientStars: 'Pas assez d\'étoiles — il te faut {{required}} ⭐ pour jouer.',
+    gameRecap: 'Récapitulatif de la partie',
+    roundCount_one: '{{count}} manche',
+    roundCount_other: '{{count}} manches',
   },
   history: {
     title: 'Historique des parties',

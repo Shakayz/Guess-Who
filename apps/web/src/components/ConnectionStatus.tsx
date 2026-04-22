@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getSocket } from '../lib/socket'
 
 export function ConnectionStatus() {
+  const { t } = useTranslation()
   const [connected, setConnected] = useState(true)
   const [showBanner, setShowBanner] = useState(false)
 
@@ -27,9 +29,9 @@ export function ConnectionStatus() {
       connected ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white animate-pulse'
     }`}>
       {connected ? (
-        <span>✓ Reconnected</span>
+        <span>{t('common.reconnected', '✓ Reconnected')}</span>
       ) : (
-        <span>Connection lost. Reconnecting...</span>
+        <span>{t('common.connectionLost', 'Connection lost. Reconnecting...')}</span>
       )}
     </div>
   )

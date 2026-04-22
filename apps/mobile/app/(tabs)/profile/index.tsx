@@ -202,14 +202,14 @@ export default function ProfileScreen() {
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync()
         if (status !== 'granted') {
-          Alert.alert('Permission required', 'Camera access is needed to take a photo.')
+          Alert.alert(t('profile.permissionRequired', 'Permission required'), t('profile.cameraPermissionMsg', 'Camera access is needed to take a photo.'))
           return
         }
         result = await ImagePicker.launchCameraAsync({ ...options, maxWidth: 800, maxHeight: 800 })
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
         if (status !== 'granted') {
-          Alert.alert('Permission required', 'Photo library access is needed to pick a photo.')
+          Alert.alert(t('profile.permissionRequired', 'Permission required'), t('profile.libraryPermissionMsg', 'Photo library access is needed to pick a photo.'))
           return
         }
         result = await ImagePicker.launchImageLibraryAsync({ ...options, maxWidth: 800, maxHeight: 800 })
@@ -233,13 +233,13 @@ export default function ProfileScreen() {
   }
 
   const handleAvatarPress = () => {
-    Alert.alert('Profile Photo', 'Choose an option', [
-      { text: 'Take Photo', onPress: () => pickAndUploadAvatar('camera') },
-      { text: 'Choose from Library', onPress: () => pickAndUploadAvatar('library') },
+    Alert.alert(t('profile.profilePhotoTitle', 'Profile Photo'), t('profile.profilePhotoPrompt', 'Choose an option'), [
+      { text: t('profile.takePhoto', 'Take Photo'), onPress: () => pickAndUploadAvatar('camera') },
+      { text: t('profile.chooseFromLibrary', 'Choose from Library'), onPress: () => pickAndUploadAvatar('library') },
       ...(profile?.avatarUrl
         ? [
             {
-              text: 'Remove Photo',
+              text: t('profile.removePhoto', 'Remove Photo'),
               style: 'destructive' as const,
               onPress: async () => {
                 setUploadingAvatar(true)
@@ -255,7 +255,7 @@ export default function ProfileScreen() {
             },
           ]
         : []),
-      { text: 'Cancel', style: 'cancel' as const },
+      { text: t('common.cancel', 'Cancel'), style: 'cancel' as const },
     ])
   }
 

@@ -14,6 +14,13 @@ export default {
     votes: 'Голоса',
     send: 'Отправить',
     or: 'или',
+    reconnected: '✓ Соединение восстановлено',
+    connectionLost: 'Соединение потеряно. Переподключение...',
+    errorTitle: 'Что-то пошло не так',
+    errorUnknown: 'Произошла непредвиденная ошибка',
+    reloadApp: 'Перезагрузить',
+    advertisement: 'Реклама',
+    adContinuing: 'Продолжение через мгновение…',
   },
   nav: {
     play: 'Играть',
@@ -430,6 +437,7 @@ export default {
     goodCatch: 'Отличная ловля!',
     forfeit: 'Сдаться',
     tiebreakerCannotVote: 'Вы в числе равных — ждём голосов других...',
+    emoteCooldown: 'Помедленнее · {{seconds}}с',
   },
   publicLobbies: {
     title: 'Войти в публичное лобби',
@@ -629,6 +637,9 @@ export default {
     baseReward: 'Матч',
     gameCost: 'Вступительный взнос',
     insufficientStars: 'Недостаточно звёзд — нужно {{required}} ⭐ для игры.',
+    gameRecap: 'Итоги игры',
+    roundCount_one: '{{count}} раунд',
+    roundCount_other: '{{count}} раундов',
   },
   history: {
     title: 'История игр',

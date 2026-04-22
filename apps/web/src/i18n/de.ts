@@ -14,6 +14,13 @@ export default {
     votes: 'Stimmen',
     send: 'Senden',
     or: 'oder',
+    reconnected: '✓ Wieder verbunden',
+    connectionLost: 'Verbindung verloren. Erneuter Verbindungsaufbau...',
+    errorTitle: 'Etwas ist schiefgelaufen',
+    errorUnknown: 'Ein unerwarteter Fehler ist aufgetreten',
+    reloadApp: 'Neu laden',
+    advertisement: 'Werbung',
+    adContinuing: 'Geht gleich weiter…',
   },
   nav: {
     play: 'Spielen',
@@ -433,6 +440,7 @@ export default {
     goodCatch: 'Gut erkannt!',
     forfeit: 'Aufgeben',
     tiebreakerCannotVote: 'Du bist gleichauf — warte auf die Abstimmung der anderen...',
+    emoteCooldown: 'Langsamer · {{seconds}}s',
   },
   publicLobbies: {
     title: 'Öffentlicher Lobby beitreten',
@@ -624,6 +632,9 @@ export default {
     draw: 'Unentschieden!',
     drawDesc: 'Das Spiel dauerte 30 Runden — keine Seite konnte sich durchsetzen',
     drawSubtitle: 'Gut gespielt auf beiden Seiten.',
+    gameRecap: 'Spielübersicht',
+    roundCount_one: '{{count}} Runde',
+    roundCount_other: '{{count}} Runden',
   },
   history: {
     title: 'Spielhistorie',

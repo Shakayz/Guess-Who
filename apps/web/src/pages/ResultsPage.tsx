@@ -311,11 +311,11 @@ const RoundRecap = memo(({ round, players }: { round: Round; players: { userId: 
           {round.wordReveal && (
             <div className="grid grid-cols-2 gap-2 pt-3">
               <div className="rounded-lg bg-brand-950/40 border border-brand-800/40 p-2 text-center">
-                <p className="text-[10px] text-neutral-500 mb-0.5">Villager Word</p>
+                <p className="text-[10px] text-neutral-500 mb-0.5">{t('game.villagerWord', 'Villager Word')}</p>
                 <p className="text-white font-bold">{round.wordReveal.villagerWord}</p>
               </div>
               <div className="rounded-lg bg-amber-950/40 border border-amber-800/40 p-2 text-center">
-                <p className="text-[10px] text-neutral-500 mb-0.5">Imposter Word</p>
+                <p className="text-[10px] text-neutral-500 mb-0.5">{t('game.redHandedWord', 'Imposter Word')}</p>
                 <p className="text-amber-300 font-bold">{round.wordReveal.redHandedWord}</p>
               </div>
             </div>
@@ -834,8 +834,8 @@ export default function ResultsPage() {
           {completedRounds.length > 0 && (
             <div className="card">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Game Recap</p>
-                <span className="text-xs text-neutral-600">{completedRounds.length} round{completedRounds.length !== 1 ? 's' : ''}</span>
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">{t('results.gameRecap', 'Game Recap')}</p>
+                <span className="text-xs text-neutral-600">{t('results.roundCount', { count: completedRounds.length, defaultValue: '{{count}} round' })}</span>
               </div>
               <div className="space-y-2">
                 {completedRounds.map((round) => (
