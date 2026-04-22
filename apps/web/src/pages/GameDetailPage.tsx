@@ -50,10 +50,34 @@ interface GameDetail {
   startedAt: string
   endedAt: string
   winnerTeam: 'villagers' | 'red_handed'
+  gameMode?: 'normal' | 'special' | 'ranked'
   myRole: 'villager' | 'red_handed'
   participations: GameDetailPlayer[]
   rounds: RoundDetail[]
   chatMessages: ChatMsg[]
+}
+
+const ROLE_CONFIG: Record<string, { emoji: string; key: string; fallback: string }> = {
+  villager:        { emoji: '🏘️', key: 'game.roleVillager',       fallback: 'Villager' },
+  red_handed:      { emoji: '🎭', key: 'game.roleRedHanded',      fallback: 'Imposter' },
+  detective:       { emoji: '🔍', key: 'game.roleDetective',      fallback: 'Detective' },
+  double_agent:    { emoji: '🕵️', key: 'game.roleDoubleAgent',    fallback: 'Double Agent' },
+  doubleAgent:     { emoji: '🕵️', key: 'game.roleDoubleAgent',    fallback: 'Double Agent' },
+  guardian:        { emoji: '🛡️', key: 'game.roleGuardian',       fallback: 'Guardian' },
+  mayor:           { emoji: '🎩', key: 'game.roleMayor',          fallback: 'Mayor' },
+  infiltrator:     { emoji: '🥷', key: 'game.roleInfiltrator',    fallback: 'Infiltrator' },
+  jester:          { emoji: '🃏', key: 'game.roleJester',         fallback: 'Jester' },
+  judge:           { emoji: '⚖️', key: 'game.roleJudge',          fallback: 'Judge' },
+  revenant:        { emoji: '👻', key: 'game.roleRevenant',       fallback: 'Revenant' },
+  kamikaze:        { emoji: '💣', key: 'game.roleKamikaze',       fallback: 'Kamikaze' },
+  corruptor:       { emoji: '💰', key: 'game.roleCorruptor',      fallback: 'Corruptor' },
+  inverter:        { emoji: '🔄', key: 'game.roleInverter',       fallback: 'Inverter' },
+  twin_villager:   { emoji: '👥', key: 'game.roleTwinVillager',   fallback: 'Evil Twin (Villager)' },
+  twin_red_handed: { emoji: '👥', key: 'game.roleTwinRedHanded',  fallback: 'Evil Twin (Imposter)' },
+}
+
+function getRoleCfg(role: string) {
+  return ROLE_CONFIG[role] ?? { emoji: '👤', key: 'game.roleVillager', fallback: role }
 }
 
 function RoundAccordion({ round, players, t }: { round: RoundDetail; players: GameDetailPlayer[]; t: (key: string, opts?: any) => string }) {
@@ -114,7 +138,11 @@ function RoundAccordion({ round, players, t }: { round: RoundDetail; players: Ga
                   {t('gameDetail.wasEliminated', { name: eliminatedPlayer?.username ?? 'Unknown' })}
                 </p>
                 <p className="text-neutral-500 text-xs">
-                  {t('gameDetail.role', { role: round.eliminatedRole ?? eliminatedPlayer?.role ?? 'unknown' })}
+                  {(() => {
+                    const rawRole = round.eliminatedRole ?? eliminatedPlayer?.role ?? 'unknown'
+                    const cfg = getRoleCfg(rawRole)
+                    return t('gameDetail.role', { role: `${cfg.emoji} ${t(cfg.key, cfg.fallback)}` })
+                  })()}
                 </p>
               </div>
             </div>
@@ -324,6 +352,22 @@ export default function GameDetailPage() {
                   {t('gameDetail.min', { count: Math.round((new Date(data.endedAt).getTime() - new Date(data.startedAt).getTime()) / 60000) })}
                 </span>
               )}
+              {data.gameMode && (
+                <span className={[
+                  'text-xs font-bold px-2.5 py-1 rounded-full border',
+                  data.gameMode === 'special'
+                    ? 'bg-fuchsia-950/60 text-fuchsia-400 border-fuchsia-800/60'
+                    : data.gameMode === 'ranked'
+                      ? 'bg-sky-950/60 text-sky-400 border-sky-800/60'
+                      : 'bg-neutral-800/60 text-neutral-300 border-neutral-700',
+                ].join(' ')}>
+                  {data.gameMode === 'special'
+                    ? t('gameDetail.gameTypeSpecial')
+                    : data.gameMode === 'ranked'
+                      ? t('gameDetail.gameTypeRanked')
+                      : t('gameDetail.gameTypeNormal')}
+                </span>
+              )}
             </div>
 
             {/* Word reveal */}
@@ -347,6 +391,8 @@ export default function GameDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {data.participations.map((p) => {
                 const isMe = p.userId === user?.id
+                const roleCfg = getRoleCfg(p.role)
+                const roleLabel = t(roleCfg.key, roleCfg.fallback)
                 const inner = (
                   <>
                     <Avatar src={p.avatarUrl} username={p.username} size="sm" />
@@ -355,10 +401,13 @@ export default function GameDetailPage() {
                         <span className="text-white text-xs font-semibold truncate">{p.username}</span>
                         {isMe && <span className="text-[9px] text-brand-400 font-bold">{t('gameDetail.you')}</span>}
                       </div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-base">
-                          {p.role === 'red_handed' ? '🎭' : p.role === 'double_agent' ? '🕵️' : p.role === 'detective' ? '🔍' : '👤'}
+                      <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                        <span className="text-base shrink-0">{roleCfg.emoji}</span>
+                        <span className="text-[10px] text-neutral-300 font-medium truncate" title={roleLabel}>
+                          {roleLabel}
                         </span>
+                      </div>
+                      <div className="flex items-center gap-1 mt-0.5">
                         <span className={[
                           'text-[10px]',
                           p.survived ? 'text-emerald-500' : 'text-neutral-600',
