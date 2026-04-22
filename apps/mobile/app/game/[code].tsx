@@ -875,6 +875,23 @@ export default function GameScreen() {
       setTotalVoters(vPlayers?.length ?? 0)
       setVotedUserIds([])
       setAllVotedMsg(false)
+      // The server's authoritative alive-player list arrives here. Mirror it
+      // into room.players so ghosts eliminated in earlier rounds don't keep
+      // showing up as vote targets (alivePlayers is derived from room.players).
+      if (Array.isArray(vPlayers)) {
+        const currentRoom = useGameStore.getState().room
+        if (currentRoom) {
+          const aliveIds = new Set(vPlayers.map((p: any) => p.userId))
+          useGameStore.getState().setRoom({
+            ...currentRoom,
+            players: currentRoom.players.map((p: any) =>
+              aliveIds.has(p.userId)
+                ? (p.status === 'alive' ? p : { ...p, status: 'alive' })
+                : (p.status === 'alive' ? { ...p, status: 'eliminated' } : p),
+            ),
+          } as any)
+        }
+      }
       startTimerRef.current(timeSeconds ?? 30)
     })
 
@@ -890,6 +907,21 @@ export default function GameScreen() {
       if (round?.wordReveal) setWordReveal(round.wordReveal)
       if (round?.eliminatedPlayerId) {
         SoundManager.play('elimination')
+        // Mirror the elimination into room.players now, so the reveal phase
+        // (which runs before the next round:voting-started) doesn't still
+        // treat the ghost as alive — keeps them out of alivePlayers.
+        const eliminatedId = round.eliminatedPlayerId
+        const currentRoom = useGameStore.getState().room
+        if (currentRoom) {
+          useGameStore.getState().setRoom({
+            ...currentRoom,
+            players: currentRoom.players.map((p: any) =>
+              p.userId === eliminatedId && p.status === 'alive'
+                ? { ...p, status: 'eliminated' }
+                : p,
+            ),
+          } as any)
+        }
         const elim = players.find((p: any) => p.userId === round.eliminatedPlayerId)
         const elimRole = round.eliminatedRole ?? (elim as any)?.role ?? 'villager'
         const elimName = elim?.username ?? round.eliminatedPlayerId
@@ -1148,6 +1180,8 @@ export default function GameScreen() {
 
   const vote = (playerId: string) => {
     if (votedFor || phase !== 'voting') return
+    // Eliminated ghosts cannot vote (server enforces too). Mirrors web.
+    if (isEliminated) return
     log.info('vote cast', { targetId: playerId })
     SoundManager.play('vote')
     setVotedFor(playerId)
@@ -1157,6 +1191,7 @@ export default function GameScreen() {
 
   const skipVote = () => {
     if (votedFor || phase !== 'voting') return
+    if (isEliminated) return
     log.info('vote skipped')
     SoundManager.play('vote')
     setVotedFor('__skip__')
@@ -2373,7 +2408,8 @@ export default function GameScreen() {
           })()}
 
           {/* ─── Voting phase ──────────────────────────────────────────────── */}
-          {phase === 'voting' && (
+          {/* Hidden for eliminated ghosts so they can't tap vote targets. */}
+          {phase === 'voting' && !isEliminated && (
             <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
               <View className="flex-row items-center justify-between mb-2">
                 <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-300">

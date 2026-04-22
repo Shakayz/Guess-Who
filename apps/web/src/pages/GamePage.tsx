@@ -642,6 +642,23 @@ export default function GamePage() {
       setVoteCount(0)
       setTotalVoters(vPlayers?.length ?? 0)
       setAllVotedMsg(false)
+      // The server's authoritative alive-player list arrives here. Mirror it
+      // into room.players so ghosts eliminated in earlier rounds don't keep
+      // showing up as vote targets (alivePlayers is derived from room.players).
+      if (Array.isArray(vPlayers)) {
+        const currentRoom = useGameStore.getState().room
+        if (currentRoom) {
+          const aliveIds = new Set(vPlayers.map((p: any) => p.userId))
+          setRoom({
+            ...currentRoom,
+            players: currentRoom.players.map((p: any) =>
+              aliveIds.has(p.userId)
+                ? (p.status === 'alive' ? p : { ...p, status: 'alive' })
+                : (p.status === 'alive' ? { ...p, status: 'eliminated' } : p),
+            ),
+          } as any)
+        }
+      }
       startTimerRef.current(timeSeconds ?? 30)
     })
     socket.on('round:ended', ({ round, nextRound }: any) => {
@@ -669,6 +686,21 @@ export default function GamePage() {
       if (round?.wordReveal) setWordReveal(round.wordReveal)
       if (round?.eliminatedPlayerId) {
         SoundManager.play('elimination')
+        // Mirror the elimination into room.players now, so the reveal phase
+        // (which runs before the next round:voting-started) doesn't still
+        // treat the ghost as alive — keeps them out of alivePlayers.
+        const eliminatedId = round.eliminatedPlayerId
+        const currentRoom = useGameStore.getState().room
+        if (currentRoom) {
+          setRoom({
+            ...currentRoom,
+            players: currentRoom.players.map((p: any) =>
+              p.userId === eliminatedId && p.status === 'alive'
+                ? { ...p, status: 'eliminated' }
+                : p,
+            ),
+          } as any)
+        }
         const elim = players.find((p: any) => p.userId === round.eliminatedPlayerId)
         const elimRole = round.eliminatedRole ?? (elim as any)?.role ?? 'villager'
         const elimName = getDisplayNameRef.current(round.eliminatedPlayerId, elim?.username ?? round.eliminatedPlayerId)
@@ -1026,6 +1058,10 @@ export default function GamePage() {
 
   const vote = (playerId: string) => {
     if (votedFor || phase !== 'voting') return
+    // Eliminated players cannot vote — except revenants with post-mortem
+    // votes remaining. The server enforces the same rule; this mirrors it so
+    // stale UI (e.g. ghost still seeing vote buttons) can't fire requests.
+    if (isEliminated && !(myRole === 'revenant' && revenantVotesRemaining > 0)) return
     // Tied players cannot vote during tiebreaker
     if (iAmTiedPlayer) return
     log.info('vote cast', { targetId: playerId })
@@ -1036,6 +1072,7 @@ export default function GamePage() {
 
   const skipVote = () => {
     if (votedFor || phase !== 'voting') return
+    if (isEliminated && !(myRole === 'revenant' && revenantVotesRemaining > 0)) return
     if (tiebreakerActive) return
     log.info('vote skipped')
     SoundManager.play('vote')
@@ -2021,8 +2058,9 @@ export default function GamePage() {
           </div>
         )}
 
-        {/* Voting phase */}
-        {phase === 'voting' && (
+        {/* Voting phase — hidden for eliminated ghosts (except revenants with
+            post-mortem votes remaining, who keep voting for up to 2 rounds). */}
+        {phase === 'voting' && (!isEliminated || (myRole === 'revenant' && revenantVotesRemaining > 0)) && (
           <div className="card">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
@@ -2579,7 +2617,7 @@ export default function GamePage() {
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600">{t('game.react')}</p>
                     {locked && (
-                      <span className="text-[10px] text-amber-500">Slow down · {Math.ceil(cooldownRemaining / 1000)}s</span>
+                      <span className="text-[10px] text-amber-500">{t('game.emoteCooldown', 'Slow down · {{seconds}}s', { seconds: Math.ceil(cooldownRemaining / 1000) })}</span>
                     )}
                   </div>
                   <div className="flex gap-2 flex-wrap">
