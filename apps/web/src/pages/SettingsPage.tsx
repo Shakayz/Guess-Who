@@ -8,6 +8,11 @@ import { api } from '../lib/api'
 import { useAuthStore } from '../store/auth'
 import { SoundManager } from '../lib/sounds'
 import { MusicManager } from '../lib/music'
+import { requestNotificationPermission } from '../lib/tabBadge'
+
+function notificationsSupported(): boolean {
+  return typeof window !== 'undefined' && 'Notification' in window
+}
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -22,16 +27,27 @@ const LANGUAGES = [
   { code: 'hi', label: 'हिन्दी' },
 ] as const
 
-function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+function ToggleSwitch({
+  enabled,
+  onChange,
+  disabled,
+}: {
+  enabled: boolean
+  onChange: (v: boolean) => void
+  disabled?: boolean
+}) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={enabled}
+      aria-disabled={disabled || undefined}
+      disabled={disabled}
       onClick={() => onChange(!enabled)}
       className={[
         'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-neutral-950',
         enabled ? 'bg-brand-600' : 'bg-neutral-700',
+        disabled ? 'opacity-50 cursor-not-allowed' : '',
       ].join(' ')}
     >
       <span
@@ -218,7 +234,9 @@ export default function SettingsPage() {
   const [musicVolume, setMusicVolume] = useState(() => MusicManager.getVolume())
 
   // Notifications
+  const notifSupported = notificationsSupported()
   const [notifEnabled, setNotifEnabled] = useState(() => {
+    if (!notifSupported) return false
     return Notification.permission === 'granted'
   })
 
@@ -285,8 +303,9 @@ export default function SettingsPage() {
   }, [musicVolume])
 
   const handleNotifToggle = async (value: boolean) => {
+    if (!notifSupported) return
     if (value) {
-      const result = await Notification.requestPermission()
+      const result = await requestNotificationPermission()
       setNotifEnabled(result === 'granted')
     } else {
       setNotifEnabled(false)
@@ -384,9 +403,17 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between py-1">
               <div>
                 <p className="text-sm font-semibold text-white">Browser Notifications</p>
-                <p className="text-xs text-neutral-500 mt-0.5">Get notified about game invites</p>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  {notifSupported
+                    ? 'Get notified about game invites'
+                    : 'Not supported on this browser'}
+                </p>
               </div>
-              <ToggleSwitch enabled={notifEnabled} onChange={handleNotifToggle} />
+              <ToggleSwitch
+                enabled={notifEnabled}
+                onChange={handleNotifToggle}
+                disabled={!notifSupported}
+              />
             </div>
           </div>
 
