@@ -343,7 +343,7 @@ export default function RoleRevealScreen({
                 </Text>
 
                 <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-1">
-                  {hideRole ? 'Role hidden' : 'You are'}
+                  {hideRole ? t('game.roleHiddenLabel', 'ROLE HIDDEN') : 'You are'}
                 </Text>
                 <Text
                   className={['text-2xl font-extrabold tracking-tight mb-6', config.color].join(' ')}
@@ -353,7 +353,7 @@ export default function RoleRevealScreen({
                     textShadowRadius: 10,
                   }}
                 >
-                  {hideRole ? 'Guess who you are' : config.label}
+                  {hideRole ? t('game.blindModeTitle', 'Hidden Role Mode') : config.label}
                 </Text>
 
                 {catInfo ? (
@@ -391,7 +391,7 @@ export default function RoleRevealScreen({
 
                 <Text className="text-neutral-600 text-xs mt-6 text-center">
                   {hideRole
-                    ? 'Your role is a secret — even to you. It will be revealed when you are eliminated or when the game ends.'
+                    ? t('game.blindModeHint', 'Your role is a secret — even to you. It will be revealed when you are eliminated or when the game ends.')
                     : role === 'red_handed'
                     ? "Blend in -- don't reveal you have a different word"
                     : role === 'double_agent'

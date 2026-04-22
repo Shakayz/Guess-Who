@@ -1893,7 +1893,7 @@ export default function GameScreen() {
                 </View>
                 <View className="flex-1">
                   <Text className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 mb-1">
-                    Role hidden
+                    {t('game.roleHiddenLabel', 'ROLE HIDDEN')}
                   </Text>
                   <View className="flex-row items-center flex-wrap gap-1.5 mb-1">
                     {myCategory ? <CategoryBadge categoryKey={myCategory} /> : null}
@@ -1905,7 +1905,7 @@ export default function GameScreen() {
                     {myWord ?? '???'}
                   </Text>
                   <Text className="text-xs text-neutral-500 mt-1 leading-relaxed">
-                    Your role will be revealed when you are eliminated or when the game ends.
+                    {t('game.blindModeHint', 'Your role is a secret — even to you. It will be revealed when you are eliminated or when the game ends.')}
                   </Text>
                 </View>
               </View>
