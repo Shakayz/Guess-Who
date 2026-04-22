@@ -32,14 +32,38 @@ function persistClue(
   }
 }
 
-// Whole-word, case-insensitive match
-function containsWord(text: string, word: string): boolean {
+// Whole-word, case-insensitive match. For multi-word phrases (e.g. "Thomas
+// Edison"), matches either the full phrase OR any individual token — so saying
+// just "Thomas" or just "Edison" also counts.
+export function containsWord(text: string, word: string): boolean {
   if (!word) return false
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, ' ').trim()
-  const escaped = normalize(word)
-    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')  // escape regex special chars
-    .replace(/\s+/g, '\\s+')
-  return new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`).test(normalize(text))
+  const normalizedWord = normalize(word)
+  if (!normalizedWord) return false
+  const normalizedText = normalize(text)
+  const tokens = normalizedWord.split(/\s+/).filter((t) => t.length > 0)
+  const candidates = tokens.length > 1 ? [normalizedWord, ...tokens] : [normalizedWord]
+  for (const candidate of candidates) {
+    const escaped = candidate
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\s+/g, '\\s+')
+    if (new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`).test(normalizedText)) return true
+  }
+  return false
+}
+
+// Villager-side roles + infiltrator/jester who hold the villager word.
+const VILLAGER_WORD_ROLES = new Set([
+  'villager', 'detective', 'guardian', 'mayor', 'infiltrator', 'jester',
+  'judge', 'revenant', 'twin_villager',
+])
+
+/** Forbidden words for this player given their role and the round's word pair. */
+export function getForbiddenWords(role: string | undefined, state: any): string[] {
+  const r = role ?? 'villager'
+  if (r === 'double_agent') return [state.villagerWord ?? '', state.redHandedWord ?? '']
+  if (VILLAGER_WORD_ROLES.has(r)) return [state.villagerWord ?? '']
+  return [state.redHandedWord ?? '']
 }
 
 export function registerGameHandlers(
@@ -218,21 +242,7 @@ export function registerGameHandlers(
     }
 
     // ── Word detection — check BEFORE writing to Redis so we only write once ─
-    const role: string = player.role ?? 'villager'
-    // Roles that MUST avoid the villager word:
-    //   - all villager-side roles (judge, revenant, mayor, guardian, detective)
-    //   - twin_villager (villager-side)
-    //   - infiltrator (redHanded team but holds villager word to blend in)
-    //   - jester (holds villager word, loses if he says it)
-    const villagerWordRoles = new Set([
-      'villager', 'detective', 'guardian', 'mayor', 'infiltrator', 'jester',
-      'judge', 'revenant', 'twin_villager',
-    ])
-    const forbidden: string[] =
-      role === 'double_agent' ? [state.villagerWord ?? '', state.redHandedWord ?? ''] :
-      villagerWordRoles.has(role)  ? [state.villagerWord ?? ''] :
-      [state.redHandedWord ?? '']
-
+    const forbidden = getForbiddenWords(player.role, state)
     const saidWord = forbidden.some((w) => containsWord(sanitized, w))
 
     if (saidWord) {
