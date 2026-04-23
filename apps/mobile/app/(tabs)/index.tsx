@@ -20,6 +20,7 @@ import type { WordCategory, MatchmakingStatus } from '@red-handed/shared'
 import { useResponsive, responsiveContentStyle } from '../../lib/responsive'
 import { OnboardingTutorial, hasTutorialCompleted } from '../../components/OnboardingTutorial'
 import InsufficientCoinsModal from '../../components/InsufficientCoinsModal'
+import { AdBanner } from '../../components/AdBanner'
 
 type GameMode = 'normal' | 'ranked' | 'lobby'
 
@@ -624,6 +625,9 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Non-premium users see a bottom banner ad on the home screen. */}
+        <AdBanner hidden={Boolean((user as any)?.premium)} />
       </ScrollView>
 
       <OnboardingTutorial

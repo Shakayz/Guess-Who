@@ -16,15 +16,23 @@
       "usesAppleSignIn": true,
       "supportsTablet": true,
       "bundleIdentifier": "com.redhanded.game",
+      "buildNumber": "1",
       "requireFullScreen": false,
       "associatedDomains": [
         "applinks:redhanded-game.com",
         "applinks:staging.redhanded-game.com"
       ],
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
         "NSCameraUsageDescription": "Take a photo for your profile picture",
         "NSPhotoLibraryUsageDescription": "Choose a profile picture from your gallery",
-        "NSPhotoLibraryAddOnlyUsageDescription": "Save images to your gallery"
+        "NSPhotoLibraryAddOnlyUsageDescription": "Save images to your gallery",
+        "NSUserTrackingUsageDescription": "This allows Red Handed ! to provide you with ads that are more relevant to you.",
+        "SKAdNetworkItems": [
+          { "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork" }
+        ]
       }
     },
     "android": {
@@ -33,6 +41,7 @@
         "backgroundColor": "#09090b"
       },
       "package": "com.redhanded.game",
+      "versionCode": 1,
       "intentFilters": [
         {
           "action": "VIEW",
@@ -52,7 +61,11 @@
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "VIBRATE",
-        "RECEIVE_BOOT_COMPLETED"
+        "RECEIVE_BOOT_COMPLETED",
+        "com.android.vending.BILLING"
+      ],
+      "blockedPermissions": [
+        "AD_ID"
       ]
     },
     "plugins": [
@@ -73,7 +86,27 @@
       ],
       "expo-apple-authentication",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "This allows Red Handed ! to provide you with ads that are more relevant to you."
+        }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
+          "userTrackingPermission": "This allows Red Handed ! to provide you with ads that are more relevant to you."
+        }
+      ],
+      [
+        "react-native-iap",
+        {
+          "paymentProvider": "both"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

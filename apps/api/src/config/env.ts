@@ -31,6 +31,20 @@ const envSchema = z.object({
   STRIPE_PRICE_ID_PACK_500:  z.string().optional(),
   STRIPE_PRICE_ID_PACK_1500: z.string().optional(),
   STRIPE_PRICE_ID_PACK_5000: z.string().optional(),
+  // ── Mobile In-App Purchases ─────────────────────────────────────────────
+  // Apple "App Store Connect Shared Secret" used when POSTing receipts to
+  // verifyReceipt. Required for subscription verification; one-time purchases
+  // can be verified with just the receipt but the shared secret works for both.
+  APPLE_IAP_SHARED_SECRET: z.string().optional(),
+  // Switches the iOS receipt endpoint to the sandbox URL for TestFlight
+  // / dev builds. The verify route also auto-falls-back to sandbox on 21007.
+  APPLE_IAP_USE_SANDBOX:   z.coerce.boolean().default(false),
+  // Android package name as declared in the Play Console.
+  GOOGLE_PLAY_PACKAGE_NAME: z.string().optional(),
+  // JSON blob for the Google service account with "View financial data" +
+  // "Manage orders" permissions on the Play Console. Stored as a single line
+  // of JSON so it survives container env vars.
+  GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: z.string().optional(),
 })
 
 export const env = envSchema.parse(process.env)

@@ -21,6 +21,8 @@ import { ErrorBoundary } from '../components/ErrorBoundary'
 import { ConnectionStatus } from '../components/ConnectionStatus'
 import { AchievementToastBanner } from '../components/achievements/AchievementToast'
 import { api } from '../lib/api'
+import { initIap, endIap } from '../lib/iap'
+import { initAds } from '../lib/ads'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -29,8 +31,20 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (token) {
       registerForPushNotifications().catch(() => {})
+      // Bring the IAP connection up so the purchase listener is installed
+      // before the user hits the shop. `initIap` is idempotent and no-ops in
+      // Expo Go / on platforms where the native module isn't linked.
+      initIap().catch(() => {})
+    } else {
+      endIap().catch(() => {})
     }
   }, [token])
+
+  // AdMob doesn't need an authenticated user — kick it off once at app start
+  // so the first banner has something cached.
+  useEffect(() => {
+    initAds().catch(() => {})
+  }, [])
 
   const inPublicRoute = segments[0] === 'auth' || segments[0] === 'offline' || segments[0] === 'how-to-play'
 

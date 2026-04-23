@@ -286,8 +286,12 @@ See [infra/aws/README.md](infra/aws/README.md) for deployment instructions.
 | `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
 | `APPLE_CLIENT_ID` | No | Apple Sign-In client ID |
-| `STRIPE_SECRET_KEY` | No | Stripe secret key |
+| `STRIPE_SECRET_KEY` | No | Stripe secret key (web checkout) |
 | `STRIPE_WEBHOOK_SECRET` | No | Stripe webhook secret |
+| `APPLE_IAP_SHARED_SECRET` | No | App Store Connect shared secret for IAP receipt verification |
+| `APPLE_IAP_USE_SANDBOX` | No | Force sandbox verifyReceipt endpoint (staging / TestFlight) |
+| `GOOGLE_PLAY_PACKAGE_NAME` | No | Android package name (matches `apps/mobile/app.json`) |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | No | JSON key for the Play Console service account (single line) |
 
 ### Web (build-time)
 
@@ -301,6 +305,11 @@ See [infra/aws/README.md](infra/aws/README.md) for deployment instructions.
 |----------|-------------|
 | `EXPO_PUBLIC_API_URL` | API base URL (default: `http://localhost:3001/api`) |
 | `EXPO_PUBLIC_SOCKET_URL` | Socket.IO URL (default: `http://localhost:3001`) |
+| `EXPO_PUBLIC_ADMOB_IOS_BANNER` / `..._INTERSTITIAL` / `..._REWARDED` | AdMob unit IDs for iOS (optional — falls back to Google test units) |
+| `EXPO_PUBLIC_ADMOB_ANDROID_BANNER` / `..._INTERSTITIAL` / `..._REWARDED` | AdMob unit IDs for Android |
+
+See [`docs/mobile-payments-ads.md`](docs/mobile-payments-ads.md) for the full
+in-app purchase + AdMob + store submission runbook.
 
 ---
 

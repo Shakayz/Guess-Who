@@ -51,6 +51,13 @@ model User {
   pushToken     String?
   lastPlayedAt     DateTime?
   dailyStreakCount Int       @default(0)
+  // Premium subscription state. `premium` is the cached "should this user get
+  // ad-free + unlimited" flag — derived from the Subscription model but
+  // denormalised onto User so every request doesn't have to join. Written by
+  // the IAP verification route and by the store webhooks.
+  premium             Boolean   @default(false)
+  premiumUntil        DateTime?
+  premiumPlatform     String?   @db.VarChar(16) // 'ios' | 'android' | 'stripe'
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -411,10 +418,41 @@ model Purchase {
   priceCents      Int
   currency        String   @default("usd") @db.VarChar(5)
   stripeSessionId String?  @unique
+  // Mobile IAP fields — populated when the purchase came through StoreKit or
+  // Play Billing instead of Stripe. `platform` is 'stripe' | 'ios' | 'android'.
+  // `storeTransactionId` is the Apple transactionId or Google orderId and is
+  // used as the idempotency key for receipt verification.
+  platform           String? @db.VarChar(16)
+  productId          String?
+  storeTransactionId String? @unique
   status          String   @default("pending") @db.VarChar(20) // pending | completed | failed
   createdAt       DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
 
   @@map("purchases")
+}
+
+// ─── Mobile Subscriptions ─────────────────────────────────────────────────────
+// Tracks auto-renewing Premium subscriptions sold via StoreKit and Play
+// Billing. One row per active subscription; the `status` field is flipped by
+// webhook notifications (App Store Server Notifications v2, Google RTDN).
+
+model Subscription {
+  id                  String   @id @default(cuid())
+  userId              String
+  platform            String   @db.VarChar(16) // 'ios' | 'android'
+  productId           String
+  // Apple: originalTransactionId. Google: the first purchaseToken for the sub.
+  storeSubscriptionId String   @unique
+  status              String   @default("active") @db.VarChar(20) // active | canceled | expired | in_grace | on_hold
+  expiresAt           DateTime?
+  autoRenewing        Boolean  @default(true)
+  environment         String?  @db.VarChar(16) // 'sandbox' | 'production'
+  lastVerifiedAt      DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([userId, status])
+  @@map("subscriptions")
 }

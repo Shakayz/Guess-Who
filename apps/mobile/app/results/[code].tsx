@@ -17,6 +17,7 @@ import { useResponsive } from '../../lib/responsive'
 import { HapticManager } from '../../lib/haptics'
 import { SoundManager } from '../../lib/sounds'
 import { CoinsRevealCard } from '../../components/CoinsRevealCard'
+import { showInterstitial } from '../../lib/ads'
 
 const HONOR_OPTIONS: { type: HonorType; label: string; icon: string }[] = [
   { type: 'teamplayer', label: 'Team Player', icon: '🤝' },
@@ -63,7 +64,14 @@ export default function ResultsScreen() {
     getSocket().emit('honor:give', { targetPlayerId: targetUserId, honorType })
   }
 
-  const handlePlayAgain = () => {
+  const handlePlayAgain = async () => {
+    // Show an interstitial on the way back to the home screen for non-premium
+    // users. Never blocks — `showInterstitial` returns false when no ad is
+    // ready or the user has Premium (the user flag is checked server-side by
+    // the ad unit config; free users fall through to a test ad otherwise).
+    try {
+      await showInterstitial()
+    } catch { /* ignore — navigation is more important than the ad */ }
     reset()
     router.replace('/')
   }

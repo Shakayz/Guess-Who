@@ -18,7 +18,13 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api-staging.redhanded-game.com/api",
         "EXPO_PUBLIC_SOCKET_URL": "https://api-staging.redhanded-game.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": ""
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "",
+        "EXPO_PUBLIC_ADMOB_IOS_BANNER": "",
+        "EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL": "",
+        "EXPO_PUBLIC_ADMOB_IOS_REWARDED": "",
+        "EXPO_PUBLIC_ADMOB_ANDROID_BANNER": "",
+        "EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL": "",
+        "EXPO_PUBLIC_ADMOB_ANDROID_REWARDED": ""
       }
     },
     "production": {
@@ -26,7 +32,13 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.redhanded-game.com/api",
         "EXPO_PUBLIC_SOCKET_URL": "https://api.redhanded-game.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": ""
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "",
+        "EXPO_PUBLIC_ADMOB_IOS_BANNER": "",
+        "EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL": "",
+        "EXPO_PUBLIC_ADMOB_IOS_REWARDED": "",
+        "EXPO_PUBLIC_ADMOB_ANDROID_BANNER": "",
+        "EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL": "",
+        "EXPO_PUBLIC_ADMOB_ANDROID_REWARDED": ""
       }
     }
   },
@@ -38,7 +50,9 @@
         "appleTeamId": ""
       },
       "android": {
-        "serviceAccountKeyPath": ""
+        "serviceAccountKeyPath": "",
+        "track": "production",
+        "releaseStatus": "draft"
       }
     }
   }

@@ -120,6 +120,50 @@ export const COIN_PACKS: readonly CoinPack[] = [
   { id: 'pack_5000', amount: 5000, priceCents: 1499, currency: 'eur', bonus: 750 },
 ] as const
 
+/**
+ * In-app product IDs declared in App Store Connect and Google Play Console.
+ * Apple and Google require digital goods to be sold through their own IAP
+ * systems, so the mobile app goes through StoreKit / Play Billing instead of
+ * Stripe. The same pack `id` is reused as the key so the backend can map a
+ * verified purchase back to a COIN_PACK without extra lookup tables.
+ *
+ * Naming convention — reverse-dns bundle id + pack id:
+ *   com.redhanded.game.pack_500
+ * Keep these strings in lockstep with the store listings; if you rename a
+ * product in App Store Connect or Google Play, update this file too.
+ */
+export const IAP_PRODUCT_IDS = {
+  // Consumable star-coin packs — one-time purchases that credit coins.
+  coins: {
+    pack_500:  'com.redhanded.game.pack_500',
+    pack_1500: 'com.redhanded.game.pack_1500',
+    pack_5000: 'com.redhanded.game.pack_5000',
+  },
+  // Auto-renewing subscriptions — Premium (no ads, unlimited games).
+  subscriptions: {
+    premium_monthly: 'com.redhanded.game.premium.monthly',
+    premium_yearly:  'com.redhanded.game.premium.yearly',
+  },
+  // Non-consumable season pass unlock — grants Premium tier rewards for the
+  // current season only.
+  nonConsumables: {
+    season_pass: 'com.redhanded.game.season_pass',
+  },
+} as const
+
+export type IapProductId =
+  | (typeof IAP_PRODUCT_IDS.coins)[keyof typeof IAP_PRODUCT_IDS.coins]
+  | (typeof IAP_PRODUCT_IDS.subscriptions)[keyof typeof IAP_PRODUCT_IDS.subscriptions]
+  | (typeof IAP_PRODUCT_IDS.nonConsumables)[keyof typeof IAP_PRODUCT_IDS.nonConsumables]
+
+/** Resolve a COIN_PACK from a mobile IAP product id (returns undefined for non-coin SKUs). */
+export function coinPackFromIapProductId(productId: string): CoinPack | undefined {
+  const entries = Object.entries(IAP_PRODUCT_IDS.coins) as [keyof typeof IAP_PRODUCT_IDS.coins, string][]
+  const match = entries.find(([, id]) => id === productId)
+  if (!match) return undefined
+  return COIN_PACKS.find((p) => p.id === match[0])
+}
+
 export const LP_DECAY = {
   /** Days of inactivity before decay begins */
   INACTIVITY_DAYS: 7,
