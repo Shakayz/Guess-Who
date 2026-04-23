@@ -1432,9 +1432,7 @@ const EN: PairData[] = [
   { wordA: 'Terrence Malick', wordB: 'David Lynch', category: 'celebrities' },
   { wordA: 'A$AP Rocky', wordB: 'Tyler the Creator', category: 'celebrities' },
   // ── New movies pairs (50) ────────────────────────────────────────────
-  { wordA: 'Lion King', wordB: 'Jungle Book', category: 'movies' },
   { wordA: 'Aladdin', wordB: 'Prince of Egypt', category: 'movies' },
-  { wordA: 'Shawshank Redemption', wordB: 'Green Mile', category: 'movies' },
   { wordA: 'Forrest Gump', wordB: 'Cast Away', category: 'movies' },
   { wordA: 'Avatar', wordB: 'Dune', category: 'movies' },
   { wordA: 'Spider-Man', wordB: 'Venom', category: 'movies' },
@@ -1451,7 +1449,6 @@ const EN: PairData[] = [
   { wordA: 'Your Name', wordB: 'Weathering with You', category: 'movies' },
   { wordA: 'Pan\'s Labyrinth', wordB: 'Shape of Water', category: 'movies' },
   { wordA: 'Knives Out', wordB: 'Glass Onion', category: 'movies' },
-  { wordA: 'Silence of the Lambs', wordB: 'Zodiac', category: 'movies' },
   { wordA: 'Truman Show', wordB: 'Pleasantville', category: 'movies' },
   { wordA: 'Ratatouille', wordB: 'Coco', category: 'movies' },
   { wordA: 'The Prestige', wordB: 'The Illusionist', category: 'movies' },
