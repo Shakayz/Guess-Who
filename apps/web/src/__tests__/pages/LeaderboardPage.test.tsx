@@ -11,7 +11,11 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+    // Real react-i18next accepts either `t(key, fallback)` or
+    // `t(key, interpolationObject)`. Only the string-fallback form should
+    // short-circuit; interpolation objects must fall back to the raw key so
+    // React never tries to render `{language: 'English'}` as a child.
+    t: (key: string, fallback?: unknown) => (typeof fallback === 'string' ? fallback : key),
     i18n: { language: 'en', changeLanguage: vi.fn() },
   }),
 }))

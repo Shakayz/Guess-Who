@@ -83,9 +83,10 @@ describe('HomePage', () => {
 
   it('renders without crashing and shows heading', () => {
     render(<HomePage />)
-    // i18n mock returns the raw key — heroTitle2 is the branded span inside
-    // the page's h1 heading.
-    expect(screen.getByText('home.heroTitle2')).toBeInTheDocument()
+    // The visual heading is now the "Red Handed !" wordmark image plus the
+    // localized subtitle beneath it; assert both render.
+    expect(screen.getByAltText('Red Handed !')).toBeInTheDocument()
+    expect(screen.getByText('home.subtitle')).toBeInTheDocument()
   })
 
   it('renders the NavBar', () => {
