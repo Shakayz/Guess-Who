@@ -11,6 +11,17 @@ import { allocateReferralCode, creditInvitee, resolveInviter } from '../services
 // user would end up with after verifying (initial + verification reward).
 const OAUTH_INITIAL_STAR_COINS = INITIAL_STAR_COINS + EMAIL_VERIFICATION_REWARD
 
+// Keep in sync with SUPPORTED_LOCALES in routes/auth.ts. The OAuth clients pass
+// whatever the device/browser reports (e.g. 'fr-FR', 'en-US', 'zh-Hans-CN');
+// we strip the region tag and fall back to 'en' if it's not one we ship a
+// language pack for.
+const SUPPORTED_LOCALES = new Set(['en', 'fr', 'ar', 'es', 'it', 'pt', 'zh', 'de'])
+function normalizeLocale(raw: unknown): string {
+  if (typeof raw !== 'string' || !raw) return 'en'
+  const base = raw.split('-')[0].toLowerCase()
+  return SUPPORTED_LOCALES.has(base) ? base : 'en'
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function issueToken(fastify: any, user: { id: string; username: string }) {
@@ -58,8 +69,9 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
   // Body: { idToken?: string, accessToken?: string, userInfo?: object }
   // Supports both ID token (from credential response) and access token (from implicit flow)
   fastify.post('/google/verify', async (req, reply) => {
-    const body = req.body as { idToken?: string; accessToken?: string; userInfo?: any }
+    const body = req.body as { idToken?: string; accessToken?: string; userInfo?: any; locale?: string }
     if (!env.GOOGLE_CLIENT_ID) return reply.status(503).send({ error: 'Google auth not configured' })
+    const detectedLocale = normalizeLocale(body.locale)
 
     req.log.info('google oauth verify attempt')
 
@@ -110,14 +122,15 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
               emailVerified: true,
               starCoins: OAUTH_INITIAL_STAR_COINS,
               referralCode,
+              locale: detectedLocale,
             },
           })
           isNewUser = true
         }
       }
 
-      if (isNewUser) {
-        req.log.info({ userId: user.id }, 'google oauth: new user, needs username setup')
+      if (isNewUser || user.username.startsWith('pending_')) {
+        req.log.info({ userId: user.id, locale: detectedLocale }, 'google oauth: needs username setup')
         const setupToken = fastify.jwt.sign({ sub: user.id, setup: true }, { expiresIn: '10m' })
         const suggestedUsername = name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || 'user'
         return reply.send({ needsUsername: true, setupToken, suggestedUsername, user: { id: user.id, email: user.email } })
@@ -135,8 +148,9 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /api/auth/apple/verify
   // Body: { identityToken: string, name?: string }  — from Apple Sign In
   fastify.post('/apple/verify', async (req, reply) => {
-    const { identityToken, name } = req.body as { identityToken?: string; name?: string }
+    const { identityToken, name, locale } = req.body as { identityToken?: string; name?: string; locale?: string }
     if (!identityToken) return reply.status(400).send({ error: 'Missing identityToken' })
+    const detectedLocale = normalizeLocale(locale)
 
     req.log.info('apple oauth verify attempt')
 
@@ -174,14 +188,15 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
             emailVerified: true,
             starCoins: OAUTH_INITIAL_STAR_COINS,
             referralCode,
+            locale: detectedLocale,
           },
         })
         isNewUser = true
       }
     }
 
-    if (isNewUser) {
-      req.log.info({ userId: user.id }, 'apple oauth: new user, needs username setup')
+    if (isNewUser || user.username.startsWith('pending_')) {
+      req.log.info({ userId: user.id, locale: detectedLocale }, 'apple oauth: needs username setup')
       const setupToken = fastify.jwt.sign({ sub: user.id, setup: true }, { expiresIn: '10m' })
       const suggestedUsername = displayName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || 'user'
       return reply.send({ needsUsername: true, setupToken, suggestedUsername, user: { id: user.id, email: user.email } })
@@ -190,6 +205,115 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
     req.log.info({ userId: user.id, username: user.username }, 'apple oauth verify successful')
     const token = issueToken(fastify, user)
     return reply.send({ token, user: { id: user.id, username: user.username, email: user.email } })
+  })
+
+  // POST /api/auth/discord/verify
+  // Body: { code: string, redirectUri: string }  — Discord authorization-code flow
+  //
+  // The web client sends the user to Discord's /oauth2/authorize consent page,
+  // Discord redirects back to our app with `?code=…`, and the client POSTs
+  // the code here together with the exact redirect URI it used (Discord checks
+  // those match on token exchange, so the client is the source of truth —
+  // supports staging/preview/prod without hardcoded URIs).
+  fastify.post('/discord/verify', async (req, reply) => {
+    const { code, redirectUri, locale } = req.body as { code?: string; redirectUri?: string; locale?: string }
+    if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET) {
+      return reply.status(503).send({ error: 'Discord auth not configured' })
+    }
+    if (!code || !redirectUri) {
+      return reply.status(400).send({ error: 'Missing code or redirectUri' })
+    }
+    const detectedLocale = normalizeLocale(locale)
+
+    req.log.info('discord oauth verify attempt')
+
+    try {
+      // Exchange the authorization code for an access token.
+      const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: env.DISCORD_CLIENT_ID,
+          client_secret: env.DISCORD_CLIENT_SECRET,
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUri,
+        }),
+      })
+      if (!tokenRes.ok) {
+        req.log.warn({ status: tokenRes.status }, 'discord token exchange failed')
+        return reply.status(401).send({ error: 'Discord token exchange failed' })
+      }
+      const { access_token } = await tokenRes.json() as { access_token?: string }
+      if (!access_token) return reply.status(401).send({ error: 'Discord returned no access token' })
+
+      // Fetch the user's profile. `id` is Discord's stable per-user snowflake;
+      // `email` is only included if we requested the `email` scope AND the
+      // account has a verified email attached. `avatar` is a hash we turn
+      // into the standard CDN URL.
+      const userRes = await fetch('https://discord.com/api/users/@me', {
+        headers: { Authorization: `Bearer ${access_token}` },
+      })
+      if (!userRes.ok) return reply.status(401).send({ error: 'Discord profile fetch failed' })
+      const profile = await userRes.json() as {
+        id: string
+        username?: string
+        global_name?: string
+        email?: string
+        avatar?: string | null
+        verified?: boolean
+      }
+
+      const discordId = profile.id
+      const email = profile.verified ? profile.email : undefined
+      const displayName = profile.global_name ?? profile.username ?? email?.split('@')[0] ?? 'user'
+      const avatarUrl = profile.avatar
+        ? `https://cdn.discordapp.com/avatars/${discordId}/${profile.avatar}.png`
+        : null
+
+      let user = await prisma.user.findFirst({ where: { discordId } })
+      let isNewUser = false
+      if (!user) {
+        const byEmail = email ? await prisma.user.findUnique({ where: { email } }) : null
+        if (byEmail) {
+          user = await prisma.user.update({
+            where: { id: byEmail.id },
+            data: { discordId, avatarUrl: byEmail.avatarUrl ?? avatarUrl },
+          })
+        } else {
+          const tempUsername = `pending_${Date.now()}`.slice(0, 20)
+          const safeEmail = email ?? `${discordId}@discord.oauth`
+          const referralCode = await allocateReferralCode()
+          user = await prisma.user.create({
+            data: {
+              discordId,
+              email: safeEmail,
+              username: tempUsername,
+              avatarUrl,
+              emailVerified: true,
+              starCoins: OAUTH_INITIAL_STAR_COINS,
+              referralCode,
+              locale: detectedLocale,
+            },
+          })
+          isNewUser = true
+        }
+      }
+
+      if (isNewUser || user.username.startsWith('pending_')) {
+        req.log.info({ userId: user.id, locale: detectedLocale }, 'discord oauth: needs username setup')
+        const setupToken = fastify.jwt.sign({ sub: user.id, setup: true }, { expiresIn: '10m' })
+        const suggestedUsername = displayName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14) || 'user'
+        return reply.send({ needsUsername: true, setupToken, suggestedUsername, user: { id: user.id, email: user.email } })
+      }
+
+      req.log.info({ userId: user.id, username: user.username }, 'discord oauth verify successful')
+      const token = issueToken(fastify, user)
+      return reply.send({ token, user: { id: user.id, username: user.username, email: user.email } })
+    } catch (err: any) {
+      req.log.error({ err }, 'discord oauth verify error')
+      return reply.status(401).send({ error: 'Discord authentication failed' })
+    }
   })
 
   // POST /api/auth/setup-username — finalize new OAuth user with chosen username
@@ -217,7 +341,11 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
 
     req.log.info({ userId: payload.sub, username }, 'setup-username attempt')
 
-    const existing = await prisma.user.findUnique({ where: { username } })
+    // Case-insensitive collision: "Shakayz" blocks "shakayz" and "sHakayz"
+    // from any other account so display names stay visually unique.
+    const existing = await prisma.user.findFirst({
+      where: { username: { equals: username, mode: 'insensitive' } },
+    })
     if (existing && existing.id !== payload.sub) {
       req.log.warn({ username }, 'setup-username failed: username already taken')
       return reply.status(409).send({ error: 'Username already taken' })

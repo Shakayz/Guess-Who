@@ -17,7 +17,8 @@ import { useResponsive } from '../../lib/responsive'
 import { HapticManager } from '../../lib/haptics'
 import { SoundManager } from '../../lib/sounds'
 import { CoinsRevealCard } from '../../components/CoinsRevealCard'
-import { showInterstitial } from '../../lib/ads'
+import { showInterstitialBetweenGames } from '../../lib/ads'
+import { BounceIn, PopIn, SlideUp, StampIn, ConfettiRain, CoinRain, GlowPulse, FloatSoft, Shimmer } from '../../components/anim/AnimatedViews'
 
 const HONOR_OPTIONS: { type: HonorType; label: string; icon: string }[] = [
   { type: 'teamplayer', label: 'Team Player', icon: '🤝' },
@@ -40,6 +41,7 @@ export default function ResultsScreen() {
 
   const [honorGiven, setHonorGiven] = useState<Record<string, HonorType>>({})
   const [honorTarget, setHonorTarget] = useState<string | null>(null)
+  const hasGivenHonor = Object.keys(honorGiven).length > 0
   const { isTablet, px, fontScale } = useResponsive()
   const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
@@ -47,14 +49,24 @@ export default function ResultsScreen() {
   const rewards = result?.rewards ?? { starCoinsEarned: 0, xpEarned: 120, lpChange: 18, achievements: [], levelUpCoinsEarned: 0 }
   const players = room?.players?.length ? room.players : MOCK_PLAYERS
   const isRedHanded = myRole === 'red_handed' || myRole === 'double_agent'
-  const didWin = (winner === 'villagers' && !isRedHanded) || (winner === 'red_handed' && isRedHanded)
+  const isDraw = winner === 'draw'
+  const didWin = !isDraw && ((winner === 'villagers' && !isRedHanded) || (winner === 'red_handed' && isRedHanded))
 
   useEffect(() => {
-    SoundManager.play(didWin ? 'success' : 'error')
+    // Stamp lands first (the "VICTORY"/"DEFEAT"/"DRAW" thump), then the tonal response.
+    SoundManager.play('stamp')
+    const t1 = setTimeout(() => SoundManager.play(didWin || isDraw ? 'success' : 'error'), 180)
+    // Achievement jingle when the player unlocked something.
+    const achieved = rewards.achievements.length > 0
+    const t2 = achieved ? setTimeout(() => SoundManager.play('achievement'), 900) : null
     if (didWin) {
       HapticManager.success()
-    } else {
+    } else if (!isDraw) {
       HapticManager.error()
+    }
+    return () => {
+      clearTimeout(t1)
+      if (t2) clearTimeout(t2)
     }
   }, [])
 
@@ -65,14 +77,13 @@ export default function ResultsScreen() {
   }
 
   const handlePlayAgain = async () => {
-    // Show an interstitial on the way back to the home screen for non-premium
-    // users. Never blocks — `showInterstitial` returns false when no ad is
-    // ready or the user has Premium (the user flag is checked server-side by
-    // the ad unit config; free users fall through to a test ad otherwise).
-    try {
-      await showInterstitial()
-    } catch { /* ignore — navigation is more important than the ad */ }
     reset()
+    await showInterstitialBetweenGames()
+    router.replace('/')
+  }
+
+  const handleGoHome = async () => {
+    await showInterstitialBetweenGames()
     router.replace('/')
   }
 
@@ -86,38 +97,72 @@ export default function ResultsScreen() {
         <View style={contentStyle}>
 
         {/* Outcome hero */}
+        <BounceIn>
+        <GlowPulse style={{ borderRadius: 16 }}>
         <View
           className={[
             'rounded-2xl border-2 relative overflow-hidden items-center',
-            didWin ? 'border-emerald-600/70' : 'border-red-700/70',
+            isDraw ? 'border-amber-600/70' : didWin ? 'border-emerald-600/70' : 'border-red-700/70',
           ].join(' ')}
           style={{ paddingVertical: isTablet ? 52 : 40 }}
         >
           {/* Background tint */}
           <View
-            className={['absolute inset-0', didWin ? 'bg-emerald-950' : 'bg-red-950'].join(' ')}
+            className={[
+              'absolute inset-0',
+              isDraw ? 'bg-amber-950' : didWin ? 'bg-emerald-950' : 'bg-red-950',
+            ].join(' ')}
             style={{ opacity: 0.35 }}
           />
           {/* Top accent bar */}
           <View
             className={[
               'absolute top-0 left-0 right-0 h-1',
-              didWin ? 'bg-emerald-500' : 'bg-red-500',
+              isDraw ? 'bg-amber-500' : didWin ? 'bg-emerald-500' : 'bg-red-500',
             ].join(' ')}
           />
           {/* Bottom fade */}
           <View
             className="absolute bottom-0 left-0 right-0 h-16"
-            style={{ backgroundColor: didWin ? 'rgba(5,46,22,0.3)' : 'rgba(69,10,10,0.3)' }}
+            style={{
+              backgroundColor: isDraw
+                ? 'rgba(120,53,15,0.3)'
+                : didWin
+                ? 'rgba(5,46,22,0.3)'
+                : 'rgba(69,10,10,0.3)',
+            }}
           />
 
-          <Text style={{ fontSize: isTablet ? 80 : 64, marginBottom: 14 }}>{didWin ? '🏆' : '💀'}</Text>
+          {didWin && <ConfettiRain count={70} />}
+          {didWin && <CoinRain count={25} />}
+          {(didWin || isDraw) && <Shimmer />}
 
-          {/* WIN / LOSS badge */}
+          <FloatSoft>
+            <Text
+              style={{
+                fontSize: isTablet ? 80 : 64,
+                marginBottom: 14,
+                textShadowColor: isDraw
+                  ? 'rgba(245,158,11,0.6)'
+                  : didWin
+                  ? 'rgba(251,191,36,0.65)'
+                  : 'rgba(220,38,38,0.55)',
+                textShadowRadius: 22,
+                textShadowOffset: { width: 0, height: 0 },
+              }}
+            >
+              {isDraw ? '🤝' : didWin ? '🏆' : '💀'}
+            </Text>
+          </FloatSoft>
+
+          {/* WIN / LOSS / DRAW badge */}
+          <StampIn>
           <View
             className={[
               'flex-row items-center gap-2 px-5 py-2 rounded-full border mb-3',
-              didWin
+              isDraw
+                ? 'bg-amber-900/60 border-amber-600/60'
+                : didWin
                 ? 'bg-emerald-900/60 border-emerald-600/60'
                 : 'bg-red-900/60 border-red-600/60',
             ].join(' ')}
@@ -125,19 +170,35 @@ export default function ResultsScreen() {
             <Text
               className={[
                 'font-extrabold tracking-widest uppercase',
-                didWin ? 'text-emerald-300' : 'text-red-300',
+                isDraw ? 'text-amber-300' : didWin ? 'text-emerald-300' : 'text-red-300',
               ].join(' ')}
-              style={{ fontSize: isTablet ? 22 : 18, letterSpacing: 4 }}
+              style={{
+                fontSize: isTablet ? 22 : 18,
+                letterSpacing: 4,
+                textShadowColor: isDraw
+                  ? 'rgba(245,158,11,0.6)'
+                  : didWin
+                  ? 'rgba(16,185,129,0.6)'
+                  : 'rgba(220,38,38,0.6)',
+                textShadowRadius: 10,
+                textShadowOffset: { width: 0, height: 0 },
+              }}
             >
-              {didWin ? 'Victory' : 'Defeat'}
+              {isDraw ? t('results.draw', "It's a Draw!") : didWin ? t('results.victory', 'Victory') : t('results.defeat', 'Defeat')}
             </Text>
           </View>
+          </StampIn>
 
           <Text
-            className={['font-semibold text-center px-6', didWin ? 'text-emerald-500' : 'text-red-500'].join(' ')}
+            className={[
+              'font-semibold text-center px-6',
+              isDraw ? 'text-amber-500' : didWin ? 'text-emerald-500' : 'text-red-500',
+            ].join(' ')}
             style={{ fontSize: 13 * fontScale }}
           >
-            {winner === 'villagers'
+            {isDraw
+              ? t('results.drawDesc', 'The game lasted 30 rounds with no winner')
+              : winner === 'villagers'
               ? 'Villagers found the imposter'
               : 'Imposters escaped detection'}
           </Text>
@@ -152,6 +213,8 @@ export default function ResultsScreen() {
             </Text>
           </View>
         </View>
+        </GlowPulse>
+        </BounceIn>
 
         {/* Rewards */}
         <View className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 overflow-hidden">
@@ -222,14 +285,14 @@ export default function ResultsScreen() {
             Player Roles
           </Text>
           <View className="gap-2">
-            {players.map((p) => {
+            {players.map((p, idx) => {
               const role = (p as any).role as string | undefined
               const isRedHandedRole = role === 'red_handed' || role === 'double_agent'
               const survived = p.status === 'alive'
               const isMe = p.userId === user?.id
               return (
+                <SlideUp key={p.id} delay={60 + idx * 55}>
                 <View
-                  key={p.id}
                   className={[
                     'flex-row items-center gap-3 px-3 py-3 rounded-xl border overflow-hidden',
                     isMe && isRedHandedRole
@@ -307,6 +370,7 @@ export default function ResultsScreen() {
                     </View>
                   </View>
                 </View>
+                </SlideUp>
               )
             })}
           </View>
@@ -334,7 +398,7 @@ export default function ResultsScreen() {
                       {HONOR_OPTIONS.find((h) => h.type === honorGiven[p.userId])?.icon}{' '}
                       {HONOR_OPTIONS.find((h) => h.type === honorGiven[p.userId])?.label}
                     </Text>
-                  ) : honorTarget === p.userId ? (
+                  ) : hasGivenHonor ? null : honorTarget === p.userId ? (
                     <View className="flex-row gap-1.5">
                       {HONOR_OPTIONS.map((h) => (
                         <TouchableOpacity
@@ -366,7 +430,9 @@ export default function ResultsScreen() {
         </View>
 
         {/* Action buttons */}
+        <PopIn delay={240}>
         <View className="flex-row gap-3 pt-2">
+          <GlowPulse style={{ borderRadius: 16, flex: 1 }}>
           <TouchableOpacity
             onPress={handlePlayAgain}
             className="flex-1 rounded-2xl items-center overflow-hidden bg-violet-600"
@@ -375,10 +441,12 @@ export default function ResultsScreen() {
           >
             {/* Shine overlay */}
             <View className="absolute top-0 left-0 right-0 h-1/2 rounded-t-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.07)' }} />
+            <Shimmer />
             <Text className="text-white font-extrabold tracking-wide" style={{ fontSize: 16 * fontScale }}>Play Again</Text>
           </TouchableOpacity>
+          </GlowPulse>
           <TouchableOpacity
-            onPress={() => router.replace('/')}
+            onPress={handleGoHome}
             className="px-6 rounded-2xl bg-neutral-800 border border-neutral-700 items-center justify-center"
             activeOpacity={0.8}
             style={{ paddingVertical: isTablet ? 18 : 15 }}
@@ -386,6 +454,7 @@ export default function ResultsScreen() {
             <Text className="text-neutral-300 font-semibold" style={{ fontSize: 14 * fontScale }}>Home</Text>
           </TouchableOpacity>
         </View>
+        </PopIn>
 
         </View>
       </ScrollView>

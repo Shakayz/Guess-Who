@@ -6,6 +6,13 @@ import { EMAIL_VERIFICATION_REWARD, EMAIL_VERIFICATION_CODE_TTL_MINUTES } from '
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 import { useAuthStore } from '../store/auth'
+import { SoundManager } from '../lib/sounds'
+import { MusicManager } from '../lib/music'
+import { requestNotificationPermission } from '../lib/tabBadge'
+
+function notificationsSupported(): boolean {
+  return typeof window !== 'undefined' && 'Notification' in window
+}
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -20,16 +27,27 @@ const LANGUAGES = [
   { code: 'hi', label: 'हिन्दी' },
 ] as const
 
-function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+function ToggleSwitch({
+  enabled,
+  onChange,
+  disabled,
+}: {
+  enabled: boolean
+  onChange: (v: boolean) => void
+  disabled?: boolean
+}) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={enabled}
+      aria-disabled={disabled || undefined}
+      disabled={disabled}
       onClick={() => onChange(!enabled)}
       className={[
         'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-neutral-950',
         enabled ? 'bg-brand-600' : 'bg-neutral-700',
+        disabled ? 'opacity-50 cursor-not-allowed' : '',
       ].join(' ')}
     >
       <span
@@ -42,6 +60,37 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (v: b
   )
 }
 
+function VolumeSlider({
+  value,
+  onChange,
+  disabled,
+  label,
+}: {
+  value: number
+  onChange: (v: number) => void
+  disabled?: boolean
+  label: string
+}) {
+  return (
+    <div className={disabled ? 'opacity-50' : ''}>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs font-medium text-neutral-400">{label}</label>
+        <span className="text-xs tabular-nums text-neutral-500">{Math.round(value * 100)}%</span>
+      </div>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.05"
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="w-full accent-brand-600 disabled:cursor-not-allowed"
+      />
+    </div>
+  )
+}
+
 function SectionHeader({ title }: { title: string }) {
   return (
     <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3 px-1">
@@ -50,7 +99,44 @@ function SectionHeader({ title }: { title: string }) {
   )
 }
 
-type MeResponse = { email?: string; emailVerified?: boolean; starCoins?: number }
+type AuthProvider = 'google' | 'apple' | 'discord' | 'email'
+type MeResponse = {
+  email?: string
+  emailVerified?: boolean
+  starCoins?: number
+  authProvider?: AuthProvider
+}
+
+const PROVIDER_LABEL: Record<Exclude<AuthProvider, 'email'>, string> = {
+  google: 'Google',
+  apple: 'Apple',
+  discord: 'Discord',
+}
+
+function ProviderIcon({ provider }: { provider: Exclude<AuthProvider, 'email'> }) {
+  if (provider === 'google') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 48 48" aria-hidden="true">
+        <path d="M43.611 20.083H42V20H24v8h11.303C33.654 32.657 29.332 36 24 36c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" fill="#FFC107"/>
+        <path d="M6.306 14.691l6.571 4.819C14.655 15.108 19.001 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" fill="#FF3D00"/>
+        <path d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.315 0-9.827-3.337-11.567-8H6.27A19.945 19.945 0 0 0 24 44z" fill="#4CAF50"/>
+        <path d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" fill="#1976D2"/>
+      </svg>
+    )
+  }
+  if (provider === 'apple') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/>
+      </svg>
+    )
+  }
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="#5865F2" aria-hidden="true">
+      <path d="M20.317 4.369A19.79 19.79 0 0 0 16.558 3a13.6 13.6 0 0 0-.65 1.327 18.27 18.27 0 0 0-5.487 0A13.2 13.2 0 0 0 9.77 3a19.7 19.7 0 0 0-3.761 1.369C2.418 9.645 1.431 14.787 1.924 19.858a19.9 19.9 0 0 0 6.073 3.072c.49-.668.927-1.378 1.303-2.122a12.9 12.9 0 0 1-2.053-.986c.172-.126.34-.256.502-.39a14.18 14.18 0 0 0 12.5 0c.164.134.332.264.502.39-.656.39-1.343.72-2.055.988.376.743.812 1.453 1.302 2.121a19.85 19.85 0 0 0 6.075-3.073c.578-5.888-.988-10.98-4.156-15.489ZM8.02 16.738c-1.182 0-2.157-1.085-2.157-2.419 0-1.333.95-2.427 2.157-2.427s2.178 1.094 2.157 2.427c0 1.334-.95 2.419-2.157 2.419Zm7.974 0c-1.182 0-2.157-1.085-2.157-2.419 0-1.333.95-2.427 2.157-2.427s2.178 1.094 2.157 2.427c0 1.334-.95 2.419-2.157 2.419Z"/>
+    </svg>
+  )
+}
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation()
@@ -69,6 +155,8 @@ export default function SettingsPage() {
     queryFn: () => api.get<MeResponse>('/auth/me'),
   })
   const emailVerified = meQuery.data?.emailVerified ?? true
+  const authProvider = meQuery.data?.authProvider ?? 'email'
+  const isOAuthUser = authProvider !== 'email'
 
   const sendCodeMutation = useMutation({
     mutationFn: () =>
@@ -138,12 +226,17 @@ export default function SettingsPage() {
   })
 
   // Sound
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    return localStorage.getItem('sound_enabled') !== 'false'
-  })
+  const [soundEnabled, setSoundEnabled] = useState(() => SoundManager.isEnabled())
+  const [soundVolume, setSoundVolume] = useState(() => SoundManager.getVolume())
+
+  // Music
+  const [musicEnabled, setMusicEnabled] = useState(() => MusicManager.isEnabled())
+  const [musicVolume, setMusicVolume] = useState(() => MusicManager.getVolume())
 
   // Notifications
+  const notifSupported = notificationsSupported()
   const [notifEnabled, setNotifEnabled] = useState(() => {
+    if (!notifSupported) return false
     return Notification.permission === 'granted'
   })
 
@@ -193,12 +286,26 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    localStorage.setItem('sound_enabled', String(soundEnabled))
+    SoundManager.setEnabled(soundEnabled)
   }, [soundEnabled])
 
+  useEffect(() => {
+    SoundManager.setVolume(soundVolume)
+  }, [soundVolume])
+
+  useEffect(() => {
+    MusicManager.setEnabled(musicEnabled)
+    if (musicEnabled) MusicManager.play()
+  }, [musicEnabled])
+
+  useEffect(() => {
+    MusicManager.setVolume(musicVolume)
+  }, [musicVolume])
+
   const handleNotifToggle = async (value: boolean) => {
+    if (!notifSupported) return
     if (value) {
-      const result = await Notification.requestPermission()
+      const result = await requestNotificationPermission()
       setNotifEnabled(result === 'granted')
     } else {
       setNotifEnabled(false)
@@ -255,7 +362,7 @@ export default function SettingsPage() {
           <h1 className="text-2xl md:text-3xl font-extrabold text-white">Settings</h1>
 
           {/* Sound */}
-          <div className="card">
+          <div className="card space-y-4">
             <SectionHeader title="Sound" />
             <div className="flex items-center justify-between py-1">
               <div>
@@ -264,6 +371,30 @@ export default function SettingsPage() {
               </div>
               <ToggleSwitch enabled={soundEnabled} onChange={setSoundEnabled} />
             </div>
+            <VolumeSlider
+              label="Sound volume"
+              value={soundVolume}
+              onChange={setSoundVolume}
+              disabled={!soundEnabled}
+            />
+          </div>
+
+          {/* Music */}
+          <div className="card space-y-4">
+            <SectionHeader title="Music" />
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-semibold text-white">Background Music</p>
+                <p className="text-xs text-neutral-500 mt-0.5">Looping track in menus and lobby</p>
+              </div>
+              <ToggleSwitch enabled={musicEnabled} onChange={setMusicEnabled} />
+            </div>
+            <VolumeSlider
+              label="Music volume"
+              value={musicVolume}
+              onChange={setMusicVolume}
+              disabled={!musicEnabled}
+            />
           </div>
 
           {/* Notifications */}
@@ -272,9 +403,17 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between py-1">
               <div>
                 <p className="text-sm font-semibold text-white">Browser Notifications</p>
-                <p className="text-xs text-neutral-500 mt-0.5">Get notified about game invites</p>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  {notifSupported
+                    ? 'Get notified about game invites'
+                    : 'Not supported on this browser'}
+                </p>
               </div>
-              <ToggleSwitch enabled={notifEnabled} onChange={handleNotifToggle} />
+              <ToggleSwitch
+                enabled={notifEnabled}
+                onChange={handleNotifToggle}
+                disabled={!notifSupported}
+              />
             </div>
           </div>
 
@@ -303,7 +442,28 @@ export default function SettingsPage() {
           {/* Email verification */}
           <div className="card space-y-3">
             <SectionHeader title="Email" />
-            {emailVerified ? (
+            {isOAuthUser ? (
+              // OAuth accounts skip the 6-digit verification step — the
+              // provider attests the email. Render a provider badge instead
+              // so the user understands *why* there's no "Verify email"
+              // button and *how* they'll sign in next time.
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <ProviderIcon provider={authProvider as Exclude<AuthProvider, 'email'>} />
+                    <p className="text-sm font-semibold text-white">
+                      Signed in with {PROVIDER_LABEL[authProvider as Exclude<AuthProvider, 'email'>]}
+                    </p>
+                  </div>
+                  {meQuery.data?.email && (
+                    <p className="text-xs text-neutral-500 mt-1 break-all">{meQuery.data.email}</p>
+                  )}
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Your email is verified through {PROVIDER_LABEL[authProvider as Exclude<AuthProvider, 'email'>]} — no code needed.
+                  </p>
+                </div>
+              </div>
+            ) : emailVerified ? (
               <div className="flex items-center justify-between py-1">
                 <div>
                   <p className="text-sm font-semibold text-white">
@@ -403,7 +563,10 @@ export default function SettingsPage() {
           <div className="card space-y-5">
             <SectionHeader title="Account" />
 
-            {/* Change Password */}
+            {/* Change Password — hidden for OAuth accounts that have no
+                local password to change. They manage their credentials at
+                their provider (Google/Apple/Discord) instead. */}
+            {!isOAuthUser && (
             <div>
               <p className="text-sm font-semibold text-white mb-3">Change Password</p>
               <form onSubmit={handleChangePassword} className="space-y-2">
@@ -446,6 +609,7 @@ export default function SettingsPage() {
                 </button>
               </form>
             </div>
+            )}
 
             {/* Delete Account */}
             <div className="border-t border-neutral-800 pt-4">

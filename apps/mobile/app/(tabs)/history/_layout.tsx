@@ -13,7 +13,10 @@ export default function HistoryLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: t('nav.history') }} />
-      <Stack.Screen name="[gameId]" options={{ title: 'Game Details' }} />
+      <Stack.Screen
+        name="[gameId]"
+        options={{ title: t('history.gameDetailsTitle', 'Game Details') }}
+      />
     </Stack>
   )
 }

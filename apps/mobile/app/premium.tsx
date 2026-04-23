@@ -1,22 +1,15 @@
-import React, { useEffect, useState } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
+import React from 'react'
+import { View, Text, ScrollView, TouchableOpacity, Linking, ActivityIndicator, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { IAP_PRODUCT_IDS } from '@red-handed/shared'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useResponsive } from '../lib/responsive'
 import { HapticManager } from '../lib/haptics'
 import { SoundManager } from '../lib/sounds'
 import { api } from '../lib/api'
-import {
-  initIap,
-  fetchSubscriptionProducts,
-  buySubscription,
-  restorePurchases,
-  type IapProduct,
-} from '../lib/iap'
-import { createLogger } from '../lib/logger'
 
-const log = createLogger('premium')
+// Mobile mirror of the web PremiumPage. Keeps perk list + pricing in lockstep
+// with the web version so promotional copy never drifts.
 
 const PERKS = [
   { icon: '🚫', title: 'No Ads', desc: 'Completely ad-free experience, always.' },
@@ -26,77 +19,58 @@ const PERKS = [
   { icon: '👑', title: 'Premium Badge', desc: 'Exclusive badge on your profile and in lobbies.' },
 ]
 
+type Me = { id: string; isPremium?: boolean; premiumUntil?: string | null }
+
 export default function PremiumScreen() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { px, fontScale, isTablet } = useResponsive()
 
-  const [subProducts, setSubProducts] = useState<IapProduct[]>([])
-  const [premium, setPremium] = useState(false)
-  const [buyingId, setBuyingId] = useState<string | null>(null)
+  const { data: me } = useQuery<Me>({
+    queryKey: ['auth', 'me'],
+    queryFn: () => api.get<Me>('/auth/me'),
+    retry: false,
+  })
 
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const ready = await initIap({
-        onCredited: (res) => {
-          log.info('premium credited', res)
-          HapticManager.success()
-          SoundManager.play('success')
-          if (res.premium) setPremium(true)
-          Alert.alert('Welcome to Premium!', 'Thanks for your support.')
-        },
-        onError: (err) => {
-          log.warn('premium IAP error', { message: err.message })
-          HapticManager.error()
-        },
-      })
-      if (!ready || cancelled) return
-      const subs = await fetchSubscriptionProducts()
-      if (cancelled) return
-      setSubProducts(subs)
-    })()
+  const isPremium = !!me?.isPremium
+  const renewalDate = me?.premiumUntil ? new Date(me.premiumUntil) : null
 
-    api.get<{ premium?: boolean }>('/auth/me')
-      .then((me) => setPremium(Boolean(me.premium)))
-      .catch(() => {})
+  const checkout = useMutation({
+    mutationFn: (planId: 'monthly' | 'yearly') =>
+      api.post<{ url: string }>(`/shop/premium/checkout/${planId}`, {}),
+    onSuccess: ({ url }) => { if (url) Linking.openURL(url) },
+    onError: (err: any) => Alert.alert('Checkout failed', err?.message ?? 'Please try again.'),
+  })
 
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const portal = useMutation({
+    mutationFn: () => api.post<{ url: string }>('/shop/premium/portal', {}),
+    onSuccess: ({ url }) => { if (url) Linking.openURL(url) },
+    onError: (err: any) => Alert.alert('Portal unavailable', err?.message ?? 'Please try again.'),
+  })
 
-  const monthly = subProducts.find((p) => p.productId === IAP_PRODUCT_IDS.subscriptions.premium_monthly)
-  const yearly  = subProducts.find((p) => p.productId === IAP_PRODUCT_IDS.subscriptions.premium_yearly)
-
-  const handleBuy = async (productId: string) => {
-    try {
-      HapticManager.medium()
-      SoundManager.play('click')
-      setBuyingId(productId)
-      await buySubscription(productId as any)
-    } catch (err) {
-      Alert.alert('Purchase failed', (err as Error).message)
-    } finally {
-      setBuyingId(null)
-    }
+  const handleSubscribe = (plan: 'monthly' | 'yearly') => {
+    HapticManager.medium()
+    SoundManager.play('success')
+    checkout.mutate(plan)
+  }
+  const handleManage = () => {
+    HapticManager.light()
+    SoundManager.play('click')
+    portal.mutate()
   }
 
-  const handleRestore = async () => {
-    HapticManager.selection()
-    const restored = await restorePurchases()
-    Alert.alert(
-      'Restore complete',
-      restored.length ? `${restored.length} purchase(s) restored.` : 'Nothing to restore on this account.',
-    )
-    api.get<{ premium?: boolean }>('/auth/me')
-      .then((me) => setPremium(Boolean(me.premium)))
-      .catch(() => {})
-  }
+  const busy = checkout.isPending || portal.isPending
 
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-neutral-950">
       <View className="flex-row items-center px-4 py-3 border-b border-neutral-900">
-        <TouchableOpacity onPress={() => router.back()} className="pr-3">
+        <TouchableOpacity
+          onPress={() => {
+            queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
+            router.back()
+          }}
+          className="pr-3"
+        >
           <Text className="text-neutral-400" style={{ fontSize: 20 }}>←</Text>
         </TouchableOpacity>
         <Text className="text-white font-bold flex-1" style={{ fontSize: 16 * fontScale }}>
@@ -115,45 +89,41 @@ export default function PremiumScreen() {
             <Text style={{ fontSize: 32 }}>👑</Text>
           </View>
           <Text className="text-white font-extrabold" style={{ fontSize: (isTablet ? 28 : 24) * fontScale }}>
-            Go Premium
+            {isPremium ? 'You are Premium' : 'Go Premium'}
           </Text>
           <Text className="text-neutral-400 text-center" style={{ fontSize: 13 * fontScale }}>
-            The best way to play Red Handed !
+            {isPremium && renewalDate
+              ? `Renews ${renewalDate.toLocaleDateString()}`
+              : 'The best way to play Red Handed !'}
           </Text>
         </View>
 
         <View className="rounded-2xl border border-amber-500/30 bg-neutral-900/80 overflow-hidden">
           <View className="h-[2] bg-amber-500/60" />
           <View className="p-5 gap-5">
-            <View className="flex-row gap-3">
-              <View className="flex-1 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 items-center">
-                <Text className="text-white font-extrabold" style={{ fontSize: 22 * fontScale }}>
-                  {monthly?.localizedPrice ?? '€1'}
-                </Text>
-                <Text className="text-neutral-400" style={{ fontSize: 11 * fontScale }}>
-                  / month
-                </Text>
-              </View>
-              <View className="flex-1 rounded-xl border border-amber-500/60 bg-amber-500/10 p-3 items-center">
-                <View className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-amber-950/80">
-                  <Text className="text-amber-400 font-bold" style={{ fontSize: 9 }}>
-                    BEST VALUE
-                  </Text>
+            {!isPremium && (
+              <>
+                <View className="flex-row gap-3">
+                  <View className="flex-1 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 items-center">
+                    <Text className="text-white font-extrabold" style={{ fontSize: 22 * fontScale }}>1€</Text>
+                    <Text className="text-neutral-400" style={{ fontSize: 11 * fontScale }}>/ month</Text>
+                  </View>
+                  <View className="flex-1 rounded-xl border border-amber-500/60 bg-amber-500/10 p-3 items-center">
+                    <View className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-amber-950/80">
+                      <Text className="text-amber-400 font-bold" style={{ fontSize: 9 }}>BEST VALUE</Text>
+                    </View>
+                    <Text className="text-white font-extrabold" style={{ fontSize: 22 * fontScale }}>10€</Text>
+                    <Text className="text-neutral-400" style={{ fontSize: 11 * fontScale }}>/ year</Text>
+                    <Text className="text-emerald-400 font-semibold mt-0.5" style={{ fontSize: 10 * fontScale }}>
+                      Save 2 months free
+                    </Text>
+                  </View>
                 </View>
-                <Text className="text-white font-extrabold" style={{ fontSize: 22 * fontScale }}>
-                  {yearly?.localizedPrice ?? '€10'}
+                <Text className="text-neutral-600 text-center" style={{ fontSize: 11 * fontScale }}>
+                  Cancel anytime
                 </Text>
-                <Text className="text-neutral-400" style={{ fontSize: 11 * fontScale }}>
-                  / year
-                </Text>
-                <Text className="text-emerald-400 font-semibold mt-0.5" style={{ fontSize: 10 * fontScale }}>
-                  Save 2 months free
-                </Text>
-              </View>
-            </View>
-            <Text className="text-neutral-600 text-center" style={{ fontSize: 11 * fontScale }}>
-              Cancel anytime in your store account
-            </Text>
+              </>
+            )}
 
             <View className="gap-3">
               {PERKS.map((p) => (
@@ -171,55 +141,57 @@ export default function PremiumScreen() {
               ))}
             </View>
 
-            {premium ? (
-              <View className="px-3 py-3 rounded-xl bg-emerald-950/40 border border-emerald-900/60 items-center">
-                <Text className="text-emerald-300 font-bold" style={{ fontSize: 13 * fontScale }}>
-                  👑 Premium is active
-                </Text>
-              </View>
-            ) : (
-              <View className="gap-2">
+            <View className="gap-2">
+              {isPremium ? (
                 <TouchableOpacity
-                  onPress={() => handleBuy(IAP_PRODUCT_IDS.subscriptions.premium_yearly)}
-                  disabled={buyingId === IAP_PRODUCT_IDS.subscriptions.premium_yearly}
+                  onPress={handleManage}
+                  disabled={busy}
                   className="rounded-xl bg-amber-500 items-center"
-                  style={{ paddingVertical: 13 }}
+                  style={{ paddingVertical: 13, opacity: busy ? 0.6 : 1 }}
                   activeOpacity={0.85}
                 >
-                  {buyingId === IAP_PRODUCT_IDS.subscriptions.premium_yearly ? (
-                    <ActivityIndicator color="#18181b" />
+                  {busy ? (
+                    <ActivityIndicator color="#171717" />
                   ) : (
                     <Text className="text-neutral-900 font-bold" style={{ fontSize: 15 * fontScale }}>
-                      Subscribe — {yearly?.localizedPrice ?? '€10'}/year
+                      Manage subscription
                     </Text>
                   )}
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => handleBuy(IAP_PRODUCT_IDS.subscriptions.premium_monthly)}
-                  disabled={buyingId === IAP_PRODUCT_IDS.subscriptions.premium_monthly}
-                  className="rounded-xl bg-neutral-800 border border-neutral-700 items-center"
-                  style={{ paddingVertical: 11 }}
-                  activeOpacity={0.8}
-                >
-                  {buyingId === IAP_PRODUCT_IDS.subscriptions.premium_monthly ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
+              ) : (
+                <>
+                  <TouchableOpacity
+                    onPress={() => handleSubscribe('yearly')}
+                    disabled={busy}
+                    className="rounded-xl bg-amber-500 items-center"
+                    style={{ paddingVertical: 13, opacity: busy ? 0.6 : 1 }}
+                    activeOpacity={0.85}
+                  >
+                    {busy ? (
+                      <ActivityIndicator color="#171717" />
+                    ) : (
+                      <Text className="text-neutral-900 font-bold" style={{ fontSize: 15 * fontScale }}>
+                        Subscribe — 10€/year
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleSubscribe('monthly')}
+                    disabled={busy}
+                    className="rounded-xl bg-neutral-800 border border-neutral-700 items-center"
+                    style={{ paddingVertical: 11, opacity: busy ? 0.6 : 1 }}
+                    activeOpacity={0.8}
+                  >
                     <Text className="text-white font-semibold" style={{ fontSize: 13 * fontScale }}>
-                      Monthly — {monthly?.localizedPrice ?? '€1'}/month
+                      Monthly — 1€/month
                     </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <TouchableOpacity onPress={handleRestore} activeOpacity={0.7} className="items-center">
-              <Text className="text-amber-300 font-semibold" style={{ fontSize: 12 * fontScale }}>
-                Restore purchases
-              </Text>
-            </TouchableOpacity>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
 
             <Text className="text-neutral-600 text-center" style={{ fontSize: 10 * fontScale }}>
-              Secure payment through Apple / Google · Cancel anytime in your store account
+              Secure payment · No commitments · Cancel anytime
             </Text>
           </View>
         </View>

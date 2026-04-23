@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Image,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -16,13 +17,20 @@ import { useAuthStore } from '../../store/auth'
 import { api } from '../../lib/api'
 import { connectSocket, getSocket } from '../../lib/socket'
 import { WORD_CATEGORIES, MATCHMAKING_CONFIG } from '@red-handed/shared'
-import type { WordCategory, MatchmakingStatus } from '@red-handed/shared'
+import type { WordCategory } from '@red-handed/shared'
+import { useMatchmakingStore } from '../../store/matchmaking'
 import { useResponsive, responsiveContentStyle } from '../../lib/responsive'
 import { OnboardingTutorial, hasTutorialCompleted } from '../../components/OnboardingTutorial'
 import InsufficientCoinsModal from '../../components/InsufficientCoinsModal'
-import { AdBanner } from '../../components/AdBanner'
+import { Wordmark } from '../../components/Wordmark'
+import { Avatar } from '../../components/Avatar'
+import { LanguagePicker } from '../../components/LanguagePicker'
+import { PopIn, FloatSoft } from '../../components/anim/AnimatedViews'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 type GameMode = 'normal' | 'ranked' | 'lobby'
+type SubGameMode = 'normal' | 'special'
+type LobbyAction = 'create' | 'join'
 
 const HOW_TO_PLAY = [
   { icon: '🎭', title: 'Get your role', desc: 'Villager or Imposter — each gets a different word.' },
@@ -31,14 +39,14 @@ const HOW_TO_PLAY = [
   { icon: '🏆', title: 'Win', desc: 'Villagers win if all imposters are eliminated.' },
 ]
 
-const MODES: { id: GameMode; icon: string; label: string; desc: string }[] = [
-  { id: 'normal', icon: '🎮', label: 'Normal', desc: 'Play for fun — no LP at stake' },
-  { id: 'ranked', icon: '🏆', label: 'Ranked', desc: 'All categories · affects LP' },
-  { id: 'lobby',  icon: '🚪', label: 'Create Lobby', desc: 'Invite friends with a code' },
+const MODES: { id: GameMode; icon: string; labelKey: string; descKey: string }[] = [
+  { id: 'normal', icon: '🎲', labelKey: 'home.normalLabel',       descKey: 'home.normalDesc' },
+  { id: 'ranked', icon: '🏆', labelKey: 'home.rankedLabel',       descKey: 'home.rankedDesc' },
+  { id: 'lobby',  icon: '🚪', labelKey: 'home.customLobbyLabel',  descKey: 'home.customLobbyDesc' },
 ]
 
 export default function HomeScreen() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const { isTablet, px, gridItemWidth, fontScale } = useResponsive()
@@ -60,7 +68,29 @@ export default function HomeScreen() {
   }, [])
 
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
+  const [unrankedSubMode, setUnrankedSubMode] = useState<SubGameMode>('normal')
+  const [lobbyGameMode, setLobbyGameMode] = useState<SubGameMode>('normal')
+  // Custom Lobby chooser state — null means the player is on the Create/Join
+  // card; 'create' reveals the settings form, 'join' navigates to the browser.
+  const [lobbyAction, setLobbyAction] = useState<LobbyAction | null>(null)
+  // Public vs private visibility for Custom Lobby. Public lobbies show up in
+  // the public browser. Persisted so hosts who opt in once don't silently
+  // fall back to private when they open the creator a second time.
+  const [lobbyPublic, setLobbyPublic] = useState(false)
+  useEffect(() => {
+    AsyncStorage.getItem('lobbyPublic').then((v) => {
+      if (v === 'true') setLobbyPublic(true)
+    }).catch(() => {})
+  }, [])
+  useEffect(() => {
+    AsyncStorage.setItem('lobbyPublic', String(lobbyPublic)).catch(() => {})
+  }, [lobbyPublic])
   const [categories, setCategories] = useState<WordCategory[]>([])
+  // Vocal-mode preference. For unranked matchmaking: server partitions the
+  // queue so vocal-opt-in players only match with each other. For Custom
+  // Lobbies: stored in the lobby's initial settings so the public browser
+  // can show an audio/typing badge before anyone joins.
+  const [vocalMode, setVocalMode] = useState(false)
   const [roomCode, setRoomCode] = useState('')
   const [showTutorial, setShowTutorial] = useState(false)
 
@@ -79,79 +109,119 @@ export default function HomeScreen() {
   // Star-coin balance shown in the header chip. Refreshed on focus. If the
   // fetch fails we just show 0 — not critical enough to retry or surface.
   const [starCoins, setStarCoins] = useState<number | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [streak, setStreak] = useState<{ count: number; lastPlayedAt: string | null }>({ count: 0, lastPlayedAt: null })
   useEffect(() => {
     if (!user) return
     let cancelled = false
     api
-      .get<{ starCoins?: number }>('/auth/me')
+      .get<{ starCoins?: number; avatarUrl?: string | null; dailyStreakCount?: number; lastPlayedAt?: string | null }>('/auth/me')
       .then((me) => {
-        if (!cancelled) setStarCoins(me.starCoins ?? 0)
+        if (cancelled) return
+        setStarCoins(me.starCoins ?? 0)
+        setAvatarUrl(me.avatarUrl ?? null)
+        setStreak({ count: me.dailyStreakCount ?? 0, lastPlayedAt: me.lastPlayedAt ?? null })
       })
       .catch(() => {
         if (!cancelled) setStarCoins(0)
       })
     return () => { cancelled = true }
   }, [user])
-  const [inQueue, setInQueue] = useState(false)
-  const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({
-    queueSize: 1, needed: MATCHMAKING_CONFIG.IDEAL_PLAYERS, elapsed: 0,
-    maxWait: MATCHMAKING_CONFIG.MAX_WAIT_SECONDS, idealPlayers: MATCHMAKING_CONFIG.IDEAL_PLAYERS,
-  })
 
-  const hasCategories = selectedMode === 'normal' || selectedMode === 'lobby'
+  // Matches web: streak is "alive" if last-played day (UTC) is today or yesterday.
+  const streakAlive = (() => {
+    if (!streak.lastPlayedAt || streak.count <= 0) return false
+    const last = new Date(streak.lastPlayedAt)
+    if (isNaN(last.getTime())) return false
+    const dayMs = 86_400_000
+    return Math.floor(Date.now() / dayMs) - Math.floor(last.getTime() / dayMs) <= 1
+  })()
+  // Matchmaking state lives in the global store so the search persists across
+  // tab navigation — the floating MatchmakingBanner on other tabs and the
+  // MatchmakingManager listeners in the root layout both read from it.
+  const inQueue = useMatchmakingStore((s) => s.isSearching)
+  const matchStatus = useMatchmakingStore((s) => s.status)
+  const startSearch = useMatchmakingStore((s) => s.startSearch)
+  const stopSearch = useMatchmakingStore((s) => s.stopSearch)
+  const matchmakingErrorMessage = useMatchmakingStore((s) => s.errorMessage)
+  const setMatchmakingErrorMessage = useMatchmakingStore((s) => s.setErrorMessage)
+  const matchmakingRequiredStars = useMatchmakingStore((s) => s.requiredStars)
+  const setMatchmakingRequiredStars = useMatchmakingStore((s) => s.setRequiredStars)
 
-  // Matchmaking listeners
+  // Lobby settings (sub-mode, categories, toggles) only appear once the
+  // player has picked "Create lobby" from the Custom Lobby chooser.
+  const showLobbyForm = selectedMode === 'lobby' && lobbyAction === 'create'
+  // Category picking is a Custom Lobby (Special) feature only. Unranked —
+  // including Special — always plays the full word pool so matchmaking stays
+  // simple and queues don't fragment by filter combinations.
+  const hasCategories = showLobbyForm && lobbyGameMode === 'special'
+  const hasSubMode = selectedMode === 'normal' || showLobbyForm
+
+  // Keep state in sync with visibility: clear any stale picks whenever the
+  // category UI is hidden, so switching Special → Normal doesn't silently
+  // smuggle filters into the matchmaking / create-lobby payload.
   useEffect(() => {
-    if (!inQueue) return
-    connectSocket()
-    const socket = getSocket()
+    if (!hasCategories && categories.length > 0) setCategories([])
+  }, [hasCategories, categories.length])
 
-    const onStatus = (data: MatchmakingStatus) => setMatchStatus(data)
-    const onFound = (data: any) => {
-      setInQueue(false)
-      setLoading(false)
-      router.push(`/lobby/${data.roomCode}`)
-    }
-    const onError = (data: any) => {
-      setInQueue(false)
-      setLoading(false)
-      if (data?.reason === 'INSUFFICIENT_STARS') {
-        setInsufficientCoinsRequired(data.required ?? 10)
-      } else {
-        setError(data?.message ?? 'Matchmaking error')
-      }
-    }
-
-    socket.on('matchmaking:status' as any, onStatus)
-    socket.on('matchmaking:found' as any, onFound)
-    socket.on('matchmaking:error' as any, onError)
-
-    return () => {
-      socket.off('matchmaking:status' as any, onStatus)
-      socket.off('matchmaking:found' as any, onFound)
-      socket.off('matchmaking:error' as any, onError)
-    }
+  // Loading spinner for the "Find" button should disappear once the queue
+  // actually starts (banner takes over) — clear it when `inQueue` flips on or
+  // matchmaking resolves from elsewhere (banner cancel, match found, error).
+  useEffect(() => {
+    if (!inQueue && loading) setLoading(false)
   }, [inQueue])
+
+  // Surface any matchmaking error/insufficient-coins signal that the global
+  // manager wrote into the store while the user was away from this tab.
+  useEffect(() => {
+    if (matchmakingErrorMessage) {
+      setError(matchmakingErrorMessage)
+      setMatchmakingErrorMessage(null)
+    }
+  }, [matchmakingErrorMessage, setMatchmakingErrorMessage])
+  useEffect(() => {
+    if (matchmakingRequiredStars !== null) {
+      setInsufficientCoinsRequired(matchmakingRequiredStars)
+      setMatchmakingRequiredStars(null)
+    }
+  }, [matchmakingRequiredStars, setMatchmakingRequiredStars])
 
   const handleMatchmaking = useCallback(() => {
     if (!selectedMode || selectedMode === 'lobby') return
     connectSocket()
     const socket = getSocket()
-    setInQueue(true)
     setLoading(true)
     setError(null)
-    socket.emit('matchmaking:join' as any, {
-      gameMode: selectedMode === 'ranked' ? 'ranked' : 'normal',
+    const wantVocal = selectedMode === 'normal' && vocalMode
+    const resolvedGameMode =
+      selectedMode === 'ranked' ? 'ranked' : unrankedSubMode
+    const locale = i18n.language.split('-')[0]
+    startSearch({
+      topMode: selectedMode === 'ranked' ? 'ranked' : 'normal',
+      gameMode: resolvedGameMode,
       categories: selectedMode === 'ranked' ? [] : categories,
+      vocalMode: wantVocal,
+      locale,
+      vocalSpeakingTimeSeconds: 10,
     })
-  }, [selectedMode, categories])
+    socket.emit('matchmaking:join' as any, {
+      gameMode: resolvedGameMode,
+      categories: selectedMode === 'ranked' ? [] : categories,
+      vocalMode: wantVocal,
+      vocalSpeakingTimeSeconds: 10,
+      locale,
+    })
+  }, [selectedMode, categories, unrankedSubMode, vocalMode, i18n.language, startSearch])
 
   const cancelMatchmaking = useCallback(() => {
     const socket = getSocket()
-    socket.emit('matchmaking:leave' as any, {})
-    setInQueue(false)
+    const topMode = useMatchmakingStore.getState().topMode
+    try {
+      socket.emit('matchmaking:leave' as any, { gameMode: topMode })
+    } catch {}
+    stopSearch()
     setLoading(false)
-  }, [])
+  }, [stopSearch])
 
   const toggleCategory = (key: WordCategory) => {
     setCategories((prev) =>
@@ -164,14 +234,26 @@ export default function HomeScreen() {
     setLoading(true)
     setError(null)
     try {
+      const initialMode = selectedMode === 'ranked'
+        ? 'ranked'
+        : selectedMode === 'lobby'
+          ? lobbyGameMode
+          : unrankedSubMode
+      const isLobby = selectedMode === 'lobby'
       const room = await api.post<{ code: string }>('/rooms', {
         settings: {
-          gameMode: selectedMode === 'ranked' ? 'ranked' : 'normal',
+          gameMode: initialMode,
           categories: selectedMode === 'ranked' ? [] : categories,
-          isPrivate: selectedMode === 'lobby',
+          isPrivate: isLobby,
+          isPublic: isLobby ? lobbyPublic : false,
+          vocalMode: isLobby ? vocalMode : undefined,
+          language: i18n.language.split('-')[0],
         },
       })
-      router.push(`/lobby/${room.code}`)
+      const dest = selectedMode === 'lobby'
+        ? `/lobby/${room.code}?mode=${lobbyGameMode}`
+        : `/lobby/${room.code}`
+      router.push(dest)
     } catch (err: any) {
       const code = err?.data?.error ?? err?.error
       const required = err?.data?.required ?? 10
@@ -185,7 +267,10 @@ export default function HomeScreen() {
     }
   }
 
-  const showCostHint = selectedMode === 'ranked' || selectedMode === 'lobby'
+  // Premium subscribers play for free (see api/routes/rooms.ts and
+  // api/socket/handlers/room.ts), so the 10 ⭐ hint shouldn't appear for them.
+  const isPremium = !!(user?.premiumUntil && Date.parse(user.premiumUntil) > Date.now())
+  const showCostHint = !isPremium && (selectedMode === 'ranked' || selectedMode === 'lobby')
 
   const handleJoin = () => {
     const code = roomCode.trim().toUpperCase()
@@ -203,21 +288,34 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={contentStyle}>
-          {/* Header */}
+          {/* Header — logo left, streak/coins/lang/avatar right (matches web NavBar) */}
           <View className="flex-row items-center justify-between pt-4 pb-2" style={{ paddingHorizontal: px + 8 }}>
-            <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-xl bg-violet-700/80 items-center justify-center">
-                <Text style={{ fontSize: 16 * fontScale }}>🎭</Text>
-              </View>
-              <Text className="text-white font-extrabold tracking-tight" style={{ fontSize: 18 * fontScale }}>Red Handed !</Text>
-            </View>
+            <Image
+              source={require('../../assets/masks.png')}
+              style={{ width: 36, height: 36, borderRadius: 8 }}
+              resizeMode="contain"
+            />
             {user && (
-              <View className="flex-row items-center gap-2">
-                {/* Coin-balance chip → opens /shop. Tappable so players can
-                    top up at any time, not just when game-start rejects them. */}
+              <View className="flex-row items-center gap-1.5">
+                <View
+                  className={[
+                    'flex-row items-center gap-1 px-2 py-1 rounded-full border',
+                    streakAlive
+                      ? 'bg-orange-500/10 border-orange-500/30'
+                      : 'bg-neutral-900 border-neutral-800',
+                  ].join(' ')}
+                >
+                  <Text style={{ fontSize: 12, opacity: streakAlive ? 1 : 0.5 }}>🔥</Text>
+                  <Text
+                    className={streakAlive ? 'text-orange-400 font-semibold' : 'text-neutral-500 font-semibold'}
+                    style={{ fontSize: 13 * fontScale }}
+                  >
+                    {streak.count}
+                  </Text>
+                </View>
                 <TouchableOpacity
                   onPress={() => router.push('/shop?tab=coins')}
-                  className="flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30"
+                  className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30"
                   activeOpacity={0.8}
                   accessibilityLabel="Shop"
                 >
@@ -226,26 +324,25 @@ export default function HomeScreen() {
                     {(starCoins ?? 0).toLocaleString()}
                   </Text>
                 </TouchableOpacity>
-                <View className="flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-900 border border-neutral-800">
-                  <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  <Text className="text-neutral-400" style={{ fontSize: 13 * fontScale }}>@{user.username}</Text>
-                </View>
+                <LanguagePicker />
+                <TouchableOpacity
+                  onPress={() => router.push('/(tabs)/profile')}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Profile"
+                >
+                  <Avatar url={avatarUrl} username={user.username} size={32} />
+                </TouchableOpacity>
               </View>
             )}
           </View>
 
           {/* Hero */}
-          <View className="items-center pt-10 pb-6" style={{ paddingHorizontal: px + 8 }}>
-            <View className="flex-row items-center gap-2 px-3 py-1.5 rounded-full border border-violet-700/40 bg-violet-900/20 mb-5">
-              <View className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-              <Text className="text-violet-400 font-semibold" style={{ fontSize: 12 * fontScale }}>Social Deduction · Real-time · Multiplayer</Text>
-            </View>
-            <Text className="font-extrabold text-white text-center leading-tight tracking-tight mb-2" style={{ fontSize: (isTablet ? 44 : 36) }}>
-              Play the{'\n'}
-              <Text className="text-violet-500">Red Handed !</Text> Game
-            </Text>
-            <Text className="text-neutral-400 mt-2 text-center" style={{ fontSize: 16 * fontScale }}>Deceive. Detect. Dominate.</Text>
-          </View>
+          <PopIn delay={80} style={{ alignItems: 'center', paddingTop: 16, paddingBottom: 16, paddingHorizontal: px + 8 }}>
+            <FloatSoft style={{ alignItems: 'center' }}>
+              <Wordmark size={isTablet ? 320 : 280} />
+            </FloatSoft>
+            <Text className="text-neutral-400 mt-1 text-center" style={{ fontSize: 14 * fontScale }}>Deceive. Detect. Dominate.</Text>
+          </PopIn>
 
           <View style={{ paddingHorizontal: px, gap: 16 }}>
 
@@ -287,6 +384,10 @@ export default function HomeScreen() {
                         setSelectedMode(active ? null : mode.id)
                         setCategories([])
                         setError(null)
+                        // Reset Custom Lobby sub-action whenever the top-level
+                        // mode is toggled so re-opening always shows the
+                        // Create/Join chooser first.
+                        setLobbyAction(null)
                       }}
                       className={[
                         'items-center gap-1.5 rounded-2xl border overflow-hidden',
@@ -294,7 +395,7 @@ export default function HomeScreen() {
                           ? activeStyle
                           : 'border-neutral-800 bg-neutral-900',
                       ].join(' ')}
-                      style={{ padding: isTablet ? 16 : 12 }}
+                      style={{ flex: 1, padding: isTablet ? 16 : 12 }}
                       activeOpacity={0.8}
                     >
                       {/* Active top accent bar */}
@@ -326,10 +427,10 @@ export default function HomeScreen() {
                         <Text style={{ fontSize: isTablet ? 28 : 22 }}>{mode.icon}</Text>
                       </View>
                       <Text className={['font-extrabold', active ? activeText : 'text-neutral-400'].join(' ')} style={{ fontSize: 12 * fontScale }}>
-                        {mode.label}
+                        {t(mode.labelKey)}
                       </Text>
                       <Text className={['text-center leading-tight', active ? 'text-neutral-400' : 'text-neutral-700'].join(' ')} style={{ fontSize: 10 * fontScale }}>
-                        {mode.desc}
+                        {t(mode.descKey)}
                       </Text>
                     </TouchableOpacity>
                     </Animated.View>
@@ -337,6 +438,221 @@ export default function HomeScreen() {
                 })}
               </View>
             </View>
+
+            {/* Custom Lobby chooser — Create vs Join cards shown right
+                after the player opens the Lobby mode. */}
+            {selectedMode === 'lobby' && !lobbyAction && (
+              <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-3">
+                <Text className="font-semibold uppercase tracking-widest text-neutral-500" style={{ fontSize: 12 * fontScale }}>
+                  {t('home.customLobbyChooserLabel')}
+                </Text>
+                <View className="flex-row gap-2">
+                  <TouchableOpacity
+                    onPress={() => { setLobbyAction('create'); setError(null) }}
+                    className="flex-1 items-center gap-1 rounded-xl border bg-violet-950/50 border-violet-800/50"
+                    style={{ paddingVertical: isTablet ? 16 : 14, paddingHorizontal: 8 }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ fontSize: 22 }}>🛠️</Text>
+                    <Text className="font-semibold text-violet-200" style={{ fontSize: 13 * fontScale }}>
+                      {t('home.lobbyCreateLabel')}
+                    </Text>
+                    <Text className="text-center leading-tight text-neutral-400" style={{ fontSize: 10 * fontScale }}>
+                      {t('home.lobbyCreateDesc')}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => router.push('/lobbies/public')}
+                    className="flex-1 items-center gap-1 rounded-xl border bg-indigo-950/50 border-indigo-800/50"
+                    style={{ paddingVertical: isTablet ? 16 : 14, paddingHorizontal: 8 }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ fontSize: 22 }}>🔍</Text>
+                    <Text className="font-semibold text-indigo-200" style={{ fontSize: 13 * fontScale }}>
+                      {t('home.lobbyJoinLabel')}
+                    </Text>
+                    <Text className="text-center leading-tight text-neutral-400" style={{ fontSize: 10 * fontScale }}>
+                      {t('home.lobbyJoinDesc')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Back link — out of the Create form to the Create/Join chooser. */}
+            {selectedMode === 'lobby' && lobbyAction === 'create' && (
+              <TouchableOpacity
+                onPress={() => { setLobbyAction(null); setError(null) }}
+                activeOpacity={0.7}
+                className="self-start"
+              >
+                <Text className="text-neutral-500" style={{ fontSize: 12 * fontScale }}>
+                  ← {t('home.lobbyBackToChooser')}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Sub-mode selector — Normal + Special (both unranked and lobby) */}
+            {hasSubMode && (() => {
+              const isLobby = selectedMode === 'lobby'
+              const currentSubMode = isLobby ? lobbyGameMode : unrankedSubMode
+              const setSubMode = isLobby ? setLobbyGameMode : setUnrankedSubMode
+              const SUB_MODES: { id: SubGameMode; icon: string; labelKey: string; descKey: string }[] = [
+                { id: 'normal',  icon: '🎭', labelKey: 'home.normalGameMode',  descKey: 'home.normalGameModeDesc' },
+                { id: 'special', icon: '✨', labelKey: 'home.specialGameMode', descKey: 'home.specialGameModeDesc' },
+              ]
+              return (
+                <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-2">
+                  <Text className="font-semibold uppercase tracking-widest text-neutral-500" style={{ fontSize: 12 * fontScale }}>
+                    {t('home.gameModeLabel')}
+                  </Text>
+                  <View className="flex-row gap-2">
+                    {SUB_MODES.map((m) => {
+                      const isActive = currentSubMode === m.id
+                      return (
+                        <TouchableOpacity
+                          key={m.id}
+                          onPress={() => setSubMode(m.id)}
+                          className={[
+                            'flex-1 items-center gap-1 rounded-xl border',
+                            isActive
+                              ? m.id === 'special'
+                                ? 'bg-purple-950/60 border-purple-700/50'
+                                : 'bg-violet-950/60 border-violet-700/50'
+                              : 'bg-neutral-800/60 border-neutral-700/50',
+                          ].join(' ')}
+                          style={{ paddingVertical: isTablet ? 14 : 12, paddingHorizontal: 8 }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={{ fontSize: 18 }}>{m.icon}</Text>
+                          <Text
+                            className={[
+                              'font-semibold',
+                              isActive
+                                ? m.id === 'special' ? 'text-purple-300' : 'text-violet-300'
+                                : 'text-neutral-400',
+                            ].join(' ')}
+                            style={{ fontSize: 13 * fontScale }}
+                          >
+                            {t(m.labelKey)}
+                          </Text>
+                          <Text
+                            className={['text-center leading-tight', isActive ? 'text-neutral-400' : 'text-neutral-600'].join(' ')}
+                            style={{ fontSize: 10 * fontScale }}
+                          >
+                            {t(m.descKey)}
+                          </Text>
+                        </TouchableOpacity>
+                      )
+                    })}
+                  </View>
+                </View>
+              )
+            })()}
+
+            {/* Custom Lobby — visibility + audio/typing mode toggles. */}
+            {showLobbyForm && (
+              <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-3">
+                <View className="flex-row items-center justify-between gap-3">
+                  <View className="flex-1 pr-2">
+                    <View className="flex-row items-center gap-1.5">
+                      <Text className="text-sm">{lobbyPublic ? '🌐' : '🔒'}</Text>
+                      <Text className="text-white font-semibold" style={{ fontSize: 14 * fontScale }}>
+                        {lobbyPublic ? t('home.lobbyPublicLabel') : t('home.lobbyPrivateLabel')}
+                      </Text>
+                    </View>
+                    <Text className="text-neutral-500 mt-0.5" style={{ fontSize: 11 * fontScale }}>
+                      {lobbyPublic ? t('home.lobbyPublicDesc') : t('home.lobbyPrivateDesc')}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setLobbyPublic((v) => !v)}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: lobbyPublic }}
+                    accessibilityLabel={t('home.lobbyPublicLabel')}
+                    className={[
+                      'w-11 h-6 rounded-full relative',
+                      lobbyPublic ? 'bg-indigo-500' : 'bg-neutral-700',
+                    ].join(' ')}
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      className="absolute top-0.5 w-5 h-5 rounded-full bg-white"
+                      style={{ left: lobbyPublic ? 22 : 2 }}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <View className="h-px bg-neutral-800" />
+
+                <View className="flex-row items-center justify-between gap-3">
+                  <View className="flex-1 pr-2">
+                    <View className="flex-row items-center gap-1.5">
+                      <Text className="text-sm">🎙️</Text>
+                      <Text className="text-white font-semibold" style={{ fontSize: 14 * fontScale }}>
+                        {t('lobby.vocalMode', 'Vocal mode')}
+                      </Text>
+                    </View>
+                    <Text className="text-neutral-500 mt-0.5" style={{ fontSize: 11 * fontScale }}>
+                      {t('lobby.vocalModeDesc', 'Each player speaks out loud on their turn — no typing.')}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setVocalMode((v) => !v)}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: vocalMode }}
+                    accessibilityLabel={t('lobby.vocalMode', 'Vocal mode')}
+                    className={[
+                      'w-11 h-6 rounded-full relative',
+                      vocalMode ? 'bg-violet-600' : 'bg-neutral-700',
+                    ].join(' ')}
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      className="absolute top-0.5 w-5 h-5 rounded-full bg-white"
+                      style={{ left: vocalMode ? 22 : 2 }}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Vocal mode toggle — unranked matchmaking only. Mirrors the
+                private-lobby toggle; server partitions the queue so vocal
+                opt-in players only match with each other. */}
+            {selectedMode === 'normal' && (
+              <View className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 gap-3">
+                <View className="flex-row items-center justify-between gap-3">
+                  <View className="flex-1 pr-2">
+                    <View className="flex-row items-center gap-1.5">
+                      <Text className="text-sm">🎙</Text>
+                      <Text className="text-white font-semibold" style={{ fontSize: 14 * fontScale }}>
+                        {t('lobby.vocalMode', 'Vocal mode')}
+                      </Text>
+                    </View>
+                    <Text className="text-neutral-500 mt-0.5" style={{ fontSize: 11 * fontScale }}>
+                      {t('lobby.vocalModeDesc', 'Each player speaks out loud on their turn — no typing.')}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setVocalMode((v) => !v)}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: vocalMode }}
+                    accessibilityLabel={t('lobby.vocalMode', 'Vocal mode')}
+                    className={[
+                      'w-11 h-6 rounded-full relative',
+                      vocalMode ? 'bg-violet-600' : 'bg-neutral-700',
+                    ].join(' ')}
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      className="absolute top-0.5 w-5 h-5 rounded-full bg-white"
+                      style={{ left: vocalMode ? 22 : 2 }}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             {/* Category picker */}
             {hasCategories && (
@@ -418,8 +734,9 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {/* Create / Find button */}
-            {selectedMode && !inQueue && (
+            {/* Create / Find button — hidden while the player is still on the
+                Custom Lobby Create/Join chooser. */}
+            {selectedMode && !inQueue && (selectedMode !== 'lobby' || lobbyAction === 'create') && (
               <View className="gap-2">
                 <TouchableOpacity
                   onPress={selectedMode === 'lobby' ? handleCreate : handleMatchmaking}
@@ -625,9 +942,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* Non-premium users see a bottom banner ad on the home screen. */}
-        <AdBanner hidden={Boolean((user as any)?.premium)} />
       </ScrollView>
 
       <OnboardingTutorial

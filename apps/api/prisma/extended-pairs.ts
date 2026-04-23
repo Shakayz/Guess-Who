@@ -4,18 +4,16 @@
  *
  * Structure:
  *  - PROPER_*: proper-noun categories (mangas, celebrities, movies, music, history).
- *    Same pairs across all 8 locales — only the `locale` field differs.
+ *    Same pairs across all 8 locales — emitted once per locale.
  *  - TR_*:   translatable categories (food, animals, places, jobs, sports, variety).
  *    One array per locale with index-aligned translations.
  */
 
-type Diff = 'easy' | 'medium' | 'hard'
-type Triple = [string, string, Diff]
+type Triple = [string, string] | [string, string, string]
 
 type PairData = {
   wordA: string
   wordB: string
-  difficulty: Diff
   category: string
   locale: string
 }
@@ -25,15 +23,15 @@ const LOCALES = ['en', 'fr', 'es', 'de', 'ar', 'it', 'pt', 'zh', 'ru', 'hi'] as 
 function expandProper(category: string, triples: Triple[]): PairData[] {
   const out: PairData[] = []
   for (const locale of LOCALES) {
-    for (const [a, b, d] of triples) {
-      out.push({ wordA: a, wordB: b, difficulty: d, category, locale })
+    for (const [a, b] of triples) {
+      out.push({ wordA: a, wordB: b, category, locale })
     }
   }
   return out
 }
 
 function expandLocale(category: string, locale: string, triples: Triple[]): PairData[] {
-  return triples.map(([a, b, d]) => ({ wordA: a, wordB: b, difficulty: d, category, locale }))
+  return triples.map(([a, b]) => ({ wordA: a, wordB: b, category, locale }))
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -121,7 +119,7 @@ const PROPER_CELEBRITIES: Triple[] = [
   ['Gal Gadot', 'Brie Larson', 'medium'],
   ['Tom Hardy', 'Cillian Murphy', 'medium'],
   ['Joaquin Phoenix', 'Jared Leto', 'medium'],
-  ['Rami Malek', 'Remi Malek', 'medium'],
+  ['Rami Malek', 'Dev Patel', 'medium'],
   ['Kendall Jenner', 'Hailey Bieber', 'medium'],
   ['Zlatan', 'Cantona', 'medium'],
   ['Iniesta', 'Xavi', 'medium'],
@@ -2667,6 +2665,102 @@ const TR_VARIETY_B: TrPack = {
   ],
 }
 // ═════════════════════════════════════════════════════════════════════════
+// PROPER-NOUN TECH (invariant across all locales — terms are global)
+// ═════════════════════════════════════════════════════════════════════════
+
+const PROPER_TECH: Triple[] = [
+  // Easy (15) — widely known hardware, apps, platforms
+  ['SSD', 'HDD', 'easy'],
+  ['GPU', 'CPU', 'easy'],
+  ['GitHub', 'GitLab', 'easy'],
+  ['Linux', 'Unix', 'easy'],
+  ['Java', 'C++', 'easy'],
+  ['MySQL', 'SQLite', 'easy'],
+  ['HTML', 'CSS', 'easy'],
+  ['Slack', 'Discord', 'easy'],
+  ['JavaScript', 'PHP', 'easy'],
+  ['iPad', 'Kindle', 'easy'],
+  ['Firefox', 'Safari', 'easy'],
+  ['Excel', 'Google Sheets', 'easy'],
+  ['USB', 'Thunderbolt', 'easy'],
+  ['Gmail', 'Yahoo Mail', 'easy'],
+  ['PowerPoint', 'Keynote', 'easy'],
+  // Medium (25) — runtimes, protocols, frameworks, paradigms
+  ['Node.js', 'Deno', 'medium'],
+  ['Git', 'SVN', 'medium'],
+  ['PostgreSQL', 'Oracle DB', 'medium'],
+  ['C', 'Assembly', 'medium'],
+  ['Angular', 'Svelte', 'medium'],
+  ['Next.js', 'Nuxt.js', 'medium'],
+  ['Jest', 'Vitest', 'medium'],
+  ['JSON', 'XML', 'medium'],
+  ['YAML', 'TOML', 'medium'],
+  ['SSH', 'Telnet', 'medium'],
+  ['SMTP', 'IMAP', 'medium'],
+  ['RAM', 'Flash Storage', 'medium'],
+  ['AES', 'RSA', 'medium'],
+  ['Machine Learning', 'Data Mining', 'medium'],
+  ['Neural Network', 'Decision Tree', 'medium'],
+  ['Frontend', 'Backend', 'medium'],
+  ['Agile', 'Kanban', 'medium'],
+  ['Vim', 'Emacs', 'medium'],
+  ['HTTPS', 'HTTP', 'medium'],
+  ['REST', 'SOAP', 'medium'],
+  ['PyPI', 'npm', 'medium'],
+  ['Linux', 'Windows Server', 'medium'],
+  ['Dark Mode', 'Light Mode', 'medium'],
+  ['Cloud Storage', 'NAS', 'medium'],
+  ['Microservices', 'Monolith', 'medium'],
+  // Hard (10) — advanced concepts, algorithms, protocols
+  ['MapReduce', 'Apache Spark', 'hard'],
+  ['B-tree', 'AVL Tree', 'hard'],
+  ['CORS', 'CSP', 'hard'],
+  ['Memoization', 'Dynamic Programming', 'hard'],
+  ['ACID', 'BASE', 'hard'],
+  ['WebAssembly', 'LLVM', 'hard'],
+  ['Protobuf', 'Avro', 'hard'],
+  ['Raft', 'Paxos', 'hard'],
+  ['CAP Theorem', 'PACELC', 'hard'],
+  ['Zero-Knowledge Proof', 'Homomorphic Encryption', 'hard'],
+]
+
+const PROPER_TECH_B: Triple[] = [
+  // Easy (10)
+  ['Laptop', 'Tablet', 'easy'],
+  ['Headphones', 'Earbuds', 'easy'],
+  ['Smartwatch', 'Fitness Tracker', 'easy'],
+  ['4K', '8K', 'easy'],
+  ['Bluetooth', 'NFC', 'easy'],
+  ['Cybersecurity', 'Ethical Hacking', 'easy'],
+  ['Podcast', 'Audiobook', 'easy'],
+  ['QR Code', 'Barcode', 'easy'],
+  ['Emoji', 'Sticker', 'easy'],
+  ['Chatbot', 'Virtual Assistant', 'easy'],
+  // Medium (15)
+  ['Kotlin', 'Scala', 'medium'],
+  ['Flutter', 'React Native', 'medium'],
+  ['Bash', 'PowerShell', 'medium'],
+  ['GraphQL', 'gRPC', 'medium'],
+  ['Nginx', 'Apache', 'medium'],
+  ['Elasticsearch', 'Solr', 'medium'],
+  ['Jenkins CI', 'CircleCI', 'medium'],
+  ['Prometheus', 'Grafana', 'medium'],
+  ['Agile', 'DevOps', 'medium'],
+  ['API Gateway', 'Load Balancer', 'medium'],
+  ['Blockchain', 'Distributed Ledger', 'medium'],
+  ['Augmented Reality', 'Virtual Reality', 'medium'],
+  ['Natural Language Processing', 'Computer Vision', 'medium'],
+  ['Edge Computing', 'Fog Computing', 'medium'],
+  ['Containerization', 'Virtualization', 'medium'],
+  // Hard (5)
+  ['Chaos Engineering', 'Fault Injection', 'hard'],
+  ['Service Mesh', 'API Gateway', 'hard'],
+  ['eBPF', 'XDP', 'hard'],
+  ['WASM', 'JVM', 'hard'],
+  ['Column Store', 'Row Store', 'hard'],
+]
+
+// ═════════════════════════════════════════════════════════════════════════
 // EXPORT — flat array of all extended pairs for all locales
 // ═════════════════════════════════════════════════════════════════════════
 
@@ -2693,6 +2787,8 @@ export const EXTENDED_PAIRS: PairData[] = [
   ...Object.entries(TR_JOBS_B).flatMap(([loc, t]) => expandLocale('jobs', loc, t)),
   ...Object.entries(TR_SPORTS_B).flatMap(([loc, t]) => expandLocale('sports', loc, t)),
   ...Object.entries(TR_VARIETY_B).flatMap(([loc, t]) => expandLocale('variety', loc, t)),
+  ...expandProper('tech', PROPER_TECH),
+  ...expandProper('tech', PROPER_TECH_B),
 ]
 
 export function extendedFor(locale: string): PairData[] {

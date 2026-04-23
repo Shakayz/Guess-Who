@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { Room, Round, ChatMessage, RewardSummary } from '@red-handed/shared'
+import type { Room, Round, ChatMessage, RewardSummary, WordCategory } from '@red-handed/shared'
 import { createLogger } from '../lib/logger'
 
 const log = createLogger('game')
@@ -17,6 +17,14 @@ interface TwinPartner {
   twinRole: string
 }
 
+export interface TwinChatMessage {
+  id: string
+  userId: string
+  username: string
+  text: string
+  createdAt: string
+}
+
 interface RevealedPlayer {
   userId: string
   username: string
@@ -30,6 +38,7 @@ interface GameState {
   myRole: string | null
   myWord: string | null
   myVillagerWord: string | null
+  myCategory: WordCategory | null
   detectiveRevealUsed: boolean
   guardianProtectUsed: boolean
   guardianProtectedPlayer: { userId: string; username: string } | null
@@ -45,6 +54,10 @@ interface GameState {
   corruptorTargetUserId: string | null
   /** Twin partner info (set once at game:started via twin:partner event) */
   twinPartner: TwinPartner | null
+  /** Evil Twins private DM log — stored only for the two twins. */
+  twinMessages: TwinChatMessage[]
+  /** Unread counter for the twin DM — cleared when the twin chat panel opens. */
+  twinUnread: number
   /** Revenant: post-mortem votes remaining (sent by server on elimination) */
   revenantVotesRemaining: number
   revealedPlayer: RevealedPlayer | null
@@ -57,7 +70,7 @@ interface GameState {
   setRoom: (room: Room) => void
   setRound: (round: Round) => void
   addCompletedRound: (round: Round) => void
-  setRoleAndWord: (role: string, word: string, villagerWord?: string) => void
+  setRoleAndWord: (role: string | null | undefined, word: string, villagerWord?: string, category?: WordCategory) => void
   setDetectiveRevealUsed: () => void
   setGuardianProtectUsed: (target: { userId: string; username: string }) => void
   setGuardianProtectedPlayer: (p: { userId: string; username: string } | null) => void
@@ -67,6 +80,8 @@ interface GameState {
   resetInverterActive: () => void
   setCorruptorTarget: (userId: string) => void
   setTwinPartner: (partner: TwinPartner | null) => void
+  addTwinMessage: (msg: TwinChatMessage, opts?: { incrementUnread?: boolean }) => void
+  clearTwinUnread: () => void
   setRevenantVotesRemaining: (n: number) => void
   setRevealedPlayer: (p: RevealedPlayer | null) => void
   addMessage: (msg: ChatMessage) => void
@@ -84,6 +99,7 @@ export const useGameStore = create<GameState>()(
       myRole: null,
       myWord: null,
       myVillagerWord: null,
+      myCategory: null,
       detectiveRevealUsed: false,
       guardianProtectUsed: false,
       guardianProtectedPlayer: null,
@@ -93,6 +109,8 @@ export const useGameStore = create<GameState>()(
       inverterActive: false,
       corruptorTargetUserId: null,
       twinPartner: null,
+      twinMessages: [],
+      twinUnread: 0,
       revenantVotesRemaining: 0,
       revealedPlayer: null,
       messages: [],
@@ -110,9 +128,9 @@ export const useGameStore = create<GameState>()(
       addCompletedRound: (round) => set((s) => ({
         completedRounds: [...s.completedRounds, round].slice(-20),
       })),
-      setRoleAndWord: (myRole, myWord, villagerWord) => {
-        log.info('role and word set', { role: myRole })
-        set({ myRole, myWord, myVillagerWord: villagerWord ?? null })
+      setRoleAndWord: (myRole, myWord, villagerWord, category) => {
+        log.info('role and word set', { role: myRole ?? null })
+        set({ myRole: myRole ?? null, myWord, myVillagerWord: villagerWord ?? null, myCategory: category ?? null })
       },
       setDetectiveRevealUsed: () => set({ detectiveRevealUsed: true }),
       setGuardianProtectUsed: (target) => set({ guardianProtectUsed: true, guardianProtectedPlayer: target }),
@@ -123,6 +141,16 @@ export const useGameStore = create<GameState>()(
       resetInverterActive: () => set({ inverterActive: false }),
       setCorruptorTarget: (corruptorTargetUserId) => set({ corruptorTargetUserId }),
       setTwinPartner: (twinPartner) => set({ twinPartner }),
+      addTwinMessage: (msg, opts) => set((s) => {
+        const deduped = s.twinMessages.some((m) => m.id === msg.id)
+          ? s.twinMessages
+          : [...s.twinMessages.slice(-199), msg]
+        return {
+          twinMessages: deduped,
+          twinUnread: opts?.incrementUnread ? s.twinUnread + 1 : s.twinUnread,
+        }
+      }),
+      clearTwinUnread: () => set({ twinUnread: 0 }),
       setRevenantVotesRemaining: (revenantVotesRemaining) => set({ revenantVotesRemaining }),
       setRevealedPlayer: (revealedPlayer) => set({ revealedPlayer }),
       addMessage: (msg) => set((s) => {
@@ -138,7 +166,7 @@ export const useGameStore = create<GameState>()(
       setGameFinished: (gameFinished) => set({ gameFinished }),
       reset: () => {
         log.info('game state reset')
-        set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, detectiveRevealUsed: false, guardianProtectUsed: false, guardianProtectedPlayer: null, mayorDoubleVoteUsed: false, mayorDoubleActive: false, inverterUsed: false, inverterActive: false, corruptorTargetUserId: null, twinPartner: null, revenantVotesRemaining: 0, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() })
+        set({ room: null, currentRound: null, completedRounds: [], myRole: null, myWord: null, myVillagerWord: null, myCategory: null, detectiveRevealUsed: false, guardianProtectUsed: false, guardianProtectedPlayer: null, mayorDoubleVoteUsed: false, mayorDoubleActive: false, inverterUsed: false, inverterActive: false, corruptorTargetUserId: null, twinPartner: null, twinMessages: [], twinUnread: 0, revenantVotesRemaining: 0, revealedPlayer: null, messages: [], result: null, gameFinished: false, lastResetAt: Date.now() })
       },
     }),
     {
@@ -152,6 +180,7 @@ export const useGameStore = create<GameState>()(
         myRole: state.myRole,
         myWord: state.myWord,
         myVillagerWord: state.myVillagerWord,
+        myCategory: state.myCategory,
         detectiveRevealUsed: state.detectiveRevealUsed,
         guardianProtectUsed: state.guardianProtectUsed,
         mayorDoubleVoteUsed: state.mayorDoubleVoteUsed,
@@ -160,7 +189,9 @@ export const useGameStore = create<GameState>()(
         inverterActive: state.inverterActive,
         corruptorTargetUserId: state.corruptorTargetUserId,
         twinPartner: state.twinPartner,
+        twinMessages: state.twinMessages,
         revenantVotesRemaining: state.revenantVotesRemaining,
+        revealedPlayer: state.revealedPlayer,
         result: state.result,
         gameFinished: state.gameFinished,
         lastResetAt: state.lastResetAt,

@@ -117,23 +117,27 @@ export function CoinsRevealCard({
 
         {/* Content */}
         <div className="relative px-5 pt-5 pb-4 text-center">
-          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-300/80 mb-1">
-            {t('results.coinsWon', { defaultValue: 'Coins won' })}
-          </p>
+          {total > 0 && (
+            <>
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-300/80 mb-1">
+                {t('results.coinsWon', { defaultValue: 'Coins won' })}
+              </p>
 
-          {/* Spinning coin + big total */}
-          <div className="flex items-center justify-center gap-3 mb-3">
-            <span
-              className="inline-block text-4xl animate-coin-spin"
-              style={{ transformStyle: 'preserve-3d', filter: 'drop-shadow(0 4px 10px rgba(251,191,36,0.55))' }}
-              aria-hidden
-            >
-              🪙
-            </span>
-            <span className="text-5xl font-black tabular-nums bg-gradient-to-b from-amber-200 via-amber-300 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_2px_6px_rgba(251,191,36,0.35)]">
-              +{animatedTotal}
-            </span>
-          </div>
+              {/* Spinning coin + big total */}
+              <div className="flex items-center justify-center gap-3 mb-3">
+                <span
+                  className="inline-block text-4xl animate-coin-spin"
+                  style={{ transformStyle: 'preserve-3d', filter: 'drop-shadow(0 4px 10px rgba(251,191,36,0.55))' }}
+                  aria-hidden
+                >
+                  🪙
+                </span>
+                <span className="text-5xl font-black tabular-nums bg-gradient-to-b from-amber-200 via-amber-300 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_2px_6px_rgba(251,191,36,0.35)]">
+                  +{animatedTotal}
+                </span>
+              </div>
+            </>
+          )}
 
           {/* Breakdown chips */}
           <div className="flex flex-wrap justify-center gap-1.5 mb-1">

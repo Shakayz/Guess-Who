@@ -1,218 +1,145 @@
 import { Platform } from 'react-native'
+import Constants from 'expo-constants'
 import { createLogger } from './logger'
 
 const log = createLogger('ads')
 
-// react-native-google-mobile-ads is loaded lazily for the same reasons as
-// react-native-iap — it ships native code, so it's absent in Expo Go and in
-// the web/test bundle. Consumers guard on the `ready` flag returned here.
-type RNAds = typeof import('react-native-google-mobile-ads')
-let adsModule: RNAds | null = null
-let adsLoadError: Error | null = null
+// Threshold for showing ads. Kept in code only — never surfaced in UI.
+const ADS_MIN_LEVEL = 3
 
-function loadAds(): RNAds | null {
-  if (adsModule) return adsModule
-  if (adsLoadError) return null
+// Expo Go bundles a fixed set of native modules; react-native-google-mobile-ads
+// isn't one of them, so importing it at module scope in Expo Go red-screens
+// the app. Gate all native access behind this check and no-op in Expo Go.
+const isExpoGo = Constants.appOwnership === 'expo'
+
+type AdsModule = typeof import('react-native-google-mobile-ads')
+let ads: AdsModule | null = null
+if (!isExpoGo) {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    adsModule = require('react-native-google-mobile-ads') as RNAds
-    return adsModule
-  } catch (err) {
-    adsLoadError = err as Error
-    log.warn('react-native-google-mobile-ads unavailable (Expo Go or module not installed)', {
-      message: adsLoadError.message,
-    })
-    return null
+    ads = require('react-native-google-mobile-ads')
+  } catch (e: any) {
+    log.warn('ads module failed to load', { message: e?.message })
   }
 }
 
-/**
- * AdMob unit IDs per platform. Google publishes well-known "test" unit IDs
- * that never pay out but always fill — we use those in development and when
- * the real units aren't configured via env, to keep the UI flowing.
- *
- * Production unit IDs MUST be set via EXPO_PUBLIC_ADMOB_* env vars (see
- * apps/mobile/eas.json). Never hard-code live unit IDs in source.
- */
-const TEST_UNITS = {
-  banner:       { ios: 'ca-app-pub-3940256099942544/2934735716', android: 'ca-app-pub-3940256099942544/6300978111' },
-  interstitial: { ios: 'ca-app-pub-3940256099942544/4411468910', android: 'ca-app-pub-3940256099942544/1033173712' },
-  rewarded:     { ios: 'ca-app-pub-3940256099942544/1712485313', android: 'ca-app-pub-3940256099942544/5224354917' },
+const PROD_INTERSTITIAL_ID = Platform.select({
+  ios: process.env.EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL,
+  android: process.env.EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL,
+})
+
+let initialized = false
+let interstitial: InstanceType<AdsModule['InterstitialAd']> | null = null
+let interstitialLoaded = false
+const unsubs: Array<() => void> = []
+let userMeta: { level: number; isPremium: boolean } = { level: 0, isPremium: false }
+
+export function setAdsUserMeta(meta: { level?: number; isPremium?: boolean }) {
+  userMeta = {
+    level: meta.level ?? userMeta.level,
+    isPremium: meta.isPremium ?? userMeta.isPremium,
+  }
 }
 
-function unitId(kind: 'banner' | 'interstitial' | 'rewarded'): string {
-  const env = process.env
-  if (Platform.OS === 'ios') {
-    const live = {
-      banner: env.EXPO_PUBLIC_ADMOB_IOS_BANNER,
-      interstitial: env.EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL,
-      rewarded: env.EXPO_PUBLIC_ADMOB_IOS_REWARDED,
-    }[kind]
-    return live || TEST_UNITS[kind].ios
+function disposeInterstitial() {
+  while (unsubs.length) {
+    try { unsubs.pop()!() } catch {}
   }
-  if (Platform.OS === 'android') {
-    const live = {
-      banner: env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER,
-      interstitial: env.EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL,
-      rewarded: env.EXPO_PUBLIC_ADMOB_ANDROID_REWARDED,
-    }[kind]
-    return live || TEST_UNITS[kind].android
-  }
-  return TEST_UNITS[kind].android
+  interstitial = null
+  interstitialLoaded = false
 }
 
-let initialised = false
-let interstitialInstance: any = null
-let rewardedInstance: any = null
+function preloadInterstitial() {
+  if (!ads) return
+  disposeInterstitial()
+  const unitId =
+    __DEV__ || !PROD_INTERSTITIAL_ID ? ads.TestIds.INTERSTITIAL : PROD_INTERSTITIAL_ID
+  const ad = ads.InterstitialAd.createForAdRequest(unitId, {
+    requestNonPersonalizedAdsOnly: true,
+  })
+  interstitial = ad
 
-/**
- * Initialise the AdMob SDK and (on iOS 14.5+) show the App Tracking
- * Transparency prompt. Call once at app start, ideally after the first render
- * so the prompt doesn't fight with the splash screen.
- */
-export async function initAds(): Promise<boolean> {
-  const ads = loadAds()
-  if (!ads) return false
-  if (initialised) return true
+  unsubs.push(
+    ad.addAdEventListener(ads.AdEventType.LOADED, () => {
+      interstitialLoaded = true
+    }),
+  )
+  unsubs.push(
+    ad.addAdEventListener(ads.AdEventType.ERROR, (err: any) => {
+      interstitialLoaded = false
+      log.warn('interstitial load error', { message: err?.message })
+    }),
+  )
+  unsubs.push(
+    ad.addAdEventListener(ads.AdEventType.CLOSED, () => {
+      interstitialLoaded = false
+      setTimeout(preloadInterstitial, 250)
+    }),
+  )
+
   try {
-    await ads.default().initialize()
-    // Request non-personalised ads until the user has given consent. The
-    // ConsentInformation flow below handles GDPR and ATT upgrades.
+    ad.load()
+  } catch (e: any) {
+    log.warn('interstitial load threw', { message: e?.message })
+  }
+}
+
+export async function initAds() {
+  if (initialized) return
+  if (!ads) {
+    if (isExpoGo) log.info('ads disabled: running in Expo Go')
+    return
+  }
+  initialized = true
+  try {
     await ads.default().setRequestConfiguration({
       maxAdContentRating: ads.MaxAdContentRating.T,
       tagForChildDirectedTreatment: false,
       tagForUnderAgeOfConsent: false,
     })
-    initialised = true
-    log.info('AdMob initialised')
+    await ads.default().initialize()
+    log.info('ads sdk initialized')
     preloadInterstitial()
-    preloadRewarded()
-    return true
-  } catch (err) {
-    log.warn('AdMob initialise failed', { message: (err as Error).message })
-    return false
+  } catch (e: any) {
+    log.warn('ads init failed', { message: e?.message })
+    initialized = false
   }
 }
 
-// ─── Banner ───────────────────────────────────────────────────────────────────
-
-export function getBannerUnitId(): string {
-  return unitId('banner')
-}
-
-/** Pass this to <BannerAd /> — `BANNER`, `LARGE_BANNER`, `MEDIUM_RECTANGLE`. */
-export function getBannerSize(name: 'BANNER' | 'LARGE_BANNER' | 'MEDIUM_RECTANGLE' = 'BANNER'): string {
-  const ads = loadAds()
-  if (!ads) return 'BANNER'
-  return (ads.BannerAdSize as any)[name] ?? 'BANNER'
-}
-
-// ─── Interstitial ─────────────────────────────────────────────────────────────
-
-function preloadInterstitial() {
-  const ads = loadAds()
-  if (!ads || !initialised) return
-  try {
-    interstitialInstance = ads.InterstitialAd.createForAdRequest(unitId('interstitial'), {
-      requestNonPersonalizedAdsOnly: true,
-    })
-    interstitialInstance.addAdEventListener(ads.AdEventType.LOADED, () => {
-      log.debug('interstitial loaded')
-    })
-    interstitialInstance.addAdEventListener(ads.AdEventType.CLOSED, () => {
-      // Chain the next fill so the next show has something ready.
-      preloadInterstitial()
-    })
-    interstitialInstance.load()
-  } catch (err) {
-    log.warn('interstitial preload failed', { message: (err as Error).message })
-  }
+function isEligible(): boolean {
+  return !userMeta.isPremium && (userMeta.level ?? 0) >= ADS_MIN_LEVEL
 }
 
 /**
- * Show an interstitial if one is ready. Silently no-ops when no ad is cached,
- * when ads aren't initialised, or when running in Expo Go — callers should
- * never block game flow on an ad.
+ * Resolves once the ad is dismissed, errors, or after a safety timeout.
+ * Resolves immediately if the user is not eligible or no ad is ready, so
+ * callers can `await` and then navigate without trapping the user.
  */
-export async function showInterstitial(): Promise<boolean> {
-  const ads = loadAds()
-  if (!ads || !initialised || !interstitialInstance) return false
-  try {
-    if (!interstitialInstance.loaded) {
-      log.debug('interstitial not ready, skipping')
-      return false
-    }
-    await interstitialInstance.show()
-    return true
-  } catch (err) {
-    log.warn('interstitial show failed', { message: (err as Error).message })
-    return false
+export function showInterstitialBetweenGames(): Promise<void> {
+  if (!ads || !isEligible()) return Promise.resolve()
+  const ad = interstitial
+  if (!ad || !interstitialLoaded) {
+    if (!ad) preloadInterstitial()
+    else { try { ad.load() } catch {} }
+    return Promise.resolve()
   }
-}
 
-// ─── Rewarded ─────────────────────────────────────────────────────────────────
-
-function preloadRewarded() {
-  const ads = loadAds()
-  if (!ads || !initialised) return
-  try {
-    rewardedInstance = ads.RewardedAd.createForAdRequest(unitId('rewarded'), {
-      requestNonPersonalizedAdsOnly: true,
-    })
-    rewardedInstance.addAdEventListener(ads.AdEventType.CLOSED, () => {
-      preloadRewarded()
-    })
-    rewardedInstance.load()
-  } catch (err) {
-    log.warn('rewarded preload failed', { message: (err as Error).message })
-  }
-}
-
-export type RewardResult = { type: string; amount: number }
-
-/**
- * Show a rewarded ad. Resolves with the reward payload when the user
- * completes the ad, or `null` if they close it early / the ad failed. Callers
- * hand the reward to the server so it can't be forged client-side.
- */
-export function showRewardedAd(): Promise<RewardResult | null> {
-  const ads = loadAds()
-  return new Promise((resolve) => {
-    if (!ads || !initialised || !rewardedInstance) {
-      resolve(null)
-      return
+  return new Promise<void>((resolve) => {
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      try { unClosed() } catch {}
+      try { unError() } catch {}
+      clearTimeout(safety)
+      resolve()
     }
-    if (!rewardedInstance.loaded) {
-      log.debug('rewarded not ready')
-      resolve(null)
-      return
+    const unClosed = ad.addAdEventListener(ads!.AdEventType.CLOSED, finish)
+    const unError = ad.addAdEventListener(ads!.AdEventType.ERROR, finish)
+    const safety = setTimeout(finish, 30000)
+    try {
+      ad.show()
+    } catch {
+      finish()
     }
-    let earned: RewardResult | null = null
-    const rewardedUnsub = rewardedInstance.addAdEventListener(
-      ads.RewardedAdEventType.EARNED_REWARD,
-      (reward: RewardResult) => { earned = reward },
-    )
-    const closedUnsub = rewardedInstance.addAdEventListener(
-      ads.AdEventType.CLOSED,
-      () => {
-        rewardedUnsub?.()
-        closedUnsub?.()
-        resolve(earned)
-      },
-    )
-    rewardedInstance.show().catch((err: Error) => {
-      log.warn('rewarded show failed', { message: err.message })
-      rewardedUnsub?.()
-      closedUnsub?.()
-      resolve(null)
-    })
   })
-}
-
-export const ads = {
-  init: initAds,
-  getBannerUnitId,
-  getBannerSize,
-  showInterstitial,
-  showRewardedAd,
 }

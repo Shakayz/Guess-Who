@@ -111,7 +111,7 @@ describe('Friends Routes', () => {
 
   describe('POST /api/friends/request', () => {
     it('sends a friend request', async () => {
-      mockUser.findUnique.mockResolvedValue({ id: 'user-2', username: 'alice' })
+      mockUser.findFirst.mockResolvedValue({ id: 'user-2', username: 'alice' })
       mockFriendship.findFirst.mockResolvedValue(null)
       mockFriendship.create.mockResolvedValue({ id: 'fs-3', status: 'pending' })
 
@@ -137,7 +137,7 @@ describe('Friends Routes', () => {
     })
 
     it('returns 404 when target user does not exist', async () => {
-      mockUser.findUnique.mockResolvedValue(null)
+      mockUser.findFirst.mockResolvedValue(null)
 
       const res = await app.inject({
         method: 'POST',
@@ -149,7 +149,7 @@ describe('Friends Routes', () => {
     })
 
     it('returns 400 when already friends', async () => {
-      mockUser.findUnique.mockResolvedValue({ id: 'user-2', username: 'alice' })
+      mockUser.findFirst.mockResolvedValue({ id: 'user-2', username: 'alice' })
       mockFriendship.findFirst.mockResolvedValue({ id: 'fs-1', status: 'accepted' })
 
       const res = await app.inject({
@@ -163,7 +163,7 @@ describe('Friends Routes', () => {
     })
 
     it('returns 400 when request already pending', async () => {
-      mockUser.findUnique.mockResolvedValue({ id: 'user-2', username: 'alice' })
+      mockUser.findFirst.mockResolvedValue({ id: 'user-2', username: 'alice' })
       mockFriendship.findFirst.mockResolvedValue({ id: 'fs-1', status: 'pending' })
 
       const res = await app.inject({
@@ -178,7 +178,7 @@ describe('Friends Routes', () => {
 
     it('returns 400 when trying to add yourself', async () => {
       // The token is signed with sub='user-1', target also has id='user-1'
-      mockUser.findUnique.mockResolvedValue({ id: 'user-1', username: 'testuser' })
+      mockUser.findFirst.mockResolvedValue({ id: 'user-1', username: 'testuser' })
 
       const res = await app.inject({
         method: 'POST',
@@ -199,9 +199,8 @@ describe('Friends Routes', () => {
       ;(app as any).io = mockIo
       ;(app as any).onlineUsers = new Map([['user-2', 'socket-id-2']])
 
-      mockUser.findUnique
-        .mockResolvedValueOnce({ id: 'user-2', username: 'alice' }) // target lookup
-        .mockResolvedValueOnce({ username: 'testuser', avatarUrl: null }) // requester lookup
+      mockUser.findFirst.mockResolvedValue({ id: 'user-2', username: 'alice' }) // target lookup (by username, case-insensitive)
+      mockUser.findUnique.mockResolvedValue({ username: 'testuser', avatarUrl: null }) // requester lookup (by id)
       mockFriendship.findFirst.mockResolvedValue(null)
       mockFriendship.create.mockResolvedValue({ id: 'fs-notify', status: 'pending' })
 
@@ -217,7 +216,9 @@ describe('Friends Routes', () => {
       ;(app as any).onlineUsers = undefined
 
       expect(res.statusCode).toBe(201)
-      expect(mockTo).toHaveBeenCalledWith('socket-id-2')
+      // Emits to the per-user room so every tab/device of the target gets the
+      // incoming-request event (not just the most recently connected socket).
+      expect(mockTo).toHaveBeenCalledWith('user:user-2')
       expect(mockEmit).toHaveBeenCalledWith('friend:request', expect.objectContaining({ friendshipId: 'fs-notify' }))
     })
   })
@@ -296,7 +297,11 @@ describe('Friends Routes', () => {
       ;(app as any).onlineUsers = undefined
 
       expect(res.statusCode).toBe(200)
-      expect(mockTo).toHaveBeenCalledWith('socket-id-3')
+      // Emits to the requester's per-user room (every tab/device gets it) and
+      // echoes to the accepter's own per-user room so both sides' friend lists
+      // refresh regardless of which surface the user is on.
+      expect(mockTo).toHaveBeenCalledWith('user:user-3')
+      expect(mockTo).toHaveBeenCalledWith('user:user-1')
       expect(mockEmit).toHaveBeenCalledWith('friend:accepted', expect.objectContaining({ friendshipId: 'fs-2' }))
     })
   })

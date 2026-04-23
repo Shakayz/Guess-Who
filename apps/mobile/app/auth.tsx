@@ -10,7 +10,10 @@ import {
   ScrollView,
   Modal,
   FlatList,
+  Image,
 } from 'react-native'
+import { Wordmark } from '../components/Wordmark'
+import { BounceIn, FloatSoft, GlowPulse } from '../components/anim/AnimatedViews'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -59,6 +62,7 @@ interface GoogleVerifyResponse {
   token?: string
   user?: { id: string; username: string; email: string }
   setupToken?: string
+  suggestedUsername?: string
 }
 
 // ─── AuthScreen ──────────────────────────────────────────────────────────────
@@ -132,13 +136,14 @@ export default function AuthScreen() {
     try {
       const data = await api.post<GoogleVerifyResponse>(
         '/auth/google/verify',
-        { accessToken },
+        { accessToken, locale: i18n.language },
       )
 
       if (data.setupToken) {
         // New user -- need to pick a username
         log.info('google oauth: username setup required')
         setSetupToken(data.setupToken)
+        if (data.suggestedUsername) setSetupUsername(data.suggestedUsername)
         setLoading(false)
         return
       }
@@ -146,7 +151,6 @@ export default function AuthScreen() {
       if (data.token && data.user) {
         log.info('google oauth success', { userId: data.user.id })
         setAuth(data.token, data.user)
-        router.replace('/')
       }
     } catch (err: any) {
       log.warn('google oauth failed', { error: err.message })
@@ -190,7 +194,6 @@ export default function AuthScreen() {
       setAuth(data.token, data.user)
       setSetupToken(null)
       setSetupUsername('')
-      router.replace('/')
     } catch (err: any) {
       setError(err.message ?? 'Username setup failed')
     } finally {
@@ -243,7 +246,6 @@ export default function AuthScreen() {
       )
       log.info('auth success', { userId: data.user?.id, mode })
       setAuth(data.token, data.user)
-      router.replace('/')
     } catch (err: any) {
       log.warn('auth failed', { mode, error: err.message })
       setError(err.message)
@@ -268,12 +270,27 @@ export default function AuthScreen() {
       const name = credential.fullName
         ? `${credential.fullName.givenName ?? ''} ${credential.fullName.familyName ?? ''}`.trim()
         : undefined
-      const data = await api.post<{ token: string; user: { id: string; username: string; email: string } }>(
+      const data = await api.post<{
+        token?: string
+        user?: { id: string; username: string; email: string }
+        needsUsername?: boolean
+        setupToken?: string
+        suggestedUsername?: string
+      }>(
         '/auth/apple/verify',
-        { identityToken: credential.identityToken, name },
+        { identityToken: credential.identityToken, name, locale: i18n.language },
       )
-      setAuth(data.token, data.user)
-      router.replace('/')
+
+      if (data.setupToken) {
+        log.info('apple oauth: username setup required')
+        setSetupToken(data.setupToken)
+        if (data.suggestedUsername) setSetupUsername(data.suggestedUsername)
+        return
+      }
+
+      if (data.token && data.user) {
+        setAuth(data.token, data.user)
+      }
     } catch (err: any) {
       if (err.code !== 'ERR_REQUEST_CANCELED') {
         setError(err.message ?? 'Apple sign-in failed')
@@ -422,20 +439,17 @@ export default function AuthScreen() {
             <View style={{ width: '100%', maxWidth: isTablet ? 480 : 380, alignSelf: 'center' }}>
 
               {/* Logo */}
-              <View className="items-center mb-10">
-                <View
-                  className="rounded-2xl bg-violet-700 items-center justify-center mb-5 overflow-hidden"
-                  style={{ width: isTablet ? 80 : 64, height: isTablet ? 80 : 64 }}
-                >
-                  <View className="absolute top-0 left-0 right-0 h-1/2 bg-white/10 rounded-t-2xl" />
-                  <Text style={{ fontSize: isTablet ? 40 : 30 }}>🎭</Text>
-                </View>
-                <Text className="font-extrabold text-white tracking-tight" style={{ fontSize: isTablet ? 36 : 30 }}>Red Handed !</Text>
-                <View className="flex-row items-center gap-1.5 mt-2 px-3 py-1 rounded-full border border-violet-800/40 bg-violet-950/30">
-                  <View className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-                  <Text className="text-violet-400 font-semibold" style={{ fontSize: 12 * fontScale }}>{t('home.subtitle')}</Text>
-                </View>
-              </View>
+              <BounceIn style={{ alignItems: 'center', marginBottom: 24 }}>
+                <FloatSoft style={{ marginBottom: 12 }}>
+                  <Image
+                    source={require('../assets/masks.png')}
+                    style={{ width: isTablet ? 128 : 112, height: isTablet ? 128 : 112 }}
+                    resizeMode="contain"
+                  />
+                </FloatSoft>
+                <Wordmark size={isTablet ? 256 : 224} />
+                <Text className="text-neutral-500 mt-2 text-center" style={{ fontSize: 14 * fontScale }}>{t('home.subtitle')}</Text>
+              </BounceIn>
 
               {/* OAuth buttons */}
               <View className="gap-2.5 mb-5">

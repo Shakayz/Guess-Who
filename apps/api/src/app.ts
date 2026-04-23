@@ -12,7 +12,6 @@ import { oauthRoutes } from './routes/oauth'
 import { roomRoutes } from './routes/rooms'
 import { userRoutes } from './routes/users'
 import { shopRoutes } from './routes/shop'
-import { iapRoutes } from './routes/iap'
 import { friendsRoutes } from './routes/friends'
 import { historyRoutes } from './routes/history'
 import { messagesRoutes } from './routes/messages'
@@ -22,6 +21,7 @@ import { giftsRoutes } from './routes/gifts'
 import { wordPacksRoutes } from './routes/wordPacks'
 import { tutorialRoutes } from './routes/tutorial'
 import { supportRoutes } from './routes/support'
+import { emoteRoutes } from './routes/emotes'
 import { registerSocketHandlers } from './socket'
 
 export async function buildApp() {
@@ -60,7 +60,6 @@ export async function buildApp() {
   await app.register(roomRoutes, { prefix: '/api/rooms' })
   await app.register(userRoutes, { prefix: '/api/users' })
   await app.register(shopRoutes, { prefix: '/api/shop' })
-  await app.register(iapRoutes,  { prefix: '/api/shop/iap' })
   await app.register(friendsRoutes, { prefix: '/api/friends' })
   await app.register(historyRoutes, { prefix: '/api/history' })
   await app.register(messagesRoutes, { prefix: '/api/messages' })
@@ -70,6 +69,7 @@ export async function buildApp() {
   await app.register(wordPacksRoutes, { prefix: '/api/word-packs' })
   await app.register(tutorialRoutes, { prefix: '/api/tutorial' })
   await app.register(supportRoutes, { prefix: '/api/support' })
+  await app.register(emoteRoutes, { prefix: '/api/emotes' })
 
   // Health check
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }))

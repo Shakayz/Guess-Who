@@ -1,6 +1,10 @@
 import '../global.css'
 import React, { useEffect, useCallback } from 'react'
 import { View, Text, TouchableOpacity, useWindowDimensions, LogBox } from 'react-native'
+import * as SplashScreen from 'expo-splash-screen'
+import { useBrandFonts } from '../lib/fonts'
+
+SplashScreen.preventAutoHideAsync().catch(() => {})
 
 // Suppress noisy socket reconnection logs in dev LogBox
 LogBox.ignoreLogs([
@@ -12,6 +16,7 @@ LogBox.ignoreLogs([
 import { Stack, Redirect, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as Linking from 'expo-linking'
+import * as Notifications from 'expo-notifications'
 import '../i18n'
 import { useAuthStore } from '../store/auth'
 import { useSocialStore } from '../store/social'
@@ -20,31 +25,45 @@ import { registerForPushNotifications } from '../lib/notifications'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { ConnectionStatus } from '../components/ConnectionStatus'
 import { AchievementToastBanner } from '../components/achievements/AchievementToast'
+import { GiftToastBanner } from '../components/GiftToast'
+import { DmToastBanner } from '../components/DmToastBanner'
+import { InviteBanner } from '../components/InviteBanner'
+import { GlobalDmChatHost } from '../components/GlobalDmChatHost'
+import { MatchmakingManager } from '../components/MatchmakingManager'
+import { MatchmakingBanner } from '../components/MatchmakingBanner'
+import { MenuMusic } from '../components/MenuMusic'
+import { SlideUp } from '../components/anim/AnimatedViews'
 import { api } from '../lib/api'
-import { initIap, endIap } from '../lib/iap'
-import { initAds } from '../lib/ads'
+import { initAds, setAdsUserMeta } from '../lib/ads'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+})
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
+  const setUserMeta = useAuthStore((s) => s.setUserMeta)
   const segments = useSegments()
 
   useEffect(() => {
-    if (token) {
-      registerForPushNotifications().catch(() => {})
-      // Bring the IAP connection up so the purchase listener is installed
-      // before the user hits the shop. `initIap` is idempotent and no-ops in
-      // Expo Go / on platforms where the native module isn't linked.
-      initIap().catch(() => {})
-    } else {
-      endIap().catch(() => {})
-    }
-  }, [token])
-
-  // AdMob doesn't need an authenticated user — kick it off once at app start
-  // so the first banner has something cached.
-  useEffect(() => {
     initAds().catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!token) return
+    registerForPushNotifications().catch(() => {})
+    let cancelled = false
+    api
+      .get<{ level?: number; premiumUntil?: string | null; isPremium?: boolean }>('/auth/me')
+      .then((me) => {
+        if (cancelled) return
+        setUserMeta({ level: me.level, premiumUntil: me.premiumUntil ?? null })
+        setAdsUserMeta({ level: me.level ?? 0, isPremium: !!me.isPremium })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [token, setUserMeta])
 
   const inPublicRoute = segments[0] === 'auth' || segments[0] === 'offline' || segments[0] === 'how-to-play'
 
@@ -64,7 +83,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function GlobalSocketListeners() {
   const token = useAuthStore((s) => s.token)
-  const { setPendingInvite, setPendingFriendRequest, incrementUnread, pushAchievementToast } = useSocialStore()
+  const { setPendingInvite, setPendingFriendRequest, incrementUnread, pushAchievementToast, pushFriendAcceptedToast, pushGiftToast, pushDmToast } = useSocialStore()
 
   useEffect(() => {
     if (!token) return
@@ -84,8 +103,28 @@ function GlobalSocketListeners() {
       })
     })
 
+    socket.on('friend:accepted' as any, (data: any) => {
+      const { pendingFriendRequest } = useSocialStore.getState()
+      if (pendingFriendRequest?.friendshipId === data.friendshipId) {
+        setPendingFriendRequest(null)
+      }
+      pushFriendAcceptedToast(data.by?.username ?? data.byUsername ?? 'Someone')
+    })
+
     socket.on('dm:receive' as any, (data: any) => {
-      incrementUnread(data.senderId)
+      incrementUnread(data.senderId, {
+        username: data.senderUsername,
+        text: data.text,
+      })
+      // Suppress toast if the chat with this sender is already open —
+      // the modal renders the message inline.
+      const { activeDm } = useSocialStore.getState()
+      if (activeDm?.friendId === data.senderId) return
+      pushDmToast({
+        senderId: data.senderId,
+        senderUsername: data.senderUsername,
+        text: data.text,
+      })
     })
 
     socket.on('achievement:unlocked' as any, (data: any) => {
@@ -98,11 +137,25 @@ function GlobalSocketListeners() {
       })
     })
 
+    // Coins/premium are already credited server-side; the toast just
+    // acknowledges delivery. Each tab's Shop/Home re-fetches /auth/me on
+    // focus, so the balance will refresh as soon as the user navigates.
+    socket.on('gift:received' as any, (data: any) => {
+      pushGiftToast({
+        senderUsername: data.from?.username ?? 'Someone',
+        coinAmount: data.coinAmount ?? 0,
+        premiumPlanId: data.premiumPlanId ?? null,
+        message: data.message ?? null,
+      })
+    })
+
     return () => {
       socket.off('room:invited' as any)
       socket.off('friend:request' as any)
+      socket.off('friend:accepted' as any)
       socket.off('dm:receive' as any)
       socket.off('achievement:unlocked' as any)
+      socket.off('gift:received' as any)
     }
   }, [token])
 
@@ -162,39 +215,42 @@ function DeepLinkHandler() {
   return null
 }
 
-function InviteBanner() {
+function PushTapHandler() {
   const router = useRouter()
-  const { pendingInvite, setPendingInvite } = useSocialStore()
-  const { width } = useWindowDimensions()
-  const isTablet = width >= 768
-  const bannerStyle = isTablet ? { maxWidth: 500, alignSelf: 'center' as const } : {}
+  const token = useAuthStore((s) => s.token)
+  const setActiveDm = useSocialStore((s) => s.setActiveDm)
 
-  if (!pendingInvite) return null
+  useEffect(() => {
+    if (!token) return
 
-  return (
-    <View className="absolute top-14 left-4 right-4 z-50 bg-violet-900 border border-violet-700 rounded-2xl p-4 flex-row items-center gap-3" style={bannerStyle}>
-      <Text className="text-2xl">🎮</Text>
-      <View className="flex-1">
-        <Text className="text-white font-semibold text-sm">Game Invite</Text>
-        <Text className="text-violet-300 text-xs">
-          {pendingInvite.fromUsername} invited you to play
-        </Text>
-      </View>
-      <TouchableOpacity
-        onPress={() => {
-          const code = pendingInvite.roomCode
-          setPendingInvite(null)
-          router.push(`/lobby/${code}`)
-        }}
-        className="bg-violet-600 px-3 py-1.5 rounded-lg"
-      >
-        <Text className="text-white font-semibold text-xs">Join</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => setPendingInvite(null)}>
-        <Text className="text-violet-400 text-sm">✕</Text>
-      </TouchableOpacity>
-    </View>
-  )
+    const handleResponse = (response: Notifications.NotificationResponse) => {
+      const data = response.notification.request.content.data as
+        | { type?: string; roomCode?: string; senderId?: string; fromUsername?: string }
+        | undefined
+      if (!data?.type) return
+
+      if ((data.type === 'room_invite' || data.type === 'matchmaking_found') && data.roomCode) {
+        router.push(`/lobby/${data.roomCode}`)
+        return
+      }
+      if (data.type === 'dm' && data.senderId) {
+        // The DM screen is a modal hosted by GlobalDmChatHost — opening the
+        // active DM in the social store triggers it to mount.
+        setActiveDm({ friendId: data.senderId, friendUsername: data.fromUsername ?? '' })
+      }
+    }
+
+    // Cold-start: tapping a push while the app was killed delivers the
+    // response before any listener is registered, so check lastResponse first.
+    Notifications.getLastNotificationResponseAsync()
+      .then((resp) => { if (resp) handleResponse(resp) })
+      .catch(() => {})
+
+    const sub = Notifications.addNotificationResponseReceivedListener(handleResponse)
+    return () => sub.remove()
+  }, [token, router, setActiveDm])
+
+  return null
 }
 
 function FriendRequestBanner() {
@@ -224,43 +280,66 @@ function FriendRequestBanner() {
   }
 
   return (
-    <View className="absolute top-14 left-4 right-4 z-50 bg-emerald-900 border border-emerald-700 rounded-2xl p-4 flex-row items-center gap-3" style={bannerStyle}>
-      <Text className="text-2xl">👋</Text>
-      <View className="flex-1">
-        <Text className="text-white font-semibold text-sm">Friend Request</Text>
-        <Text className="text-emerald-300 text-xs">
-          {pendingFriendRequest.fromUsername} wants to be your friend
-        </Text>
+    <SlideUp
+      distance={-20}
+      style={{ position: 'absolute', top: 56, left: 16, right: 16, zIndex: 50, ...bannerStyle }}
+    >
+      <View className="bg-emerald-900 border border-emerald-700 rounded-2xl p-4 flex-row items-center gap-3">
+        <Text className="text-2xl">👋</Text>
+        <View className="flex-1">
+          <Text className="text-white font-semibold text-sm">Friend Request</Text>
+          <Text className="text-emerald-300 text-xs">
+            {pendingFriendRequest.fromUsername} wants to be your friend
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={handleAccept}
+          className="bg-emerald-600 px-3 py-1.5 rounded-lg"
+          activeOpacity={0.8}
+        >
+          <Text className="text-white font-semibold text-xs">Accept</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleDecline}
+          className="px-3 py-1.5 rounded-lg bg-emerald-950 border border-emerald-700/50"
+          activeOpacity={0.8}
+        >
+          <Text className="text-emerald-300 font-semibold text-xs">Decline</Text>
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity
-        onPress={handleAccept}
-        className="bg-emerald-600 px-3 py-1.5 rounded-lg"
-        activeOpacity={0.8}
-      >
-        <Text className="text-white font-semibold text-xs">Accept</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={handleDecline}
-        className="px-3 py-1.5 rounded-lg bg-emerald-950 border border-emerald-700/50"
-        activeOpacity={0.8}
-      >
-        <Text className="text-emerald-300 font-semibold text-xs">Decline</Text>
-      </TouchableOpacity>
-    </View>
+    </SlideUp>
   )
 }
 
 export default function RootLayout() {
+  const { loaded: fontsLoaded } = useBrandFonts()
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync().catch(() => {})
+    }
+  }, [fontsLoaded])
+
+  if (!fontsLoaded) return null
+
   return (
     <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
       <StatusBar style="light" />
       <AuthGuard>
         <DeepLinkHandler />
+        <PushTapHandler />
         <GlobalSocketListeners />
         <ConnectionStatus />
         <InviteBanner />
         <FriendRequestBanner />
         <AchievementToastBanner />
+        <GiftToastBanner />
+        <DmToastBanner />
+        <GlobalDmChatHost />
+        <MatchmakingManager />
+        <MatchmakingBanner />
+        <MenuMusic />
         <Stack
           screenOptions={{
             headerStyle: { backgroundColor: '#09090b' },
@@ -278,9 +357,10 @@ export default function RootLayout() {
           <Stack.Screen name="lobby/[code]" options={{ title: 'Lobby', headerBackTitle: 'Leave' }} />
           <Stack.Screen name="game/[code]" options={{ title: 'Game', headerShown: false }} />
           <Stack.Screen name="results/[code]" options={{ title: 'Results' }} />
-          <Stack.Screen name="shop" options={{ headerShown: false }} />
+          <Stack.Screen name="settings" options={{ title: 'Settings', headerBackTitle: 'Back' }} />
         </Stack>
       </AuthGuard>
+      </QueryClientProvider>
     </ErrorBoundary>
   )
 }
