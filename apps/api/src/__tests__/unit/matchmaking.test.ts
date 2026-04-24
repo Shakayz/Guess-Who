@@ -370,6 +370,79 @@ describe('matchmaking window — tick fires match when queue hits IDEAL_PLAYERS'
     expect(mockPrisma.room.create).toHaveBeenCalled()
   })
 
+  it('retries on P2002 room-code collision and succeeds on the second attempt [locale:no]', async () => {
+    const io = makeIo()
+    const socket = makeSocket('user-no1')
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-no1', locale: 'no', starCoins: 100 })
+      .mockResolvedValueOnce({ id: 'user-no1', rankPoints: 0 })
+
+    const entries = Array.from({ length: 10 }, (_, i) =>
+      JSON.stringify({ userId: `user-no${i}`, socketId: `sock-no${i}`, categories: [], locale: 'no', rankPoints: 0, joinedAt: Date.now() })
+    )
+    ;(mockRedis as any).llen.mockResolvedValue(10)
+    ;(mockRedis as any).lrange.mockResolvedValue(entries)
+    let popCount = 0
+    ;(mockRedis as any).lpop.mockImplementation(() => {
+      const e = entries[popCount]
+      popCount++
+      return Promise.resolve(e ?? null)
+    })
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    // First attempt throws a unique-constraint collision on `code`; second
+    // attempt resolves. The helper retries up to 3 times on P2002.
+    const p2002 = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' })
+    mockPrisma.room.create
+      .mockImplementationOnce(() => Promise.reject(p2002))
+      .mockResolvedValueOnce({
+        id: 'room-no', code: 'SECND', hostId: 'user-no0',
+        maxPlayers: 10, redHandedCount: 2,
+        speakingTimeSeconds: 30, votingTimeSeconds: 30,
+        isPrivate: false, language: 'no', createdAt: new Date(),
+      })
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'normal', categories: [] })
+    await vi.advanceTimersByTimeAsync(2000)
+
+    // Two create attempts, no error emit (retry succeeded)
+    expect(mockPrisma.room.create).toHaveBeenCalledTimes(2)
+    expect(io._emit).toHaveBeenCalledWith('matchmaking:found', expect.any(Object))
+  })
+
+  it('does not retry on non-P2002 errors in executeMatch [locale:cs]', async () => {
+    const io = makeIo()
+    const socket = makeSocket('user-cs1')
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'user-cs1', locale: 'cs', starCoins: 100 })
+      .mockResolvedValueOnce({ id: 'user-cs1', rankPoints: 0 })
+
+    const entries = Array.from({ length: 10 }, (_, i) =>
+      JSON.stringify({ userId: `user-cs${i}`, socketId: `sock-cs${i}`, categories: [], locale: 'cs', rankPoints: 0, joinedAt: Date.now() })
+    )
+    ;(mockRedis as any).llen.mockResolvedValue(10)
+    ;(mockRedis as any).lrange.mockResolvedValue(entries)
+    let popCount = 0
+    ;(mockRedis as any).lpop.mockImplementation(() => {
+      const e = entries[popCount]
+      popCount++
+      return Promise.resolve(e ?? null)
+    })
+    ;(mockRedis as any).set.mockResolvedValue('OK')
+
+    // Non-P2002 error (eg missing-column failure) must be terminal — no retry.
+    mockPrisma.room.create.mockImplementation(() =>
+      Promise.reject(Object.assign(new Error('column "isPublic" does not exist'), { code: 'P2010' })),
+    )
+
+    registerMatchmakingHandlers(io, socket)
+    await socket._fire('matchmaking:join', { gameMode: 'normal', categories: [] })
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(mockPrisma.room.create).toHaveBeenCalledTimes(1)
+  })
+
   it('pushes players back when room creation fails in executeMatch [locale:pt]', async () => {
     const io = makeIo()
     const socket = makeSocket('user-pt1')

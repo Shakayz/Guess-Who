@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   Modal,
   View,
@@ -8,9 +8,12 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { getSocket } from '../lib/socket'
 import { useAuthStore } from '../store/auth'
@@ -34,23 +37,73 @@ interface DmChatModalProps {
   onClose: () => void
 }
 
+function formatTime(iso: string): string {
+  try {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ''
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return ''
+  }
+}
+
+function formatLastSeen(iso: string | null, online: boolean): string {
+  if (online) return 'Online'
+  if (!iso) return 'Offline'
+  try {
+    const d = new Date(iso)
+    const diffMs = Date.now() - d.getTime()
+    const mins = Math.floor(diffMs / 60000)
+    if (mins < 1) return 'Last seen just now'
+    if (mins < 60) return `Last seen ${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `Last seen ${hrs}h ago`
+    const days = Math.floor(hrs / 24)
+    return `Last seen ${days}d ago`
+  } catch {
+    return 'Offline'
+  }
+}
+
 export default function DmChatModal({
   visible,
   friendId,
   friendUsername,
   onClose,
 }: DmChatModalProps) {
+  const { t } = useTranslation()
   const [messages, setMessages] = useState<DmMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [presence, setPresence] = useState<{ online: boolean; lastSeenAt: string | null }>({
+    online: false,
+    lastSeenAt: null,
+  })
   const flatListRef = useRef<FlatList<DmMessage>>(null)
   const user = useAuthStore((s) => s.user)
   const clearUnread = useSocialStore((s) => s.clearUnread)
   const { width: screenWidth } = useWindowDimensions()
+  const insets = useSafeAreaInsets()
   const isTablet = screenWidth >= 768
-  const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
+  const sidePad = isTablet ? 32 : 16
+  // SafeAreaView inside a Modal with statusBarTranslucent can lose top insets
+  // on Android, pushing the header (and the close button) behind the status
+  // bar. Compute the top padding manually as a robust fallback.
+  const topPad = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0,
+  )
+  const bottomPad = Math.max(insets.bottom, 8)
+  const contentStyle = isTablet
+    ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const }
+    : {}
 
-  // Load message history on open
+  const initial = useMemo(
+    () => (friendUsername?.charAt(0) ?? '?').toUpperCase(),
+    [friendUsername],
+  )
+
+  // Load history + presence on open
   useEffect(() => {
     if (!visible || !friendId) return
 
@@ -58,38 +111,51 @@ export default function DmChatModal({
     api
       .get<DmMessage[]>(`/messages/${friendId}`)
       .then((data) => {
-        setMessages(data)
+        setMessages(Array.isArray(data) ? data : [])
       })
-      .catch((err) => {
-        log.error('failed to load messages', { error: err.message })
+      .catch((err: any) => {
+        log.error('failed to load messages', { error: err?.message })
       })
       .finally(() => {
         setLoading(false)
       })
 
-    // Clear unread count for this friend
-    clearUnread(friendId)
-  }, [visible, friendId])
+    api
+      .get<{ isOnline?: boolean; lastSeenAt: string | null }>(`/users/${friendId}/profile`)
+      .then((res) =>
+        setPresence({ online: !!res.isOnline, lastSeenAt: res.lastSeenAt ?? null }),
+      )
+      .catch(() => {})
 
-  // Listen for incoming DMs
+    clearUnread(friendId)
+  }, [visible, friendId, clearUnread])
+
+  // Listen for incoming DMs — only append messages from the friend to avoid
+  // duplicating our own optimistic message (the server echoes every send back
+  // to the sender as well).
   useEffect(() => {
     if (!visible) return
 
     const socket = getSocket()
-
     const handleReceive = (msg: DmMessage) => {
-      // Only show messages from this conversation
-      if (msg.senderId === friendId || msg.senderId === user?.id) {
-        setMessages((prev) => [...prev, msg])
-      }
+      if (msg.senderId !== friendId) return
+      setMessages((prev) => [...prev, msg])
     }
 
     socket.on('dm:receive' as any, handleReceive)
-
     return () => {
       socket.off('dm:receive' as any, handleReceive)
     }
-  }, [visible, friendId, user?.id])
+  }, [visible, friendId])
+
+  // Auto-scroll to bottom whenever messages change or loading finishes
+  useEffect(() => {
+    if (loading) return
+    const id = setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true })
+    }, 50)
+    return () => clearTimeout(id)
+  }, [messages, loading])
 
   const sendMessage = useCallback(() => {
     const trimmed = input.trim()
@@ -98,7 +164,6 @@ export default function DmChatModal({
     const socket = getSocket()
     socket.emit('dm:send' as any, { toUserId: friendId, text: trimmed })
 
-    // Optimistically add to local list
     const optimistic: DmMessage = {
       id: `local-${Date.now()}`,
       senderId: user.id,
@@ -113,52 +178,57 @@ export default function DmChatModal({
   const handleClose = useCallback(() => {
     setMessages([])
     setInput('')
+    setPresence({ online: false, lastSeenAt: null })
     onClose()
   }, [onClose])
 
-  const formatTime = (iso: string): string => {
-    try {
-      const d = new Date(iso)
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    } catch {
-      return ''
-    }
-  }
-
-  const renderMessage = ({ item }: { item: DmMessage }) => {
+  const renderMessage = ({ item, index }: { item: DmMessage; index: number }) => {
     const isOwn = item.senderId === user?.id
+    const prev = messages[index - 1]
+    const groupedWithPrev = prev && prev.senderId === item.senderId
     return (
       <View
-        className={['flex-row gap-2.5 px-4 py-1.5', isOwn ? 'flex-row-reverse' : ''].join(' ')}
+        className={[
+          'flex-row gap-2 px-4',
+          groupedWithPrev ? 'mt-0.5' : 'mt-3',
+          isOwn ? 'flex-row-reverse' : '',
+        ].join(' ')}
       >
-        {/* Avatar initial */}
-        <View
-          className={[
-            'w-8 h-8 rounded-full items-center justify-center mt-0.5 shrink-0',
-            isOwn ? 'bg-violet-700' : 'bg-neutral-700',
-          ].join(' ')}
-        >
-          <Text className="text-white text-xs font-bold">
-            {(isOwn ? user?.username : friendUsername).charAt(0).toUpperCase()}
-          </Text>
+        <View className="w-8 shrink-0">
+          {!groupedWithPrev && (
+            <View
+              className={[
+                'w-8 h-8 rounded-full items-center justify-center',
+                isOwn ? 'bg-violet-700' : 'bg-neutral-700',
+              ].join(' ')}
+            >
+              <Text className="text-white text-xs font-bold">
+                {(isOwn ? user?.username : friendUsername)?.charAt(0).toUpperCase() ?? '?'}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Bubble */}
         <View
           className={[
-            'rounded-2xl px-3.5 py-2.5 max-w-[75%]',
+            'rounded-2xl px-3.5 py-2 max-w-[78%]',
             isOwn
-              ? 'bg-violet-600 rounded-tr-sm'
-              : 'bg-neutral-800 border border-neutral-700 rounded-tl-sm',
+              ? 'bg-violet-600'
+              : 'bg-neutral-800 border border-neutral-700/60',
+            !groupedWithPrev && isOwn ? 'rounded-tr-sm' : '',
+            !groupedWithPrev && !isOwn ? 'rounded-tl-sm' : '',
           ].join(' ')}
         >
-          <Text className={['text-sm leading-snug', isOwn ? 'text-white' : 'text-neutral-200'].join(' ')}>
+          <Text
+            className={['text-sm leading-snug', isOwn ? 'text-white' : 'text-neutral-100'].join(' ')}
+            selectable
+          >
             {item.text}
           </Text>
           <Text
             className={[
-              'text-[10px] mt-1',
-              isOwn ? 'text-violet-300/60 text-right' : 'text-neutral-500',
+              'text-[10px] mt-0.5',
+              isOwn ? 'text-violet-200/70 text-right' : 'text-neutral-500',
             ].join(' ')}
           >
             {formatTime(item.createdAt)}
@@ -168,46 +238,79 @@ export default function DmChatModal({
     )
   }
 
+  const presenceLabel = formatLastSeen(presence.lastSeenAt, presence.online)
+  const canSend = input.trim().length > 0
+
   return (
-    <Modal visible={visible} animationType="slide" statusBarTranslucent>
-      <SafeAreaView className="flex-1 bg-neutral-950" edges={['top', 'bottom']}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      statusBarTranslucent
+      onRequestClose={handleClose}
+    >
+      <View className="flex-1 bg-neutral-950" style={{ paddingTop: topPad }}>
         <KeyboardAvoidingView
           className="flex-1"
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
           {/* Header */}
-          <View className="flex-row items-center justify-between py-3 border-b border-neutral-800" style={{ paddingHorizontal: isTablet ? 32 : 16, ...contentStyle }}>
-            <View className="flex-row items-center gap-3">
-              <View className="w-9 h-9 rounded-full bg-violet-700 items-center justify-center">
-                <Text className="text-white text-sm font-bold">
-                  {friendUsername.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <View>
-                <Text className="text-white font-bold text-base">{friendUsername}</Text>
-                <Text className="text-neutral-500 text-xs">Direct Message</Text>
-              </View>
-            </View>
+          <View
+            className="flex-row items-center gap-3 py-3 border-b border-neutral-800 bg-neutral-950"
+            style={{ paddingHorizontal: sidePad, ...contentStyle }}
+          >
             <TouchableOpacity
               onPress={handleClose}
-              className="w-9 h-9 rounded-full bg-neutral-800 items-center justify-center"
-              activeOpacity={0.7}
+              className="w-10 h-10 rounded-full items-center justify-center bg-neutral-900 border border-neutral-800"
+              activeOpacity={0.6}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
             >
-              <Text className="text-neutral-400 text-lg font-bold">X</Text>
+              <Text className="text-neutral-200 text-lg font-bold leading-5">✕</Text>
             </TouchableOpacity>
+
+            <View className="relative">
+              <View className="w-10 h-10 rounded-full bg-violet-700 items-center justify-center">
+                <Text className="text-white text-base font-bold">{initial}</Text>
+              </View>
+              {presence.online && (
+                <View className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-neutral-950" />
+              )}
+            </View>
+
+            <View className="flex-1 min-w-0">
+              <Text className="text-white font-bold text-base" numberOfLines={1}>
+                {friendUsername}
+              </Text>
+              <Text
+                className={[
+                  'text-xs',
+                  presence.online ? 'text-emerald-400' : 'text-neutral-500',
+                ].join(' ')}
+              >
+                {presenceLabel}
+              </Text>
+            </View>
           </View>
 
           {/* Messages */}
           {loading ? (
             <View className="flex-1 items-center justify-center">
-              <Text className="text-neutral-500 text-sm">Loading messages...</Text>
+              <ActivityIndicator size="small" color="#8b5cf6" />
+              <Text className="text-neutral-500 text-xs mt-2">
+                {t('common.loading')}
+              </Text>
             </View>
           ) : messages.length === 0 ? (
             <View className="flex-1 items-center justify-center px-8">
-              <Text className="text-3xl mb-3">💬</Text>
+              <View className="w-16 h-16 rounded-full bg-neutral-900 border border-neutral-800 items-center justify-center mb-4">
+                <Text className="text-3xl">💬</Text>
+              </View>
+              <Text className="text-neutral-300 text-base font-semibold text-center mb-1">
+                {friendUsername}
+              </Text>
               <Text className="text-neutral-500 text-sm text-center">
-                No messages yet. Say hi to {friendUsername}!
+                Say hi — this is the start of your conversation.
               </Text>
             </View>
           ) : (
@@ -216,44 +319,46 @@ export default function DmChatModal({
               data={messages}
               keyExtractor={(item) => item.id}
               renderItem={renderMessage}
-              inverted={false}
-              contentContainerStyle={{ paddingVertical: 12, gap: 2 }}
+              contentContainerStyle={{ paddingTop: 8, paddingBottom: 12, ...contentStyle }}
               showsVerticalScrollIndicator={false}
-              onContentSizeChange={() => {
+              onContentSizeChange={() =>
                 flatListRef.current?.scrollToEnd({ animated: true })
-              }}
+              }
             />
           )}
 
           {/* Input bar */}
-          <View className="flex-row items-end gap-2 py-3 border-t border-neutral-800 bg-neutral-950" style={{ paddingHorizontal: isTablet ? 32 : 16, ...contentStyle }}>
-            <TextInput
-              className="flex-1 bg-neutral-800 text-white px-4 py-3 rounded-2xl border border-neutral-700 text-sm max-h-24"
-              placeholder="Type a message..."
-              placeholderTextColor="#525252"
-              value={input}
-              onChangeText={setInput}
-              multiline
-              returnKeyType="send"
-              blurOnSubmit
-              onSubmitEditing={sendMessage}
-            />
+          <View
+            className="flex-row items-end gap-2 pt-2 border-t border-neutral-800 bg-neutral-950"
+            style={{ paddingHorizontal: sidePad, paddingBottom: bottomPad, ...contentStyle }}
+          >
+            <View className="flex-1 bg-neutral-900 rounded-3xl border border-neutral-800 px-4 py-2">
+              <TextInput
+                className="text-white text-sm max-h-28"
+                placeholder="Message"
+                placeholderTextColor="#525252"
+                value={input}
+                onChangeText={setInput}
+                multiline
+                textAlignVertical="center"
+              />
+            </View>
             <TouchableOpacity
               onPress={sendMessage}
-              disabled={!input.trim()}
+              disabled={!canSend}
               className={[
                 'w-11 h-11 rounded-full items-center justify-center',
-                input.trim() ? 'bg-violet-600' : 'bg-neutral-800 opacity-40',
+                canSend ? 'bg-violet-600' : 'bg-neutral-800',
               ].join(' ')}
               activeOpacity={0.7}
             >
-              <Text className="text-white font-bold text-base">
-                {'\u2191'}
+              <Text className={['text-xl font-bold', canSend ? 'text-white' : 'text-neutral-600'].join(' ')}>
+                ➤
               </Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
     </Modal>
   )
 }

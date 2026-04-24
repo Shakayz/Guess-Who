@@ -96,9 +96,10 @@ export function checkWinCondition(players: Player[]): 'villagers' | 'red_handed'
 }
 
 export function getMostVoted(votes: Vote[]): string | null {
-  if (votes.length === 0) return null
+  const real = votes.filter((v): v is Vote & { targetId: string } => v.targetId !== null)
+  if (real.length === 0) return null
   const tally: Record<string, number> = {}
-  for (const v of votes) {
+  for (const v of real) {
     tally[v.targetId] = (tally[v.targetId] ?? 0) + 1
   }
   const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1])
@@ -110,9 +111,10 @@ export function getMostVoted(votes: Vote[]): string | null {
 
 /** Returns the IDs of players tied for most votes. Empty array if no votes. */
 export function getTiedPlayerIds(votes: Vote[]): string[] {
-  if (votes.length === 0) return []
+  const real = votes.filter((v): v is Vote & { targetId: string } => v.targetId !== null)
+  if (real.length === 0) return []
   const tally: Record<string, number> = {}
-  for (const v of votes) {
+  for (const v of real) {
     tally[v.targetId] = (tally[v.targetId] ?? 0) + 1
   }
   const maxVotes = Math.max(...Object.values(tally))
@@ -159,6 +161,9 @@ export function tallyVotes(
 
   const tally: Record<string, number> = {}
   for (const v of votes) {
+    // Skip/abstain votes: registered so the round can early-resolve, but never
+    // counted toward any player's elimination tally.
+    if (v.targetId === null) continue
     // Corruptor: silently drop votes from corrupted players.
     if (corruptedVoters.has(v.voterId)) continue
     const weight = mayorDoublers.has(v.voterId) ? 2 : 1

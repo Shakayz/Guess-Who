@@ -3,16 +3,21 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
+import { findLanguage } from '../i18n/languages'
+import { isVillagerSideRole, isRedHandedSideRole, isJesterRole, isTwinRole } from '@red-handed/shared'
+import type { PlayerRole } from '@red-handed/shared'
 
 type HistoryMode = 'unranked' | 'ranked'
+type WinnerTeam = 'villagers' | 'red_handed' | 'jester' | 'evil_twins' | 'draw'
 
 interface GameSummary {
   id: string
   startedAt: string
   endedAt: string
-  winnerTeam: 'villagers' | 'red_handed'
+  winnerTeam: WinnerTeam
   gameMode: 'normal' | 'special' | 'ranked'
-  myRole: 'villager' | 'red_handed'
+  language?: string
+  myRole: PlayerRole
   survived: boolean
   starCoinsEarned: number
   roundCount: number
@@ -46,8 +51,19 @@ function SkeletonCard() {
 }
 
 export default function HistoryPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
+  const languageName = React.useMemo(() => {
+    try {
+      const dn = new Intl.DisplayNames([i18n.language], { type: 'language' })
+      return (code: string) => {
+        const name = dn.of(code)
+        return name ? name.charAt(0).toUpperCase() + name.slice(1) : code
+      }
+    } catch {
+      return (code: string) => code
+    }
+  }, [i18n.language])
   const [mode, setMode] = useState<HistoryMode>('unranked')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<HistoryResponse | null>(null)
@@ -76,9 +92,16 @@ export default function HistoryPage() {
     setData(null)
   }
 
-  const didWin = (game: GameSummary) =>
-    (game.winnerTeam === 'villagers' && game.myRole === 'villager') ||
-    (game.winnerTeam === 'red_handed' && game.myRole === 'red_handed')
+  const getOutcome = (game: GameSummary): 'win' | 'loss' | 'draw' => {
+    if (game.winnerTeam === 'draw') return 'draw'
+    const role = game.myRole
+    const won =
+      (game.winnerTeam === 'villagers'  && isVillagerSideRole(role)) ||
+      (game.winnerTeam === 'red_handed' && isRedHandedSideRole(role)) ||
+      (game.winnerTeam === 'jester'     && isJesterRole(role)) ||
+      (game.winnerTeam === 'evil_twins' && isTwinRole(role))
+    return won ? 'win' : 'loss'
+  }
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, {
@@ -164,7 +187,8 @@ export default function HistoryPage() {
             <>
               <div className="space-y-3">
                 {data.games.map((game) => {
-                  const won = didWin(game)
+                  const outcome = getOutcome(game)
+                  const langInfo = findLanguage(game.language)
                   return (
                     <button
                       key={game.id}
@@ -173,9 +197,22 @@ export default function HistoryPage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-white font-semibold text-sm group-hover:text-brand-400 transition-colors">
-                            {formatDate(game.startedAt)}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-white font-semibold text-sm group-hover:text-brand-400 transition-colors">
+                              {formatDate(game.startedAt)}
+                            </p>
+                            <span
+                              className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-300 bg-neutral-800/60 inline-flex items-center gap-1.5"
+                              title={t('lobby.roomLanguage', 'Room language') as string}
+                            >
+                              <img
+                                src={`https://flagcdn.com/w20/${langInfo.country}.png`}
+                                alt=""
+                                className="w-3.5 h-2.5 object-cover rounded-sm"
+                              />
+                              <span>{languageName(langInfo.code)}</span>
+                            </span>
+                          </div>
                           <p className="text-neutral-500 text-xs mt-0.5">
                             {game.players.length} player{game.players.length !== 1 ? 's' : ''} · {game.roundCount} round{game.roundCount !== 1 ? 's' : ''}
                           </p>
@@ -183,12 +220,18 @@ export default function HistoryPage() {
                         <span
                           className={[
                             'text-xs font-bold px-2.5 py-1 rounded-full border flex-shrink-0',
-                            won
+                            outcome === 'win'
                               ? 'bg-green-950 text-green-400 border-green-800'
-                              : 'bg-red-950 text-red-400 border-red-800',
+                              : outcome === 'draw'
+                                ? 'bg-amber-950 text-amber-400 border-amber-800'
+                                : 'bg-red-950 text-red-400 border-red-800',
                           ].join(' ')}
                         >
-                          {won ? t('history.victory') : t('history.defeat')}
+                          {outcome === 'win'
+                            ? t('history.victory')
+                            : outcome === 'draw'
+                              ? t('history.draw', 'Draw')
+                              : t('history.defeat')}
                         </span>
                       </div>
 
@@ -202,9 +245,6 @@ export default function HistoryPage() {
                           ].join(' ')}
                         >
                           {game.myRole === 'red_handed' ? t('gameDetail.redHandedRole') : t('gameDetail.villagerRole')}
-                        </span>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-400 bg-neutral-800/60">
-                          ⭐ +{game.starCoinsEarned}
                         </span>
                         <span
                           className={[

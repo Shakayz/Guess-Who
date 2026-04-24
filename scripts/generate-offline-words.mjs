@@ -22,17 +22,26 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 const SEED = resolve(ROOT, 'apps/api/prisma/seed.ts')
 const EXTENDED = resolve(ROOT, 'apps/api/prisma/extended-pairs.ts')
+const V2 = resolve(ROOT, 'apps/api/prisma/v2-pairs.ts')
+const V3 = resolve(ROOT, 'apps/api/prisma/v3-pairs.ts')
 const OUT = resolve(ROOT, 'packages/shared/src/offlineWords.ts')
 
 const LOCALES = ['en', 'fr', 'es', 'de', 'ar', 'it', 'pt', 'zh', 'ru', 'hi']
 const CATEGORIES = [
   'food', 'animals', 'music', 'places', 'jobs',
-  'sports', 'movies', 'history', 'mangas', 'celebrities', 'variety',
+  'sports', 'movies', 'tech', 'history', 'mangas', 'celebrities', 'variety',
 ]
+
+// Target pair count per (locale, category). Each category should hit this
+// floor via curated pairs in seed.ts + extended-pairs.ts. Raised from 30 to
+// 40 as part of the V2 expansion.
+const POOL_SIZE = 40
 
 // ---------------------------------------------------------------------------
 // Parse seed.ts base pairs via regex.
-// Format: `{ wordA: '...', wordB: '...', difficulty: '...', category: '...', locale: '...' }`
+// Format: `{ wordA: '...', wordB: '...', category: '...' }`
+// Locale is inferred from the enclosing `const XX: PairData[] = [ ... ]`
+// block (EN, FR, ES, DE, AR, IT, PT, ZH, RU, HI).
 // Handles escaped apostrophes inside strings (e.g. `'Jeanne d\'Arc'`).
 // ---------------------------------------------------------------------------
 
@@ -40,18 +49,28 @@ function unescape(s) {
   return s.replace(/\\(['"\\])/g, '$1')
 }
 
+const LOCALE_BY_CONST = {
+  EN: 'en', FR: 'fr', ES: 'es', DE: 'de', AR: 'ar',
+  IT: 'it', PT: 'pt', ZH: 'zh', RU: 'ru', HI: 'hi',
+}
+
 function parseSeed(content) {
-  const re = /\{\s*wordA:\s*'((?:[^'\\]|\\.)*)',\s*wordB:\s*'((?:[^'\\]|\\.)*)',\s*difficulty:\s*'(\w+)',\s*category:\s*'(\w+)',\s*locale:\s*'(\w+)'\s*\}/g
+  const blockRe = /const\s+(EN|FR|ES|DE|AR|IT|PT|ZH|RU|HI)\s*:\s*PairData\[\]\s*=\s*\[([\s\S]*?)\n\]/g
+  const pairRe = /\{\s*wordA:\s*'((?:[^'\\]|\\.)*)',\s*wordB:\s*'((?:[^'\\]|\\.)*)',\s*category:\s*'(\w+)'\s*\}/g
   const out = []
-  let m
-  while ((m = re.exec(content)) !== null) {
-    out.push({
-      wordA: unescape(m[1]),
-      wordB: unescape(m[2]),
-      difficulty: m[3],
-      category: m[4],
-      locale: m[5],
-    })
+  let block
+  while ((block = blockRe.exec(content)) !== null) {
+    const locale = LOCALE_BY_CONST[block[1]]
+    const body = block[2]
+    let m
+    while ((m = pairRe.exec(body)) !== null) {
+      out.push({
+        wordA: unescape(m[1]),
+        wordB: unescape(m[2]),
+        category: m[3],
+        locale,
+      })
+    }
   }
   return out
 }
@@ -86,6 +105,20 @@ for (const p of basePairs) {
 // Extended pairs from extended-pairs.ts (dynamic import, --experimental-strip-types)
 const extModule = await import(pathToFileURL(EXTENDED).href)
 for (const p of extModule.EXTENDED_PAIRS) {
+  const slot = bucket[p.locale]?.[p.category]
+  if (slot) pushUnique(slot, p.wordA, p.wordB)
+}
+
+// V2 pairs from v2-pairs.ts (dynamic import, --experimental-strip-types)
+const v2Module = await import(pathToFileURL(V2).href)
+for (const p of v2Module.V2_PAIRS) {
+  const slot = bucket[p.locale]?.[p.category]
+  if (slot) pushUnique(slot, p.wordA, p.wordB)
+}
+
+// V3 pairs from v3-pairs.ts (dynamic import, --experimental-strip-types)
+const v3Module = await import(pathToFileURL(V3).href)
+for (const p of v3Module.V3_PAIRS) {
   const slot = bucket[p.locale]?.[p.category]
   if (slot) pushUnique(slot, p.wordA, p.wordB)
 }
@@ -182,7 +215,7 @@ export function pickRandomWordPair(
   categories: WordCategory[],
   shuffleFn: <T>(arr: T[]) => T[],
   locale?: string,
-): OfflineWordPair {
+): OfflineWordPair & { category: WordCategory } {
   const localeKey = locale?.substring(0, 2) ?? 'en'
   const pairsMap = OFFLINE_WORD_PAIRS_BY_LOCALE[localeKey] ?? OFFLINE_WORD_PAIRS
   const keys =
@@ -193,7 +226,7 @@ export function pickRandomWordPair(
   const category = shuffledKeys[0]
   const pairs = pairsMap[category]
   const shuffledPairs = shuffleFn(pairs)
-  return shuffledPairs[0]
+  return { ...shuffledPairs[0], category }
 }
 `
 

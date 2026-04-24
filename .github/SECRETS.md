@@ -1,105 +1,112 @@
 # GitHub Secrets & Environments Setup
 
-Configure these in: **GitHub → Settings → Secrets and variables → Actions**
+Deployments use two GitHub **Environments**: `staging` and `production`. Each
+environment owns its own copy of the environment-scoped secrets below; the
+workflow references them with **unprefixed** names and GitHub automatically
+picks the right one based on the job's `environment:` field.
+
+Configure everything under: **GitHub → Settings → Secrets and variables → Actions**
 
 ---
 
-## Environments à créer dans GitHub
+## 1. Create the two environments
 
-GitHub → Settings → Environments → New environment
+**Settings → Environments → New environment**
 
-| Environment | Protection Rules |
-|---|---|
-| `development` | Aucune (auto-deploy) |
-| `pfv` | Optionnel: ajouter 1 reviewer pour valider avant déploiement |
-| `production` | **Required reviewers** (obligatoire — toi ou un co-admin) |
-
----
-
-## Secrets globaux (partagés entre tous les environnements)
-
-> GitHub → Settings → Secrets → Actions → New repository secret
-
-| Secret | Description |
-|---|---|
-| `GOOGLE_CLIENT_ID` | OAuth Google server-side (même valeur pour tous les envs) |
-| `GOOGLE_CLIENT_SECRET` | OAuth Google secret |
-| `VITE_GOOGLE_CLIENT_ID` | OAuth Google client-side (baked into web bundle at build time) |
-| `APPLE_CLIENT_ID` | Apple Sign In Services ID (ex: `com.redhanded.game.signin`) — used server-side for JWT audience check |
-| `VITE_APPLE_CLIENT_ID` | Apple Sign In Services ID — baked into web bundle at build time (usually the same value as `APPLE_CLIENT_ID`) |
+| Environment  | Protection rules                                    |
+|--------------|-----------------------------------------------------|
+| `staging`    | None (auto-deploy on push to `main`)                |
+| `production` | **Required reviewers** (you or a co-admin) — strongly recommended |
 
 ---
 
-## Secrets par environnement — DEV (`development`)
+## 2. Repository-level secrets (shared by both envs)
 
-| Secret | Exemple |
-|---|---|
-| `DEV_SSH_HOST` | `192.168.1.100` |
-| `DEV_SSH_USER` | `ubuntu` |
-| `DEV_SSH_KEY` | Clé privée SSH (contenu complet) |
-| `DEV_DATABASE_URL` | `postgresql://postgres:pass@postgres:5432/red_handed` |
-| `DEV_REDIS_URL` | `redis://redis:6379` |
-| `DEV_JWT_SECRET` | Minimum 32 caractères aléatoires |
-| `DEV_ALLOWED_ORIGINS` | `http://dev.yourdomain.com` |
-| `DEV_APP_URL` | `http://dev.yourdomain.com` |
+**Settings → Secrets and variables → Actions → Secrets tab → New repository secret**
 
----
+These are identical across staging and production.
 
-## Secrets par environnement — PFV (`pfv`)
+| Secret                 | Description                                                          |
+|------------------------|----------------------------------------------------------------------|
+| `GOOGLE_CLIENT_ID`     | OAuth Google server-side                                             |
+| `GOOGLE_CLIENT_SECRET` | OAuth Google server-side secret                                      |
+| `VITE_GOOGLE_CLIENT_ID`| OAuth Google client-side — baked into web bundle at build time       |
+| `APPLE_CLIENT_ID`      | Apple Sign In Services ID (e.g. `com.redhanded.game.signin`) — used server-side for JWT audience check |
+| `VITE_APPLE_CLIENT_ID` | Apple Sign In Services ID — baked into web bundle at build time (usually same value as `APPLE_CLIENT_ID`) |
+| `RESEND_API_KEY`       | Resend transactional email API key                                   |
+| `LIGHTSAIL_SSH_KEY`    | SSH private key authorised on both staging and production VMs        |
 
-| Secret | Exemple |
-|---|---|
-| `PFV_SSH_HOST` | IP du serveur PFV |
-| `PFV_SSH_USER` | `ubuntu` |
-| `PFV_SSH_KEY` | Clé privée SSH PFV |
-| `PFV_DATABASE_URL` | `postgresql://postgres:pass@postgres:5432/red_handed_pfv` |
-| `PFV_REDIS_URL` | `redis://:pass@redis:6379` |
-| `PFV_JWT_SECRET` | Secret JWT PFV (différent du prod) |
-| `PFV_ALLOWED_ORIGINS` | `https://pfv.yourdomain.com` |
-| `PFV_APP_URL` | `https://pfv.yourdomain.com` |
-| `PFV_POSTGRES_PASSWORD` | Mot de passe Postgres PFV |
-| `PFV_REDIS_PASSWORD` | Mot de passe Redis PFV |
-| `STRIPE_TEST_KEY` | `sk_test_...` (clé Stripe test) |
-| `PFV_STRIPE_WEBHOOK_SECRET` | `whsec_...` (endpoint test Stripe) |
+> If you prefer a different SSH key per environment, move `LIGHTSAIL_SSH_KEY`
+> into each environment's secrets (section 3) instead of the repo level.
 
 ---
 
-## Secrets par environnement — PRODUCTION (`production`)
+## 3. Environment-scoped secrets (different per env)
 
-| Secret | Exemple |
-|---|---|
-| `PROD_SSH_HOST` | IP du serveur production |
-| `PROD_SSH_USER` | `ubuntu` |
-| `PROD_SSH_KEY` | Clé privée SSH production |
-| `PROD_DATABASE_URL` | `postgresql://postgres:STRONG@postgres:5432/red_handed` |
-| `PROD_REDIS_URL` | `redis://:STRONG@redis:6379` |
-| `PROD_JWT_SECRET` | `openssl rand -base64 48` |
-| `PROD_ALLOWED_ORIGINS` | `https://yourdomain.com,https://www.yourdomain.com` |
-| `PROD_APP_URL` | `https://yourdomain.com` |
-| `PROD_POSTGRES_PASSWORD` | Mot de passe Postgres production |
-| `PROD_REDIS_PASSWORD` | Mot de passe Redis production |
-| `PROD_STRIPE_SECRET_KEY` | `sk_live_...` |
-| `PROD_STRIPE_WEBHOOK_SECRET` | `whsec_...` (endpoint live Stripe) |
+**Settings → Environments → `{staging|production}` → Add secret**
+
+Add each secret **once to `staging`** and **once to `production`**, with
+different values. The names below are unprefixed — identical in both envs.
+
+| Secret                       | Description / how to generate                                    |
+|------------------------------|------------------------------------------------------------------|
+| `LIGHTSAIL_HOST`             | IP or DNS name of the Lightsail VM for this env                  |
+| `POSTGRES_USER`              | Postgres user for the app DB                                     |
+| `POSTGRES_PASSWORD`          | Postgres password (strong, unique per env)                       |
+| `POSTGRES_DB`                | Postgres database name                                           |
+| `JWT_SECRET`                 | `openssl rand -base64 48` — **must differ between staging and prod** |
+| `STRIPE_SECRET_KEY`          | `sk_test_...` in staging, `sk_live_...` in production            |
+| `STRIPE_WEBHOOK_SECRET`      | `whsec_...` — one per env (Stripe dashboard → test vs live)      |
+| `STRIPE_PRICE_ID_PACK_500`   | `price_...` for the 500-coin pack                                |
+| `STRIPE_PRICE_ID_PACK_1500`  | `price_...` for the 1500-coin pack                               |
+| `STRIPE_PRICE_ID_PACK_5000`  | `price_...` for the 5000-coin pack                               |
 
 ---
 
-## Générer un JWT_SECRET fort
+## 4. (Optional) Environment variables for non-sensitive values
+
+Domain names are currently hardcoded in the workflow `env:` blocks. If you want
+to change them without editing YAML, move them to **environment Variables**
+(not secrets) and reference as `${{ vars.API_DOMAIN }}` instead of `${{ env.API_DOMAIN }}`:
+
+| Variable          | Staging value                     | Production value              |
+|-------------------|-----------------------------------|-------------------------------|
+| `API_DOMAIN`      | `api-staging.redhanded-game.com`  | `api.redhanded-game.com`      |
+| `WEB_DOMAIN`      | `staging.redhanded-game.com`      | `redhanded-game.com`          |
+
+Leave them hardcoded if you prefer YAML-as-source-of-truth.
+
+---
+
+## 5. Cleanup — delete obsolete secrets
+
+If these legacy names exist at the repo level, delete them — the workflow
+no longer reads them:
+
+- `LIGHTSAIL_STAGING_HOST`, `LIGHTSAIL_PROD_HOST` → replaced by env-scoped `LIGHTSAIL_HOST`
+- `STRIPE_SECRET_KEY_STAGING`, `STRIPE_SECRET_KEY_PROD` → `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET_STAGING`, `STRIPE_WEBHOOK_SECRET_PROD` → `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_ID_PACK_{500,1500,5000}_{STAGING,PROD}` → unprefixed per env
+- Any `DEV_*` / `PFV_*` leftovers from the old three-env scheme
+
+And if `POSTGRES_PASSWORD` / `JWT_SECRET` / `POSTGRES_USER` / `POSTGRES_DB`
+currently live at the **repo level**, move them into each environment so
+staging and production stop sharing credentials.
+
+---
+
+## Utility commands
 
 ```bash
+# Strong JWT secret
 openssl rand -base64 48
-```
 
----
-
-## Générer une clé SSH pour le déploiement
-
-```bash
-# Sur ta machine locale
+# Generate a deploy SSH key
 ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/github_deploy
 
-# Copier la clé publique sur chaque serveur
-ssh-copy-id -i ~/.ssh/github_deploy.pub ubuntu@TON_SERVEUR
+# Authorise the public key on a VM
+ssh-copy-id -i ~/.ssh/github_deploy.pub ubuntu@YOUR_SERVER
 
-# Ajouter le contenu de github_deploy (clé privée) comme secret GitHub
+# Print the private key to paste into GitHub as LIGHTSAIL_SSH_KEY
 cat ~/.ssh/github_deploy
 ```

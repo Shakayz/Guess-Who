@@ -8,6 +8,9 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Modal,
+  FlatList,
+  Share,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -16,16 +19,19 @@ import * as ImagePicker from 'expo-image-picker'
 import { useAuthStore } from '../../../store/auth'
 import { api } from '../../../lib/api'
 import { ReferralCard } from '../../../components/ReferralCard'
-import { RANK_CONFIG, LEVEL_CAP } from '@red-handed/shared'
+import { RANK_CONFIG, LEVEL_CAP, EMAIL_VERIFICATION_REWARD, SOCIAL_SHARE_REWARD, USERNAME_CHANGE_COST } from '@red-handed/shared'
 import type { RankTier } from '@red-handed/shared'
+import InsufficientCoinsModal from '../../../components/InsufficientCoinsModal'
 import i18n from '../../../i18n'
 import { LANGUAGES } from '../../../i18n/languages'
 import { useResponsive } from '../../../lib/responsive'
+import { EmoteLoadoutSection } from '../../../components/emotes/EmoteLoadoutSection'
 
 interface UserProfile {
   id: string
   username: string
   email?: string
+  emailVerified?: boolean
   avatarUrl?: string
   rank: RankTier
   rankTier?: RankTier | 'unranked'
@@ -46,6 +52,8 @@ interface UserProfile {
   xpInLevel?: number
   xpForNextLevel?: number
   hasPlayedRanked?: boolean
+  isPremium?: boolean
+  premiumUntil?: string | null
 }
 
 interface UserStats {
@@ -87,6 +95,7 @@ export default function ProfileScreen() {
   const { t } = useTranslation()
   const router = useRouter()
   const { user, clearAuth } = useAuthStore()
+  const { isTablet, px, fontScale } = useResponsive()
 
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [profileStats, setProfileStats] = useState<ProfileStatsResponse | null>(null)
@@ -97,9 +106,23 @@ export default function ProfileScreen() {
   const [editingName, setEditingName] = useState(false)
   const [draftName, setDraftName] = useState('')
   const [savingName, setSavingName] = useState(false)
+  // Drives the shared InsufficientCoinsModal when a rename is blocked by
+  // the USERNAME_CHANGE_COST check. Same UX used for lobby/emote failures —
+  // every coin-gated action in the app funnels through this one modal.
+  const [renameShort, setRenameShort] = useState(false)
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [statsTab, setStatsTab] = useState<'unranked' | 'ranked'>('unranked')
+
+  const [langPickerOpen, setLangPickerOpen] = useState(false)
+
+  // Email verification (mirrors apps/web/src/pages/SettingsPage.tsx)
+  const [codeRequested, setCodeRequested] = useState(false)
+  const [codeInput, setCodeInput] = useState('')
+  const [verifySending, setVerifySending] = useState(false)
+  const [verifyingCode, setVerifyingCode] = useState(false)
+  const [verifyError, setVerifyError] = useState<string | null>(null)
+  const [verifyMessage, setVerifyMessage] = useState<string | null>(null)
 
   const currentLangIndex = LANGUAGES.findIndex((l) => l.code === i18n.language)
 
@@ -140,13 +163,26 @@ export default function ProfileScreen() {
       setEditingName(false)
       return
     }
+    // Client-side short-circuit — surface the "Get coins" modal before the
+    // network round-trip when we already know the wallet is short.
+    if ((profile?.starCoins ?? 0) < USERNAME_CHANGE_COST) {
+      setRenameShort(true)
+      return
+    }
     setSavingName(true)
     try {
       await api.patch('/users/me', { username: trimmed })
       setProfile((prev) => (prev ? { ...prev, username: trimmed } : prev))
       setEditingName(false)
     } catch (err: any) {
-      setError(err.message)
+      // Stale-balance race: server rejected the rename for insufficient
+      // coins. Swap the raw toast for the shared modal so the user gets a
+      // path to the shop instead of a dead-end error.
+      if (err?.message === 'not_enough_coins') {
+        setRenameShort(true)
+      } else {
+        setError(err.message)
+      }
     } finally {
       setSavingName(false)
     }
@@ -166,14 +202,14 @@ export default function ProfileScreen() {
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync()
         if (status !== 'granted') {
-          Alert.alert('Permission required', 'Camera access is needed to take a photo.')
+          Alert.alert(t('profile.permissionRequired', 'Permission required'), t('profile.cameraPermissionMsg', 'Camera access is needed to take a photo.'))
           return
         }
         result = await ImagePicker.launchCameraAsync({ ...options, maxWidth: 800, maxHeight: 800 })
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
         if (status !== 'granted') {
-          Alert.alert('Permission required', 'Photo library access is needed to pick a photo.')
+          Alert.alert(t('profile.permissionRequired', 'Permission required'), t('profile.libraryPermissionMsg', 'Photo library access is needed to pick a photo.'))
           return
         }
         result = await ImagePicker.launchImageLibraryAsync({ ...options, maxWidth: 800, maxHeight: 800 })
@@ -197,13 +233,13 @@ export default function ProfileScreen() {
   }
 
   const handleAvatarPress = () => {
-    Alert.alert('Profile Photo', 'Choose an option', [
-      { text: 'Take Photo', onPress: () => pickAndUploadAvatar('camera') },
-      { text: 'Choose from Library', onPress: () => pickAndUploadAvatar('library') },
+    Alert.alert(t('profile.profilePhotoTitle', 'Profile Photo'), t('profile.profilePhotoPrompt', 'Choose an option'), [
+      { text: t('profile.takePhoto', 'Take Photo'), onPress: () => pickAndUploadAvatar('camera') },
+      { text: t('profile.chooseFromLibrary', 'Choose from Library'), onPress: () => pickAndUploadAvatar('library') },
       ...(profile?.avatarUrl
         ? [
             {
-              text: 'Remove Photo',
+              text: t('profile.removePhoto', 'Remove Photo'),
               style: 'destructive' as const,
               onPress: async () => {
                 setUploadingAvatar(true)
@@ -219,13 +255,71 @@ export default function ProfileScreen() {
             },
           ]
         : []),
-      { text: 'Cancel', style: 'cancel' as const },
+      { text: t('common.cancel', 'Cancel'), style: 'cancel' as const },
     ])
   }
 
-  const cycleLanguage = () => {
-    const nextIndex = (currentLangIndex + 1) % LANGUAGES.length
-    i18n.changeLanguage(LANGUAGES[nextIndex].code)
+  const selectLanguage = (code: string) => {
+    i18n.changeLanguage(code)
+    setLangPickerOpen(false)
+    // Persist to the server so matchmaking and room joining use this locale
+    // (mirrors the web NavBar handler).
+    api.patch('/users/me', { locale: code }).catch(() => { /* non-critical */ })
+  }
+
+  const handleSendVerifyCode = async () => {
+    setVerifyError(null)
+    setVerifyMessage(null)
+    setVerifySending(true)
+    try {
+      const res = await api.post<{ alreadyVerified?: boolean }>('/auth/email/send-code', {})
+      if (res.alreadyVerified) {
+        setVerifyMessage(t('profile.emailAlreadyVerified', 'Your email is already verified.'))
+        setProfile((p) => (p ? { ...p, emailVerified: true } : p))
+      } else {
+        setCodeRequested(true)
+        setVerifyMessage(t('profile.verifyCodeSent', 'Check your inbox — we sent you a 6-digit code.'))
+      }
+    } catch (err: any) {
+      setVerifyError(err.message ?? 'Could not send code. Please try again.')
+    } finally {
+      setVerifySending(false)
+    }
+  }
+
+  const handleVerifyCode = async () => {
+    setVerifyError(null)
+    setVerifyMessage(null)
+    if (!/^\d{6}$/.test(codeInput)) {
+      setVerifyError(t('profile.verifyCodeInvalid', 'Enter the 6-digit code from your email.'))
+      return
+    }
+    setVerifyingCode(true)
+    try {
+      const res = await api.post<{ reward?: number; alreadyVerified?: boolean; starCoins?: number }>(
+        '/auth/email/verify-code',
+        { code: codeInput },
+      )
+      setCodeInput('')
+      setCodeRequested(false)
+      setProfile((p) =>
+        p ? { ...p, emailVerified: true, starCoins: res.starCoins ?? p.starCoins } : p,
+      )
+      if (res.alreadyVerified) {
+        setVerifyMessage(t('profile.emailAlreadyVerified', 'Email already verified.'))
+      } else {
+        setVerifyMessage(
+          t('profile.emailVerifiedReward', {
+            reward: res.reward ?? EMAIL_VERIFICATION_REWARD,
+            defaultValue: 'Email verified! +{{reward}} ⭐ credited.',
+          }),
+        )
+      }
+    } catch (err: any) {
+      setVerifyError(err.message ?? 'Verification failed.')
+    } finally {
+      setVerifyingCode(false)
+    }
   }
 
   const handleSignOut = () => {
@@ -255,7 +349,6 @@ export default function ProfileScreen() {
     )
   }
 
-  const { isTablet, px, fontScale } = useResponsive()
   const contentStyle = isTablet ? { maxWidth: 700, alignSelf: 'center' as const, width: '100%' as const } : {}
 
   if (!profile) return null
@@ -301,17 +394,17 @@ export default function ProfileScreen() {
     {
       icon: '🤝',
       label: t('profile.teamPlayer', 'Team Player'),
-      count: honorByType.get('teamplayer') ?? profile.honors.teamplayer,
+      count: honorByType.get('teamplayer') ?? profile.honors?.teamplayer ?? 0,
     },
     {
       icon: '🧠',
       label: t('profile.sharpMind', 'Sharp Mind'),
-      count: honorByType.get('sharp_mind') ?? profile.honors.sharp_mind,
+      count: honorByType.get('sharp_mind') ?? profile.honors?.sharp_mind ?? 0,
     },
     {
       icon: '🏅',
       label: t('profile.goodSport', 'Good Sport'),
-      count: honorByType.get('good_sport') ?? profile.honors.good_sport,
+      count: honorByType.get('good_sport') ?? profile.honors?.good_sport ?? 0,
     },
   ]
 
@@ -323,8 +416,10 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={contentStyle}>
-        {/* Star-coin chip (top-right) */}
-        <View
+        {/* Star-coin chip (top-right) — tap to open shop */}
+        <TouchableOpacity
+          onPress={() => router.push('/shop?tab=coins')}
+          activeOpacity={0.8}
           className="flex-row items-center gap-1.5 self-end mt-3 mr-4 px-3 py-1.5 rounded-full border border-amber-700/50 bg-amber-950/50"
           style={{ shadowColor: '#451a03', shadowOpacity: 0.4, shadowRadius: 4 }}
         >
@@ -332,7 +427,7 @@ export default function ProfileScreen() {
           <Text className="text-amber-300 font-bold font-mono text-sm">
             {profile.starCoins.toLocaleString()}
           </Text>
-        </View>
+        </TouchableOpacity>
 
         {/* Avatar + Name */}
         <View className="items-center pt-2 pb-4" style={{ paddingHorizontal: px + 8 }}>
@@ -456,6 +551,21 @@ export default function ProfileScreen() {
             <View className="px-2.5 py-1 rounded-full border border-amber-700/50 bg-amber-950/40">
               <Text className="text-amber-300 text-[11px] font-bold">⚡ Lvl {playerLevel}</Text>
             </View>
+            {profile.isPremium ? (
+              <TouchableOpacity
+                onPress={() => router.push('/premium')}
+                className="px-2.5 py-1 rounded-full border border-amber-500/50 bg-amber-500/15"
+              >
+                <Text className="text-amber-300 text-[11px] font-bold">👑 Premium</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => router.push('/premium')}
+                className="px-2.5 py-1 rounded-full border border-amber-700/50 bg-amber-950/30"
+              >
+                <Text className="text-amber-300/90 text-[11px] font-bold">👑 Go Premium</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Lifetime player level gauge */}
@@ -649,27 +759,168 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Emote loadout — pick which reactions appear in the in-game React bar */}
+        <EmoteLoadoutSection
+          onShop={() => router.push('/shop?tab=emotes')}
+          fontScale={fontScale}
+        />
+
         {/* Invite a friend */}
         <ReferralCard />
 
-        {/* Language Switcher */}
+        {/* Email verification — mirror of web SettingsPage flow. Shown only
+            when the account still has an unverified email (email signups).
+            OAuth accounts (Google/Apple/Discord) are trusted by their
+            provider and won't hit this branch because emailVerified=true. */}
+        {profile.email && profile.emailVerified === false && (
+          <View className="mx-4 mb-4">
+            <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3 px-1">
+              {t('profile.emailVerification', 'Email verification')}
+            </Text>
+            <View className="bg-gradient-to-br from-amber-950/60 to-amber-900/20 border border-amber-700/60 rounded-2xl p-4 gap-3" style={{ backgroundColor: '#2a1a05' }}>
+              <View className="flex-row items-start gap-3">
+                <Text style={{ fontSize: 24 }}>✉️</Text>
+                <View className="flex-1">
+                  <Text className="text-amber-200 font-bold text-sm">
+                    {t('profile.verifyEmailCtaTitle', 'Verify your email')}
+                  </Text>
+                  <Text className="text-amber-200/80 text-xs mt-0.5">
+                    {t('profile.verifyEmailCtaBody', {
+                      reward: EMAIL_VERIFICATION_REWARD,
+                      defaultValue: 'Confirm your address to earn +{{reward}} ⭐.',
+                    })}
+                  </Text>
+                  <Text className="text-amber-300/60 text-xs mt-1" numberOfLines={1}>
+                    {profile.email}
+                  </Text>
+                </View>
+              </View>
+              {!codeRequested ? (
+                <TouchableOpacity
+                  onPress={handleSendVerifyCode}
+                  disabled={verifySending}
+                  className="w-full py-2.5 rounded-xl bg-amber-500 items-center"
+                  style={{ opacity: verifySending ? 0.5 : 1 }}
+                >
+                  {verifySending ? (
+                    <ActivityIndicator color="#0a0a0a" size="small" />
+                  ) : (
+                    <Text className="text-neutral-900 font-bold text-sm">
+                      {t('profile.sendVerifyCode', 'Send verification code')}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <View className="gap-2">
+                  <TextInput
+                    value={codeInput}
+                    onChangeText={(v) => setCodeInput(v.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="123456"
+                    placeholderTextColor="#a1741a"
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    autoComplete="one-time-code"
+                    textContentType="oneTimeCode"
+                    className="px-3 py-3 rounded-xl bg-neutral-950 border border-amber-700/60 text-amber-200 text-center font-mono"
+                    style={{ fontSize: 20, letterSpacing: 8 }}
+                  />
+                  <View className="flex-row gap-2">
+                    <TouchableOpacity
+                      onPress={() => {
+                        setCodeRequested(false)
+                        setCodeInput('')
+                        setVerifyError(null)
+                        setVerifyMessage(null)
+                      }}
+                      className="flex-1 py-2.5 rounded-xl bg-neutral-800 items-center"
+                    >
+                      <Text className="text-neutral-300 font-semibold text-sm">
+                        {t('common.cancel', 'Cancel')}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleVerifyCode}
+                      disabled={verifyingCode || codeInput.length !== 6}
+                      className="flex-1 py-2.5 rounded-xl bg-amber-500 items-center"
+                      style={{ opacity: verifyingCode || codeInput.length !== 6 ? 0.5 : 1 }}
+                    >
+                      {verifyingCode ? (
+                        <ActivityIndicator color="#0a0a0a" size="small" />
+                      ) : (
+                        <Text className="text-neutral-900 font-bold text-sm">
+                          {t('profile.verifyEmailBtn', 'Verify email')}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity onPress={handleSendVerifyCode} disabled={verifySending} className="items-center py-1">
+                    <Text className="text-amber-400/80 text-xs">
+                      {verifySending ? '…' : t('profile.resendCode', 'Resend code')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              {verifyMessage && <Text className="text-emerald-400 text-xs">{verifyMessage}</Text>}
+              {verifyError && <Text className="text-red-400 text-xs">{verifyError}</Text>}
+            </View>
+          </View>
+        )}
+
+        {/* Language Picker — tap to open a modal with a full list */}
         <View className="mx-4 mb-4">
           <Text className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-3 px-1">
             {t('profile.language', 'Language')}
           </Text>
           <TouchableOpacity
-            onPress={cycleLanguage}
+            onPress={() => setLangPickerOpen(true)}
             className="flex-row items-center justify-between bg-neutral-900 border border-neutral-800 rounded-2xl p-4"
+            activeOpacity={0.8}
           >
             <View className="flex-row items-center gap-3">
-              <Text className="text-lg">🌐</Text>
+              <Text style={{ fontSize: 22 }}>
+                {LANGUAGES[currentLangIndex >= 0 ? currentLangIndex : 0].flag}
+              </Text>
               <Text className="text-white font-semibold">
                 {LANGUAGES[currentLangIndex >= 0 ? currentLangIndex : 0].label}
               </Text>
             </View>
-            <Text className="text-neutral-500 text-sm">Tap to change</Text>
+            <Text className="text-neutral-500">▾</Text>
           </TouchableOpacity>
         </View>
+        <Modal visible={langPickerOpen} transparent animationType="fade" onRequestClose={() => setLangPickerOpen(false)}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => setLangPickerOpen(false)}
+            className="flex-1 items-center justify-center"
+            style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          >
+            <TouchableOpacity activeOpacity={1} className="bg-neutral-900 rounded-2xl border border-neutral-700 overflow-hidden" style={{ width: 300, maxHeight: 480 }}>
+              <View className="px-5 py-4 border-b border-neutral-800">
+                <Text className="text-white font-bold text-base text-center">
+                  {t('profile.language', 'Language')}
+                </Text>
+              </View>
+              <FlatList
+                data={LANGUAGES}
+                keyExtractor={(item) => item.code}
+                renderItem={({ item }) => {
+                  const active = item.code === i18n.language
+                  return (
+                    <TouchableOpacity
+                      onPress={() => selectLanguage(item.code)}
+                      className={`flex-row items-center gap-3 px-5 py-3.5 ${active ? 'bg-violet-900/40' : ''}`}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize: 22 }}>{item.flag}</Text>
+                      <Text className="text-white text-sm flex-1">{item.label}</Text>
+                      {active && <View className="w-2 h-2 rounded-full bg-violet-400" />}
+                    </TouchableOpacity>
+                  )
+                }}
+              />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
 
         {/* Error */}
         {error && (
@@ -706,6 +957,12 @@ export default function ProfileScreen() {
         </View>
         </View>
       </ScrollView>
+
+      <InsufficientCoinsModal
+        visible={renameShort}
+        required={USERNAME_CHANGE_COST}
+        onClose={() => setRenameShort(false)}
+      />
     </SafeAreaView>
   )
 }

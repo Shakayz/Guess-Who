@@ -47,6 +47,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
               endedAt: true,
               winnerTeam: true,
               gameMode: true,
+              room: { select: { language: true } },
               _count: { select: { rounds: true } },
               participations: {
                 select: {
@@ -68,6 +69,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
       endedAt: p.game.endedAt,
       winnerTeam: p.game.winnerTeam,
       gameMode: p.game.gameMode,
+      language: p.game.room?.language ?? 'en',
       myRole: p.role,
       survived: p.survived,
       starCoinsEarned: p.starCoinsEarned,
@@ -124,6 +126,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
       startedAt: game.startedAt,
       endedAt: game.endedAt,
       winnerTeam: game.winnerTeam,
+      gameMode: game.gameMode,
       myRole: participation.role,
       participations: game.participations.map((p) => ({
         userId: p.userId,

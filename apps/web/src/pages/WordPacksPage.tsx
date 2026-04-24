@@ -3,20 +3,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { NavBar } from '../components/NavBar'
 import { api } from '../lib/api'
 
-interface WordPair { wordA: string; wordB: string; difficulty: 'easy' | 'medium' | 'hard'; category: string }
+interface WordPair { wordA: string; wordB: string; category: string }
 interface WordPack {
   id: string; name: string; description?: string; locale: string
   isPublic: boolean; isApproved: boolean; authorId: string | null
   downloads: number; _count?: { pairs: number }; pairs?: WordPair[]
 }
 
-const DIFFICULTY_COLORS = { easy: 'text-emerald-400', medium: 'text-amber-400', hard: 'text-red-400' }
-
 export default function WordPacksPage() {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<'browse' | 'mine' | 'create'>('browse')
   const [form, setForm] = useState({ name: '', description: '', locale: 'en', isPublic: false })
-  const [pairs, setPairs] = useState<WordPair[]>([{ wordA: '', wordB: '', difficulty: 'medium', category: 'general' }])
+  const [pairs, setPairs] = useState<WordPair[]>([{ wordA: '', wordB: '', category: 'general' }])
 
   const { data: publicPacks, isLoading: publicLoading } = useQuery<WordPack[]>({
     queryKey: ['word-packs'],
@@ -36,7 +34,7 @@ export default function WordPacksPage() {
       queryClient.invalidateQueries({ queryKey: ['word-packs-my'] })
       setTab('mine')
       setForm({ name: '', description: '', locale: 'en', isPublic: false })
-      setPairs([{ wordA: '', wordB: '', difficulty: 'medium', category: 'general' }])
+      setPairs([{ wordA: '', wordB: '', category: 'general' }])
     },
   })
 
@@ -45,7 +43,7 @@ export default function WordPacksPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['word-packs-my'] }),
   })
 
-  const addPair = () => setPairs((prev) => [...prev, { wordA: '', wordB: '', difficulty: 'medium', category: 'general' }])
+  const addPair = () => setPairs((prev) => [...prev, { wordA: '', wordB: '', category: 'general' }])
   const removePair = (i: number) => setPairs((prev) => prev.filter((_, idx) => idx !== i))
   const updatePair = (i: number, field: keyof WordPair, value: string) =>
     setPairs((prev) => prev.map((p, idx) => idx === i ? { ...p, [field]: value } : p))
@@ -212,15 +210,6 @@ export default function WordPacksPage() {
                         onChange={(e) => updatePair(i, 'wordB', e.target.value)}
                         className="flex-1 px-2.5 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-white text-xs focus:outline-none focus:border-brand-600"
                       />
-                      <select
-                        value={pair.difficulty}
-                        onChange={(e) => updatePair(i, 'difficulty', e.target.value)}
-                        className={['px-2 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-xs focus:outline-none', DIFFICULTY_COLORS[pair.difficulty]].join(' ')}
-                      >
-                        <option value="easy">Easy</option>
-                        <option value="medium">Medium</option>
-                        <option value="hard">Hard</option>
-                      </select>
                       {pairs.length > 1 && (
                         <button onClick={() => removePair(i)} className="text-neutral-600 hover:text-red-400 text-xs transition-colors">✕</button>
                       )}

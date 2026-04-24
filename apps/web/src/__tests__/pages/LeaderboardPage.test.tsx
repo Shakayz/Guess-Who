@@ -11,11 +11,10 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    // Real react-i18next accepts either `t(key, fallback)` or
-    // `t(key, interpolationObject)`. Only the string-fallback form should
-    // short-circuit; interpolation objects must fall back to the raw key so
-    // React never tries to render `{language: 'English'}` as a child.
-    t: (key: string, fallback?: unknown) => (typeof fallback === 'string' ? fallback : key),
+    // Match react-i18next's signature: 2nd arg can be a string fallback OR an
+    // interpolation options object. Rendering the raw options object crashes
+    // React with "Objects are not valid as a React child".
+    t: (key: string, opts?: unknown) => (typeof opts === 'string' ? opts : key),
     i18n: { language: 'en', changeLanguage: vi.fn() },
   }),
 }))

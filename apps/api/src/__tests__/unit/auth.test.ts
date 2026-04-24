@@ -135,10 +135,10 @@ describe('Auth Routes - Unit Tests', () => {
     })
 
     it('returns 409 when username is already taken (after email check)', async () => {
-      // First findUnique returns null (email not taken), second returns user (username taken)
-      mockPrismaUser.findUnique
-        .mockResolvedValueOnce(null) // email check
-        .mockResolvedValueOnce({ id: 'other-user', username: 'testuser' }) // username check
+      // Email check uses findUnique (strict, exact); username check uses
+      // findFirst with a case-insensitive match so "Shakayz" blocks "shakayz".
+      mockPrismaUser.findUnique.mockResolvedValueOnce(null) // email check
+      mockPrismaUser.findFirst.mockResolvedValueOnce({ id: 'other-user', username: 'testuser' })
 
       const response = await app.inject({
         method: 'POST',
@@ -241,7 +241,9 @@ describe('Auth Routes - Unit Tests', () => {
     })
 
     it('signs in with valid credentials using username', async () => {
-      mockPrismaUser.findUnique.mockResolvedValue({
+      // Username signin resolves through findFirst (case-insensitive match), not
+      // findUnique, so someone registered as "TestUser" can sign in as "testuser".
+      mockPrismaUser.findFirst.mockResolvedValue({
         id: 'user-1',
         username: 'testuser',
         passwordHash: '$2a$12$hashedpassword',

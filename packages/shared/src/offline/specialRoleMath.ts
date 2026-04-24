@@ -57,7 +57,7 @@ export function maxRedHandedFor(playerCount: number): number {
 
 /** Minimum players required for a given mode. */
 export function minPlayersFor(mode: 'normal' | 'special'): number {
-  return mode === 'special' ? 5 : 3
+  return mode === 'special' ? 6 : 3
 }
 
 /** Counts a single Evil Twins toggle as 1 red-handed-side slot AND 1 villager-side
@@ -141,6 +141,13 @@ export function isNeutralUnlocked(playerCount: number): boolean {
   return playerCount >= NEUTRAL_UNLOCK_PLAYER_COUNT
 }
 
+/** Paired roles (evil twins) only unlock at 10+ players, same threshold as neutrals. */
+export const PAIR_UNLOCK_PLAYER_COUNT = 10
+
+export function isPairUnlocked(playerCount: number): boolean {
+  return playerCount >= PAIR_UNLOCK_PLAYER_COUNT
+}
+
 /**
  * Compute the maximum legal value for every role stepper given the current
  * selection. Each result is `min(hardCap, currentValue + headroom)` so the UI
@@ -157,6 +164,7 @@ export function computeMaxRoleCounts(
     counts,
   )
   const neutralUnlocked = isNeutralUnlocked(playerCount)
+  const pairUnlocked = isPairUnlocked(playerCount)
 
   return {
     detective:   Math.min(ROLE_HARD_CAPS.detective,   counts.detective   + goodHeadroom),
@@ -169,7 +177,9 @@ export function computeMaxRoleCounts(
     kamikaze:    Math.min(ROLE_HARD_CAPS.kamikaze,    counts.kamikaze    + evilHeadroom),
     corruptor:   Math.min(ROLE_HARD_CAPS.corruptor,   counts.corruptor   + evilHeadroom),
     inverter:    Math.min(ROLE_HARD_CAPS.inverter,    counts.inverter    + evilHeadroom),
-    evilTwins:   Math.min(ROLE_HARD_CAPS.evilTwins,   counts.evilTwins   + Math.min(evilHeadroom, goodHeadroom)),
+    evilTwins:   pairUnlocked
+      ? Math.min(ROLE_HARD_CAPS.evilTwins, counts.evilTwins + Math.min(evilHeadroom, goodHeadroom))
+      : 0,
     jester:      neutralUnlocked
       ? Math.min(ROLE_HARD_CAPS.jester, counts.jester + goodHeadroom)
       : 0,

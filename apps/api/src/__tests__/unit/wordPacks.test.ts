@@ -153,8 +153,8 @@ describe('Word Packs Routes', () => {
       locale: 'en',
       isPublic: false,
       pairs: [
-        { wordA: 'Apple', wordB: 'Orange', difficulty: 'easy', category: 'fruits' },
-        { wordA: 'Cat', wordB: 'Dog', difficulty: 'medium', category: 'animals' },
+        { wordA: 'Apple', wordB: 'Orange', category: 'fruits' },
+        { wordA: 'Cat', wordB: 'Dog', category: 'animals' },
       ],
     }
 

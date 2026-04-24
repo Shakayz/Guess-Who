@@ -100,25 +100,39 @@ export function computeStreakTransition(
 
 export interface AppliedRewards {
   baseStarCoinsEarned: number
+  /**
+   * Always 0 — the +20 daily bonus moved to login (see `grantDailyLoginBonus`).
+   * Kept on the payload so the `game:finished` wire shape and the reveal-card
+   * prop don't break for clients on an older build; the reveal card hides the
+   * row when the value is 0.
+   */
   dailyBonusEarned: number
   streakBonusEarned: number
   newStreakCount: number
+  /**
+   * True when this game advanced the PLAY streak (first finished game of a
+   * new UTC day). Drives the `daily_login` achievement event — which used to
+   * be gated on `dailyBonusEarned > 0` back when that fired at game end.
+   */
+  streakTicked: boolean
 }
 
 /**
  * Credits a player's end-of-game rewards atomically in one transaction:
  *   - base starCoinsEarned (role/winner-aware, computed by the caller)
- *   - +DAILY_BONUS if this is the first finished online game of the UTC day
  *   - +STREAK_BONUS if the new streak hits a multiple of STREAK_INTERVAL
  *
  * Also updates `lastPlayedAt` and `dailyStreakCount` in the same transaction
- * so concurrent game endings for the same user can't double-credit the day.
+ * so concurrent game endings for the same user can't double-advance the
+ * streak. The +20 daily bonus is NOT credited here — see
+ * `grantDailyLoginBonus`, which runs on `/auth/me`.
  */
 const ZERO_REWARDS: AppliedRewards = {
   baseStarCoinsEarned: 0,
   dailyBonusEarned: 0,
   streakBonusEarned: 0,
   newStreakCount: 0,
+  streakTicked: false,
 }
 
 export async function applyGameEndRewards(
@@ -144,8 +158,11 @@ export async function applyGameEndRewards(
         now,
       )
 
-      const totalCredit =
-        baseStarCoins + transition.dailyBonusEarned + transition.streakBonusEarned
+      // Login grants the +20 bonus now, so game-end only credits base +
+      // streak bonus. `transition.dailyBonusEarned` is still produced by the
+      // pure function (it doubles as the "first play of a new UTC day"
+      // signal) but we intentionally ignore it for the credit.
+      const totalCredit = baseStarCoins + transition.streakBonusEarned
 
       await tx.user.update({
         where: { id: userId },
@@ -162,9 +179,10 @@ export async function applyGameEndRewards(
 
       return {
         baseStarCoinsEarned: baseStarCoins,
-        dailyBonusEarned: transition.dailyBonusEarned,
+        dailyBonusEarned: 0,
         streakBonusEarned: transition.streakBonusEarned,
         newStreakCount: transition.newStreakCount,
+        streakTicked: transition.shouldPersist,
       }
     })
     // Defensive fallback — tests stub prisma.$transaction as a bare vi.fn()
@@ -172,21 +190,72 @@ export async function applyGameEndRewards(
     // finishGameWithWinner would crash with "Cannot read properties of
     // undefined".
     const applied = result ?? ZERO_REWARDS
-    if (applied.dailyBonusEarned > 0 || applied.streakBonusEarned > 0) {
+    if (applied.streakBonusEarned > 0) {
       log.info(
         {
           userId,
           baseStarCoins: applied.baseStarCoinsEarned,
-          dailyBonus: applied.dailyBonusEarned,
           streakBonus: applied.streakBonusEarned,
           newStreakCount: applied.newStreakCount,
         },
-        'game-end rewards applied with daily/streak bonus',
+        'game-end rewards applied with streak bonus',
       )
     }
     return applied
   } catch (err) {
     log.error({ err, userId }, 'applyGameEndRewards transaction failed')
     return ZERO_REWARDS
+  }
+}
+
+// ─── Login-based daily bonus ─────────────────────────────────────────────────
+
+export interface LoginBonusResult {
+  /** 0 or DAILY_BONUS */
+  bonusGranted: number
+}
+
+/**
+ * Credits the +20 daily login bonus the first time a user is seen on a given
+ * UTC day. Designed to be called from `/auth/me` on every request — the
+ * conditional `updateMany` makes it a no-op after the first call of the day,
+ * and the WHERE clause is atomic so concurrent tabs can't double-credit.
+ *
+ * Separate from `applyGameEndRewards` so a player who's spent down to <10 ⭐
+ * (below the entry fee) can still recover: logging in tomorrow credits +20
+ * and unlocks play. The 7-day streak bonus remains tied to actually finishing
+ * games and lives in `applyGameEndRewards`.
+ */
+export async function grantDailyLoginBonus(
+  userId: string,
+  now: Date = new Date(),
+): Promise<LoginBonusResult> {
+  try {
+    // Start of the current UTC day. The WHERE clause credits the bonus iff
+    // the user has never received it, OR the last receipt was on a prior day.
+    const startOfDayUtc = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    )
+    const res = await prisma.user.updateMany({
+      where: {
+        id: userId,
+        OR: [
+          { lastDailyBonusAt: null },
+          { lastDailyBonusAt: { lt: startOfDayUtc } },
+        ],
+      },
+      data: {
+        starCoins: { increment: DAILY_BONUS },
+        lastDailyBonusAt: now,
+      },
+    })
+    if (res.count > 0) {
+      log.info({ userId, bonus: DAILY_BONUS }, 'daily login bonus credited')
+      return { bonusGranted: DAILY_BONUS }
+    }
+    return { bonusGranted: 0 }
+  } catch (err) {
+    log.error({ err, userId }, 'grantDailyLoginBonus failed')
+    return { bonusGranted: 0 }
   }
 }

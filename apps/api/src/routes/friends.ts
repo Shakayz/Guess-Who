@@ -5,7 +5,7 @@ import { evaluateEvent } from '../services/achievements'
 
 export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
 
-  // GET /api/friends — list accepted friends
+  // GET /api/friends — list accepted friends with presence (online + last seen)
   fastify.get('/', { preHandler: [fastify.authenticate] }, async (req, reply) => {
     const userId = req.user.sub
     const friendships = await prisma.friendship.findMany({
@@ -14,15 +14,25 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
         OR: [{ requesterId: userId }, { addresseeId: userId }],
       },
       include: {
-        requester: { select: { id: true, username: true, avatarUrl: true } },
-        addressee: { select: { id: true, username: true, avatarUrl: true } },
+        requester: { select: { id: true, username: true, avatarUrl: true, lastSeenAt: true } },
+        addressee: { select: { id: true, username: true, avatarUrl: true, lastSeenAt: true } },
       },
       take: 200,
     })
-    const friends = friendships.map((f) => ({
-      friendshipId: f.id,
-      user: f.requesterId === userId ? f.addressee : f.requester,
-    }))
+    const online: Map<string, string> | undefined = (fastify as any).onlineUsers
+    const friends = friendships.map((f) => {
+      const other = f.requesterId === userId ? f.addressee : f.requester
+      return {
+        friendshipId: f.id,
+        user: {
+          id: other.id,
+          username: other.username,
+          avatarUrl: other.avatarUrl,
+          lastSeenAt: other.lastSeenAt,
+          isOnline: online ? online.has(other.id) : false,
+        },
+      }
+    })
     return reply.send({ friends })
   })
 
@@ -64,22 +74,34 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     })
   })
 
-  // POST /api/friends/request — send friend request by username
+  // POST /api/friends/request — send friend request by username or user id
   fastify.post('/request', { preHandler: [fastify.authenticate] }, async (req, reply) => {
     const userId = req.user.sub
-    const { username } = req.body as { username?: string }
-    if (!username) return reply.status(400).send({ error: 'username required' })
+    const { username, toUserId } = req.body as { username?: string; toUserId?: string }
+    if (!username && !toUserId) {
+      return reply.status(400).send({ error: 'username or toUserId required' })
+    }
 
-    req.log.info({ userId, targetUsername: username }, 'friend request attempt')
+    req.log.info({ userId, targetUsername: username, targetUserId: toUserId }, 'friend request attempt')
 
-    const target = await prisma.user.findUnique({ where: { username } })
+    // Narrow the select to the fields this handler actually uses. Without it,
+    // Prisma generates `SELECT *` which 500s when staging is behind on a
+    // migration that added a User column (same drift class as 7c11906's
+    // shop self-heal). Only `id` and `pushToken` are read below.
+    const targetSelect = { id: true, pushToken: true } as const
+    const target = toUserId
+      ? await prisma.user.findUnique({ where: { id: toUserId }, select: targetSelect })
+      : await prisma.user.findFirst({ where: { username: { equals: username!, mode: 'insensitive' } }, select: targetSelect })
     if (!target) {
-      req.log.warn({ userId, targetUsername: username }, 'friend request failed: user not found')
+      req.log.warn({ userId, targetUsername: username, targetUserId: toUserId }, 'friend request failed: user not found')
       return reply.status(404).send({ error: 'User not found' })
     }
     if (target.id === userId) return reply.status(400).send({ error: 'Cannot add yourself' })
 
-    // Check existing
+    // Check existing — covers either direction. Any row (regardless of its
+    // status string) means we already have a relationship on file, so returning
+    // a clean 400 beats falling through and blowing up on the unique index
+    // with a Prisma P2002 that Fastify surfaces as a 500.
     const existing = await prisma.friendship.findFirst({
       where: {
         OR: [
@@ -91,33 +113,54 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     if (existing) {
       if (existing.status === 'accepted') return reply.status(400).send({ error: 'Already friends' })
       if (existing.status === 'pending') return reply.status(400).send({ error: 'Request already sent' })
+      // Any other lingering status (legacy 'declined', etc.) — don't fall
+      // through to create() and blow up on the unique index.
+      return reply.status(409).send({ error: 'Existing relationship', status: existing.status })
     }
 
-    const friendship = await prisma.friendship.create({
-      data: { requesterId: userId, addresseeId: target.id, status: 'pending' },
-    })
+    let friendship
+    try {
+      friendship = await prisma.friendship.create({
+        data: { requesterId: userId, addresseeId: target.id, status: 'pending' },
+      })
+    } catch (err: any) {
+      // P2002 = unique constraint violation on (requesterId, addresseeId).
+      // Can happen if two requests race past the existence check above; treat
+      // it as "already sent" rather than 500 so the UI can show a useful msg.
+      if (err?.code === 'P2002') {
+        req.log.warn({ userId, targetUserId: target.id }, 'friend request race: duplicate')
+        return reply.status(400).send({ error: 'Request already sent' })
+      }
+      req.log.error({ err, userId, targetUserId: target.id }, 'friend request: create failed')
+      throw err
+    }
 
     req.log.info({ userId, targetUserId: target.id, friendshipId: friendship.id }, 'friend request sent')
 
-    // Real-time notification via socket if target is online
-    const targetSocketId = (fastify as any).onlineUsers?.get(target.id)
-    if (targetSocketId) {
+    // Side-effects (socket + push). Wrapped so a transient failure in either
+    // doesn't poison the successful create — the DB row is already committed
+    // and the client should get its 201 back regardless.
+    try {
       const io = (fastify as any).io
       if (io) {
         const requester = await prisma.user.findUnique({ where: { id: userId }, select: { username: true, avatarUrl: true } })
-        io.to(targetSocketId).emit('friend:request', { friendshipId: friendship.id, from: { id: userId, ...requester } })
+        // Emit to the target's per-user room so every tab/device gets the
+        // incoming-request popup — not just the most recently connected socket
+        // (same multi-tab reasoning as commit 256a8fb for game events).
+        io.to(`user:${target.id}`).emit('friend:request', { friendshipId: friendship.id, from: { id: userId, ...requester } })
       }
-    }
 
-    // Push notification to target user
-    if (target.pushToken) {
-      const requesterUser = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } })
-      sendPushNotification(
-        target.pushToken,
-        'New Friend Request',
-        `${requesterUser?.username ?? 'Someone'} sent you a friend request`,
-        { type: 'friend_request', friendshipId: friendship.id },
-      ).catch((err) => req.log.error({ err }, 'push: friend request notification error'))
+      if (target.pushToken) {
+        const requesterUser = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } })
+        sendPushNotification(
+          target.pushToken,
+          'New Friend Request',
+          `${requesterUser?.username ?? 'Someone'} sent you a friend request`,
+          { type: 'friend_request', friendshipId: friendship.id },
+        ).catch((err) => req.log.error({ err }, 'push: friend request notification error'))
+      }
+    } catch (err) {
+      req.log.error({ err, friendshipId: friendship.id }, 'friend request: side-effect failed (continuing)')
     }
 
     return reply.status(201).send({ friendship: { id: friendship.id, status: friendship.status } })
@@ -134,16 +177,18 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     const updated = await prisma.friendship.update({ where: { id }, data: { status: 'accepted' } })
     req.log.info({ userId, friendshipId: id, requesterId: f.requesterId }, 'friend request accepted')
 
-    // Notify requester
+    // Notify requester (every tab/device) AND echo to the accepter's own tabs
+    // so both sides' friend lists can refresh and a "now friends" toast can
+    // fire on whichever surface the user happens to be looking at.
     const accepter = await prisma.user.findUnique({ where: { id: userId }, select: { username: true } })
-    const requesterSocketId = (fastify as any).onlineUsers?.get(f.requesterId)
-    if (requesterSocketId) {
-      const io = (fastify as any).io
-      io?.to(requesterSocketId).emit('friend:accepted', { friendshipId: id, by: { id: userId, username: accepter?.username } })
+    const requester = await prisma.user.findUnique({ where: { id: f.requesterId }, select: { username: true, pushToken: true } })
+    const io = (fastify as any).io
+    if (io) {
+      io.to(`user:${f.requesterId}`).emit('friend:accepted', { friendshipId: id, by: { id: userId, username: accepter?.username } })
+      io.to(`user:${userId}`).emit('friend:accepted', { friendshipId: id, by: { id: f.requesterId, username: requester?.username } })
     }
 
     // Push notification to requester
-    const requester = await prisma.user.findUnique({ where: { id: f.requesterId }, select: { pushToken: true } })
     if (requester?.pushToken) {
       sendPushNotification(
         requester.pushToken,
@@ -154,10 +199,9 @@ export const friendsRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     // Fire friend_added achievement event for BOTH sides of the new friendship.
-    const io = (fastify as any).io ?? null
     await Promise.all([
-      evaluateEvent(io, 'friend_added', { userId, otherUserId: f.requesterId }),
-      evaluateEvent(io, 'friend_added', { userId: f.requesterId, otherUserId: userId }),
+      evaluateEvent(io ?? null, 'friend_added', { userId, otherUserId: f.requesterId }),
+      evaluateEvent(io ?? null, 'friend_added', { userId: f.requesterId, otherUserId: userId }),
     ]).catch(() => {})
 
     return reply.send({ friendship: { id: updated.id, status: updated.status } })

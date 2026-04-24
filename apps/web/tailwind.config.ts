@@ -84,6 +84,19 @@ export default {
         'float-soft':     'floatSoft 3.5s ease-in-out infinite',
         'tilt-idle':      'tiltIdle 4s ease-in-out infinite',
 
+        // ── Emote reactions ───────────────────────────────────────────
+        // Stacked on top of `animate-float-up` (which owns the vertical rise +
+        // fade-out) to give each emote a distinctive entrance keyed off its
+        // catalog animation field. Particles are driven by --dx/--dy/--delay
+        // CSS vars set inline by the FloatingEmote renderer.
+        'emote-pop':       'emotePop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both',
+        'emote-bounce':    'emoteBounce 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both',
+        'emote-spin':      'emoteSpin 0.9s ease-out both',
+        'emote-shake':     'emoteShake 0.7s cubic-bezier(.36,.07,.19,.97) both',
+        'emote-drift':     'emoteDrift 2.8s ease-in-out both',
+        'emote-halo-spin': 'emoteHaloSpin 3s linear infinite',
+        'emote-particle':  'emoteParticle 2.2s ease-out var(--delay, 0s) forwards',
+
         // ── Reward reveal (3D card flip + coin rain) ──────────────────
         'card-flip-in':   'cardFlipIn 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
         'card-flip-hero': 'cardFlipHero 1.1s cubic-bezier(0.34, 1.4, 0.5, 1) forwards',
@@ -268,6 +281,56 @@ export default {
         tiltIdle: {
           '0%,100%': { transform: 'rotate(-2deg)' },
           '50%':     { transform: 'rotate(2deg)' },
+        },
+
+        // ── Emote keyframes ───────────────────────────────────────────
+        emotePop: {
+          '0%':   { transform: 'scale(0) rotate(-10deg)' },
+          '50%':  { transform: 'scale(1.25) rotate(3deg)' },
+          '80%':  { transform: 'scale(0.95) rotate(-2deg)' },
+          '100%': { transform: 'scale(1) rotate(0deg)' },
+        },
+        emoteBounce: {
+          '0%':   { transform: 'scale(0) translateY(12px)' },
+          '40%':  { transform: 'scale(1.25) translateY(-8px)' },
+          '60%':  { transform: 'scale(0.92) translateY(4px)' },
+          '80%':  { transform: 'scale(1.08) translateY(-2px)' },
+          '100%': { transform: 'scale(1)    translateY(0)' },
+        },
+        emoteSpin: {
+          '0%':   { transform: 'scale(0) rotate(0deg)' },
+          '60%':  { transform: 'scale(1.2) rotate(300deg)' },
+          '100%': { transform: 'scale(1)   rotate(360deg)' },
+        },
+        emoteShake: {
+          '0%,100%': { transform: 'translateX(0) scale(1)' },
+          '10%':     { transform: 'translateX(-3px) scale(1.05)' },
+          '20%':     { transform: 'translateX(3px)  scale(1.1)' },
+          '30%':     { transform: 'translateX(-4px) scale(1.05)' },
+          '40%':     { transform: 'translateX(4px)  scale(1.1)' },
+          '50%':     { transform: 'translateX(-3px) scale(1.08)' },
+          '60%':     { transform: 'translateX(2px)  scale(1.04)' },
+          '70%':     { transform: 'translateX(-1px) scale(1.02)' },
+        },
+        emoteDrift: {
+          '0%':   { transform: 'translateX(0) scale(0.5)' },
+          '25%':  { transform: 'translateX(-8px) scale(1.05)' },
+          '50%':  { transform: 'translateX(8px)  scale(1)' },
+          '75%':  { transform: 'translateX(-5px) scale(1.02)' },
+          '100%': { transform: 'translateX(0)   scale(1)' },
+        },
+        emoteHaloSpin: {
+          '0%':   { transform: 'translate(-50%, -50%) rotate(0deg)' },
+          '100%': { transform: 'translate(-50%, -50%) rotate(360deg)' },
+        },
+        emoteParticle: {
+          '0%':   { transform: 'translate(-50%, -50%) scale(0.3)', opacity: '0' },
+          '20%':  { opacity: '1' },
+          '100%': {
+            transform:
+              'translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -60px))) scale(var(--scale, 1))',
+            opacity: '0',
+          },
         },
 
         // ── Reward reveal keyframes ───────────────────────────────────

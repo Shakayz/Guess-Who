@@ -3,16 +3,17 @@ import { registerChatHandlers } from '@/socket/handlers/chat'
 
 // Minimal socket/io fakes ---------------------------------------------------
 
-function makeSocket(rooms: string[], username?: string) {
+function makeSocket(rooms: string[], username?: string, userId: string = 'user-test-1') {
   const listeners: Record<string, Function> = {}
   const socket = {
     rooms: new Set(rooms),
     id: 'socket-test-id',
+    userId,
     username,
     on: vi.fn((event: string, cb: Function) => { listeners[event] = cb }),
     _emit: (event: string, ...args: unknown[]) => listeners[event]?.(...args),
   }
-  return socket as typeof socket & { username?: string }
+  return socket as typeof socket & { username?: string; userId: string }
 }
 
 function makeIo() {

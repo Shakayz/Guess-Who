@@ -24,11 +24,6 @@ vi.mock('../../store/auth', () => ({
     selector({ user: { id: 'u1', username: 'testuser' }, clearAuth: mockClearAuth }),
 }))
 
-vi.mock('../../store/social', () => ({
-  useSocialStore: (selector: (s: unknown) => unknown) =>
-    selector({ activeDm: null, setActiveDm: vi.fn(), unreadCounts: {} }),
-}))
-
 // NavBar now hydrates the star-coin chip via GET /auth/me, so the api mock
 // needs a `get` stub too — without it, `api.get(...).then(...)` throws
 // TypeError inside NavBar's mount effect and every test fails to render.
@@ -37,10 +32,6 @@ vi.mock('../../lib/api', () => ({
     patch: vi.fn().mockResolvedValue({}),
     get: vi.fn().mockResolvedValue({ starCoins: 0 }),
   },
-}))
-
-vi.mock('../../components/DmChatPanel', () => ({
-  DmChatPanel: () => <div data-testid="dm-chat-panel" />,
 }))
 
 import { NavBar } from '../../components/NavBar'
@@ -139,11 +130,6 @@ describe('NavBar', () => {
     // Click inside the dropdown itself — should stay open
     fireEvent.mouseDown(langButton)
     expect(screen.getByText('English')).toBeInTheDocument()
-  })
-
-  it('does not render DmChatPanel when activeDm is null', () => {
-    render(<NavBar />)
-    expect(screen.queryByTestId('dm-chat-panel')).not.toBeInTheDocument()
   })
 
   it('shows checkmark for current language in dropdown', () => {

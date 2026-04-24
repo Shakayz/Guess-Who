@@ -33,6 +33,10 @@ function makeVote(voterId: string, targetId: string): Vote {
   return { voterId, targetId, timestamp: new Date().toISOString() }
 }
 
+function makeSkipVote(voterId: string): Vote {
+  return { voterId, targetId: null, timestamp: new Date().toISOString() }
+}
+
 // ─── countAlive ─────────────────────────────────────────────────────────────
 
 describe('countAlive', () => {
@@ -349,6 +353,20 @@ describe('getMostVoted', () => {
     ]
     expect(getMostVoted(votes)).toBe('x')
   })
+
+  it('ignores skip votes (targetId === null) when tallying', () => {
+    const votes = [
+      makeVote('a', 'x'),
+      makeSkipVote('b'),
+      makeSkipVote('c'),
+    ]
+    expect(getMostVoted(votes)).toBe('x')
+  })
+
+  it('returns null when every vote is a skip', () => {
+    const votes = [makeSkipVote('a'), makeSkipVote('b'), makeSkipVote('c')]
+    expect(getMostVoted(votes)).toBeNull()
+  })
 })
 
 // ─── getTiedPlayerIds ───────────────────────────────────────────────────────
@@ -402,6 +420,23 @@ describe('getTiedPlayerIds', () => {
   it('returns single player when only one vote exists', () => {
     const votes = [makeVote('a', 'x')]
     expect(getTiedPlayerIds(votes)).toEqual(['x'])
+  })
+
+  it('excludes skip votes from the tied set', () => {
+    const votes = [
+      makeVote('a', 'x'),
+      makeVote('b', 'y'),
+      makeSkipVote('c'),
+    ]
+    const result = getTiedPlayerIds(votes)
+    expect(result).toHaveLength(2)
+    expect(result).toContain('x')
+    expect(result).toContain('y')
+  })
+
+  it('returns empty array when all votes are skips', () => {
+    const votes = [makeSkipVote('a'), makeSkipVote('b')]
+    expect(getTiedPlayerIds(votes)).toEqual([])
   })
 })
 
@@ -591,6 +626,49 @@ describe('tallyVotes', () => {
     const result = tallyVotes(votes, players)
     expect(result.inverted).toBe(true)
     expect(result.mostVotedId).toBe('v2')
+  })
+
+  // ─── Skip vote: abstention ──────────────────────────────────────────────────
+  it('drops skip votes (targetId === null) from the weighted tally', () => {
+    const players = [
+      makePlayer({ id: 'a', role: 'villager' }),
+      makePlayer({ id: 'b', role: 'villager' }),
+      makePlayer({ id: 'c', role: 'villager' }),
+      makePlayer({ id: 'imp', role: 'red_handed' }),
+    ]
+    const votes = [
+      makeVote('a', 'imp'),
+      makeVote('b', 'imp'),
+      makeSkipVote('c'),
+    ]
+    const result = tallyVotes(votes, players)
+    expect(result.weightedTally).toEqual({ imp: 2 })
+    expect(result.mostVotedId).toBe('imp')
+  })
+
+  it('returns empty tally when every vote is a skip', () => {
+    const players = [
+      makePlayer({ id: 'a', role: 'villager' }),
+      makePlayer({ id: 'b', role: 'villager' }),
+      makePlayer({ id: 'c', role: 'villager' }),
+    ]
+    const votes = [makeSkipVote('a'), makeSkipVote('b'), makeSkipVote('c')]
+    const result = tallyVotes(votes, players)
+    expect(result.weightedTally).toEqual({})
+    expect(result.mostVotedId).toBeNull()
+    expect(result.tiedIds).toEqual([])
+  })
+
+  it('does not double-count a mayor skip vote', () => {
+    const players = [
+      makePlayer({ id: 'mayor', role: 'mayor', mayorDoubleActive: true }),
+      makePlayer({ id: 'v1', role: 'villager' }),
+      makePlayer({ id: 'imp', role: 'red_handed' }),
+    ]
+    const votes = [makeSkipVote('mayor'), makeVote('v1', 'imp')]
+    const result = tallyVotes(votes, players)
+    expect(result.weightedTally).toEqual({ imp: 1 })
+    expect(result.mostVotedId).toBe('imp')
   })
 })
 
