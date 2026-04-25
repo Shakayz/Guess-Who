@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMutation } from '@tanstack/react-query'
 import {
   EMOTE_CATALOG,
@@ -28,6 +29,7 @@ import { EmoteTile } from './EmoteTile'
 const RARITY_ORDER: EmoteRarity[] = ['legendary', 'epic', 'rare', 'common', 'free']
 
 export function EmoteLoadoutSection({ onShop }: { onShop: () => void }) {
+  const { t } = useTranslation()
   const store = useEmotesStore()
 
   React.useEffect(() => { store.fetchMe() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -77,14 +79,14 @@ export function EmoteLoadoutSection({ onShop }: { onShop: () => void }) {
     <div className="card">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Emote Loadout</p>
-          <p className="text-xs text-neutral-600 mt-0.5">Pick up to {MAX_LOADOUT_SIZE} reactions for your in-game React bar.</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">{t('emote.loadoutTitle', 'Emote Loadout')}</p>
+          <p className="text-xs text-neutral-600 mt-0.5">{t('emote.loadoutDesc', 'Pick up to {{max}} reactions for your in-game React bar.', { max: MAX_LOADOUT_SIZE })}</p>
         </div>
         <button
           onClick={onShop}
           className="text-xs font-bold px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white transition-colors"
         >
-          Buy more →
+          {t('emote.buyMore', 'Buy more →')}
         </button>
       </div>
 
@@ -107,7 +109,7 @@ export function EmoteLoadoutSection({ onShop }: { onShop: () => void }) {
             <button
               key={id}
               onClick={() => removeFromLoadout(id)}
-              title={`${em.name} — tap to unequip`}
+              title={`${em.name} — ${t('emote.tapToUnequip', 'tap to unequip')}`}
               className="h-14 rounded-xl bg-neutral-800 border border-neutral-700 hover:border-red-500/60 hover:bg-red-950/30 flex items-center justify-center text-3xl transition-colors"
             >
               {em.emoji}
@@ -117,7 +119,7 @@ export function EmoteLoadoutSection({ onShop }: { onShop: () => void }) {
       </div>
 
       {/* Collection */}
-      <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">Your collection</p>
+      <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">{t('emote.yourCollection', 'Your collection')}</p>
       <div className="space-y-4">
         {RARITY_ORDER.map((rarity) => {
           const list = owned[rarity]
@@ -125,7 +127,7 @@ export function EmoteLoadoutSection({ onShop }: { onShop: () => void }) {
           return (
             <div key={rarity}>
               <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-600 mb-2">
-                {rarity === 'free' ? 'Free' : rarity}
+                {rarity === 'free' ? t('emote.rarityFree', 'Free') : rarity}
               </p>
               <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                 {list.map((em) => {
@@ -154,7 +156,7 @@ export function EmoteLoadoutSection({ onShop }: { onShop: () => void }) {
 
       {save.isError && (
         <div className="mt-3 px-3 py-2 rounded-lg bg-red-950/30 border border-red-900/50 text-red-300 text-xs">
-          Couldn't save loadout: {save.error.message}
+          {t('emote.saveError', "Couldn't save loadout: {{error}}", { error: save.error.message })}
         </div>
       )}
     </div>

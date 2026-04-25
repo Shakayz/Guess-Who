@@ -293,7 +293,7 @@ export const EliminationReveal = memo(function EliminationReveal({
             >
               <div className="text-center">
                 <div className="text-6xl mb-2 opacity-90" style={{ filter: 'drop-shadow(0 4px 16px rgba(139,92,246,0.6))' }}>❔</div>
-                <div className="text-[10px] font-black tracking-[0.25em] text-brand-300 uppercase">Identity</div>
+                <div className="text-[10px] font-black tracking-[0.25em] text-brand-300 uppercase">{t('elimReveal.identity', 'Identity')}</div>
               </div>
             </div>
 

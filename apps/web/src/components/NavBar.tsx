@@ -238,8 +238,8 @@ export function NavBar() {
         {token && !isPremium && (
           <button
             onClick={() => navigate('/shop?tab=premium')}
-            aria-label="Go Premium"
-            title="Go Premium"
+            aria-label={t('nav.goPremium', 'Go Premium')}
+            title={t('nav.goPremium', 'Go Premium')}
             className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all"
           >
             <span className="text-sm">👑</span>
