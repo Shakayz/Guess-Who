@@ -356,8 +356,8 @@ export default function AuthPage() {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-600 mb-5 shadow-xl shadow-brand-600/30">
               <span className="text-3xl">🎭</span>
             </div>
-            <h1 className="text-2xl font-extrabold text-white tracking-tight">Choose your username</h1>
-            <p className="text-neutral-500 text-sm mt-1.5">This is how other players will see you</p>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">{t('auth.chooseUsername', 'Choose your username')}</h1>
+            <p className="text-neutral-500 text-sm mt-1.5">{t('auth.chooseUsernameDesc', 'This is how other players will see you')}</p>
           </div>
 
           <div className="rounded-2xl border border-neutral-800 bg-neutral-900/70 backdrop-blur-sm p-6 shadow-2xl">
@@ -366,7 +366,7 @@ export default function AuthPage() {
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">@</span>
                 <input
                   className="input-field pl-8"
-                  placeholder="username"
+                  placeholder={t('auth.usernamePlaceholder', 'username')}
                   value={chosenUsername}
                   onChange={(e) => { setChosenUsername(e.target.value); setUsernameError(null) }}
                   minLength={3}
@@ -377,7 +377,7 @@ export default function AuthPage() {
                   autoComplete="username"
                 />
               </div>
-              <p className="text-neutral-600 text-xs">3-20 characters — letters, numbers, underscores only</p>
+              <p className="text-neutral-600 text-xs">{t('auth.usernameHint', '3-20 characters — letters, numbers, underscores only')}</p>
 
               {/* Optional referral code — pre-filled from ?invite=CODE. The
                   OAuth signup itself already happened, so we pass the code
@@ -390,7 +390,7 @@ export default function AuthPage() {
                   placeholder={t('auth.referralCodePlaceholder', {
                     defaultValue: 'Invite code (optional)',
                   })}
-                  aria-label="Invite code"
+                  aria-label={t('auth.inviteCodeAriaLabel', 'Invite code')}
                   value={form.referralCode}
                   onChange={(e) => setForm((f) => ({ ...f, referralCode: e.target.value.toUpperCase().slice(0, 12) }))}
                   maxLength={12}
@@ -417,9 +417,9 @@ export default function AuthPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                     </svg>
-                    Setting up...
+                    {t('auth.settingUp', 'Setting up...')}
                   </span>
-                ) : 'Continue'}
+                ) : t('auth.continue', 'Continue')}
               </button>
             </form>
           </div>
@@ -433,8 +433,8 @@ export default function AuthPage() {
       <button
         type="button"
         onClick={toggleMusic}
-        aria-label={musicEnabled ? 'Mute music' : 'Unmute music'}
-        title={musicEnabled ? 'Mute music' : 'Unmute music'}
+        aria-label={musicEnabled ? t('auth.muteMusic', 'Mute music') : t('auth.unmuteMusic', 'Unmute music')}
+        title={musicEnabled ? t('auth.muteMusic', 'Mute music') : t('auth.unmuteMusic', 'Unmute music')}
         className="fixed top-4 right-4 z-50 w-10 h-10 rounded-full bg-neutral-800/80 hover:bg-neutral-700/80 border border-neutral-700/50 text-neutral-300 hover:text-white flex items-center justify-center transition-all active:scale-95"
       >
         {musicEnabled ? (
@@ -509,7 +509,7 @@ export default function AuthPage() {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
               ) : <GoogleIcon />}
-              Continue with Google
+              {t('auth.continueWithGoogle', 'Continue with Google')}
             </button>
 
             <button
@@ -524,7 +524,7 @@ export default function AuthPage() {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
               ) : <AppleIcon />}
-              Continue with Apple
+              {t('auth.continueWithApple', 'Continue with Apple')}
             </button>
 
             <button
@@ -539,7 +539,7 @@ export default function AuthPage() {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
               ) : <DiscordIcon />}
-              Continue with Discord
+              {t('auth.continueWithDiscord', 'Continue with Discord')}
             </button>
           </div>
 
@@ -643,7 +643,7 @@ export default function AuthPage() {
                   placeholder={t('auth.referralCodePlaceholder', {
                     defaultValue: 'Invite code (optional)',
                   })}
-                  aria-label="Invite code"
+                  aria-label={t('auth.inviteCodeAriaLabel', 'Invite code')}
                   value={form.referralCode}
                   onChange={(e) => setForm((f) => ({ ...f, referralCode: e.target.value.toUpperCase().slice(0, 12) }))}
                   maxLength={12}

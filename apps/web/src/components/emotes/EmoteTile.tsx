@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import type { EmoteRarity } from '@red-handed/shared'
 
 /**
@@ -68,6 +69,7 @@ type Props = {
 export const EmoteTile: React.FC<Props> = ({
   emoji, name, rarity, price, owned, equipped, disabled, dimmed, busy, onClick, showPrice = true,
 }) => {
+  const { t } = useTranslation()
   const r = RARITY_STYLE[rarity]
   const label = rarity === 'free' ? 'FREE' : rarity.toUpperCase()
   return (
@@ -90,12 +92,12 @@ export const EmoteTile: React.FC<Props> = ({
         // mobile tiles the longer label collided with the right-side rarity
         // pill. The visible ✓ + sr-only label keeps a11y intact.
         <span
-          aria-label="Equipped"
-          title="Equipped"
+          aria-label={t('emote.equipped', 'Equipped')}
+          title={t('emote.equipped', 'Equipped')}
           className="absolute top-1.5 left-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-emerald-600 text-white text-[10px] font-bold leading-none shadow-sm"
         >
           <span aria-hidden="true">✓</span>
-          <span className="sr-only">Equipped</span>
+          <span className="sr-only">{t('emote.equipped', 'Equipped')}</span>
         </span>
       )}
       <span
@@ -113,7 +115,7 @@ export const EmoteTile: React.FC<Props> = ({
       {showPrice && (
         <p className="text-[11px] mt-1">
           {owned ? (
-            <span className="text-emerald-400 font-semibold">Owned</span>
+            <span className="text-emerald-400 font-semibold">{t('emote.owned', 'Owned')}</span>
           ) : rarity === 'free' ? (
             <span className="text-neutral-400">—</span>
           ) : (

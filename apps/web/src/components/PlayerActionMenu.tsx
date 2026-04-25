@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { ReportModal } from './ReportModal'
 
@@ -15,6 +16,7 @@ interface PlayerActionMenuProps {
  * with Block / Report actions when triggered.
  */
 export function PlayerActionMenu({ targetUserId, targetUsername, className, children }: PlayerActionMenuProps) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [showReport, setShowReport] = useState(false)
   const [blocked, setBlocked] = useState(false)
@@ -55,7 +57,7 @@ export function PlayerActionMenu({ targetUserId, targetUsername, className, chil
             className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-neutral-300 hover:bg-neutral-800 hover:text-white transition-colors text-left"
           >
             <span>🚨</span>
-            Report
+            {t('playerMenu.report', 'Report')}
           </button>
           <div className="h-px bg-neutral-800" />
           <button
@@ -64,7 +66,7 @@ export function PlayerActionMenu({ targetUserId, targetUsername, className, chil
             className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-red-400 hover:bg-red-950/50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span>{blocked ? '✅' : '🚫'}</span>
-            {blockLoading ? 'Blocking...' : blocked ? 'Blocked' : 'Block'}
+            {blockLoading ? t('playerMenu.blocking', 'Blocking...') : blocked ? t('playerMenu.blocked', 'Blocked') : t('playerMenu.block', 'Block')}
           </button>
         </div>
       )}
