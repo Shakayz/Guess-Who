@@ -1,29 +1,20 @@
 #!/usr/bin/env node
 /**
- * Generates packages/shared/src/offlineWords.ts from the curated online pairs.
+ * Generates packages/shared/src/offlineWords.ts from curated 30-item pools.
  *
- * Source of truth:
- *   - apps/api/prisma/seed.ts         (base pairs, parsed via regex)
- *   - apps/api/prisma/extended-pairs.ts (extended pairs, imported)
+ * Each of the 12 categories has a 30-item pool mixing diverse sub-types
+ * (e.g. food mixes dishes, ingredients, spices, drinks, and cooking methods).
+ * All C(30,2) = 435 pairs are generated per category.
  *
- * Offline mode (pass-and-play) now uses exactly the same pair content as the
- * online database. The previous combinatorial generator (30/40-item pools ->
- * C(n,2) pairs) has been replaced — its output mixed items that did not form
- * semantically meaningful pairs.
- *
- * Output: 8 locales x 11 categories x 100 pairs = 8800 pairs total.
+ * Pools use universally recognised terms so they apply across all locales.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { writeFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
-const SEED = resolve(ROOT, 'apps/api/prisma/seed.ts')
-const EXTENDED = resolve(ROOT, 'apps/api/prisma/extended-pairs.ts')
-const V2 = resolve(ROOT, 'apps/api/prisma/v2-pairs.ts')
-const V3 = resolve(ROOT, 'apps/api/prisma/v3-pairs.ts')
 const OUT = resolve(ROOT, 'packages/shared/src/offlineWords.ts')
 
 const LOCALES = ['en', 'fr', 'es', 'de', 'ar', 'it', 'pt', 'zh', 'ru', 'hi']
@@ -32,111 +23,139 @@ const CATEGORIES = [
   'sports', 'movies', 'tech', 'history', 'mangas', 'celebrities', 'variety',
 ]
 
-// Target pair count per (locale, category). Each category should hit this
-// floor via curated pairs in seed.ts + extended-pairs.ts. Raised from 30 to
-// 40 as part of the V2 expansion.
-const POOL_SIZE = 40
-
 // ---------------------------------------------------------------------------
-// Parse seed.ts base pairs via regex.
-// Format: `{ wordA: '...', wordB: '...', category: '...' }`
-// Locale is inferred from the enclosing `const XX: PairData[] = [ ... ]`
-// block (EN, FR, ES, DE, AR, IT, PT, ZH, RU, HI).
-// Handles escaped apostrophes inside strings (e.g. `'Jeanne d\'Arc'`).
+// 30-item pools per category, mixing diverse sub-types.
+// C(30,2) = 435 pairs per category.
 // ---------------------------------------------------------------------------
 
-function unescape(s) {
-  return s.replace(/\\(['"\\])/g, '$1')
+const POOLS = {
+  // dishes, ingredients, spices, drinks, cooking methods
+  food: [
+    'Pizza', 'Sushi', 'Ramen', 'Risotto', 'Curry',
+    'Truffle', 'Butter', 'Saffron', 'Olive Oil', 'Mango',
+    'Cumin', 'Coriander', 'Vanilla', 'Turmeric', 'Cardamom',
+    'Espresso', 'Champagne', 'Kombucha', 'Matcha', 'Smoothie',
+    'Grilling', 'Fermentation', 'Sous Vide', 'Steaming', 'Sourdough',
+    'Kimchi', 'Dim Sum', 'Fondue', 'Tartare', 'Sriracha',
+  ],
+  // species, habitats, animal groups, behaviors
+  animals: [
+    'Tiger', 'Eagle', 'Dolphin', 'Penguin', 'Octopus',
+    'Wolf', 'Shark', 'Chameleon', 'Elephant', 'Pangolin',
+    'Coral Reef', 'Savanna', 'Rainforest', 'Deep Sea', 'Tundra',
+    'Pack', 'Flock', 'Colony', 'Hive', 'Swarm',
+    'Migration', 'Hibernation', 'Camouflage', 'Metamorphosis', 'Nocturnal',
+    'Venom', 'Predator', 'Symbiosis', 'Gorilla', 'Arctic Fox',
+  ],
+  // artists, genres, instruments, concepts
+  music: [
+    'Beatles', 'Mozart', 'Bob Marley', 'Beyonce', 'Chopin',
+    'Guitar', 'Synthesizer', 'Violin', 'Sitar', 'Drums',
+    'Jazz', 'Hip Hop', 'Reggae', 'Techno', 'Flamenco',
+    'Opera', 'Chorus', 'Riff', 'Tempo', 'Harmony',
+    'Vinyl', 'Concert', 'Grammy', 'Nashville', 'Acoustic',
+    'DJ', 'Soprano', 'Ballad', 'Remix', 'Orchestra',
+  ],
+  // cities, landmarks, natural sites, regions, fictional places
+  places: [
+    'Paris', 'Tokyo', 'Cairo', 'Rio de Janeiro', 'Istanbul',
+    'Machu Picchu', 'Colosseum', 'Taj Mahal', 'Stonehenge', 'Great Wall',
+    'Sahara', 'Amazon', 'Great Barrier Reef', 'Niagara Falls', 'Mount Everest',
+    'Caribbean', 'Patagonia', 'Scandinavia', 'Mediterranean', 'Alps',
+    'Hogwarts', 'Narnia', 'Gotham', 'Atlantis', 'Mordor',
+    'Venice', 'Kyoto', 'Havana', 'Santorini', 'Bermuda Triangle',
+  ],
+  // professions, roles, fields, historical trades
+  jobs: [
+    'Doctor', 'Architect', 'Chef', 'Pilot', 'Detective',
+    'Professor', 'Surgeon', 'Journalist', 'Diplomat', 'Pharmacist',
+    'Blacksmith', 'Cartographer', 'Alchemist', 'Scribe', 'Town Crier',
+    'Curator', 'Sommelier', 'Midwife', 'Referee', 'Apprentice',
+    'Veterinarian', 'Locksmith', 'Electrician', 'Barista', 'Auctioneer',
+    'Archaeologist', 'Botanist', 'Astronomer', 'Forensic Scientist', 'Shepherd',
+  ],
+  // sports, positions, equipment, events, venues
+  sports: [
+    'Football', 'Tennis', 'Boxing', 'Surfing', 'Fencing',
+    'Archery', 'Goalkeeper', 'Quarterback', 'Striker', 'Point Guard',
+    'Racket', 'Javelin', 'Helmet', 'Hurdle', 'Shuttlecock',
+    'Olympics', 'World Cup', 'Marathon', 'Super Bowl', 'Tour de France',
+    'Stadium', 'Velodrome', 'Arena', 'Halfpipe', 'Court',
+    'Karate', 'Cycling', 'Triathlon', 'Gymnastics', 'Polo',
+  ],
+  // film titles, directors, characters, genres, franchises
+  movies: [
+    'Star Wars', 'The Godfather', 'Inception', 'Jurassic Park', 'Spirited Away',
+    'Spielberg', 'Kubrick', 'Hitchcock', 'Nolan', 'Tarantino',
+    'Darth Vader', 'James Bond', 'Indiana Jones', 'Joker', 'Rocky',
+    'Film Noir', 'Sci-Fi', 'Western', 'Horror', 'Animation',
+    'Marvel', 'Pixar', 'IMAX', 'Soundtrack', 'Oscar',
+    'Sequel', 'Box Office', 'Stunt Double', 'Screenplay', 'Blockbuster',
+  ],
+  // hardware, software, languages, protocols, concepts
+  tech: [
+    'SSD', 'GPU', 'Router', 'Motherboard', 'Raspberry Pi',
+    'Python', 'Rust', 'JavaScript', 'SQL', 'C++',
+    'Linux', 'Docker', 'Git', 'Kubernetes', 'Photoshop',
+    'TCP', 'HTTP', 'Bluetooth', 'WebSocket', 'DNS',
+    'Algorithm', 'Encryption', 'Cloud Computing', 'API', 'Machine Learning',
+    'Blockchain', 'Firewall', 'Compiler', 'Database', 'Open Source',
+  ],
+  // figures, events, eras, empires, treaties
+  history: [
+    'Caesar', 'Cleopatra', 'Napoleon', 'Genghis Khan', 'Da Vinci',
+    'World War II', 'French Revolution', 'Moon Landing', 'D-Day', 'Fall of Rome',
+    'Renaissance', 'Bronze Age', 'Medieval', 'Enlightenment', 'Cold War',
+    'Roman Empire', 'Ottoman Empire', 'Mongol Empire', 'Byzantine Empire', 'Aztec Empire',
+    'Treaty of Versailles', 'Magna Carta', 'Silk Road', 'Rosetta Stone', 'Crusades',
+    'Gladiator', 'Samurai', 'Pharaoh', 'Industrial Revolution', 'Pyramids',
+  ],
+  // characters, techniques, places, transformations, power systems
+  mangas: [
+    'Naruto', 'Goku', 'Luffy', 'Gojo', 'Levi',
+    'Rasengan', 'Kamehameha', 'Bankai', 'Domain Expansion', 'Gear Fifth',
+    'Grand Line', 'Soul Society', 'Hidden Leaf', 'Hueco Mundo', 'Wall Maria',
+    'Super Saiyan', 'Sage Mode', 'Titan Form', 'Hollow Mask', 'Curse Mark',
+    'Chakra', 'Haki', 'Nen', 'Cursed Energy', 'Reiatsu',
+    'Zanpakuto', 'Devil Fruit', 'Sharingan', 'Stand', 'Kagune',
+  ],
+  // actors, athletes, musicians, influencers
+  celebrities: [
+    'Brad Pitt', 'Meryl Streep', 'Keanu Reeves', 'Denzel Washington', 'Zendaya',
+    'Leonardo DiCaprio', 'Messi', 'Serena Williams', 'Usain Bolt', 'LeBron James',
+    'Simone Biles', 'Taylor Swift', 'Drake', 'Beyonce', 'Adele',
+    'Billie Eilish', 'Kendrick Lamar', 'BTS', 'Elon Musk', 'MrBeast',
+    'Oprah Winfrey', 'Greta Thunberg', 'Kim Kardashian', 'Gordon Ramsay', 'David Beckham',
+    'Rihanna', 'Lewis Hamilton', 'Emma Watson', 'Bad Bunny', 'Pedro Pascal',
+  ],
+  // games, mythology, science, brands, culture
+  variety: [
+    'Minecraft', 'Chess', 'Monopoly', 'Dragon', 'Vampire',
+    'Phoenix', 'DNA', 'Telescope', 'Bitcoin', 'Yoga',
+    'Nike', 'Netflix', 'Emoji', 'Podcast', 'Origami',
+    'Diamond', 'Hurricane', 'Galaxy', 'iPhone', 'Utopia',
+    'Fractal', 'Aurora', 'Sudoku', 'Halloween', 'Sunrise',
+    'Stoicism', 'Copyright', 'Cyborg', 'Candle', 'Compass',
+  ],
 }
 
-const LOCALE_BY_CONST = {
-  EN: 'en', FR: 'fr', ES: 'es', DE: 'de', AR: 'ar',
-  IT: 'it', PT: 'pt', ZH: 'zh', RU: 'ru', HI: 'hi',
-}
+// ---------------------------------------------------------------------------
+// Generate all C(n,2) pairs from a pool.
+// ---------------------------------------------------------------------------
 
-function parseSeed(content) {
-  const blockRe = /const\s+(EN|FR|ES|DE|AR|IT|PT|ZH|RU|HI)\s*:\s*PairData\[\]\s*=\s*\[([\s\S]*?)\n\]/g
-  const pairRe = /\{\s*wordA:\s*'((?:[^'\\]|\\.)*)',\s*wordB:\s*'((?:[^'\\]|\\.)*)',\s*category:\s*'(\w+)'\s*\}/g
-  const out = []
-  let block
-  while ((block = blockRe.exec(content)) !== null) {
-    const locale = LOCALE_BY_CONST[block[1]]
-    const body = block[2]
-    let m
-    while ((m = pairRe.exec(body)) !== null) {
-      out.push({
-        wordA: unescape(m[1]),
-        wordB: unescape(m[2]),
-        category: m[3],
-        locale,
-      })
+function generatePairs(pool) {
+  const pairs = []
+  for (let i = 0; i < pool.length; i++) {
+    for (let j = i + 1; j < pool.length; j++) {
+      pairs.push({ a: pool[i], b: pool[j] })
     }
   }
-  return out
+  return pairs
 }
 
-// ---------------------------------------------------------------------------
-// Collect all pairs grouped by locale → category.
-// ---------------------------------------------------------------------------
-
-const bucket = {}
-for (const loc of LOCALES) {
-  bucket[loc] = {}
-  for (const cat of CATEGORIES) bucket[loc][cat] = { list: [], seen: new Set() }
-}
-
-// Order-insensitive dedup key: {A,B} == {B,A}.
-function pushUnique(slot, a, b) {
-  const [x, y] = [a, b].sort()
-  const key = `${x}|${y}`
-  if (slot.seen.has(key)) return
-  slot.seen.add(key)
-  slot.list.push({ a, b })
-}
-
-// Base pairs from seed.ts
-const seedContent = readFileSync(SEED, 'utf8')
-const basePairs = parseSeed(seedContent)
-for (const p of basePairs) {
-  const slot = bucket[p.locale]?.[p.category]
-  if (slot) pushUnique(slot, p.wordA, p.wordB)
-}
-
-// Extended pairs from extended-pairs.ts (dynamic import, --experimental-strip-types)
-const extModule = await import(pathToFileURL(EXTENDED).href)
-for (const p of extModule.EXTENDED_PAIRS) {
-  const slot = bucket[p.locale]?.[p.category]
-  if (slot) pushUnique(slot, p.wordA, p.wordB)
-}
-
-// V2 pairs from v2-pairs.ts (dynamic import, --experimental-strip-types)
-const v2Module = await import(pathToFileURL(V2).href)
-for (const p of v2Module.V2_PAIRS) {
-  const slot = bucket[p.locale]?.[p.category]
-  if (slot) pushUnique(slot, p.wordA, p.wordB)
-}
-
-// V3 pairs from v3-pairs.ts (dynamic import, --experimental-strip-types)
-const v3Module = await import(pathToFileURL(V3).href)
-for (const p of v3Module.V3_PAIRS) {
-  const slot = bucket[p.locale]?.[p.category]
-  if (slot) pushUnique(slot, p.wordA, p.wordB)
-}
-
-// ---------------------------------------------------------------------------
-// Count totals per locale/category.
-// ---------------------------------------------------------------------------
-
-let total = 0
-const MIN_EXPECTED = 100
-for (const loc of LOCALES) {
-  for (const cat of CATEGORIES) {
-    const n = bucket[loc][cat].list.length
-    total += n
-    if (n < MIN_EXPECTED) {
-      console.warn(`[WARN] ${loc}/${cat} has ${n} pairs (expected >= ${MIN_EXPECTED})`)
-    }
-  }
+const pairsByCategory = {}
+for (const cat of CATEGORIES) {
+  pairsByCategory[cat] = generatePairs(POOLS[cat])
 }
 
 // ---------------------------------------------------------------------------
@@ -151,28 +170,29 @@ function renderPair({ a, b }) {
   return `    { villagerWord: '${escapeLit(a)}', redHandedWord: '${escapeLit(b)}' },`
 }
 
-function renderRecord(locale) {
+function renderRecord() {
   const lines = ['{']
   for (const cat of CATEGORIES) {
     lines.push(`  ${cat}: [`)
-    for (const p of bucket[locale][cat].list) lines.push(renderPair(p))
+    for (const p of pairsByCategory[cat]) lines.push(renderPair(p))
     lines.push('  ],')
   }
   lines.push('}')
   return lines.join('\n')
 }
 
+const pairsPerLocale = CATEGORIES.reduce((sum, cat) => sum + pairsByCategory[cat].length, 0)
+
 const HEADER = `import type { WordCategory } from './types'
 
 /**
  * Word pairs for offline / pass-and-play mode.
- * Each pair has a villagerWord and an redHandedWord -- similar but distinct.
+ * Each pair has a villagerWord and a redHandedWord -- similar but distinct.
  *
- * Generated by scripts/generate-offline-words.mjs from the curated
- * online database pairs (seed.ts + extended-pairs.ts).
- * Offline and online modes use the same pair content.
+ * Generated by scripts/generate-offline-words.mjs from curated 30-item pools.
+ * Each category generates C(30,2) = 435 pairs from diverse sub-type pools.
  *
- * 8 locales x 11 categories x 100+ pairs each (deduplicated).
+ * 10 locales x 12 categories x 435 pairs each.
  */
 export interface OfflineWordPair {
   villagerWord: string
@@ -230,16 +250,27 @@ export function pickRandomWordPair(
 }
 `
 
+// Pools are universally recognised terms — same record for all locales.
+const record = renderRecord()
+
 const chunks = [HEADER]
+
+// English: full export
+chunks.push(
+  `\nexport const OFFLINE_WORD_PAIRS: Record<WordCategory, OfflineWordPair[]> = ${record}\n`,
+)
+
+// Other locales: alias to the same data (terms are universal)
 for (const locale of LOCALES) {
+  if (locale === 'en') continue
   const name = LOCALE_CONST[locale]
-  const keyword = locale === 'en' ? 'export const' : 'const'
-  chunks.push(
-    `\n${keyword} ${name}: Record<WordCategory, OfflineWordPair[]> = ${renderRecord(locale)}\n`,
-  )
+  chunks.push(`\nconst ${name} = OFFLINE_WORD_PAIRS\n`)
 }
+
 chunks.push(FOOTER)
 
 writeFileSync(OUT, chunks.join(''), 'utf8')
 console.log(`Wrote ${OUT}`)
-console.log(`${LOCALES.length} locales x ${CATEGORIES.length} categories x 100 pairs = ${total} total`)
+console.log(
+  `${LOCALES.length} locales x ${CATEGORIES.length} categories x ${pairsByCategory[CATEGORIES[0]].length} pairs = ${LOCALES.length * pairsPerLocale} total`,
+)
