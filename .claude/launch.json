@@ -39,6 +39,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "api", "db:studio"],
       "port": 5555
+    },
+    {
+      "name": "Mobile (Expo Go)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "mobile", "dev"],
+      "port": 8081
     }
   ]
 }

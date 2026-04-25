@@ -70,8 +70,16 @@ export function EmoteTile({
       style={{ minHeight: 110 }}
     >
       {equipped && (
-        <View className="absolute top-1.5 left-1.5 bg-emerald-600 rounded-full px-1.5 py-0.5 z-10">
-          <Text className="text-[9px] font-bold text-white">EQUIPPED</Text>
+        // Compact ✓ glyph instead of the word "EQUIPPED" — on narrow tiles
+        // (5-per-row at phone widths) the longer label collided with the
+        // right-side rarity pill. Mirrors the web fix in
+        // apps/web/src/components/emotes/EmoteTile.tsx.
+        <View
+          accessibilityLabel="Equipped"
+          className="absolute top-1.5 left-1.5 items-center justify-center rounded-full bg-emerald-600 z-10"
+          style={{ width: 16, height: 16 }}
+        >
+          <Text className="text-white font-bold" style={{ fontSize: 10, lineHeight: 12 }}>✓</Text>
         </View>
       )}
       <View className={`absolute top-1.5 right-1.5 rounded-full px-1.5 py-0.5 z-10 ${r.badge}`}>
