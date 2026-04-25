@@ -514,7 +514,6 @@ const EN: PairData[] = [
   { wordA: 'Lincoln', wordB: 'Washington', category: 'history' },
   { wordA: 'Da Vinci', wordB: 'Michelangelo', category: 'history' },
   { wordA: 'Titanic', wordB: 'Hindenburg', category: 'history' },
-  { wordA: 'Pyramid', wordB: 'Colosseum', category: 'history' },
   { wordA: 'Moon Landing', wordB: 'Wright Brothers', category: 'history' },
   { wordA: 'Alexander the Great', wordB: 'Genghis Khan', category: 'history' },
   { wordA: 'Aztecs', wordB: 'Incas', category: 'history' },
@@ -1498,7 +1497,6 @@ const EN: PairData[] = [
   // ── New history pairs (50) ───────────────────────────────────────────
   { wordA: 'Pyramids', wordB: 'Colosseum', category: 'history' },
   { wordA: 'Samurai', wordB: 'Knight', category: 'history' },
-  { wordA: 'Viking', wordB: 'Pirate', category: 'history' },
   { wordA: 'Gladiator', wordB: 'Spartan', category: 'history' },
   { wordA: 'Medieval', wordB: 'Renaissance', category: 'history' },
   { wordA: 'Greek Mythology', wordB: 'Roman Mythology', category: 'history' },
