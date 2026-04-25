@@ -33,11 +33,25 @@ async function ensureLoaded() {
   if (loading) return loading
   loading = (async () => {
     try {
-      // Lazy-require so the module is safe to import on web.
-      const { Audio } = require('expo-av')
+      // Dynamic import (instead of require) so vitest's `vi.mock` can
+      // intercept the module — bare `require` from a transformed ESM file
+      // slips through to Node's CJS loader. Same lazy-load behaviour at
+      // runtime: the module isn't pulled in until first play.
+      const expoAv: any = await import('expo-av')
+      const Audio = expoAv.Audio ?? expoAv.default?.Audio
       const s = new Audio.Sound()
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const asset = require('../assets/music/redhanded.mp3')
+      // The asset module-id is resolved by Metro at build time; in Node
+      // tests `require` of an .mp3 throws, so we guard it. The mocked
+      // Sound's loadAsync ignores its argument anyway — production keeps
+      // the real asset bundled.
+      let asset: unknown = undefined
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        asset = require('../assets/music/redhanded.mp3')
+      } catch {
+        // Test/Node environment — fall through with `undefined` so the
+        // Sound stub still resolves.
+      }
       await s.loadAsync(asset, {
         isLooping: true,
         volume: musicVolume,

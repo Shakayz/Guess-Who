@@ -38,10 +38,28 @@ let _socialState = {
   achievementToasts: [] as any[],
   enqueueAchievementToast: vi.fn(),
   dismissAchievementToast: vi.fn(),
+  // Toast stacks added after this test was first written. Keep them as
+  // empty arrays + no-op actions so the stacks render `null` and don't
+  // crash on `.length` / `.map` accesses inside App.tsx.
+  friendAcceptedToasts: [] as any[],
+  pushFriendAcceptedToast: vi.fn(),
+  dismissFriendAcceptedToast: vi.fn(),
+  dmToasts: [] as any[],
+  pushDmToast: vi.fn(),
+  dismissDmToast: vi.fn(),
+  giftToasts: [] as any[],
+  pushGiftToast: vi.fn(),
+  dismissGiftToast: vi.fn(),
 }
 
 vi.mock('../store/social', () => ({
-  useSocialStore: (selector: (s: unknown) => unknown) => selector(_socialState),
+  // App.tsx reaches into useSocialStore.getState() inside socket handlers to
+  // push DM toasts without re-rendering — expose `getState` on the mock so
+  // those callsites don't blow up.
+  useSocialStore: Object.assign(
+    (selector: (s: unknown) => unknown) => selector(_socialState),
+    { getState: () => _socialState },
+  ),
 }))
 
 let _gameState = {
@@ -207,7 +225,11 @@ describe('App', () => {
   })
 
   it('resets game store when no active game on server but room is in store', async () => {
-    _gameState.room = { id: 'old', code: 'OLD01', status: 'waiting', players: [] }
+    // ActiveGameRestorer intentionally preserves `waiting` lobbies on a stale
+    // /rooms/active = false response (the endpoint only knows about active
+    // participations, not pre-game lobbies). Use `in_progress` here so the
+    // reset branch actually fires.
+    _gameState.room = { id: 'old', code: 'OLD01', status: 'in_progress', players: [] }
     vi.mocked(api.get).mockResolvedValueOnce({ active: false })
     await act(async () => {
       render(<AppWithRouter />)

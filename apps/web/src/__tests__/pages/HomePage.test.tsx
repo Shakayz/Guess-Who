@@ -4,8 +4,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ---- Mocks ----
 const mockNavigate = vi.fn()
+const mockSetSearchParams = vi.fn()
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
+  useSearchParams: () => [new URLSearchParams(), mockSetSearchParams],
   Link: ({ children, to, ...props }: any) => React.createElement('a', { href: to, ...props }, children),
 }))
 
@@ -72,6 +74,7 @@ vi.mock('@red-handed/shared', async (importOriginal) => ({
 
 import HomePage from '../../pages/HomePage'
 import { api } from '../../lib/api'
+import { useMatchmakingStore } from '../../store/matchmaking'
 
 describe('HomePage', () => {
   beforeEach(() => {
@@ -79,6 +82,11 @@ describe('HomePage', () => {
     _room = null
     _gameFinished = false
     _gameResult = null
+    // The matchmaking store is the real zustand store (not mocked) and shares
+    // state across tests. A test that calls startSearch leaves `isSearching:
+    // true`, which hides the "Find Game" button for subsequent tests. Reset
+    // it explicitly so each test starts from a clean slate.
+    useMatchmakingStore.getState().stopSearch()
   })
 
   it('renders without crashing and shows heading', () => {
@@ -244,15 +252,21 @@ describe('HomePage', () => {
     expect(document.body).toBeInTheDocument()
   })
 
-  it('shows category filter when normal mode is selected', () => {
+  it('shows category filter when Custom Lobby (Special) is selected', () => {
+    // Categories are a Custom Lobby (Special) feature only — unranked / ranked
+    // queues always use the full word pool to keep matchmaking unfragmented.
     render(<HomePage />)
-    fireEvent.click(screen.getByText('home.normalLabel'))
+    fireEvent.click(screen.getByText('home.customLobbyLabel'))
+    fireEvent.click(screen.getByText('home.lobbyCreateLabel'))
+    fireEvent.click(screen.getByText('home.specialGameMode'))
     expect(screen.getByText('Food')).toBeInTheDocument()
   })
 
   it('toggles a category when category button is clicked', () => {
     render(<HomePage />)
-    fireEvent.click(screen.getByText('home.normalLabel'))
+    fireEvent.click(screen.getByText('home.customLobbyLabel'))
+    fireEvent.click(screen.getByText('home.lobbyCreateLabel'))
+    fireEvent.click(screen.getByText('home.specialGameMode'))
     fireEvent.click(screen.getByText('Food'))
     // Click again to deselect
     fireEvent.click(screen.getByText('Food'))

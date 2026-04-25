@@ -113,8 +113,11 @@ describe('GameDetailPage', () => {
     await act(async () => {
       render(<GameDetailPage />)
     })
+    // GameDetail surfaces villager / red-handed words in both the per-round
+    // accordion AND the per-player breakdown, so the label appears multiple
+    // times — `queryAllByText` confirms presence without choking on dupes.
     await waitFor(() => {
-      expect(screen.queryByText('gameDetail.villagerWord')).toBeDefined()
+      expect(screen.queryAllByText('gameDetail.villagerWord').length).toBeGreaterThan(0)
     })
   })
 
@@ -179,8 +182,10 @@ describe('GameDetailPage', () => {
     await act(async () => {
       render(<GameDetailPage />)
     })
+    // The current player's username surfaces in the participants chip AND in
+    // any round-by-round attribution rows, so multiple matches are expected.
     await waitFor(() => {
-      expect(screen.getByText('testuser')).toBeInTheDocument()
+      expect(screen.queryAllByText('testuser').length).toBeGreaterThan(0)
     })
   })
 

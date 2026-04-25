@@ -139,7 +139,9 @@ describe('FriendsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('friend1')).toBeInTheDocument()
     })
-    const removeBtns = screen.getAllByText('friends.unfriend')
+    // The unfriend button is an icon-only X with the i18n key on aria-label,
+    // so query by accessible name rather than visible text.
+    const removeBtns = screen.getAllByLabelText('friends.unfriend')
     await act(async () => {
       fireEvent.click(removeBtns[0])
     })

@@ -12,7 +12,10 @@ vi.mock('react-router-dom', () => ({
 const mockChangeLanguage = vi.fn()
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    // OAuth buttons use `t('auth.continueWithGoogle', 'Continue with Google')`
+    // — the second arg is the user-visible default before the i18n bundle loads.
+    // The test asserts on the default, so the mock returns it when supplied.
+    t: (key: string, fallback?: unknown) => (typeof fallback === 'string' ? fallback : key),
     i18n: { language: 'en', changeLanguage: mockChangeLanguage },
   }),
 }))

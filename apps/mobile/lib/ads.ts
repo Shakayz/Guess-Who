@@ -14,13 +14,19 @@ const isExpoGo = Constants.appOwnership === 'expo'
 
 type AdsModule = typeof import('react-native-google-mobile-ads')
 let ads: AdsModule | null = null
-if (!isExpoGo) {
+// Dynamic-import the AdMob SDK so vitest's `vi.mock` can intercept the module.
+// `require` from a transformed ESM file slips through to Node's CJS loader and
+// the package's RN-only source fails to parse there. Top-level await keeps
+// the public API synchronous-feeling: callers like initAds() simply await the
+// module before touching `ads`.
+const adsLoadPromise: Promise<void> = (async () => {
+  if (isExpoGo) return
   try {
-    ads = require('react-native-google-mobile-ads')
+    ads = await import('react-native-google-mobile-ads')
   } catch (e: any) {
     log.warn('ads module failed to load', { message: e?.message })
   }
-}
+})()
 
 const PROD_INTERSTITIAL_ID = Platform.select({
   ios: process.env.EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL,
@@ -88,6 +94,10 @@ function preloadInterstitial() {
 
 export async function initAds() {
   if (initialized) return
+  // Wait for the lazy import to settle. Without this, the very first
+  // initAds() call after app boot races the dynamic import and silently
+  // skips ads init forever.
+  await adsLoadPromise
   if (!ads) {
     if (isExpoGo) log.info('ads disabled: running in Expo Go')
     return

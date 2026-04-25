@@ -55,6 +55,18 @@ vi.mock('@red-handed/ui', () => ({
   Badge: ({ tier }: { tier: string }) => <div>{tier}</div>,
 }))
 
+// ResultsPage reads /auth/me via react-query to gate the post-game ad. Tests
+// don't need the live HTTP call or a QueryClientProvider — return a stub
+// query result so the page renders without a provider in the tree.
+//
+// `level: 0` keeps the ad gate closed (interstitials only show at level >= 3
+// for non-premium users), so play-again / exit calls reset() + navigate()
+// synchronously instead of routing through the AdInterstitialModal — which
+// is what the click-to-reset assertions below expect.
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: { level: 0, isPremium: false }, isLoading: false, error: null }),
+}))
+
 // Let non-overridden exports (TUTORIAL_COMPLETION_REWARD, …) pass through so
 // ResultsPage can keep reading unrelated shared constants.
 vi.mock('@red-handed/shared', async (importOriginal) => ({

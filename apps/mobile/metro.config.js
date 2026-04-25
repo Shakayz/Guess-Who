@@ -7,8 +7,11 @@ const monorepoRoot = path.resolve(projectRoot, "../..");
 
 const config = getDefaultConfig(projectRoot);
 
-// pnpm monorepo: watch all packages under the monorepo root
-config.watchFolders = [monorepoRoot];
+// pnpm monorepo: only watch workspace packages we actually consume.
+// Watching the full monorepoRoot pulls in node_modules/.pnpm, where pnpm's
+// transient *_tmp_NNNN dirs make Metro's FallbackWatcher crash on Windows
+// (ENOENT in fs.watch). nodeModulesPaths below still handles resolution.
+config.watchFolders = [path.resolve(monorepoRoot, "packages/shared")];
 
 // pnpm monorepo: resolve modules from both the app and the root node_modules
 config.resolver.nodeModulesPaths = [

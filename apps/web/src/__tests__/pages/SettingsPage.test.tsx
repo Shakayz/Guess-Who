@@ -182,7 +182,9 @@ describe('SettingsPage', () => {
 
   it('notification toggle requests permission when turned on', async () => {
     renderPage()
-    const [, notifToggle] = screen.getAllByRole('switch')
+    // Switches in DOM order: sound, music, notifications. Notifications is 3rd.
+    const switches = screen.getAllByRole('switch')
+    const notifToggle = switches[2]
     fireEvent.click(notifToggle)
     await waitFor(() => {
       expect((global as any).Notification.requestPermission).toHaveBeenCalled()
