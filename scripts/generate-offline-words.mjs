@@ -24,6 +24,7 @@ const SEED = resolve(ROOT, 'apps/api/prisma/seed.ts')
 const EXTENDED = resolve(ROOT, 'apps/api/prisma/extended-pairs.ts')
 const V2 = resolve(ROOT, 'apps/api/prisma/v2-pairs.ts')
 const V3 = resolve(ROOT, 'apps/api/prisma/v3-pairs.ts')
+const V4 = resolve(ROOT, 'apps/api/prisma/v4-pairs.ts')
 const OUT = resolve(ROOT, 'packages/shared/src/offlineWords.ts')
 
 const LOCALES = ['en', 'fr', 'es', 'de', 'ar', 'it', 'pt', 'zh', 'ru', 'hi']
@@ -33,8 +34,8 @@ const CATEGORIES = [
 ]
 
 // Target pair count per (locale, category). Each category should hit this
-// floor via curated pairs in seed.ts + extended-pairs.ts. Raised from 30 to
-// 40 as part of the V2 expansion.
+// floor via curated pairs in seed.ts + extended-pairs.ts + v2/v3/v4 packs.
+// Raised from 30 to 40 as part of the V2 expansion.
 const POOL_SIZE = 40
 
 // ---------------------------------------------------------------------------
@@ -119,6 +120,13 @@ for (const p of v2Module.V2_PAIRS) {
 // V3 pairs from v3-pairs.ts (dynamic import, --experimental-strip-types)
 const v3Module = await import(pathToFileURL(V3).href)
 for (const p of v3Module.V3_PAIRS) {
+  const slot = bucket[p.locale]?.[p.category]
+  if (slot) pushUnique(slot, p.wordA, p.wordB)
+}
+
+// V4 pairs from v4-pairs.ts (dynamic import, --experimental-strip-types)
+const v4Module = await import(pathToFileURL(V4).href)
+for (const p of v4Module.V4_PAIRS) {
   const slot = bucket[p.locale]?.[p.category]
   if (slot) pushUnique(slot, p.wordA, p.wordB)
 }
