@@ -14,6 +14,60 @@ const patchMeSchema = z.object({
   username: z.string().min(2).max(20).regex(/^[a-zA-Z0-9_]+$/).optional(),
 })
 
+/**
+ * Sniff the actual image format from the file's magic bytes. Returns the
+ * canonical image/* mimetype on a match, or `null` if the buffer doesn't
+ * look like any supported image type. This is the server-side check that
+ * pairs with the client-supplied multipart Content-Type — the latter is
+ * trivially spoofable, so we trust the bytes, not the header.
+ *
+ * Signatures:
+ *   - JPEG    : FF D8 FF
+ *   - PNG     : 89 50 4E 47 0D 0A 1A 0A
+ *   - GIF87a  : 47 49 46 38 37 61
+ *   - GIF89a  : 47 49 46 38 39 61
+ *   - WebP    : 52 49 46 46 ?? ?? ?? ?? 57 45 42 50  (RIFF…WEBP)
+ */
+function detectImageMime(buf: Buffer): string | null {
+  if (buf.length < 12) return null
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg'
+  if (
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47 &&
+    buf[4] === 0x0d &&
+    buf[5] === 0x0a &&
+    buf[6] === 0x1a &&
+    buf[7] === 0x0a
+  ) {
+    return 'image/png'
+  }
+  if (
+    buf[0] === 0x47 &&
+    buf[1] === 0x49 &&
+    buf[2] === 0x46 &&
+    buf[3] === 0x38 &&
+    (buf[4] === 0x37 || buf[4] === 0x39) &&
+    buf[5] === 0x61
+  ) {
+    return 'image/gif'
+  }
+  if (
+    buf[0] === 0x52 &&
+    buf[1] === 0x49 &&
+    buf[2] === 0x46 &&
+    buf[3] === 0x46 &&
+    buf[8] === 0x57 &&
+    buf[9] === 0x45 &&
+    buf[10] === 0x42 &&
+    buf[11] === 0x50
+  ) {
+    return 'image/webp'
+  }
+  return null
+}
+
 export const userRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('onRequest', fastify.authenticate)
 
@@ -135,6 +189,19 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (buffer.byteLength > 5 * 1024 * 1024) {
       return reply.status(400).send({ error: 'File too large. Maximum size is 5MB' })
+    }
+
+    // The mimetype above is whatever the client claimed in the multipart
+    // header — trivially spoofable. Verify the file's actual format from its
+    // magic bytes so an attacker can't, say, upload an HTML file with
+    // mimetype: 'image/png' to embed a stored XSS in any <img src=…>.
+    const detectedMime = detectImageMime(buffer)
+    if (!detectedMime || detectedMime !== data.mimetype) {
+      req.log.warn(
+        { userId, claimed: data.mimetype, detected: detectedMime ?? 'unknown' },
+        'avatar upload rejected: mimetype does not match file content',
+      )
+      return reply.status(400).send({ error: 'File content does not match the declared image type' })
     }
 
     const base64 = buffer.toString('base64')

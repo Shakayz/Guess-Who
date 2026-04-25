@@ -48,14 +48,19 @@ vi.mock('../config/prisma', () => ({
   },
 }))
 
-// Mock Redis
-vi.mock('../config/redis', () => ({
-  redis: {
+// Mock Redis. `duplicate()` returns a connect-able fake so app.ts's
+// socket.io-redis adapter setup doesn't blow up during buildApp() in tests.
+vi.mock('../config/redis', () => {
+  const makeFake = () => ({
     get: vi.fn(),
     set: vi.fn(),
     del: vi.fn(),
     on: vi.fn(),
-    connect: vi.fn(),
+    connect: vi.fn().mockResolvedValue(undefined),
     disconnect: vi.fn(),
-  },
-}))
+    duplicate: vi.fn(),
+  })
+  const fake = makeFake()
+  fake.duplicate = vi.fn(() => makeFake())
+  return { redis: fake }
+})

@@ -53,8 +53,18 @@ const resetPasswordSchema = z.object({
   password: z.string().min(8),
 })
 
+// Per-route rate-limit overrides for unauthenticated endpoints. The global
+// 100/min in app.ts is too loose for credential / email flows where one IP
+// shouldn't be hammering /signin to brute-force passwords or /forgot-password
+// to enumerate registered emails. Each route picks the tightest sensible
+// budget for its abuse profile.
+const SIGNUP_RATE_LIMIT = { max: 10, timeWindow: '15 minutes' } as const
+const SIGNIN_RATE_LIMIT = { max: 5, timeWindow: '15 minutes' } as const
+const FORGOT_PW_RATE_LIMIT = { max: 3, timeWindow: '15 minutes' } as const
+const RESET_PW_RATE_LIMIT = { max: 5, timeWindow: '15 minutes' } as const
+
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.post('/signup', async (req, reply) => {
+  fastify.post('/signup', { config: { rateLimit: SIGNUP_RATE_LIMIT } }, async (req, reply) => {
     let body: z.infer<typeof signUpSchema>
     try {
       body = signUpSchema.parse(req.body)
@@ -139,7 +149,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   })
 
-  fastify.post('/signin', async (req, reply) => {
+  fastify.post('/signin', { config: { rateLimit: SIGNIN_RATE_LIMIT } }, async (req, reply) => {
     let body: z.infer<typeof signInSchema>
     try {
       body = signInSchema.parse(req.body)
@@ -176,7 +186,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   })
 
-  fastify.post('/forgot-password', async (req, reply) => {
+  fastify.post('/forgot-password', { config: { rateLimit: FORGOT_PW_RATE_LIMIT } }, async (req, reply) => {
     let body: z.infer<typeof forgotPasswordSchema>
     try {
       body = forgotPasswordSchema.parse(req.body)
@@ -208,7 +218,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   })
 
-  fastify.post('/reset-password', async (req, reply) => {
+  fastify.post('/reset-password', { config: { rateLimit: RESET_PW_RATE_LIMIT } }, async (req, reply) => {
     let body: z.infer<typeof resetPasswordSchema>
     try {
       body = resetPasswordSchema.parse(req.body)
