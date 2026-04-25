@@ -86,8 +86,16 @@ export const EmoteTile: React.FC<Props> = ({
       ].join(' ')}
     >
       {equipped && (
-        <span className="absolute top-1.5 left-1.5 text-[9px] font-bold bg-emerald-600 text-white px-1.5 py-0.5 rounded-full">
-          EQUIPPED
+        // Compact check-mark glyph instead of the word "EQUIPPED" — on narrow
+        // mobile tiles the longer label collided with the right-side rarity
+        // pill. The visible ✓ + sr-only label keeps a11y intact.
+        <span
+          aria-label="Equipped"
+          title="Equipped"
+          className="absolute top-1.5 left-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-emerald-600 text-white text-[10px] font-bold leading-none shadow-sm"
+        >
+          <span aria-hidden="true">✓</span>
+          <span className="sr-only">Equipped</span>
         </span>
       )}
       <span
