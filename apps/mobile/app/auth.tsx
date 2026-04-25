@@ -88,7 +88,7 @@ export default function AuthScreen() {
     if (Platform.OS === 'ios') {
       AppleAuth.isAvailableAsync()
         .then((available) => {
-          log.info('Apple Sign-In available:', available)
+          log.info('Apple Sign-In availability check', { available })
           setAppleAvailable(available)
         })
         .catch(() => setAppleAvailable(false))

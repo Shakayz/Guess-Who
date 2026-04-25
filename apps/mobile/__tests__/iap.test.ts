@@ -28,6 +28,15 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }))
 
+// `expo-constants` pulls in `expo-modules-core` whose `EventEmitter` requires
+// the native `globalThis.expo` runtime — present on a device, absent in Node.
+// Stub it so iap.ts's `Constants.appOwnership` check works without booting
+// the native bridge. `appOwnership: null` matches a standalone (post-bare)
+// build, which is the case under test.
+vi.mock('expo-constants', () => ({
+  default: { appOwnership: null },
+}))
+
 const platformOsRef: { os: 'ios' | 'android' | 'web' } = { os: 'ios' }
 const linkingOpenMock = vi.fn().mockResolvedValue(undefined)
 vi.mock('react-native', () => ({
@@ -106,7 +115,8 @@ const IOS_PACK: CoinPack = {
   currency: 'usd',
   iosProductId: 'com.redhanded.pack500',
   androidProductId: 'pack_500',
-  stripePriceId: 'price_fake',
+  // stripePriceId was removed when Stripe was replaced with native IAP — see
+  // packages/shared/src/constants/index.ts CoinPack type.
 }
 
 const IOS_PREMIUM: PremiumPlan = {

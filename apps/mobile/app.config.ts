@@ -9,6 +9,10 @@ const config: ExpoConfig = {
   name: 'Red Handed !',
   slug: 'red-handed',
   version: '1.0.0',
+  // Tied to `version` so each store binary gets its own update channel —
+  // EAS Updates will only ship JS bundles to clients running the matching
+  // app version, preventing OTA pushes from breaking older installs.
+  runtimeVersion: { policy: 'appVersion' },
   orientation: 'default',
   icon: './assets/masks.png',
   scheme: 'redhanded',

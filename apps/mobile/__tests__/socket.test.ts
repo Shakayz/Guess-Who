@@ -14,7 +14,7 @@
  *   - getSocket() lazily opens the connection if one doesn't exist.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 
 ;(globalThis as any).__DEV__ = false
 
@@ -38,17 +38,23 @@ vi.mock('../store/auth', () => ({
 
 // socket.io-client is the module under stub. We expose a fresh FakeSocket
 // instance per `io()` call so tests can drive events + assert on emit calls.
+//
+// vitest's `Mock` defaults are stricter now — typing fields as the bare
+// `ReturnType<typeof vi.fn>` collapses to a function signature that fails to
+// accept the typed (event, cb) handlers we install below. Use the loose
+// `Mock<any[], any>` form so the assignment compiles.
+type AnyMock = Mock<any[], any>
 interface FakeIOManager {
-  on: ReturnType<typeof vi.fn>
+  on: AnyMock
 }
 interface FakeSocket {
   id: string
   connected: boolean
   io: FakeIOManager
   _events: Map<string, Function[]>
-  on: ReturnType<typeof vi.fn>
-  emit: ReturnType<typeof vi.fn>
-  disconnect: ReturnType<typeof vi.fn>
+  on: AnyMock
+  emit: AnyMock
+  disconnect: AnyMock
   _fire: (event: string, ...args: unknown[]) => void
 }
 

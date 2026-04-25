@@ -28,7 +28,10 @@ const PROD_INTERSTITIAL_ID = Platform.select({
 })
 
 let initialized = false
-let interstitial: InstanceType<AdsModule['InterstitialAd']> | null = null
+// `InterstitialAd`'s constructor is `protected`, so `InstanceType<…>` errors
+// out. The public factory `createForAdRequest` returns the same instance type,
+// so derive it from the factory's return type instead.
+let interstitial: ReturnType<AdsModule['InterstitialAd']['createForAdRequest']> | null = null
 let interstitialLoaded = false
 const unsubs: Array<() => void> = []
 let userMeta: { level: number; isPremium: boolean } = { level: 0, isPremium: false }

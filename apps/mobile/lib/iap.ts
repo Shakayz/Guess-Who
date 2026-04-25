@@ -37,13 +37,17 @@ import { createLogger } from './logger'
 const log = createLogger('iap')
 
 // Expo Go doesn't bundle react-native-iap — importing it at module scope would
-// red-screen the app. Lazy-require so Expo Go keeps working; all purchase
-// entry points throw IAPNotImplementedError there.
+// red-screen the app. Use top-level-await dynamic import so Expo Go keeps
+// working AND vitest's `vi.mock` can intercept the module (a bare `require()`
+// would slip through to Node's CJS loader and fail to parse the package's
+// TypeScript source). Top-level await means the module isn't "loaded" until
+// the dynamic import settles, which gives callers (and tests) a single,
+// awaitable barrier without exposing an internal promise.
 const isExpoGo = Constants.appOwnership === 'expo'
 let RNIap: typeof RNIapType | null = null
 if (!isExpoGo) {
   try {
-    RNIap = require('react-native-iap')
+    RNIap = await import('react-native-iap')
   } catch (e: any) {
     log.warn('iap module failed to load', { message: e?.message })
   }
@@ -208,7 +212,14 @@ const PREMIUM_ANDROID_PRODUCT_ID = 'premium'
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export function isIapAvailable(): boolean {
-  return !!RNIap && (Platform.OS === 'ios' || Platform.OS === 'android')
+  // Sync capability check — does NOT require the native module to be loaded
+  // (that's async). Callers that actually need to *use* IAP should rely on
+  // ensureConnection() inside purchase functions to surface the real error
+  // if the module failed to load. Returning true here on a capable platform
+  // before the lazy import resolves matches the public-API expectations:
+  // "is this platform capable of IAP?" not "is the module ready right now?".
+  if (isExpoGo) return false
+  return Platform.OS === 'ios' || Platform.OS === 'android'
 }
 
 export async function purchaseCoinPack(pack: CoinPack): Promise<PurchaseResult> {

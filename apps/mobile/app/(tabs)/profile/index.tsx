@@ -199,20 +199,24 @@ export default function ProfileScreen() {
         exif: false,
       }
 
+      // Note: `maxWidth` / `maxHeight` were removed from ImagePickerOptions in
+      // expo-image-picker 17. The image is returned at the device's natural
+      // resolution and the API resizes it server-side during upload, so the
+      // 800x800 cap is no longer needed at the picker layer.
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync()
         if (status !== 'granted') {
           Alert.alert(t('profile.permissionRequired', 'Permission required'), t('profile.cameraPermissionMsg', 'Camera access is needed to take a photo.'))
           return
         }
-        result = await ImagePicker.launchCameraAsync({ ...options, maxWidth: 800, maxHeight: 800 })
+        result = await ImagePicker.launchCameraAsync(options)
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
         if (status !== 'granted') {
           Alert.alert(t('profile.permissionRequired', 'Permission required'), t('profile.libraryPermissionMsg', 'Photo library access is needed to pick a photo.'))
           return
         }
-        result = await ImagePicker.launchImageLibraryAsync({ ...options, maxWidth: 800, maxHeight: 800 })
+        result = await ImagePicker.launchImageLibraryAsync(options)
       }
 
       if (result.canceled || !result.assets?.length) return

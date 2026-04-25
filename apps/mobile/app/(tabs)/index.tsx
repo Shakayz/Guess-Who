@@ -253,7 +253,9 @@ export default function HomeScreen() {
       const dest = selectedMode === 'lobby'
         ? `/lobby/${room.code}?mode=${lobbyGameMode}`
         : `/lobby/${room.code}`
-      router.push(dest)
+      // expo-router's typed Href can't statically resolve a dynamic path
+      // built from a runtime room code. Cast through the loose Href shape.
+      router.push(dest as never)
     } catch (err: any) {
       const code = err?.data?.error ?? err?.error
       const required = err?.data?.required ?? 10
@@ -912,7 +914,9 @@ export default function HomeScreen() {
                 <View
                   key={step.title}
                   className="bg-neutral-900 border border-neutral-800 rounded-2xl items-center overflow-hidden"
-                  style={{ width: gridItemWidth, padding: isTablet ? 20 : 16 }}
+                  // gridItemWidth is a percent string like '47%'; ViewStyle.width
+                  // wants `DimensionValue` which is `${number}%`. Cast through.
+                  style={{ width: gridItemWidth as `${number}%`, padding: isTablet ? 20 : 16 }}
                 >
                   {/* Top accent bar */}
                   <View className="absolute top-0 left-0 right-0 h-0.5 bg-violet-800/60" />

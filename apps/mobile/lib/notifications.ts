@@ -13,10 +13,16 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || `http://${DEFAULT_HOST}:3001/
 
 const log = createLogger('notifications')
 
-// Configure how notifications appear while the app is in the foreground
+// Configure how notifications appear while the app is in the foreground.
+// SDK 54 split `shouldShowAlert` into the more granular `shouldShowBanner`
+// (heads-up banner) and `shouldShowList` (notification center entry); both
+// must be set or TS errors. We keep `shouldShowAlert` for backwards-compat
+// with older runtimes that still read it.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
