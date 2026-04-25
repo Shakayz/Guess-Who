@@ -5,6 +5,9 @@
 @layer base {
   * {
     box-sizing: border-box;
+    /* Kill the blue/grey iOS tap highlight on every interactive element so the
+       app's own :active states are the only press feedback the user sees. */
+    -webkit-tap-highlight-color: transparent;
   }
 
   html {
@@ -12,12 +15,33 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background-color: #09090b;
+    /* Lock zoom + horizontal swipe-to-go-back interference when the app is
+       installed to the home screen or used in mobile Safari. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overscroll-behavior-y: none;
   }
 
   body {
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124, 58, 237, 0.12), transparent),
       radial-gradient(ellipse 40% 30% at 80% 80%, rgba(124, 58, 237, 0.06), transparent);
+    /* Respect notches at the bottom always; pages that need top inset opt in
+       via .safe-top so we don't push every layout down on Android. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* UI chrome (nav, headers, buttons) shouldn't be selectable like text — it
+     feels jarring on long-press. Pages can opt back in for content with
+     `.select-text` or the standard Tailwind `select-text` utility. */
+  button,
+  nav,
+  header,
+  [role='navigation'],
+  [role='tab'] {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
 
   ::-webkit-scrollbar {
@@ -59,4 +83,36 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .safe-x {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  /* Reserve space for the BottomNav (h-16 = 64px) plus the safe-area inset.
+     Use on `<main>` containers so content never hides under the tab bar on
+     mobile. Disabled at md+ where there is no BottomNav. */
+  .pb-bottom-nav {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+  @media (min-width: 768px) {
+    .pb-bottom-nav { padding-bottom: 0; }
+  }
+
+  /* Native-feel pressable — pair with `transition` so taps feel responsive on
+     touch devices that don't have a hover state to lean on. */
+  .pressable {
+    @apply transition-transform active:scale-[0.97];
+  }
+}
+
+/* Disable text selection inside any element with .no-select; useful for the
+   slim mobile header chrome where long-press selection looks broken. */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
 }

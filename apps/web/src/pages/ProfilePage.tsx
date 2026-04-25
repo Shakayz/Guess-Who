@@ -233,7 +233,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
-      <main className="flex-1 p-6 pb-24 md:pb-6">
+      <main className="flex-1 px-4 pt-3 pb-bottom-nav md:p-6 md:pb-6">
         <div className="max-w-xl md:max-w-2xl lg:max-w-4xl mx-auto space-y-4 md:space-y-6 animate-slide-up">
 
           {/* Email verification banner — shown whenever the account is still

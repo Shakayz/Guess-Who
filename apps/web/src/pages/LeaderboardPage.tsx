@@ -165,7 +165,7 @@ export default function LeaderboardPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <NavBar />
-      <main className="flex-1 p-6">
+      <main className="flex-1 px-4 pt-3 pb-bottom-nav md:p-6 md:pb-6">
         <div className="max-w-xl md:max-w-2xl lg:max-w-4xl mx-auto">
 
           {/* Header — title, subtitle, and language picker in a responsive row */}

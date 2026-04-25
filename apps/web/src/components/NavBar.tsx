@@ -120,7 +120,9 @@ export function NavBar() {
 
   return (
     <>
-    <header className="flex items-center justify-between px-6 py-4 border-b border-neutral-800/60 backdrop-blur-sm sticky top-0 z-40 bg-neutral-950/80">
+    {/* Desktop only — on mobile, MobileHeader (rendered at the app root in
+        App.tsx) takes over so the layout matches the React Native app. */}
+    <header className="hidden md:flex items-center justify-between px-6 py-4 border-b border-neutral-800/60 backdrop-blur-sm sticky top-0 z-40 bg-neutral-950/80">
       <div className="flex items-center gap-5">
         <button onClick={() => navigate('/')} className="flex items-center" aria-label="Red Handed home">
           <img src="/masks.png" alt="Red Handed" className="h-10 w-auto select-none" draggable={false} />

@@ -32,7 +32,7 @@ describe('BottomNav', () => {
       'nav.history',
       'nav.friends',
       'nav.profile',
-      'nav.settings',
+      'nav.shop',
     ]) {
       expect(screen.getAllByText(key).length).toBeGreaterThan(0)
     }

@@ -15,6 +15,7 @@ import {
   showBrowserNotification,
 } from './lib/tabBadge'
 import { BottomNav } from './components/BottomNav'
+import { MobileHeader } from './components/MobileHeader'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { MenuMusic } from './components/MenuMusic'
 import { AchievementToastBanner } from './components/achievements/AchievementToastBanner'
@@ -827,6 +828,7 @@ export default function App() {
       <MatchmakingBanner />
       <ActiveLobbyBanner />
       <GlobalMatchmakingModals />
+      <MobileHeader />
       <BottomNav />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
