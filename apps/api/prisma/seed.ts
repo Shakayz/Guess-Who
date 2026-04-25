@@ -9347,7 +9347,6 @@ const ZH: PairData[] = [
   { wordA: '蓝染惣右介', wordB: '市丸银', category: 'mangas' },
   { wordA: '格里菲斯', wordB: '格斯', category: 'mangas' },
   { wordA: '西索', wordB: '伊路米', category: 'mangas' },
-  { wordA: '无惨', wordB: '�的鬼', category: 'mangas' },
   { wordA: '团藏', wordB: '大蛇丸', category: 'mangas' },
   { wordA: '拳四郎', wordB: '拉奥', category: 'mangas' },
   { wordA: '夜凪景', wordB: '百城千世子', category: 'mangas' },
