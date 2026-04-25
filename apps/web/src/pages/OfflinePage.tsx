@@ -2597,7 +2597,7 @@ export default function OfflinePage() {
   const [lastSettings, setLastSettings] = useState<GameSettings | null>(null)
 
   const handleStart = useCallback(
-    (
+    async (
       names: string[],
       redHandedCount: number,
       counts: SpecialRoleCounts,
@@ -2625,7 +2625,7 @@ export default function OfflinePage() {
       })
       setGameMode(mode)
 
-      const rawPair = pickRandomWordPair(categories, shuffleArray, i18n.language)
+      const rawPair = await pickRandomWordPair(categories, shuffleArray, i18n.language)
       // Randomly swap which word goes to villagers vs redHanded
       const pair = Math.random() < 0.5
         ? { villagerWord: rawPair.redHandedWord, redHandedWord: rawPair.villagerWord, category: rawPair.category }

@@ -2910,11 +2910,11 @@ export default function OfflineScreen() {
     : {}
 
   const handleStart = useCallback(
-    (settings: PersistedSettings) => {
+    async (settings: PersistedSettings) => {
       setLastSettings(settings)
       setGameMode(settings.gameMode)
 
-      const rawPair = pickRandomWordPair(settings.categories, shuffleArray, i18n.language)
+      const rawPair = await pickRandomWordPair(settings.categories, shuffleArray, i18n.language)
       const pair = Math.random() < 0.5
         ? { villagerWord: rawPair.redHandedWord, redHandedWord: rawPair.villagerWord, category: rawPair.category }
         : rawPair

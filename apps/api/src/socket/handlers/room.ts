@@ -387,12 +387,12 @@ async function startGameForRoom(
           wordPair = { wordA: pair.wordA, wordB: pair.wordB }
           wordCategory = pair.category as WordCategory
         } else {
-          const pair = pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
+          const pair = await pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
           wordPair = { wordA: pair.villagerWord, wordB: pair.redHandedWord }
           wordCategory = pair.category
         }
       } else {
-        const pair = pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
+        const pair = await pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
         wordPair = { wordA: pair.villagerWord, wordB: pair.redHandedWord }
         wordCategory = pair.category
       }
