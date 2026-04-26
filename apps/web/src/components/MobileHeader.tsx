@@ -38,6 +38,7 @@ export function MobileHeader() {
   // in sync with rewards / shop purchases / daily streak.
   const [starCoins, setStarCoins] = useState(0)
   const [isPremium, setIsPremium] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [streak, setStreak] = useState<{ count: number; lastPlayedAt: string | null }>({
     count: 0,
     lastPlayedAt: null,
@@ -47,17 +48,19 @@ export function MobileHeader() {
     if (!token) {
       setStarCoins(0)
       setIsPremium(false)
+      setAvatarUrl(null)
       setStreak({ count: 0, lastPlayedAt: null })
       return
     }
     let cancelled = false
     const fetchBalance = () => {
       api
-        .get<{ starCoins?: number; dailyStreakCount?: number; lastPlayedAt?: string | null; isPremium?: boolean }>('/auth/me')
+        .get<{ starCoins?: number; dailyStreakCount?: number; lastPlayedAt?: string | null; isPremium?: boolean; avatarUrl?: string | null }>('/auth/me')
         .then((me) => {
           if (cancelled) return
           setStarCoins(me.starCoins ?? 0)
           setIsPremium(!!me.isPremium)
+          setAvatarUrl(me.avatarUrl ?? null)
           setStreak({
             count: me.dailyStreakCount ?? 0,
             lastPlayedAt: me.lastPlayedAt ?? null,
@@ -74,11 +77,18 @@ export function MobileHeader() {
       if (typeof next === 'number') setStarCoins(next)
       else fetchBalance()
     }
+    const onAvatar = (e: Event) => {
+      const next = (e as CustomEvent<{ avatarUrl?: string | null }>).detail?.avatarUrl
+      if (next === null || typeof next === 'string') setAvatarUrl(next)
+      else fetchBalance()
+    }
     window.addEventListener('wallet:balance', onWallet)
+    window.addEventListener('profile:avatar-updated', onAvatar)
     return () => {
       cancelled = true
       if (sock && typeof sock.off === 'function') sock.off('game:finished', fetchBalance)
       window.removeEventListener('wallet:balance', onWallet)
+      window.removeEventListener('profile:avatar-updated', onAvatar)
     }
   }, [token, location.pathname])
 
@@ -163,21 +173,37 @@ export function MobileHeader() {
                 onClick={() => setMenuOpen((o) => !o)}
                 aria-label="Account menu"
                 aria-expanded={menuOpen}
-                className="flex items-center justify-center h-9 w-9 rounded-full bg-neutral-800 text-neutral-300 pressable border border-neutral-700"
+                className="flex items-center justify-center h-9 w-9 rounded-full bg-neutral-800 text-neutral-300 pressable border border-neutral-700 overflow-hidden"
               >
-                {/* Username initial as a lightweight avatar — keeps the header
-                    a single row even with long usernames. */}
-                <span className="text-sm font-bold uppercase">
-                  {user?.username?.[0] ?? '?'}
-                </span>
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={user?.username ?? ''}
+                    className="h-full w-full object-cover"
+                    draggable={false}
+                  />
+                ) : (
+                  <span className="text-sm font-bold uppercase">
+                    {user?.username?.[0] ?? '?'}
+                  </span>
+                )}
               </button>
 
               {menuOpen && (
                 <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-neutral-800 bg-neutral-900/95 backdrop-blur shadow-2xl overflow-hidden animate-slide-down">
                   <div className="px-3 py-2.5 border-b border-neutral-800 flex items-center gap-2">
-                    <div className="flex items-center justify-center h-8 w-8 rounded-full bg-brand-700/60 text-white text-sm font-bold uppercase">
-                      {user?.username?.[0] ?? '?'}
-                    </div>
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={user?.username ?? ''}
+                        className="h-8 w-8 rounded-full object-cover"
+                        draggable={false}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-brand-700/60 text-white text-sm font-bold uppercase">
+                        {user?.username?.[0] ?? '?'}
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 text-sm font-semibold text-white truncate">
                         <span className="truncate">{user?.username}</span>

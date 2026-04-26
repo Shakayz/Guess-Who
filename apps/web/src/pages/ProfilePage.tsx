@@ -111,9 +111,12 @@ export default function ProfilePage() {
   })
 
   const avatarUploadMutation = useMutation({
-    mutationFn: (file: File) => api.upload('/users/me/avatar', file),
-    onSuccess: () => {
+    mutationFn: (file: File) => api.upload<{ avatarUrl?: string | null }>('/users/me/avatar', file),
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['me'] })
+      window.dispatchEvent(
+        new CustomEvent('profile:avatar-updated', { detail: { avatarUrl: data?.avatarUrl ?? null } }),
+      )
       setEditingAvatar(false)
       setAvatarPreview(null)
       setSelectedFile(null)
@@ -124,6 +127,9 @@ export default function ProfilePage() {
     mutationFn: () => api.delete('/users/me/avatar'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me'] })
+      window.dispatchEvent(
+        new CustomEvent('profile:avatar-updated', { detail: { avatarUrl: null } }),
+      )
       setEditingAvatar(false)
     },
   })
