@@ -169,6 +169,8 @@ jobs:
                 done \
              && echo '${ECR_PW}' | sudo docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }} \
              && sudo docker compose pull \
+             && sudo docker compose run --rm --no-deps --entrypoint sh api -c \
+                  'prisma migrate resolve --applied 20260419000000_gift_premium_and_purchase_gift_fields || true' \
              && sudo docker compose up -d \
              && sudo docker image prune -f"
 
