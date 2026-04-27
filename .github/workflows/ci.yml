@@ -92,7 +92,63 @@ jobs:
         run: pnpm build
 
   # ─────────────────────────────────────────
-  # 4. Docker build validation (no push — just verify images compile)
+  # 4. Prisma schema drift
+  #    Apply all migrations to a fresh Postgres, then diff the resulting
+  #    schema against schema.prisma. Catches the "model added to the schema
+  #    but `prisma migrate dev` was skipped" pattern that has hit prod five
+  #    times (purchases, blocks, reports, gifts, friendships+DMs+season pass
+  #    cluster). The table only ever materialises via `prisma db push` on
+  #    dev/staging; prod, which only runs `prisma migrate deploy`, ships
+  #    broken until the next manual heal.
+  # ─────────────────────────────────────────
+  schema-drift:
+    name: Prisma schema drift
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: drift
+          POSTGRES_PASSWORD: drift
+          POSTGRES_DB: drift
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://drift:drift@localhost:5432/drift
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations to fresh database
+        run: pnpm --filter @red-handed/api exec prisma migrate deploy
+
+      - name: Diff applied schema vs schema.prisma
+        run: |
+          # --exit-code: 0 = no drift, 2 = drift detected (which fails the job).
+          # If this fires on a PR, the fix is to run `pnpm --filter @red-handed/api
+          # exec prisma migrate dev --name <descriptive-name>` locally, commit
+          # the generated migration folder, and push.
+          pnpm --filter @red-handed/api exec prisma migrate diff \
+            --from-url "$DATABASE_URL" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --exit-code
+
+  # ─────────────────────────────────────────
+  # 5. Docker build validation (no push — just verify images compile)
   #    Only runs on PRs to avoid wasting registry quota
   # ─────────────────────────────────────────
   docker-validate:
