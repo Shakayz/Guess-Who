@@ -187,3 +187,17 @@ jobs:
             sleep 5
           done
           exit 1
+
+      - name: Dump container state on failure
+        if: failure()
+        run: |
+          ssh -i ~/.ssh/deploy ubuntu@${{ secrets.LIGHTSAIL_HOST }} \
+            "cd /opt/red-handed \
+             && echo '=== docker compose ps ===' \
+             && sudo docker compose -f docker-compose.staging.yml ps \
+             && echo '=== api logs (tail 200) ===' \
+             && sudo docker compose -f docker-compose.staging.yml logs --tail=200 --no-color api \
+             && echo '=== caddy logs (tail 100) ===' \
+             && sudo docker compose -f docker-compose.staging.yml logs --tail=100 --no-color caddy \
+             && echo '=== web logs (tail 50) ===' \
+             && sudo docker compose -f docker-compose.staging.yml logs --tail=50 --no-color web"
