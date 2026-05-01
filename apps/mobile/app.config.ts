@@ -8,6 +8,8 @@ const ADMOB_IOS_APP_ID =
 const config: ExpoConfig = {
   name: 'Red Handed !',
   slug: 'red-handed',
+  description:
+    'Red Handed ! is a multiplayer social-deduction party game. Join private rooms with friends or public lobbies, accuse the imposter, and win the round.',
   version: '1.0.0',
   // Tied to `version` so each store binary gets its own update channel —
   // EAS Updates will only ship JS bundles to clients running the matching
@@ -32,6 +34,7 @@ const config: ExpoConfig = {
       'applinks:staging.redhanded-game.com',
     ],
     infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
       NSCameraUsageDescription: 'Take a photo for your profile picture',
       NSPhotoLibraryUsageDescription: 'Choose a profile picture from your gallery',
       NSPhotoLibraryAddOnlyUsageDescription: 'Save images to your gallery',

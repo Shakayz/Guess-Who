@@ -18,12 +18,14 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api-staging.redhanded-game.com/api",
         "EXPO_PUBLIC_SOCKET_URL": "https://api-staging.redhanded-game.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "358295814462-f9098rilnci6d8dkdhkofo02l12ukqm5.apps.googleusercontent.com",
+        "EXPO_PUBLIC_ADMOB_IOS_APP_ID": "ca-app-pub-4058202515707627~9677422924",
         "EXPO_PUBLIC_ADMOB_IOS_BANNER": "",
-        "EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL": "",
+        "EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL": "ca-app-pub-4058202515707627/4173982671",
         "EXPO_PUBLIC_ADMOB_IOS_REWARDED": "",
+        "EXPO_PUBLIC_ADMOB_ANDROID_APP_ID": "ca-app-pub-4058202515707627~5574694253",
         "EXPO_PUBLIC_ADMOB_ANDROID_BANNER": "",
-        "EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL": "",
+        "EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL": "ca-app-pub-4058202515707627/6344850441",
         "EXPO_PUBLIC_ADMOB_ANDROID_REWARDED": ""
       }
     },
@@ -32,12 +34,14 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.redhanded-game.com/api",
         "EXPO_PUBLIC_SOCKET_URL": "https://api.redhanded-game.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "358295814462-f9098rilnci6d8dkdhkofo02l12ukqm5.apps.googleusercontent.com",
+        "EXPO_PUBLIC_ADMOB_IOS_APP_ID": "ca-app-pub-4058202515707627~9677422924",
         "EXPO_PUBLIC_ADMOB_IOS_BANNER": "",
-        "EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL": "",
+        "EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL": "ca-app-pub-4058202515707627/4173982671",
         "EXPO_PUBLIC_ADMOB_IOS_REWARDED": "",
+        "EXPO_PUBLIC_ADMOB_ANDROID_APP_ID": "ca-app-pub-4058202515707627~5574694253",
         "EXPO_PUBLIC_ADMOB_ANDROID_BANNER": "",
-        "EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL": "",
+        "EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL": "ca-app-pub-4058202515707627/6344850441",
         "EXPO_PUBLIC_ADMOB_ANDROID_REWARDED": ""
       }
     }
@@ -45,12 +49,12 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "",
-        "ascAppId": "",
-        "appleTeamId": ""
+        "appleId": "r.aghazzaf@gmail.com",
+        "ascAppId": "6762392892",
+        "appleTeamId": "6W96U5RM6H"
       },
       "android": {
-        "serviceAccountKeyPath": "",
+        "serviceAccountKeyPath": "./google-play-key.json",
         "track": "production",
         "releaseStatus": "draft"
       }

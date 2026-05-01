@@ -92,6 +92,21 @@ function preloadInterstitial() {
   }
 }
 
+// EU GDPR / UK UK-GDPR compliance via Google's UMP SDK. Without this, EU users
+// cannot legally see personalized ads and AdMob policy may serve no ads at all.
+async function requestConsent(): Promise<void> {
+  if (!ads) return
+  try {
+    const info = await ads.AdsConsent.requestInfoUpdate({ tagForUnderAgeOfConsent: false })
+    if (info.isConsentFormAvailable) {
+      await ads.AdsConsent.showForm()
+    }
+  } catch (e: any) {
+    // Non-fatal: fall back to non-personalized ads (already set per-request).
+    log.warn('consent request failed', { message: e?.message })
+  }
+}
+
 export async function initAds() {
   if (initialized) return
   // Wait for the lazy import to settle. Without this, the very first
@@ -104,6 +119,7 @@ export async function initAds() {
   }
   initialized = true
   try {
+    await requestConsent()
     await ads.default().setRequestConfiguration({
       maxAdContentRating: ads.MaxAdContentRating.T,
       tagForChildDirectedTreatment: false,

@@ -135,7 +135,12 @@
       "Bash(npx vitest *)",
       "Bash(npx expo *)",
       "Bash(pnpm --filter @red-handed/web tsc --noEmit)",
-      "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js\\)$\")"
+      "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js\\)$\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/api/health)",
+      "Bash(curl -s http://localhost:5173/api/health)",
+      "Bash(curl -s http://localhost:5173/api/auth/me)",
+      "Bash(find /Users/radouane/Documents/Guess Who/packages/shared/src -type f -name *.ts -o -name *.tsx -o -name *.js)",
+      "Bash(git pull:*)"
     ]
   }
 }
