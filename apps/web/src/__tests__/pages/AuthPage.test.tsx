@@ -117,6 +117,7 @@ describe('AuthPage', () => {
   })
 
   it('shows error when Google sign-in is not configured', () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '')
     render(<AuthPage />)
     fireEvent.click(screen.getByText('Continue with Google'))
     expect(screen.getByText('Google sign-in is not available yet. Please use email & password.')).toBeInTheDocument()
