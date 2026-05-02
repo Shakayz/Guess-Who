@@ -103,7 +103,7 @@ export default function AuthPage() {
     const code = params.get('code')
     const oauthError = params.get('error')
     if (oauthError) {
-      setError(`Discord sign-in failed: ${oauthError}`)
+      setError(t('auth.errors.discordOauthError', { reason: oauthError, defaultValue: `Discord sign-in failed: ${oauthError}` }))
       window.history.replaceState({}, '', '/auth')
       return
     }
@@ -117,7 +117,7 @@ export default function AuthPage() {
       })
       .catch((err: any) => {
         log.error('discord verify failed', { message: err?.message })
-        setError(err?.message ?? 'Discord sign-in failed')
+        setError(err?.message ?? t('auth.errors.discordVerifyFailed', 'Discord sign-in failed'))
         window.history.replaceState({}, '', '/auth')
       })
       .finally(() => setOauthLoading(null))
@@ -163,7 +163,7 @@ export default function AuthPage() {
       setAuth(data.token, data.user)
       window.location.replace('/')
     } catch (err: any) {
-      setUsernameError(err.message ?? 'Failed to set username')
+      setUsernameError(err.message ?? t('auth.errors.failedToSetUsername', 'Failed to set username'))
     } finally {
       setUsernameLoading(false)
     }
@@ -172,7 +172,7 @@ export default function AuthPage() {
   // ── Google ──
   const handleGoogle = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
-    if (!clientId) { setError('Google sign-in is not available yet. Please use email & password.'); return }
+    if (!clientId) { setError(t('auth.errors.googleUnavailable', 'Google sign-in is not available yet. Please use email & password.')); return }
     log.info('google oauth attempt')
     setError(null)
     setOauthLoading('google')
@@ -183,7 +183,7 @@ export default function AuthPage() {
         scope: 'openid email profile',
         callback: async (response: any) => {
           if (response.error || !response.access_token) {
-            setError('Google sign-in was cancelled or failed')
+            setError(t('auth.errors.googleCancelledOrFailed', 'Google sign-in was cancelled or failed'))
             setOauthLoading(null)
             return
           }
@@ -191,7 +191,7 @@ export default function AuthPage() {
             const data = await api.post<any>('/auth/google/verify', { accessToken: response.access_token, locale: i18n.language })
             handleOAuthResponse(data)
           } catch (err: any) {
-            setError(err.message ?? 'Google sign-in failed')
+            setError(err.message ?? t('auth.errors.googleSignInFailed', 'Google sign-in failed'))
           } finally {
             setOauthLoading(null)
           }
@@ -212,7 +212,7 @@ export default function AuthPage() {
           triggerGoogleFlow()
         } else if (attempts >= 50) {
           clearInterval(interval)
-          setError('Google sign-in could not load. Please refresh the page and try again.')
+          setError(t('auth.errors.googleCouldNotLoad', 'Google sign-in could not load. Please refresh the page and try again.'))
           setOauthLoading(null)
         }
       }, 100)
@@ -223,7 +223,7 @@ export default function AuthPage() {
   const handleApple = () => {
     const clientId = import.meta.env.VITE_APPLE_CLIENT_ID
     if (!clientId) {
-      setError('Apple sign-in is not available yet. Please use email & password.')
+      setError(t('auth.errors.appleUnavailable', 'Apple sign-in is not available yet. Please use email & password.'))
       return
     }
     log.info('apple oauth attempt')
@@ -260,13 +260,13 @@ export default function AuthPage() {
           const message = err instanceof Error ? err.message : undefined
           log.error('apple sign-in failed', { reason, details, message })
           if (reason === 'popup_closed_by_user') {
-            setError('Apple sign-in was cancelled.')
+            setError(t('auth.errors.appleCancelled', 'Apple sign-in was cancelled.'))
           } else if (reason) {
-            setError(`Apple sign-in failed: ${reason}${details ? ` (${details})` : ''}`)
+            setError(t('auth.errors.appleFailedWithReason', { reason: `${reason}${details ? ` (${details})` : ''}`, defaultValue: `Apple sign-in failed: ${reason}${details ? ` (${details})` : ''}` }))
           } else if (message) {
-            setError(`Apple sign-in failed: ${message}`)
+            setError(t('auth.errors.appleFailedWithReason', { reason: message, defaultValue: `Apple sign-in failed: ${message}` }))
           } else {
-            setError('Apple sign-in failed. Check the browser console for details.')
+            setError(t('auth.errors.appleFailedConsole', 'Apple sign-in failed. Check the browser console for details.'))
           }
         })
         .finally(() => setOauthLoading(null))
@@ -284,7 +284,7 @@ export default function AuthPage() {
           triggerAppleFlow()
         } else if (attempts >= 50) {
           clearInterval(interval)
-          setError('Apple Sign-In could not load. Please refresh the page and try again.')
+          setError(t('auth.errors.appleCouldNotLoad', 'Apple Sign-In could not load. Please refresh the page and try again.'))
           setOauthLoading(null)
         }
       }, 100)
@@ -299,7 +299,7 @@ export default function AuthPage() {
   const handleDiscord = () => {
     const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID
     if (!clientId) {
-      setError('Discord sign-in is not available yet. Please use email & password.')
+      setError(t('auth.errors.discordUnavailable', 'Discord sign-in is not available yet. Please use email & password.'))
       return
     }
     log.info('discord oauth attempt')
@@ -589,7 +589,7 @@ export default function AuthPage() {
                 <input
                   className="input-field pl-8"
                   placeholder={t('auth.username')}
-                  aria-label="Username"
+                  aria-label={t('auth.username')}
                   value={form.username}
                   onChange={update('username')}
                   minLength={3}
@@ -603,8 +603,8 @@ export default function AuthPage() {
               <input
                 className="input-field"
                 type="text"
-                placeholder="Email or username"
-                aria-label="Email or username"
+                placeholder={t('auth.emailOrUsername', 'Email or username')}
+                aria-label={t('auth.emailOrUsername', 'Email or username')}
                 value={form.identifier}
                 onChange={update('identifier')}
                 required
@@ -616,7 +616,7 @@ export default function AuthPage() {
                 className="input-field"
                 type="email"
                 placeholder={t('auth.email')}
-                aria-label="Email"
+                aria-label={t('auth.email')}
                 value={form.email}
                 onChange={update('email')}
                 required
@@ -627,7 +627,7 @@ export default function AuthPage() {
               className="input-field"
               type="password"
               placeholder={t('auth.password')}
-              aria-label="Password"
+              aria-label={t('auth.password')}
               value={form.password}
               onChange={update('password')}
               minLength={mode === 'signup' ? 8 : undefined}

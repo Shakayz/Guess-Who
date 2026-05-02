@@ -169,20 +169,20 @@ export default function SettingsPage() {
     onSuccess: (res) => {
       setVerifyError(null)
       if (res.alreadyVerified) {
-        setVerifyMessage('Your email is already verified.')
+        setVerifyMessage(t('settings.emailAlreadyVerified', 'Your email is already verified.'))
         queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
         return
       }
       setCodeRequested(true)
       if (res.transport === 'dev') {
         // No real email was sent — the backend logged the code to stdout.
-        setVerifyMessage('Dev mode: email provider not configured. Check the server logs for the code.')
+        setVerifyMessage(t('settings.verifyDevMode', 'Dev mode: email provider not configured. Check the server logs for the code.'))
       } else if (res.transport === 'resend' && res.providerId) {
         setVerifyMessage(
-          `Code sent (Resend id ${res.providerId}). Check your inbox — it expires in ${EMAIL_VERIFICATION_CODE_TTL_MINUTES} minutes. If it doesn't arrive, check the Resend dashboard for delivery status.`,
+          t('settings.verifyCodeSentResend', { id: res.providerId, minutes: EMAIL_VERIFICATION_CODE_TTL_MINUTES, defaultValue: `Code sent (Resend id ${res.providerId}). Check your inbox — it expires in ${EMAIL_VERIFICATION_CODE_TTL_MINUTES} minutes. If it doesn't arrive, check the Resend dashboard for delivery status.` }),
         )
       } else {
-        setVerifyMessage(`Code sent. Check your inbox — it expires in ${EMAIL_VERIFICATION_CODE_TTL_MINUTES} minutes.`)
+        setVerifyMessage(t('settings.verifyCodeSent', { minutes: EMAIL_VERIFICATION_CODE_TTL_MINUTES, defaultValue: `Code sent. Check your inbox — it expires in ${EMAIL_VERIFICATION_CODE_TTL_MINUTES} minutes.` }))
       }
     },
     onError: (err: any) => {
@@ -193,11 +193,11 @@ export default function SettingsPage() {
       // upstream failures.
       const providerStatus: number | undefined = err?.data?.providerStatus
       if (providerStatus) {
-        setVerifyError(`Email provider rejected send (${providerStatus}): ${err?.message ?? 'unknown error'}`)
+        setVerifyError(t('settings.verifyProviderError', { status: providerStatus, message: err?.message ?? 'unknown error', defaultValue: `Email provider rejected send (${providerStatus}): ${err?.message ?? 'unknown error'}` }))
       } else if (err?.status === 502) {
-        setVerifyError("We couldn't reach the email service right now. Please try again in a few minutes.")
+        setVerifyError(t('settings.verifyServiceUnavailable', "We couldn't reach the email service right now. Please try again in a few minutes."))
       } else {
-        setVerifyError(err?.message ?? 'Could not send code. Please try again.')
+        setVerifyError(err?.message ?? t('settings.verifySendError', 'Could not send code. Please try again.'))
       }
     },
   })
@@ -213,15 +213,15 @@ export default function SettingsPage() {
       setCodeInput('')
       setCodeRequested(false)
       if (res.alreadyVerified) {
-        setVerifyMessage('Email already verified.')
+        setVerifyMessage(t('settings.emailAlreadyVerifiedMessage', 'Email already verified.'))
       } else {
-        setVerifyMessage(`Email verified! +${res.reward ?? EMAIL_VERIFICATION_REWARD} ⭐ credited.`)
+        setVerifyMessage(t('settings.emailVerifiedReward', { reward: res.reward ?? EMAIL_VERIFICATION_REWARD, defaultValue: `Email verified! +${res.reward ?? EMAIL_VERIFICATION_REWARD} ⭐ credited.` }))
       }
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
     },
     onError: (err: any) => {
       setVerifyMessage(null)
-      setVerifyError(err.message ?? 'Verification failed.')
+      setVerifyError(err.message ?? t('settings.verificationFailed', 'Verification failed.'))
     },
   })
 
@@ -265,7 +265,7 @@ export default function SettingsPage() {
     },
     onError: (err: any) => {
       setSupportSuccess(false)
-      setSupportError(err.message ?? 'Failed to send message')
+      setSupportError(err.message ?? t('settings.failedToSendMessage', 'Failed to send message'))
     },
   })
 
@@ -275,11 +275,11 @@ export default function SettingsPage() {
     const subject = supportForm.subject.trim()
     const message = supportForm.message.trim()
     if (subject.length < 3) {
-      setSupportError('Subject must be at least 3 characters.')
+      setSupportError(t('settings.supportSubjectError', 'Subject must be at least 3 characters.'))
       return
     }
     if (message.length < 10) {
-      setSupportError('Message must be at least 10 characters.')
+      setSupportError(t('settings.supportMessageError', 'Message must be at least 10 characters.'))
       return
     }
     contactSupportMutation.mutate({ subject, message })
@@ -322,7 +322,7 @@ export default function SettingsPage() {
       setTimeout(() => setPwSuccess(false), 3000)
     },
     onError: (err: any) => {
-      setPwError(err.message ?? 'Failed to change password')
+      setPwError(err.message ?? t('settings.failedToChangePassword', 'Failed to change password'))
     },
   })
 
@@ -333,7 +333,7 @@ export default function SettingsPage() {
       navigate('/auth', { replace: true })
     },
     onError: (err: any) => {
-      setPwError(err.message ?? 'Failed to delete account')
+      setPwError(err.message ?? t('settings.failedToDeleteAccount', 'Failed to delete account'))
     },
   })
 
@@ -341,11 +341,11 @@ export default function SettingsPage() {
     e.preventDefault()
     setPwError(null)
     if (pwForm.newPassword.length < 8) {
-      setPwError('New password must be at least 8 characters')
+      setPwError(t('settings.passwordTooShort', 'New password must be at least 8 characters'))
       return
     }
     if (pwForm.newPassword !== pwForm.confirm) {
-      setPwError('New passwords do not match')
+      setPwError(t('settings.passwordMismatch', 'New passwords do not match'))
       return
     }
     changePasswordMutation.mutate({
@@ -359,20 +359,20 @@ export default function SettingsPage() {
       <NavBar />
       <main className="flex-1 p-6 pb-24 md:pb-6 md:p-8">
         <div className="max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto space-y-6 animate-slide-up">
-          <h1 className="text-2xl md:text-3xl font-extrabold text-white">Settings</h1>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-white">{t('settings.title', 'Settings')}</h1>
 
           {/* Sound */}
           <div className="card space-y-4">
-            <SectionHeader title="Sound" />
+            <SectionHeader title={t('settings.soundSection', 'Sound')} />
             <div className="flex items-center justify-between py-1">
               <div>
-                <p className="text-sm font-semibold text-white">Sound Effects</p>
-                <p className="text-xs text-neutral-500 mt-0.5">Play sounds during the game</p>
+                <p className="text-sm font-semibold text-white">{t('settings.soundEffects', 'Sound Effects')}</p>
+                <p className="text-xs text-neutral-500 mt-0.5">{t('settings.soundEffectsDesc', 'Play sounds during the game')}</p>
               </div>
               <ToggleSwitch enabled={soundEnabled} onChange={setSoundEnabled} />
             </div>
             <VolumeSlider
-              label="Sound volume"
+              label={t('settings.soundVolume', 'Sound volume')}
               value={soundVolume}
               onChange={setSoundVolume}
               disabled={!soundEnabled}
@@ -381,16 +381,16 @@ export default function SettingsPage() {
 
           {/* Music */}
           <div className="card space-y-4">
-            <SectionHeader title="Music" />
+            <SectionHeader title={t('settings.musicSection', 'Music')} />
             <div className="flex items-center justify-between py-1">
               <div>
-                <p className="text-sm font-semibold text-white">Background Music</p>
-                <p className="text-xs text-neutral-500 mt-0.5">Looping track in menus and lobby</p>
+                <p className="text-sm font-semibold text-white">{t('settings.backgroundMusic', 'Background Music')}</p>
+                <p className="text-xs text-neutral-500 mt-0.5">{t('settings.backgroundMusicDesc', 'Looping track in menus and lobby')}</p>
               </div>
               <ToggleSwitch enabled={musicEnabled} onChange={setMusicEnabled} />
             </div>
             <VolumeSlider
-              label="Music volume"
+              label={t('settings.musicVolume', 'Music volume')}
               value={musicVolume}
               onChange={setMusicVolume}
               disabled={!musicEnabled}
@@ -399,14 +399,14 @@ export default function SettingsPage() {
 
           {/* Notifications */}
           <div className="card">
-            <SectionHeader title="Notifications" />
+            <SectionHeader title={t('settings.notificationsSection', 'Notifications')} />
             <div className="flex items-center justify-between py-1">
               <div>
-                <p className="text-sm font-semibold text-white">Browser Notifications</p>
+                <p className="text-sm font-semibold text-white">{t('settings.browserNotifications', 'Browser Notifications')}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">
                   {notifSupported
-                    ? 'Get notified about game invites'
-                    : 'Not supported on this browser'}
+                    ? t('settings.notificationsDesc', 'Get notified about game invites')
+                    : t('settings.notificationsUnsupported', 'Not supported on this browser')}
                 </p>
               </div>
               <ToggleSwitch
@@ -419,11 +419,11 @@ export default function SettingsPage() {
 
           {/* Language */}
           <div className="card">
-            <SectionHeader title="Language" />
+            <SectionHeader title={t('settings.languageSection', 'Language')} />
             <div className="flex items-center justify-between py-1">
               <div>
-                <p className="text-sm font-semibold text-white">App Language</p>
-                <p className="text-xs text-neutral-500 mt-0.5">Select your preferred language</p>
+                <p className="text-sm font-semibold text-white">{t('settings.appLanguage', 'App Language')}</p>
+                <p className="text-xs text-neutral-500 mt-0.5">{t('settings.appLanguageDesc', 'Select your preferred language')}</p>
               </div>
               <select
                 value={i18n.language?.split('-')[0] ?? 'en'}
@@ -441,7 +441,7 @@ export default function SettingsPage() {
 
           {/* Email verification */}
           <div className="card space-y-3">
-            <SectionHeader title="Email" />
+            <SectionHeader title={t('settings.emailSection', 'Email')} />
             {isOAuthUser ? (
               // OAuth accounts skip the 6-digit verification step — the
               // provider attests the email. Render a provider badge instead
@@ -452,14 +452,14 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <ProviderIcon provider={authProvider as Exclude<AuthProvider, 'email'>} />
                     <p className="text-sm font-semibold text-white">
-                      Signed in with {PROVIDER_LABEL[authProvider as Exclude<AuthProvider, 'email'>]}
+                      {t('settings.signedInWith', { provider: PROVIDER_LABEL[authProvider as Exclude<AuthProvider, 'email'>], defaultValue: `Signed in with ${PROVIDER_LABEL[authProvider as Exclude<AuthProvider, 'email'>]}` })}
                     </p>
                   </div>
                   {meQuery.data?.email && (
                     <p className="text-xs text-neutral-500 mt-1 break-all">{meQuery.data.email}</p>
                   )}
                   <p className="text-xs text-neutral-500 mt-1">
-                    Your email is verified through {PROVIDER_LABEL[authProvider as Exclude<AuthProvider, 'email'>]} — no code needed.
+                    {t('settings.emailVerifiedViaProvider', { provider: PROVIDER_LABEL[authProvider as Exclude<AuthProvider, 'email'>], defaultValue: `Your email is verified through ${PROVIDER_LABEL[authProvider as Exclude<AuthProvider, 'email'>]} — no code needed.` })}
                   </p>
                 </div>
               </div>
@@ -467,7 +467,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between py-1">
                 <div>
                   <p className="text-sm font-semibold text-white">
-                    Email verified <span className="text-emerald-400">✓</span>
+                    {t('settings.emailVerifiedLabel', 'Email verified')} <span className="text-emerald-400">✓</span>
                   </p>
                   {meQuery.data?.email && (
                     <p className="text-xs text-neutral-500 mt-0.5 break-all">{meQuery.data.email}</p>
@@ -477,10 +477,9 @@ export default function SettingsPage() {
             ) : (
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-semibold text-white">Verify your email</p>
+                  <p className="text-sm font-semibold text-white">{t('settings.verifyYourEmail', 'Verify your email')}</p>
                   <p className="text-xs text-neutral-500 mt-0.5">
-                    Unverified accounts start with 20 ⭐. Verify your email to earn +
-                    {EMAIL_VERIFICATION_REWARD} ⭐.
+                    {t('settings.verifyEmailDesc', { reward: EMAIL_VERIFICATION_REWARD, defaultValue: `Unverified accounts start with 20 ⭐. Verify your email to earn +${EMAIL_VERIFICATION_REWARD} ⭐.` })}
                   </p>
                   {meQuery.data?.email && (
                     <p className="text-xs text-neutral-400 mt-1 break-all">{meQuery.data.email}</p>
@@ -493,7 +492,7 @@ export default function SettingsPage() {
                     disabled={sendCodeMutation.isPending}
                     className="w-full py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
                   >
-                    {sendCodeMutation.isPending ? 'Sending…' : 'Send verification code'}
+                    {sendCodeMutation.isPending ? t('settings.sending', 'Sending…') : t('settings.sendVerificationCode', 'Send verification code')}
                   </button>
                 ) : (
                   <form
@@ -501,7 +500,7 @@ export default function SettingsPage() {
                       e.preventDefault()
                       setVerifyError(null)
                       if (!/^\d{6}$/.test(codeInput)) {
-                        setVerifyError('Enter the 6-digit code from your email.')
+                        setVerifyError(t('settings.enterCodeError', 'Enter the 6-digit code from your email.'))
                         return
                       }
                       verifyCodeMutation.mutate(codeInput)
@@ -514,7 +513,7 @@ export default function SettingsPage() {
                       pattern="[0-9]*"
                       maxLength={6}
                       autoComplete="one-time-code"
-                      placeholder="6-digit code"
+                      placeholder={t('settings.codePlaceholder', '6-digit code')}
                       value={codeInput}
                       onChange={(e) => setCodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-center text-lg font-mono tracking-[0.5em] placeholder-neutral-600 focus:outline-none focus:border-brand-600 transition-colors"
@@ -530,14 +529,14 @@ export default function SettingsPage() {
                         }}
                         className="flex-1 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-sm font-semibold transition-colors"
                       >
-                        Cancel
+                        {t('common.cancel', 'Cancel')}
                       </button>
                       <button
                         type="submit"
                         disabled={verifyCodeMutation.isPending || codeInput.length !== 6}
                         className="flex-1 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
                       >
-                        {verifyCodeMutation.isPending ? 'Verifying…' : 'Verify email'}
+                        {verifyCodeMutation.isPending ? t('settings.verifying', 'Verifying…') : t('settings.verifyEmail', 'Verify email')}
                       </button>
                     </div>
                     <button
@@ -546,7 +545,7 @@ export default function SettingsPage() {
                       disabled={sendCodeMutation.isPending}
                       className="w-full text-xs text-neutral-400 hover:text-white transition-colors disabled:opacity-40"
                     >
-                      {sendCodeMutation.isPending ? 'Sending…' : 'Resend code'}
+                      {sendCodeMutation.isPending ? t('settings.sending', 'Sending…') : t('settings.resendCode', 'Resend code')}
                     </button>
                   </form>
                 )}
@@ -561,18 +560,18 @@ export default function SettingsPage() {
 
           {/* Account */}
           <div className="card space-y-5">
-            <SectionHeader title="Account" />
+            <SectionHeader title={t('settings.accountSection', 'Account')} />
 
             {/* Change Password — hidden for OAuth accounts that have no
                 local password to change. They manage their credentials at
                 their provider (Google/Apple/Discord) instead. */}
             {!isOAuthUser && (
             <div>
-              <p className="text-sm font-semibold text-white mb-3">Change Password</p>
+              <p className="text-sm font-semibold text-white mb-3">{t('settings.changePassword', 'Change Password')}</p>
               <form onSubmit={handleChangePassword} className="space-y-2">
                 <input
                   type="password"
-                  placeholder="Current password"
+                  placeholder={t('settings.currentPassword', 'Current password')}
                   value={pwForm.currentPassword}
                   onChange={(e) => setPwForm((f) => ({ ...f, currentPassword: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-brand-600 transition-colors"
@@ -580,7 +579,7 @@ export default function SettingsPage() {
                 />
                 <input
                   type="password"
-                  placeholder="New password"
+                  placeholder={t('settings.newPassword', 'New password')}
                   value={pwForm.newPassword}
                   onChange={(e) => setPwForm((f) => ({ ...f, newPassword: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-brand-600 transition-colors"
@@ -588,7 +587,7 @@ export default function SettingsPage() {
                 />
                 <input
                   type="password"
-                  placeholder="Confirm new password"
+                  placeholder={t('settings.confirmNewPassword', 'Confirm new password')}
                   value={pwForm.confirm}
                   onChange={(e) => setPwForm((f) => ({ ...f, confirm: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-brand-600 transition-colors"
@@ -598,14 +597,14 @@ export default function SettingsPage() {
                   <p className="text-red-400 text-xs">{pwError}</p>
                 )}
                 {pwSuccess && (
-                  <p className="text-emerald-400 text-xs">Password changed successfully.</p>
+                  <p className="text-emerald-400 text-xs">{t('settings.passwordChanged', 'Password changed successfully.')}</p>
                 )}
                 <button
                   type="submit"
                   disabled={changePasswordMutation.isPending}
                   className="w-full py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
                 >
-                  {changePasswordMutation.isPending ? 'Saving…' : 'Update Password'}
+                  {changePasswordMutation.isPending ? t('settings.saving', 'Saving…') : t('settings.updatePassword', 'Update Password')}
                 </button>
               </form>
             </div>
@@ -613,30 +612,29 @@ export default function SettingsPage() {
 
             {/* Delete Account */}
             <div className="border-t border-neutral-800 pt-4">
-              <p className="text-sm font-semibold text-white mb-1">Delete Account</p>
+              <p className="text-sm font-semibold text-white mb-1">{t('settings.deleteAccountTitle', 'Delete Account')}</p>
               <p className="text-xs text-neutral-500 mb-3">
-                Permanently deletes your account and all associated data. This cannot be undone.
+                {t('settings.deleteAccountDesc', 'Permanently deletes your account and all associated data. This cannot be undone.')}
               </p>
               <button
                 onClick={() => setShowDeleteModal(true)}
                 className="px-4 py-2 rounded-xl bg-red-950/60 hover:bg-red-900/60 border border-red-800/60 text-red-400 text-sm font-semibold transition-colors"
               >
-                Delete My Account
+                {t('settings.deleteMyAccount', 'Delete My Account')}
               </button>
             </div>
           </div>
 
           {/* Contact Support */}
           <div className="card space-y-3">
-            <SectionHeader title="Contact Support" />
+            <SectionHeader title={t('settings.supportSection', 'Contact Support')} />
             <p className="text-xs text-neutral-500 -mt-2">
-              Found a bug, have a question, or want to suggest something? Send us a message — we'll reply to your
-              account email.
+              {t('settings.supportDesc', "Found a bug, have a question, or want to suggest something? Send us a message — we'll reply to your account email.")}
             </p>
             <form onSubmit={handleContactSupport} className="space-y-2">
               <input
                 type="text"
-                placeholder="Subject"
+                placeholder={t('settings.supportSubject', 'Subject')}
                 value={supportForm.subject}
                 onChange={(e) => setSupportForm((f) => ({ ...f, subject: e.target.value }))}
                 maxLength={200}
@@ -644,7 +642,7 @@ export default function SettingsPage() {
                 required
               />
               <textarea
-                placeholder="Describe your request or issue…"
+                placeholder={t('settings.supportMessage', 'Describe your request or issue…')}
                 value={supportForm.message}
                 onChange={(e) => setSupportForm((f) => ({ ...f, message: e.target.value }))}
                 maxLength={5000}
@@ -656,31 +654,31 @@ export default function SettingsPage() {
                 <span className="text-[11px] text-neutral-600">
                   {supportForm.message.length}/5000
                 </span>
-                <span className="text-[11px] text-neutral-600">Limit: 3 messages / hour</span>
+                <span className="text-[11px] text-neutral-600">{t('settings.supportLimit', 'Limit: 3 messages / hour')}</span>
               </div>
               {supportError && <p className="text-red-400 text-xs">{supportError}</p>}
               {supportSuccess && (
-                <p className="text-emerald-400 text-xs">Message sent — we'll get back to you soon.</p>
+                <p className="text-emerald-400 text-xs">{t('settings.supportSent', "Message sent — we'll get back to you soon.")}</p>
               )}
               <button
                 type="submit"
                 disabled={contactSupportMutation.isPending}
                 className="w-full py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
               >
-                {contactSupportMutation.isPending ? 'Sending…' : 'Send Message'}
+                {contactSupportMutation.isPending ? t('settings.sending', 'Sending…') : t('settings.sendMessage', 'Send Message')}
               </button>
             </form>
           </div>
 
           {/* Legal */}
           <div className="card">
-            <SectionHeader title="Legal" />
+            <SectionHeader title={t('settings.legalSection', 'Legal')} />
             <div className="space-y-1">
               <Link
                 to="/terms"
                 className="flex items-center justify-between py-2.5 px-1 text-sm text-neutral-300 hover:text-white transition-colors group"
               >
-                <span>Terms of Service</span>
+                <span>{t('settings.termsOfService', 'Terms of Service')}</span>
                 <span className="text-neutral-600 group-hover:text-neutral-400 transition-colors">›</span>
               </Link>
               <div className="h-px bg-neutral-800" />
@@ -688,12 +686,12 @@ export default function SettingsPage() {
                 to="/privacy"
                 className="flex items-center justify-between py-2.5 px-1 text-sm text-neutral-300 hover:text-white transition-colors group"
               >
-                <span>Privacy Policy</span>
+                <span>{t('settings.privacyPolicy', 'Privacy Policy')}</span>
                 <span className="text-neutral-600 group-hover:text-neutral-400 transition-colors">›</span>
               </Link>
               <div className="h-px bg-neutral-800" />
               <div className="flex items-center justify-between py-2.5 px-1">
-                <span className="text-sm text-neutral-500">App Version</span>
+                <span className="text-sm text-neutral-500">{t('settings.appVersion', 'App Version')}</span>
                 <span className="text-xs text-neutral-600 font-mono">1.0.0</span>
               </div>
             </div>
@@ -702,13 +700,12 @@ export default function SettingsPage() {
           {/* Help the developer */}
           <div className="card text-center space-y-2">
             <p className="text-2xl">☕</p>
-            <p className="text-sm font-semibold text-white">Help the developer</p>
+            <p className="text-sm font-semibold text-white">{t('settings.helpSection', 'Help the developer')}</p>
             <p className="text-xs text-neutral-500">
-              Red Handed is built by a tiny team. If you're enjoying the game, you'll soon be able to support
-              development here.
+              {t('settings.helpDesc', "Red Handed is built by a tiny team. If you're enjoying the game, you'll soon be able to support development here.")}
             </p>
             <p className="text-[11px] uppercase tracking-widest text-neutral-600 pt-1">
-              Buy Me a Coffee · Patreon · Coming soon
+              {t('settings.helpCta', 'Buy Me a Coffee · Patreon · Coming soon')}
             </p>
           </div>
         </div>
@@ -718,19 +715,18 @@ export default function SettingsPage() {
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 max-w-sm w-full space-y-4">
-            <h2 className="text-lg font-bold text-white">Delete Account</h2>
+            <h2 className="text-lg font-bold text-white">{t('settings.deleteModalTitle', 'Delete Account')}</h2>
             <p className="text-sm text-neutral-400">
-              This action is <span className="text-red-400 font-semibold">permanent and irreversible</span>. All your
-              data including rank, coins, and game history will be deleted.
+              {t('settings.deleteModalBody', 'This action is permanent and irreversible. All your data including rank, coins, and game history will be deleted.')}
             </p>
             <p className="text-sm text-neutral-400">
-              Type <span className="font-mono text-white">DELETE</span> to confirm.
+              {t('settings.deleteModalConfirmPrompt', 'Type DELETE to confirm.')}
             </p>
             <input
               type="text"
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
-              placeholder="Type DELETE to confirm"
+              placeholder={t('settings.deleteModalPlaceholder', 'Type DELETE to confirm')}
               className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-red-600 transition-colors"
             />
             <div className="flex gap-2">
@@ -741,14 +737,14 @@ export default function SettingsPage() {
                 }}
                 className="flex-1 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-sm font-semibold transition-colors"
               >
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 onClick={() => deleteAccountMutation.mutate()}
                 disabled={deleteConfirmText !== 'DELETE' || deleteAccountMutation.isPending}
                 className="flex-1 py-2 rounded-xl bg-red-700 hover:bg-red-600 text-white text-sm font-semibold transition-colors disabled:opacity-40"
               >
-                {deleteAccountMutation.isPending ? 'Deleting…' : 'Delete Account'}
+                {deleteAccountMutation.isPending ? t('settings.deleting', 'Deleting…') : t('settings.deleteModalConfirmBtn', 'Delete Account')}
               </button>
             </div>
           </div>
