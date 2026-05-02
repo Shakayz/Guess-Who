@@ -666,6 +666,8 @@ export default {
     confirmAfter: 'खरीद के बाद {{remaining}} ⭐ बचेंगे',
     confirmYes: '✅ हाँ, खरीदें',
     confirmNo: 'रद्द करें',
+    friendUsernamePlaceholder: 'उदा. alice',
+    giftMessagePlaceholder: 'जन्मदिन मुबारक! 🎂',
   },
   honor: {
     giveHonor: 'सम्मान दें',

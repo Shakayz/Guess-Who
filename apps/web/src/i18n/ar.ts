@@ -669,6 +669,8 @@ export default {
     confirmAfter: 'سيتبقى لك {{remaining}} ⭐ بعد الشراء',
     confirmYes: '✅ نعم، اشترِ',
     confirmNo: 'إلغاء',
+    friendUsernamePlaceholder: 'مثال: alice',
+    giftMessagePlaceholder: 'عيد ميلاد سعيد! 🎂',
   },
   honor: {
     giveHonor: 'منح شرف',

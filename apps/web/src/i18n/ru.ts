@@ -656,6 +656,8 @@ export default {
     confirmAfter: 'После покупки останется {{remaining}} ⭐',
     confirmYes: '✅ Да, купить',
     confirmNo: 'Отмена',
+    friendUsernamePlaceholder: 'напр. alice',
+    giftMessagePlaceholder: 'С днём рождения! 🎂',
   },
   honor: {
     giveHonor: 'Дать честь',

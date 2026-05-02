@@ -667,6 +667,8 @@ export default {
     confirmAfter: 'Você ficará com {{remaining}} ⭐ depois',
     confirmYes: '✅ Sim, comprar',
     confirmNo: 'Cancelar',
+    friendUsernamePlaceholder: 'ex. alice',
+    giftMessagePlaceholder: 'Feliz aniversário! 🎂',
   },
   honor: {
     giveHonor: 'Dar honra',

@@ -667,6 +667,8 @@ export default {
     confirmAfter: '购买后剩余 {{remaining}} ⭐',
     confirmYes: '✅ 是的，购买',
     confirmNo: '取消',
+    friendUsernamePlaceholder: '例如 alice',
+    giftMessagePlaceholder: '生日快乐！🎂',
   },
   honor: {
     giveHonor: '给予荣誉',
