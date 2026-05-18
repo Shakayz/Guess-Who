@@ -7457,60 +7457,32 @@ const EXTRAS_TRANSLATABLE_V10 = {
 }
 
 // ============================================================================
-// Pair generation: C(40,2) = 780 combinatorial + 260 hand-curated extras (V5+V6+V7+V8+V9+V10)
-// = 1040 unordered pairs per (locale, category).
+// Pair generation: hand-curated extras only (V5+V6+V7+V8+V9+V10).
+// Combinatorial C(40,2) generation was removed — it produced semantically
+// unrelated pairs (Federer+PewDiePie, PlayStation+Pilates, etc.) because it
+// blindly combined every item in a pool regardless of sub-type.
 // ============================================================================
 
-function allPairs(items) {
-  const out = []
-  for (let i = 0; i < items.length; i++) {
-    for (let j = i + 1; j < items.length; j++) {
-      out.push([items[i], items[j]])
-    }
-  }
-  return out
-}
-
-function poolFor(category, locale) {
-  if (INVARIANT[category]) return INVARIANT[category]
-  const byLocale = TRANSLATABLE[category]
-  if (!byLocale) throw new Error(`Unknown category: ${category}`)
-  return byLocale[locale] ?? byLocale.en
-}
-
-function extrasFor(category, locale) {
-  if (EXTRAS_INVARIANT[category]) {
-    const v5 = EXTRAS_INVARIANT[category] ?? []
-    const v6 = EXTRAS_INVARIANT_V6[category] ?? []
-    const v7 = EXTRAS_INVARIANT_V7[category] ?? []
-    const v8 = EXTRAS_INVARIANT_V8[category] ?? []
-    const v9 = EXTRAS_INVARIANT_V9[category] ?? []
-    const v10 = EXTRAS_INVARIANT_V10[category] ?? []
-    return [...v5, ...v6, ...v7, ...v8, ...v9, ...v10]
-  }
-  const tr5 = EXTRAS_TRANSLATABLE[category]
-  const tr6 = EXTRAS_TRANSLATABLE_V6[category]
-  const tr7 = EXTRAS_TRANSLATABLE_V7[category]
-  const tr8 = EXTRAS_TRANSLATABLE_V8[category]
-  const tr9 = EXTRAS_TRANSLATABLE_V9[category]
-  const tr10 = EXTRAS_TRANSLATABLE_V10[category]
-  const v5 = tr5 ? (tr5[locale] ?? tr5.en ?? []) : []
-  const v6 = tr6 ? (tr6[locale] ?? tr6.en ?? []) : []
-  const v7 = tr7 ? (tr7[locale] ?? tr7.en ?? []) : []
-  const v8 = tr8 ? (tr8[locale] ?? tr8.en ?? []) : []
-  const v9 = tr9 ? (tr9[locale] ?? tr9.en ?? []) : []
-  const v10 = tr10 ? (tr10[locale] ?? tr10.en ?? []) : []
-  return [...v5, ...v6, ...v7, ...v8, ...v9, ...v10]
-}
-
 function pairsForLocaleCategory(category, locale) {
-  const items = poolFor(category, locale)
-  if (items.length !== POOL_SIZE) {
-    throw new Error(`[${category}/${locale}] expected ${POOL_SIZE} items, got ${items.length}`)
+  if (EXTRAS_INVARIANT[category]) {
+    return [
+      ...(EXTRAS_INVARIANT[category] ?? []),
+      ...(EXTRAS_INVARIANT_V6[category] ?? []),
+      ...(EXTRAS_INVARIANT_V7[category] ?? []),
+      ...(EXTRAS_INVARIANT_V8[category] ?? []),
+      ...(EXTRAS_INVARIANT_V9[category] ?? []),
+      ...(EXTRAS_INVARIANT_V10[category] ?? []),
+    ]
   }
-  const combinatorial = allPairs(items)
-  const extras = extrasFor(category, locale)
-  return [...combinatorial, ...extras]
+  const pick = (obj) => obj ? (obj[locale] ?? obj.en ?? []) : []
+  return [
+    ...pick(EXTRAS_TRANSLATABLE[category]),
+    ...pick(EXTRAS_TRANSLATABLE_V6[category]),
+    ...pick(EXTRAS_TRANSLATABLE_V7[category]),
+    ...pick(EXTRAS_TRANSLATABLE_V8[category]),
+    ...pick(EXTRAS_TRANSLATABLE_V9[category]),
+    ...pick(EXTRAS_TRANSLATABLE_V10[category]),
+  ]
 }
 
 // ============================================================================
