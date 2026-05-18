@@ -366,18 +366,18 @@ async function startGameForRoom(
       'roles assigned for new game',
     )
 
-    // Pick words. The default path draws from the shared offline pair bank so
-    // online/unranked/ranked/create-lobby games use the *exact same* curated
-    // pairs as offline mode, locale-aware and with working category filtering.
-    // Only custom word packs (room.wordPackId set to a real pack id) still go
-    // through the DB — that's where user-authored content lives.
+    // Pick words. Online rooms use the system-seeded curated DB pack for the
+    // room's locale — fixed pairs where both words are clearly related.
+    // Custom word packs (user-authored, wordPackId !== 'default') are queried
+    // directly. Offline combinatorial pairs are the last-resort fallback only.
     const selectedCategories: string[] = state.categories ?? []
     const roomLocale: string = (room as any).language ?? 'en'
     let wordPair = FALLBACK_WORDS[Math.floor(Math.random() * FALLBACK_WORDS.length)]
     let wordCategory: WordCategory | undefined
     try {
+      const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
       if (room.wordPackId && room.wordPackId !== 'default') {
-        const categoryFilter = selectedCategories.length === 0 ? {} : { category: { in: selectedCategories } }
+        // User-authored or premium pack
         const pack = await prisma.wordPack.findUnique({
           where: { id: room.wordPackId },
           include: { pairs: { where: categoryFilter } },
@@ -392,9 +392,21 @@ async function startGameForRoom(
           wordCategory = pair.category
         }
       } else {
-        const pair = await pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
-        wordPair = { wordA: pair.villagerWord, wordB: pair.redHandedWord }
-        wordCategory = pair.category
+        // Default: use the system curated pack for this locale
+        const systemPack = await prisma.wordPack.findFirst({
+          where: { locale: roomLocale, isPremium: false, authorId: null },
+          include: { pairs: { where: categoryFilter } },
+        })
+        if (systemPack && systemPack.pairs.length > 0) {
+          const pair = systemPack.pairs[Math.floor(Math.random() * systemPack.pairs.length)]
+          wordPair = { wordA: pair.wordA, wordB: pair.wordB }
+          wordCategory = pair.category as WordCategory
+        } else {
+          // Fallback to offline pairs if DB pack not seeded yet
+          const pair = await pickRandomWordPair(selectedCategories as WordCategory[], shuffleArray, roomLocale)
+          wordPair = { wordA: pair.villagerWord, wordB: pair.redHandedWord }
+          wordCategory = pair.category
+        }
       }
     } catch { /* use FALLBACK_WORDS */ }
 
