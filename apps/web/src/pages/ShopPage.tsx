@@ -115,7 +115,7 @@ export default function ShopPage() {
               coins on cosmetic extras" destination. */}
           <div className="flex gap-2 mb-6 overflow-x-auto">
             <TabButton active={tab === 'coins'}   onClick={() => setTab('coins')}>{t('shop.tabCoins')}</TabButton>
-            <TabButton active={tab === 'emotes'}  onClick={() => setTab('emotes')}>Emotes</TabButton>
+            <TabButton active={tab === 'emotes'}  onClick={() => setTab('emotes')}>{t('shop.tabEmotes', '🎭 Emotes')}</TabButton>
             <TabButton active={tab === 'premium'} onClick={() => setTab('premium')}>{t('shop.tabPremium')}</TabButton>
           </div>
 
@@ -295,6 +295,7 @@ const RARITY_LABEL: Record<EmoteRarity, string> = {
 }
 
 function EmotesTab({ starCoins, onGoToCoins }: { starCoins: number; onGoToCoins: () => void }) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const emotesStore = useEmotesStore()
   const [notice, setNotice] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null)
@@ -331,7 +332,7 @@ function EmotesTab({ starCoins, onGoToCoins }: { starCoins: number; onGoToCoins:
       window.dispatchEvent(
         new CustomEvent('wallet:balance', { detail: { starCoins: res.starCoins } }),
       )
-      setNotice({ kind: 'ok', text: 'Unlocked! Equip it in Profile → Emotes.' })
+      setNotice({ kind: 'ok', text: t('shop.emoteUnlocked', 'Unlocked! Equip it in Profile → Emotes.') })
     },
     onError: (err, id) => {
       const msg = err.message || ''
@@ -348,8 +349,8 @@ function EmotesTab({ starCoins, onGoToCoins }: { starCoins: number; onGoToCoins:
       setNotice({
         kind: 'error',
         text: msg.includes('already_owned')
-          ? 'You already own this emote.'
-          : msg || 'Purchase failed. Please try again.',
+          ? t('shop.emoteAlreadyOwned', 'You already own this emote.')
+          : msg || t('shop.emotePurchaseFailed', 'Purchase failed. Please try again.'),
       })
     },
   })
@@ -374,7 +375,7 @@ function EmotesTab({ starCoins, onGoToCoins }: { starCoins: number; onGoToCoins:
   const handleBuy = (em: CatalogEmote) => {
     setNotice(null)
     if (em.rarity === 'free' || owned.has(em.id)) {
-      setNotice({ kind: 'ok', text: 'You already have this one.' })
+      setNotice({ kind: 'ok', text: t('shop.emoteAlreadyHave', 'You already have this one.') })
       return
     }
     if (buy.isPending) return
@@ -398,8 +399,7 @@ function EmotesTab({ starCoins, onGoToCoins }: { starCoins: number; onGoToCoins:
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-brand-600/30 bg-brand-950/30 px-4 py-3 text-sm text-brand-200">
-        Unlocked emotes are automatically available for your React bar. Head to{' '}
-        <span className="font-semibold text-white">Profile → Emotes</span> to pick which 10 appear in-game.
+        {t('shop.emoteTabDesc', 'Unlocked emotes are automatically available for your React bar. Head to Profile → Emotes to pick which 10 appear in-game.')}
       </div>
 
       {notice && (
@@ -498,6 +498,7 @@ function ConfirmPurchaseModal({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const { t } = useTranslation()
   const canAfford = starCoins >= emote.price
   return (
     <div
@@ -510,19 +511,19 @@ function ConfirmPurchaseModal({
       >
         <div className="text-center mb-4">
           <p className="text-5xl mb-2" aria-hidden>{emote.emoji}</p>
-          <h3 className="text-lg font-extrabold text-white">Unlock {emote.name}?</h3>
+          <h3 className="text-lg font-extrabold text-white">{t('shop.confirmTitle', { name: emote.name, defaultValue: `Unlock ${emote.name}?` })}</h3>
           <p className="text-sm text-neutral-400 mt-1">
-            This will spend <span className="font-semibold text-white">{emote.price.toLocaleString()} ⭐</span> from your balance.
+            {t('shop.confirmSpend', { price: emote.price.toLocaleString(), defaultValue: `This will spend ${emote.price.toLocaleString()} ⭐ from your balance.` })}
           </p>
           <p className="text-xs text-neutral-500 mt-2">
-            Balance: {starCoins.toLocaleString()} ⭐
+            {t('shop.confirmBalance', { balance: starCoins.toLocaleString(), defaultValue: `Balance: ${starCoins.toLocaleString()} ⭐` })}
             {canAfford && (
-              <> → {(starCoins - emote.price).toLocaleString()} ⭐ after</>
+              <> {t('shop.confirmAfter', { after: (starCoins - emote.price).toLocaleString(), defaultValue: `→ ${(starCoins - emote.price).toLocaleString()} ⭐ after` })}</>
             )}
           </p>
           {!canAfford && (
             <p className="text-xs text-red-400 mt-2">
-              Not enough coins — short by {(emote.price - starCoins).toLocaleString()} ⭐.
+              {t('shop.confirmNotEnough', { short: (emote.price - starCoins).toLocaleString(), defaultValue: `Not enough coins — short by ${(emote.price - starCoins).toLocaleString()} ⭐.` })}
             </p>
           )}
         </div>
@@ -532,14 +533,14 @@ function ConfirmPurchaseModal({
             onClick={onCancel}
             className="flex-1 py-2.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-sm font-semibold transition-colors"
           >
-            Cancel
+            {t('common.cancel', 'Cancel')}
           </button>
           <button
             onClick={onConfirm}
             disabled={!canAfford}
             className="flex-1 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white text-sm font-bold transition-colors"
           >
-            Confirm · {emote.price.toLocaleString()} ⭐
+            {t('shop.confirmBtn', { price: emote.price.toLocaleString(), defaultValue: `Confirm · ${emote.price.toLocaleString()} ⭐` })}
           </button>
         </div>
       </div>
@@ -562,6 +563,7 @@ type InboxGift = {
 }
 
 function GiftsInbox() {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { data, isLoading } = useQuery<InboxGift[]>({
     queryKey: ['gifts', 'inbox'],
@@ -582,14 +584,14 @@ function GiftsInbox() {
   return (
     <section className="mb-6">
       <p className="text-xs text-neutral-500 uppercase tracking-widest font-semibold mb-3">
-        🎁 Gifts for you
+        {t('shop.giftsTitle', '🎁 Gifts for you')}
       </p>
       <div className="space-y-2">
         {data.map((gift) => {
           const describe = gift.premiumPlanId
             ? gift.premiumPlanId === 'yearly'
-              ? 'Premium · 1 year'
-              : 'Premium · 1 month'
+              ? t('shop.giftPremiumYear', 'Premium · 1 year')
+              : t('shop.giftPremiumMonth', 'Premium · 1 month')
             : `${gift.coinAmount.toLocaleString()} ⭐`
           const busy = claim.isPending && claim.variables === gift.id
           return (
@@ -600,7 +602,7 @@ function GiftsInbox() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white">
                   <span className="font-semibold">@{gift.sender.username}</span>
-                  <span className="text-neutral-400"> sent you </span>
+                  <span className="text-neutral-400"> {t('shop.giftSentYou', 'sent you')} </span>
                   <span className="font-semibold">{describe}</span>
                 </p>
                 {gift.message && (
@@ -612,7 +614,7 @@ function GiftsInbox() {
                 disabled={claim.isPending}
                 className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold transition-colors"
               >
-                {busy ? '…' : 'Claim'}
+                {busy ? '…' : t('shop.giftClaim', 'Claim')}
               </button>
             </div>
           )
@@ -630,6 +632,7 @@ function GiftsInbox() {
 // ─── Checkout return banner ───────────────────────────────────────────────────
 
 function CheckoutBanner() {
+  const { t } = useTranslation()
   const [params, setParams] = useSearchParams()
   const queryClient = useQueryClient()
   const status = params.get('checkout')
@@ -661,8 +664,8 @@ function CheckoutBanner() {
     >
       <span>
         {status === 'success'
-          ? '✅ Payment successful — your star coins will appear in a few seconds.'
-          : 'Checkout canceled. No charge was made.'}
+          ? t('shop.checkoutSuccess', '✅ Payment successful — your star coins will appear in a few seconds.')
+          : t('shop.checkoutCanceled', 'Checkout canceled. No charge was made.')}
       </span>
       <button onClick={dismiss} className="text-xs text-neutral-400 hover:text-white">
         ✕
@@ -790,7 +793,7 @@ function PremiumTab() {
         })}
         className="mt-3 w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-sm font-semibold transition-colors border border-neutral-700"
       >
-        🎁 Gift this to a friend
+        {t('shop.giftThisToFriend', '🎁 Gift this to a friend')}
       </button>
 
       {(checkout.isError || portal.isError) && (
@@ -818,6 +821,7 @@ type GiftTarget =
   | { kind: 'premium'; id: PremiumPlanId; label: string }
 
 function GiftModal({ target, onClose }: { target: GiftTarget; onClose: () => void }) {
+  const { t } = useTranslation()
   const [username, setUsername] = useState('')
   const [message, setMessage] = useState('')
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
@@ -860,17 +864,16 @@ function GiftModal({ target, onClose }: { target: GiftTarget; onClose: () => voi
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-extrabold text-white">🎁 Send as gift</h3>
+          <h3 className="text-lg font-extrabold text-white">{t('shop.sendAsGift', '🎁 Send as gift')}</h3>
           <button onClick={onClose} className="text-neutral-500 hover:text-white text-lg leading-none">✕</button>
         </div>
 
         <p className="text-xs text-neutral-400 mb-4">
-          You're gifting <span className="font-semibold text-white">{target.label}</span>. Your
-          friend gets it in their inbox after your payment clears.
+          {t('shop.giftingX', { label: target.label, defaultValue: `You're gifting ${target.label}. Your friend gets it in their inbox after your payment clears.` })}
         </p>
 
         <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1.5">
-          Friend's username
+          {t('shop.friendUsernameLabel', "Friend's username")}
         </label>
         <div className="relative mb-3">
           <input
@@ -882,7 +885,7 @@ function GiftModal({ target, onClose }: { target: GiftTarget; onClose: () => voi
             }}
             onFocus={() => setSuggestionsOpen(true)}
             onBlur={() => setTimeout(() => setSuggestionsOpen(false), 150)}
-            placeholder="e.g. alice"
+            placeholder={t('shop.friendUsernamePlaceholder', 'e.g. alice')}
             autoFocus
             maxLength={20}
             className="w-full px-3 py-2 rounded-lg bg-neutral-950 border border-neutral-800 text-white text-sm focus:border-brand-500 focus:outline-none"
@@ -916,12 +919,12 @@ function GiftModal({ target, onClose }: { target: GiftTarget; onClose: () => voi
         </div>
 
         <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1.5">
-          Message <span className="text-neutral-600 normal-case font-normal">(optional)</span>
+          {t('shop.giftMessageLabel', 'Message')} <span className="text-neutral-600 normal-case font-normal">{t('shop.giftMessageOptional', '(optional)')}</span>
         </label>
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Happy birthday! 🎂"
+          placeholder={t('shop.giftMessagePlaceholder', 'Happy birthday! 🎂')}
           maxLength={200}
           rows={2}
           className="w-full mb-4 px-3 py-2 rounded-lg bg-neutral-950 border border-neutral-800 text-white text-sm focus:border-brand-500 focus:outline-none resize-none"
@@ -929,7 +932,7 @@ function GiftModal({ target, onClose }: { target: GiftTarget; onClose: () => voi
 
         {checkout.isError && (
           <div className="mb-3 px-3 py-2 rounded-lg bg-red-950/30 border border-red-900/50 text-red-300 text-xs">
-            {errorMessage(checkout.error)}
+            {errorMessage(checkout.error, t)}
           </div>
         )}
 
@@ -938,10 +941,10 @@ function GiftModal({ target, onClose }: { target: GiftTarget; onClose: () => voi
           disabled={!canSubmit}
           className="w-full py-2.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white text-sm font-bold transition-colors"
         >
-          {checkout.isPending ? '…' : 'Continue to payment'}
+          {checkout.isPending ? '…' : t('shop.giftContinue', 'Continue to payment')}
         </button>
         <p className="text-[11px] text-neutral-600 text-center mt-2">
-          You must be friends to send a gift.
+          {t('shop.giftFriendsOnly', 'You must be friends to send a gift.')}
         </p>
       </div>
     </div>
@@ -951,13 +954,13 @@ function GiftModal({ target, onClose }: { target: GiftTarget; onClose: () => voi
 // Translates the API's discriminated error codes to end-user-friendly text.
 // The server returns short machine-readable codes (`not_friends`,
 // `user_not_found`, etc.) so the UI layer controls the copy/tone.
-function errorMessage(err: Error): string {
+function errorMessage(err: Error, t: (key: string, fallback: string) => string): string {
   const raw = err.message || ''
-  if (raw.includes('not_friends')) return 'You can only gift friends.'
-  if (raw.includes('user_not_found')) return 'No user with that username.'
-  if (raw.includes('cannot_gift_self')) return "You can't gift yourself."
-  if (raw.includes('missing_receiver')) return 'Enter a username.'
-  return raw || 'Something went wrong.'
+  if (raw.includes('not_friends')) return t('shop.errorNotFriends', 'You can only gift friends.')
+  if (raw.includes('user_not_found')) return t('shop.errorUserNotFound', 'No user with that username.')
+  if (raw.includes('cannot_gift_self')) return t('shop.errorCannotGiftSelf', "You can't gift yourself.")
+  if (raw.includes('missing_receiver')) return t('shop.errorMissingReceiver', 'Enter a username.')
+  return raw || t('shop.errorGeneric', 'Something went wrong.')
 }
 
 function PlanTile({

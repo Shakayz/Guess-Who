@@ -123,7 +123,7 @@ export default function HistoryPage() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-extrabold text-white tracking-tight">{t('history.title')}</h1>
             {data && (
-              <span className="text-sm text-neutral-500">{data.total} game{data.total !== 1 ? 's' : ''}</span>
+              <span className="text-sm text-neutral-500">{t('history.gamesCount', { count: data.total, defaultValue: `${data.total} game${data.total !== 1 ? 's' : ''}` })}</span>
             )}
           </div>
 
@@ -214,7 +214,7 @@ export default function HistoryPage() {
                             </span>
                           </div>
                           <p className="text-neutral-500 text-xs mt-0.5">
-                            {game.players.length} player{game.players.length !== 1 ? 's' : ''} · {game.roundCount} round{game.roundCount !== 1 ? 's' : ''}
+                            {t('history.playersCount', { count: game.players.length, defaultValue: `${game.players.length} player${game.players.length !== 1 ? 's' : ''}` })} · {t('history.roundsCount', { count: game.roundCount, defaultValue: `${game.roundCount} round${game.roundCount !== 1 ? 's' : ''}` })}
                           </p>
                         </div>
                         <span

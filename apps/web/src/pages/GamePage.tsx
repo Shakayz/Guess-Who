@@ -228,7 +228,7 @@ const PlayerClueHistoryModal = memo(({
             <button
               onClick={onClose}
               className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white transition-colors"
-              aria-label="Close"
+              aria-label={t('common.close', 'Close')}
             >
               ✕
             </button>
@@ -2006,7 +2006,7 @@ export default function GamePage() {
                 {isMyTurn && (
                   <button
                     type="button"
-                    aria-label="End my turn"
+                    aria-label={t('game.vocalEndTurn', 'End my turn')}
                     onClick={() => getSocket().emit('vocal:skip-turn' as any)}
                     className="w-full px-4 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition-colors"
                   >
@@ -2037,7 +2037,7 @@ export default function GamePage() {
                 <input
                   className="input-field flex-1"
                   placeholder={t('game.cluePlaceholder')}
-                  aria-label="Enter your clue"
+                  aria-label={t('game.enterClueAriaLabel', 'Enter your clue')}
                   value={clueText}
                   onChange={(e) => setClueText(e.target.value)}
                   maxLength={200}
@@ -2046,7 +2046,7 @@ export default function GamePage() {
                 <button
                   type="submit"
                   disabled={!clueText.trim()}
-                  aria-label="Submit clue"
+                  aria-label={t('game.submitClueAriaLabel', 'Submit clue')}
                   className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold disabled:opacity-40 transition-colors"
                 >
                   {t('game.send')}

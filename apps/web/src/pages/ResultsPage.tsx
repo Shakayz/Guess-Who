@@ -817,7 +817,7 @@ export default function ResultsPage() {
                           <button
                             onClick={(e) => { e.stopPropagation(); openMenu() }}
                             className="w-6 h-6 flex items-center justify-center rounded-lg text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800 transition-colors text-xs"
-                            title="More options"
+                            title={t('results.moreOptions', 'More options')}
                           >
                             ⋯
                           </button>
